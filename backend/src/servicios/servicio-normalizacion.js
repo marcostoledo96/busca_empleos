@@ -74,6 +74,58 @@ function normalizarOfertaComputrabajo(item) {
 }
 
 /**
+ * Normalizo una oferta cruda de Indeed al esquema de nuestra tabla `ofertas`.
+ *
+ * Indeed trae los datos en una estructura distinta a LinkedIn y Computrabajo:
+ * - La ubicación viene separada en `location.city` y `location.countryName`.
+ * - La modalidad y el nivel vienen como valores dentro de `attributes` (un objeto key-value).
+ * - El salario viene en `baseSalary` con `min`, `max` y `currencyCode`.
+ * - En Argentina, si `location.city` es "Desde casa", significa remoto.
+ *
+ * @param {Object} item - Objeto crudo del actor de Indeed.
+ * @returns {Object} Oferta en el formato de nuestra tabla.
+ * @throws {Error} Si el item no tiene URL.
+ */
+function normalizarOfertaIndeed(item) {
+    const url = item.url;
+    if (!url) {
+        throw new Error('El item de Indeed no tiene URL.');
+    }
+
+    // Construyo la ubicación combinando ciudad y país.
+    const ciudad = item.location?.city || null;
+    const pais = item.location?.countryName || null;
+    const ubicacion = [ciudad, pais].filter(Boolean).join(', ') || null;
+
+    // Detecto la modalidad de trabajo desde los datos de Indeed.
+    const modalidad = detectarModalidadIndeed(item);
+
+    // Detecto el nivel de experiencia desde los atributos.
+    const nivelRequerido = detectarNivelIndeed(item);
+
+    // Extraigo el salario si viene en baseSalary.
+    const salarioMin = item.baseSalary?.min || null;
+    const salarioMax = item.baseSalary?.max || null;
+    const moneda = item.baseSalary?.currencyCode || null;
+
+    return {
+        titulo: item.title || null,
+        empresa: item.employer?.name || null,
+        ubicacion,
+        modalidad,
+        descripcion: item.description?.text || null,
+        url,
+        plataforma: 'indeed',
+        nivel_requerido: nivelRequerido,
+        salario_min: salarioMin,
+        salario_max: salarioMax,
+        moneda,
+        fecha_publicacion: item.datePublished ? new Date(item.datePublished) : null,
+        datos_crudos: item,
+    };
+}
+
+/**
  * Normalizo un lote de items de una plataforma.
  * Los items que fallan se ignoran (con log de advertencia) para no perder
  * los demás. Es mejor tener 99 ofertas que 0 por un item roto.
@@ -87,9 +139,19 @@ function normalizarLote(items, plataforma) {
         return [];
     }
 
-    const normalizador = plataforma === 'linkedin'
-        ? normalizarOfertaLinkedin
-        : normalizarOfertaComputrabajo;
+    // Uso un mapa de normalizadores para elegir la función correcta
+    // según la plataforma. Así es fácil agregar nuevas plataformas.
+    const normalizadores = {
+        linkedin: normalizarOfertaLinkedin,
+        computrabajo: normalizarOfertaComputrabajo,
+        indeed: normalizarOfertaIndeed,
+        bumeran: normalizarOfertaBumeran,
+    };
+
+    const normalizador = normalizadores[plataforma];
+    if (!normalizador) {
+        throw new Error(`Plataforma desconocida: ${plataforma}`);
+    }
 
     const resultados = [];
 
@@ -161,6 +223,113 @@ function mapearNivelLinkedin(nivel) {
 }
 
 /**
+ * Detecto la modalidad de trabajo desde los datos de Indeed.
+ *
+ * En Argentina, Indeed pone "Desde casa" como ciudad cuando es remoto.
+ * También puede venir en los atributos como "Remote", "In-person" o "Hybrid work".
+ *
+ * @param {Object} item - Objeto crudo de Indeed.
+ * @returns {string|null} 'remoto', 'hibrido', 'presencial' o null.
+ */
+function detectarModalidadIndeed(item) {
+    // En Argentina, "Desde casa" en location.city indica trabajo remoto.
+    if (item.location?.city === 'Desde casa') {
+        return 'remoto';
+    }
+
+    // Busco en los atributos del item (es un objeto key-value con códigos como claves).
+    const atributos = item.attributes || {};
+    const valores = Object.values(atributos);
+
+    if (valores.some(v => /^remote$/i.test(v))) return 'remoto';
+    if (valores.some(v => /hybrid/i.test(v))) return 'hibrido';
+    if (valores.some(v => /in.?person/i.test(v))) return 'presencial';
+
+    return null;
+}
+
+/**
+ * Detecto el nivel de experiencia desde los atributos de Indeed.
+ *
+ * Indeed usa valores como "Entry level", "Senior level", "Mid level"
+ * dentro del objeto `attributes`.
+ *
+ * @param {Object} item - Objeto crudo de Indeed.
+ * @returns {string|null} 'junior', 'senior', 'semi-senior' o null.
+ */
+function detectarNivelIndeed(item) {
+    const atributos = item.attributes || {};
+    const valores = Object.values(atributos);
+
+    if (valores.some(v => /entry.?level/i.test(v))) return 'junior';
+    if (valores.some(v => /senior.?level/i.test(v))) return 'senior';
+    if (valores.some(v => /mid.?level/i.test(v))) return 'semi-senior';
+
+    return null;
+}
+
+/**
+ * Normalizo una oferta extraída por la pageFunction del cheerio-scraper de Bumeran.
+ *
+ * A diferencia de los otros normalizadores, los datos de Bumeran ya vienen
+ * semi-estructurados porque la pageFunction los extrae con selectores CSS.
+ * Lo que queda por hacer acá es:
+ * - Mapear la modalidad de texto español ("Remoto") a nuestro formato ("remoto").
+ * - Completar los campos que la tarjeta de búsqueda no tiene (salario, nivel, fecha).
+ * - Agregar la plataforma y guardar los datos crudos.
+ *
+ * @param {Object} item - Objeto extraído por la pageFunction.
+ * @returns {Object} Oferta en el formato de nuestra tabla.
+ * @throws {Error} Si el item no tiene URL.
+ */
+function normalizarOfertaBumeran(item) {
+    const url = item.url;
+    if (!url) {
+        throw new Error('El item de Bumeran no tiene URL.');
+    }
+
+    return {
+        titulo: item.titulo || null,
+        empresa: item.empresa || null,
+        ubicacion: item.ubicacion || null,
+        modalidad: mapearModalidadBumeran(item.modalidad),
+        descripcion: item.descripcion || null,
+        url,
+        plataforma: 'bumeran',
+        // La tarjeta de búsqueda de Bumeran no muestra nivel, salario ni fecha exacta.
+        // DeepSeek puede inferir el nivel desde la descripción.
+        nivel_requerido: null,
+        salario_min: null,
+        salario_max: null,
+        moneda: null,
+        fecha_publicacion: null,
+        datos_crudos: item,
+    };
+}
+
+/**
+ * Mapeo la modalidad de Bumeran (texto en español) a nuestros valores normalizados.
+ *
+ * Bumeran muestra la modalidad como etiqueta explícita en la tarjeta:
+ * "Remoto", "Híbrido", "Presencial". Los mapeo a nuestro formato en minúscula
+ * sin tildes.
+ *
+ * @param {string|null} modalidad - Modalidad de Bumeran.
+ * @returns {string|null} 'remoto', 'hibrido', 'presencial' o null.
+ */
+function mapearModalidadBumeran(modalidad) {
+    if (!modalidad) return null;
+
+    const modalidadLower = modalidad.toLowerCase();
+
+    if (modalidadLower.includes('remoto')) return 'remoto';
+    if (modalidadLower.includes('híbrido') || modalidadLower.includes('hibrido')) return 'hibrido';
+    if (modalidadLower.includes('presencial')) return 'presencial';
+
+    return null;
+}
+
+/**
  * Parseo un string de salario y extraigo min, max y moneda.
  *
  * Formatos comunes de LinkedIn:
@@ -208,9 +377,14 @@ function parsearSalario(salarioStr) {
 module.exports = {
     normalizarOfertaLinkedin,
     normalizarOfertaComputrabajo,
+    normalizarOfertaIndeed,
+    normalizarOfertaBumeran,
     normalizarLote,
     // Exporto las auxiliares para poder testearlas si hace falta.
     _parsearSalario: parsearSalario,
     _detectarModalidad: detectarModalidad,
     _mapearNivelLinkedin: mapearNivelLinkedin,
+    _detectarModalidadIndeed: detectarModalidadIndeed,
+    _detectarNivelIndeed: detectarNivelIndeed,
+    _mapearModalidadBumeran: mapearModalidadBumeran,
 };

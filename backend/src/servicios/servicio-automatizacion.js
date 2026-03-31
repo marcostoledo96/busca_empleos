@@ -1,8 +1,8 @@
 // Servicio de automatización — ejecuta scraping + evaluación periódicamente.
 //
 // ¿Qué es un cron job? Pensalo como una alarma programada:
-// "Cada 12 horas, soná y hacé esto". En nuestro caso, la alarma dispara:
-// 1. Scrapear LinkedIn y Computrabajo.
+// "Cada 48 horas, soná y hacé esto". En nuestro caso, la alarma dispara:
+// 1. Scrapear LinkedIn, Computrabajo, Indeed y Bumeran.
 // 2. Guardar las ofertas nuevas en la BD.
 // 3. Evaluar las pendientes con DeepSeek.
 //
@@ -15,7 +15,7 @@
 // │ │ │ │ │
 // * * * * *
 //
-// '0 */12 * * *' = "Al minuto 0, cada 12 horas, todos los días"
+// '0 0 */2 * *' = "A las 00:00, cada 2 días"
 //
 // ¿Por qué no usar setInterval? Porque cron es más expresivo y resistente:
 // - setInterval mide "cada X milisegundos desde que arrancó".
@@ -27,8 +27,9 @@ const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
 const modeloOferta = require('../modelos/oferta');
 
-// Expresión cron por defecto: cada 12 horas (a las 00:00 y 12:00).
-const EXPRESION_CRON_DEFECTO = '0 */12 * * *';
+// Expresión cron por defecto: cada 48 horas (a las 00:00 cada 2 días).
+// Con 4 plataformas, ejecutar cada 48h ahorra créditos de Apify.
+const EXPRESION_CRON_DEFECTO = '0 0 */2 * *';
 
 // Estado interno del servicio — guardo el cron activo y los resultados.
 // Esto es un "singleton": un único objeto compartido por todo el proceso.
@@ -61,6 +62,8 @@ async function ejecutarCicloCompleto() {
         scraping: {
             linkedin: 0,
             computrabajo: 0,
+            indeed: 0,
+            bumeran: 0,
             totalExtraidas: 0,
             guardadas: 0,
         },
@@ -90,8 +93,30 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en Computrabajo: ${error.message}`);
     }
 
-    // --- Paso 3: Guardar ofertas en la BD ---
-    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo];
+    // --- Paso 3: Scraping de Indeed ---
+    let ofertasIndeed = [];
+    try {
+        ofertasIndeed = await servicioScraping.ejecutarScrapingIndeed();
+        resultado.scraping.indeed = ofertasIndeed.length;
+        console.log(`[Automatización] Indeed: ${ofertasIndeed.length} ofertas extraídas.`);
+    } catch (error) {
+        resultado.errores.push(`Error en scraping de Indeed: ${error.message}`);
+        console.error(`[Automatización] Error en Indeed: ${error.message}`);
+    }
+
+    // --- Paso 4: Scraping de Bumeran ---
+    let ofertasBumeran = [];
+    try {
+        ofertasBumeran = await servicioScraping.ejecutarScrapingBumeran();
+        resultado.scraping.bumeran = ofertasBumeran.length;
+        console.log(`[Automatización] Bumeran: ${ofertasBumeran.length} ofertas extraídas.`);
+    } catch (error) {
+        resultado.errores.push(`Error en scraping de Bumeran: ${error.message}`);
+        console.error(`[Automatización] Error en Bumeran: ${error.message}`);
+    }
+
+    // --- Paso 5: Guardar ofertas en la BD ---
+    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
 
     for (const oferta of todasLasOfertas) {
@@ -108,7 +133,7 @@ async function ejecutarCicloCompleto() {
 
     console.log(`[Automatización] ${resultado.scraping.guardadas} ofertas nuevas guardadas de ${resultado.scraping.totalExtraidas} extraídas.`);
 
-    // --- Paso 4: Evaluar ofertas pendientes ---
+    // --- Paso 6: Evaluar ofertas pendientes ---
     try {
         resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
         console.log(`[Automatización] Evaluación: ${resultado.evaluacion.aprobadas} aprobadas, ${resultado.evaluacion.rechazadas} rechazadas.`);

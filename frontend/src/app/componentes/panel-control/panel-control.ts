@@ -25,6 +25,8 @@ export class PanelControl implements OnInit {
     // Signals para controlar el estado de carga de cada botón.
     readonly scrapeandoLinkedin = signal(false);
     readonly scrapeandoComputrabajo = signal(false);
+    readonly scrapeandoIndeed = signal(false);
+    readonly scrapeandoBumeran = signal(false);
     readonly evaluando = signal(false);
 
     // Estado de la automatización.
@@ -60,7 +62,7 @@ export class PanelControl implements OnInit {
                     this.mensajes.add({
                         severity: 'success',
                         summary: 'Cron activado',
-                        detail: 'Scraping automático cada 12 horas.',
+                        detail: 'Scraping automático cada 48 horas.',
                         life: 4000
                     });
                 },
@@ -143,6 +145,58 @@ export class PanelControl implements OnInit {
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Computrabajo',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearIndeed(): void {
+        this.scrapeandoIndeed.set(true);
+        this.scrapingService.scrapearIndeed().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoIndeed.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Indeed completado',
+                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoIndeed.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Indeed',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearBumeran(): void {
+        this.scrapeandoBumeran.set(true);
+        this.scrapingService.scrapearBumeran().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoBumeran.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Bumeran completado',
+                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoBumeran.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Bumeran',
                     detail: error.error?.error || 'Error al conectar con el servidor',
                     life: 5000
                 });

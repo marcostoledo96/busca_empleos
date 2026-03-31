@@ -121,4 +121,72 @@ describe('Controlador de scraping', () => {
             );
         });
     });
+
+    // === POST /api/scraping/indeed ===
+
+    describe('POST /api/scraping/indeed', () => {
+        test('ejecuta el scraping, guarda ofertas, y retorna resumen', async () => {
+            servicioScraping.ejecutarScrapingIndeed.mockResolvedValue([
+                { titulo: 'Dev React', url: 'https://ar.indeed.com/viewjob?jk=abc' },
+            ]);
+            modeloOferta.crearOferta.mockResolvedValueOnce({ id: 1 });
+
+            const res = await request(app)
+                .post('/api/scraping/indeed')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.plataforma).toBe('indeed');
+            expect(res.body.datos.total_extraidas).toBe(1);
+            expect(res.body.datos.ofertas_nuevas).toBe(1);
+            expect(res.body.datos.mensaje).toContain('Indeed');
+        });
+
+        test('usa maxResultados=100 por defecto para Indeed', async () => {
+            servicioScraping.ejecutarScrapingIndeed.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/indeed')
+                .send({});
+
+            expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledWith(
+                expect.objectContaining({ maxResultados: 100 })
+            );
+        });
+    });
+
+    // === POST /api/scraping/bumeran ===
+
+    describe('POST /api/scraping/bumeran', () => {
+        test('ejecuta el scraping, guarda ofertas, y retorna resumen', async () => {
+            servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([
+                { titulo: 'Dev Full-stack', url: 'https://www.bumeran.com.ar/empleos/dev-123.html' },
+            ]);
+            modeloOferta.crearOferta.mockResolvedValueOnce({ id: 1 });
+
+            const res = await request(app)
+                .post('/api/scraping/bumeran')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.plataforma).toBe('bumeran');
+            expect(res.body.datos.total_extraidas).toBe(1);
+            expect(res.body.datos.ofertas_nuevas).toBe(1);
+            expect(res.body.datos.mensaje).toContain('Bumeran');
+        });
+
+        test('pasa las opciones correctas al servicio', async () => {
+            servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/bumeran')
+                .send({ terminos: ['react junior'] });
+
+            expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledWith({
+                terminos: ['react junior'],
+            });
+        });
+    });
 });

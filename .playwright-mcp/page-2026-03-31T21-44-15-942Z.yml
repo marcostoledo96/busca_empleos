@@ -1,0 +1,81 @@
+- generic [ref=e3]:
+  - navigation "Navegación principal" [ref=e4]:
+    - generic [ref=e8]:
+      - button [ref=e9] [cursor=pointer]
+      - link "Ir al inicio" [ref=e12] [cursor=pointer]:
+        - /url: /
+        - img "Bumeran" [ref=e13]
+  - generic [ref=e14]:
+    - generic [ref=e18]: Inicio
+    - generic [ref=e22]: Mensajes
+    - generic [ref=e30]: Postulaciones
+    - generic [ref=e31]:
+      - img "Foto de perfil" [ref=e33]
+      - generic [ref=e34]: Mi CV
+  - contentinfo [ref=e41]:
+    - generic [ref=e42]:
+      - generic [ref=e45]:
+        - heading "¡Descargá la app en tu celular!" [level=4] [ref=e46]
+        - generic [ref=e47]:
+          - link "Ir a Google Play - abre en una nueva pestaña" [ref=e49] [cursor=pointer]:
+            - /url: https://play.google.com/store/apps/details?id=com.bumex.android.bumeran
+          - link "Ir a App Store - abre en una nueva pestaña" [ref=e51] [cursor=pointer]:
+            - /url: https://apps.apple.com/ar/app/bumeran/id1294413939
+      - navigation "Redes sociales" [ref=e54]:
+        - list [ref=e55]:
+          - listitem [ref=e56]:
+            - link "Facebook - abre en una nueva pestaña" [ref=e57] [cursor=pointer]:
+              - /url: https://www.facebook.com/bumerancom/
+          - listitem [ref=e58]:
+            - link "Tiktok - abre en una nueva pestaña" [ref=e59] [cursor=pointer]:
+              - /url: https://www.tiktok.com/@bumeranargentina
+          - listitem [ref=e60]:
+            - link "Instagram - abre en una nueva pestaña" [ref=e61] [cursor=pointer]:
+              - /url: https://www.instagram.com/bumeranarg/
+          - listitem [ref=e62]:
+            - link "Linkedin - abre en una nueva pestaña" [ref=e63] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/bumeran.com/
+          - listitem [ref=e64]:
+            - link "Youtube - abre en una nueva pestaña" [ref=e65] [cursor=pointer]:
+              - /url: https://www.youtube.com/channel/UC3fIXQKvWcYwCd8f0J7aiSQ
+      - navigation "Información legal y ayuda" [ref=e68]:
+        - list [ref=e71]:
+          - listitem [ref=e72]:
+            - link "Términos y Condiciones - abre en una nueva pestaña" [ref=e73] [cursor=pointer]:
+              - /url: /terminos-y-condiciones
+              - text: Términos y Condiciones
+          - listitem [ref=e74]:
+            - link "Política de Privacidad - abre en una nueva pestaña" [ref=e75] [cursor=pointer]:
+              - /url: /politica-de-privacidad
+              - text: Política de Privacidad
+          - listitem [ref=e76]:
+            - link "Condiciones de contratación - abre en una nueva pestaña" [ref=e77] [cursor=pointer]:
+              - /url: /condiciones-de-contratacion
+              - text: Condiciones de contratación
+          - listitem [ref=e78]:
+            - link "Preguntas frecuentes - abre en una nueva pestaña" [ref=e79] [cursor=pointer]:
+              - /url: /postulantes/preguntas-frecuentes
+              - text: Preguntas frecuentes
+          - listitem [ref=e80]:
+            - link "Ofertas de Empleo - abre en una nueva pestaña" [ref=e81] [cursor=pointer]:
+              - /url: /sitemaps/
+              - text: Ofertas de Empleo
+          - listitem [ref=e82]:
+            - link "Política de Gestión de Calidad - abre en una nueva pestaña" [ref=e83] [cursor=pointer]:
+              - /url: /politica-gestion-calidad
+              - text: Política de Gestión de Calidad
+      - generic [ref=e86]:
+        - generic [ref=e93]:
+          - generic [ref=e96]:
+            - img [ref=e97]
+            - text: Argentina
+          - textbox "Selecciona un país"
+        - generic [ref=e102]:
+          - link "Data fiscal" [ref=e104] [cursor=pointer]:
+            - /url: https://servicios1.afip.gov.ar/clavefiscal/qr/response.aspx?qr=Iv1YrfwD5YPQV6kMGMPaYQ,,
+            - img "Data fiscal" [ref=e105]
+          - generic [ref=e106]:
+            - link "Jobint" [ref=e107] [cursor=pointer]:
+              - /url: http://www.jobint.com
+              - img "Jobint" [ref=e108]
+            - paragraph [ref=e109]: © Copyright 1999-2026 Jobint

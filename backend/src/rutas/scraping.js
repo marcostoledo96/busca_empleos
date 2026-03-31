@@ -10,5 +10,7 @@ const router = Router();
 
 router.post('/linkedin', controlador.scrapearLinkedin);
 router.post('/computrabajo', controlador.scrapearComputrabajo);
+router.post('/indeed', controlador.scrapearIndeed);
+router.post('/bumeran', controlador.scrapearBumeran);
 
 module.exports = router;

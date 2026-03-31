@@ -19,4 +19,14 @@ export class ScrapingService {
     scrapearComputrabajo(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/computrabajo`, {});
     }
+
+    // Ejecuta el scraping de Indeed Argentina. Llama al Actor de Apify y guarda en BD.
+    scrapearIndeed(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/indeed`, {});
+    }
+
+    // Ejecuta el scraping de Bumeran. Usa cheerio-scraper de Apify y guarda en BD.
+    scrapearBumeran(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/bumeran`, {});
+    }
 }

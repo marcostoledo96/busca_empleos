@@ -29,12 +29,20 @@ jest.mock('../../src/config/apify', () => {
         ACTORES: {
             LINKEDIN: 'actor-linkedin-test',
             COMPUTRABAJO: 'actor-computrabajo-test',
+            INDEED: 'actor-indeed-test',
+            BUMERAN_CHEERIO: 'actor-cheerio-test',
         },
+        TERMINOS_BUSQUEDA: [
+            'frontend developer junior',
+        ],
         construirUrlsLinkedin: jest.fn(() => [
             'https://www.linkedin.com/jobs/search/?keywords=frontend+developer+junior&location=Argentina&f_E=1%2C2',
         ]),
         construirUrlsComputrabajo: jest.fn(() => [
             'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
+        ]),
+        construirUrlsBumeran: jest.fn(() => [
+            'https://www.bumeran.com.ar/empleos-busqueda-frontend-developer-junior.html',
         ]),
     };
 });
@@ -43,6 +51,8 @@ const { clienteApify } = require('../../src/config/apify');
 const {
     ejecutarScrapingLinkedin,
     ejecutarScrapingComputrabajo,
+    ejecutarScrapingIndeed,
+    ejecutarScrapingBumeran,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -74,6 +84,44 @@ const itemsComputrabajoFalsos = [
         url: 'https://ar.computrabajo.com/oferta-test-ABC123',
         offerAttributes: {},
         scrapedAt: '2026-03-31T10:00:00.000Z',
+    },
+];
+
+// Datos de prueba que simulan la respuesta del actor de Indeed Argentina.
+const itemsIndeedFalsos = [
+    {
+        key: 'test-indeed-123',
+        url: 'https://ar.indeed.com/viewjob?jk=test-indeed-123',
+        title: 'Frontend Developer Junior',
+        jobUrl: 'http://ar.indeed.com/job/frontend-developer-junior-test-indeed-123',
+        datePublished: '2026-03-28T12:00:00.000Z',
+        language: 'es',
+        location: {
+            countryName: 'Argentina',
+            countryCode: 'AR',
+            city: 'Buenos Aires',
+        },
+        employer: {
+            name: 'TestCorp Argentina',
+        },
+        attributes: {},
+        baseSalary: null,
+        description: {
+            text: 'Buscamos frontend developer junior con React y Angular...',
+        },
+    },
+];
+
+// Datos de prueba que simulan lo que extrae la pageFunction del cheerio-scraper
+// desde la página de búsqueda de Bumeran.
+const itemsBumeranFalsos = [
+    {
+        url: 'https://www.bumeran.com.ar/empleos/frontend-developer-junior-testcorp-1118200001.html',
+        titulo: 'Frontend Developer Junior',
+        empresa: 'TestCorp Argentina',
+        ubicacion: 'Capital Federal, Buenos Aires',
+        modalidad: 'Remoto',
+        descripcion: 'Buscamos frontend developer junior con experiencia en React...',
     },
 ];
 
@@ -179,6 +227,139 @@ describe('Servicio de scraping', () => {
 
             await expect(ejecutarScrapingComputrabajo()).rejects.toThrow(
                 'Error al ejecutar scraping de Computrabajo'
+            );
+        });
+    });
+
+    describe('ejecutarScrapingIndeed()', () => {
+
+        test('llama al actor correcto de Indeed', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsIndeedFalsos });
+
+            await ejecutarScrapingIndeed({ terminos: ['frontend developer junior'] });
+
+            expect(clienteApify.actor).toHaveBeenCalledWith('actor-indeed-test');
+        });
+
+        test('retorna ofertas normalizadas de Indeed', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsIndeedFalsos });
+
+            const resultado = await ejecutarScrapingIndeed({ terminos: ['frontend developer junior'] });
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBeGreaterThan(0);
+            expect(resultado[0].plataforma).toBe('indeed');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+        });
+
+        test('pasa position y country al actor', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsIndeedFalsos });
+
+            await ejecutarScrapingIndeed({
+                terminos: ['react developer'],
+                maxResultados: 20,
+            });
+
+            expect(mockCall).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    position: 'react developer',
+                    country: 'Argentina',
+                    maxItems: 20,
+                })
+            );
+        });
+
+        test('ejecuta el actor una vez por cada término de búsqueda', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsIndeedFalsos });
+
+            await ejecutarScrapingIndeed({
+                terminos: ['react developer', 'angular developer'],
+            });
+
+            // Debería llamar al actor 2 veces (una por cada término).
+            expect(mockCall).toHaveBeenCalledTimes(2);
+        });
+
+        test('tira error descriptivo si falla la API de Apify', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockRejectedValue(new Error('API rate limit exceeded'));
+
+            await expect(
+                ejecutarScrapingIndeed({ terminos: ['frontend developer junior'] })
+            ).rejects.toThrow(
+                'Error al ejecutar scraping de Indeed'
+            );
+        });
+    });
+
+    describe('ejecutarScrapingBumeran()', () => {
+
+        test('llama al actor cheerio-scraper correcto', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsBumeranFalsos });
+
+            await ejecutarScrapingBumeran();
+
+            expect(clienteApify.actor).toHaveBeenCalledWith('actor-cheerio-test');
+        });
+
+        test('retorna ofertas normalizadas de Bumeran', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsBumeranFalsos });
+
+            const resultado = await ejecutarScrapingBumeran();
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBeGreaterThan(0);
+            expect(resultado[0].plataforma).toBe('bumeran');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+        });
+
+        test('pasa startUrls y pageFunction al actor', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsBumeranFalsos });
+
+            await ejecutarScrapingBumeran();
+
+            expect(mockCall).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    startUrls: expect.any(Array),
+                    pageFunction: expect.any(String),
+                })
+            );
+        });
+
+        test('tira error descriptivo si falla la API de Apify', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockRejectedValue(new Error('Timeout'));
+
+            await expect(ejecutarScrapingBumeran()).rejects.toThrow(
+                'Error al ejecutar scraping de Bumeran'
             );
         });
     });

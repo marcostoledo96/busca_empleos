@@ -34,7 +34,9 @@ export class TablaOfertas {
     readonly opcionesPlataforma = [
         { label: 'Todas', value: null },
         { label: 'LinkedIn', value: 'linkedin' },
-        { label: 'Computrabajo', value: 'computrabajo' }
+        { label: 'Computrabajo', value: 'computrabajo' },
+        { label: 'Indeed', value: 'indeed' },
+        { label: 'Bumeran', value: 'bumeran' },
     ];
 
     // Determina el color del tag según el estado de evaluación.
@@ -49,7 +51,13 @@ export class TablaOfertas {
 
     // Determina el icono del tag según la plataforma.
     iconoPlataforma(plataforma: string): string {
-        return plataforma === 'linkedin' ? 'pi pi-linkedin' : 'pi pi-globe';
+        const mapa: Record<string, string> = {
+            'linkedin': 'pi pi-linkedin',
+            'computrabajo': 'pi pi-globe',
+            'indeed': 'pi pi-search',
+            'bumeran': 'pi pi-briefcase',
+        };
+        return mapa[plataforma] || 'pi pi-question';
     }
 
     verDetalle(oferta: Oferta): void {

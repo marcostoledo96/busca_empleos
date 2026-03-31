@@ -32,6 +32,16 @@ const ACTORES = {
     // shahidirfan/Computrabajo-Jobs-Scraper — GRATIS.
     // Scrapea ofertas de Computrabajo Argentina.
     COMPUTRABAJO: '270QqNecZlrnDMveb',
+
+    // valig/indeed-jobs-scraper — Rating 5.0, 3.1K usuarios.
+    // Recibe keywords + país y devuelve ofertas de Indeed.
+    // Costo: $0.08 por 1000 resultados.
+    INDEED: 'TrtlecxAsNRbKl1na',
+
+    // apify/cheerio-scraper — Actor genérico GRATIS (solo compute units).
+    // Lo uso para Bumeran porque no existe un actor dedicado.
+    // Ejecuta una pageFunction con cheerio (jQuery server-side) sobre el HTML.
+    BUMERAN_CHEERIO: 'apify/cheerio-scraper',
 };
 
 // Términos de búsqueda que me interesan.
@@ -98,10 +108,33 @@ function construirUrlsComputrabajo(opciones = {}) {
     });
 }
 
+/**
+ * Construyo las URLs de búsqueda de Bumeran Argentina.
+ *
+ * Bumeran (que también cubre ZonaJobs, porque son del mismo grupo Jobint)
+ * usa un formato de URL simple para las búsquedas:
+ * https://www.bumeran.com.ar/empleos-busqueda-{termino}.html
+ *
+ * Los espacios se reemplazan por guiones en la URL.
+ *
+ * @param {Object} opciones - Opciones de búsqueda.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda.
+ * @returns {string[]} Array de URLs de búsqueda de Bumeran.
+ */
+function construirUrlsBumeran(opciones = {}) {
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+
+    return terminos.map(termino => {
+        const terminoFormateado = termino.toLowerCase().replace(/\s+/g, '-');
+        return `https://www.bumeran.com.ar/empleos-busqueda-${terminoFormateado}.html`;
+    });
+}
+
 module.exports = {
     clienteApify,
     ACTORES,
     TERMINOS_BUSQUEDA,
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
+    construirUrlsBumeran,
 };

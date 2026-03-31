@@ -25,6 +25,20 @@
                     (onClick)="scrapearComputrabajo()"
                     severity="secondary"
                     size="small" />
+                <p-button
+                    label="Indeed"
+                    icon="pi pi-search"
+                    [loading]="scrapeandoIndeed()"
+                    (onClick)="scrapearIndeed()"
+                    severity="success"
+                    size="small" />
+                <p-button
+                    label="Bumeran"
+                    icon="pi pi-briefcase"
+                    [loading]="scrapeandoBumeran()"
+                    (onClick)="scrapearBumeran()"
+                    severity="contrast"
+                    size="small" />
             </div>
         </div>
 
@@ -52,7 +66,7 @@
                     [ngModel]="cronActivo()"
                     (ngModelChange)="toggleCron($event)" />
                 <span class="cron-estado" [class.cron-activo]="cronActivo()">
-                    {{ cronActivo() ? 'Cada 12hs' : 'Inactivo' }}
+                    {{ cronActivo() ? 'Cada 48hs' : 'Inactivo' }}
                 </span>
             </div>
         </div>

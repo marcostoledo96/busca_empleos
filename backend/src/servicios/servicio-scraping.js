@@ -17,8 +17,10 @@
 const {
     clienteApify,
     ACTORES,
+    TERMINOS_BUSQUEDA,
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
+    construirUrlsBumeran,
 } = require('../config/apify');
 
 const { normalizarLote } = require('./servicio-normalizacion');
@@ -137,7 +139,178 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
     }
 }
 
+/**
+ * Ejecuto el scraping de Indeed Argentina.
+ *
+ * A diferencia de LinkedIn y Computrabajo (que reciben URLs de búsqueda),
+ * el actor de Indeed recibe keywords directamente. Por eso iteramos sobre
+ * los términos de búsqueda y hacemos una llamada al actor por cada uno.
+ *
+ * El flujo por cada término es:
+ * 1. Llamo al actor con el término y "Argentina" como país.
+ * 2. Espero a que termine.
+ * 3. Obtengo los datos crudos del dataset.
+ * 4. Acumulo los resultados de todos los términos.
+ * 5. Normalizo todo junto al formato de nuestra tabla.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=15] - Máximo de ofertas POR TÉRMINO.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingIndeed(opciones = {}) {
+    const maxResultadosPorTermino = opciones.maxResultados || 15;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+
+    try {
+        console.log(`Scraping Indeed: buscando ${terminos.length} término(s)...`);
+        let itemsCrudos = [];
+
+        for (const termino of terminos) {
+            console.log(`Scraping Indeed: buscando "${termino}"...`);
+
+            // El actor de Indeed recibe keywords y país directamente.
+            // No necesita URLs como LinkedIn o Computrabajo.
+            const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
+                position: termino,
+                country: 'Argentina',
+                maxItems: maxResultadosPorTermino,
+            });
+
+            const { items } = await clienteApify
+                .dataset(ejecucion.defaultDatasetId)
+                .listItems();
+
+            console.log(`Scraping Indeed: ${items.length} resultados para "${termino}".`);
+            itemsCrudos = itemsCrudos.concat(items);
+        }
+
+        console.log(`Scraping Indeed: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'indeed');
+        console.log(`Scraping Indeed: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Indeed: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
+/**
+ * Ejecuto el scraping de Bumeran Argentina (que también cubre ZonaJobs).
+ *
+ * A diferencia de los otros scrapers que usan actores dedicados,
+ * Bumeran usa el cheerio-scraper (actor genérico de Apify). Le paso
+ * las URLs de búsqueda y una función JavaScript (pageFunction) que
+ * se ejecuta en los servidores de Apify con cheerio ($) para extraer
+ * los datos de las tarjetas de cada oferta directamente de la página
+ * de resultados de búsqueda.
+ *
+ * Los selectores CSS se basan en atributos semánticos (aria-label,
+ * IDs con patrón fijo, tags HTML) para ser resistentes a cambios
+ * en las clases CSS de Bumeran (que son hashes de styled-components).
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingBumeran(opciones = {}) {
+    try {
+        console.log('Scraping Bumeran: construyendo URLs de búsqueda...');
+        const urls = construirUrlsBumeran({
+            terminos: opciones.terminos,
+        });
+        console.log(`Scraping Bumeran: ${urls.length} URL(s) de búsqueda generadas.`);
+
+        const startUrls = urls.map(url => ({ url }));
+
+        // La pageFunction se ejecuta en los servidores de Apify por cada URL.
+        // Usa selectores semánticos (aria-label, IDs con patrón, tags HTML)
+        // porque las clases CSS de Bumeran son hashes de styled-components
+        // que cambian en cada deploy.
+        const pageFunction = `
+            async function pageFunction(context) {
+                const { $, request, log } = context;
+                const resultados = [];
+
+                // Cada tarjeta de oferta es un <a> con href que apunta a /empleos/{slug}-{id}.html
+                $('a[href*="/empleos/"]').each(function() {
+                    var $tarjeta = $(this);
+                    var href = $tarjeta.attr('href');
+
+                    // Solo ofertas individuales (patrón: /empleos/{slug}-{digits}.html)
+                    if (!href || !/\\/empleos\\/.+-\\d+\\.html$/.test(href)) return;
+
+                    var url = href.startsWith('http') ? href : 'https://www.bumeran.com.ar' + href;
+                    var titulo = $tarjeta.find('h2').first().text().trim() || null;
+                    var descripcion = $tarjeta.find('p').first().text().trim() || null;
+
+                    // Ubicación: busco el icono con aria-label="Ubicación" y tomo el h3 hermano.
+                    var $iconoUbicacion = $tarjeta.find('i[aria-label="Ubicaci\\u00f3n"]');
+                    var ubicacion = $iconoUbicacion.parent().find('h3').text().trim() || null;
+
+                    // Modalidad: busco el icono con aria-label="Modalidad" y tomo el h3 hermano.
+                    var $iconoModalidad = $tarjeta.find('i[aria-label="Modalidad"]');
+                    var modalidad = $iconoModalidad.parent().find('h3').text().trim() || null;
+
+                    // Empresa: en el div header-col-job-posting-*, busco h3 que NO sea la fecha.
+                    var $header = $tarjeta.find('[id^="header-col-job-posting"]');
+                    var empresa = null;
+                    $header.find('h3').each(function() {
+                        var text = $(this).text().trim();
+                        if (text && !/(hace|Actualizado|Publicado|d\\u00edas|horas|minutos|Nuevo|ayer|hoy)/i.test(text)) {
+                            empresa = text;
+                            return false;
+                        }
+                    });
+
+                    resultados.push({ url: url, titulo: titulo, empresa: empresa, ubicacion: ubicacion, modalidad: modalidad, descripcion: descripcion });
+                });
+
+                log.info('Bumeran: ' + resultados.length + ' ofertas extra\\u00eddas de ' + request.url);
+                return resultados;
+            }
+        `;
+
+        console.log('Scraping Bumeran: ejecutando cheerio-scraper de Apify...');
+        const ejecucion = await clienteApify.actor(ACTORES.BUMERAN_CHEERIO).call({
+            startUrls,
+            pageFunction,
+            maxRequestsPerCrawl: urls.length,
+            proxyConfiguration: { useApifyProxy: true },
+        });
+
+        console.log('Scraping Bumeran: obteniendo resultados del dataset...');
+        const { items } = await clienteApify
+            .dataset(ejecucion.defaultDatasetId)
+            .listItems();
+
+        // La pageFunction retorna arrays de ofertas por cada página.
+        // Aplano por si algún item es un array anidado.
+        const itemsAplanados = items.flat();
+
+        console.log(`Scraping Bumeran: ${itemsAplanados.length} ofertas crudas obtenidas.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsAplanados, 'bumeran');
+        console.log(`Scraping Bumeran: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Bumeran: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
 module.exports = {
     ejecutarScrapingLinkedin,
     ejecutarScrapingComputrabajo,
+    ejecutarScrapingIndeed,
+    ejecutarScrapingBumeran,
 };

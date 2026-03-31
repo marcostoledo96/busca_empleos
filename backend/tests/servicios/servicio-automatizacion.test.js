@@ -38,8 +38,18 @@ describe('Servicio de automatización', () => {
         // Reseteo el estado interno del servicio para que cada test arranque limpio.
         servicioAutomatizacion._resetearEstado();
 
+        // Mocks por defecto: los 4 scrapers retornan vacío.
+        // Cada test sobreescribe solo los que necesita con datos específicos.
+        servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingIndeed.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([]);
+        servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
+            total: 0, aprobadas: 0, rechazadas: 0, errores: 0,
+        });
+        modeloOferta.crearOferta.mockResolvedValue({ id: 1 });
+
         // Configuro el mock de cron.schedule para simular la programación.
-        // Retorna un objeto con métodos start/stop como lo haría el cron real.
         cron.schedule.mockReturnValue({
             start: jest.fn(),
             stop: jest.fn(),
@@ -50,35 +60,38 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
-        test('ejecuta scraping de LinkedIn → Computrabajo → guarda ofertas → evalúa', async () => {
-            // Preparo los datos simulados.
-            const ofertasLinkedin = [
+        test('ejecuta scraping de las 4 plataformas → guarda ofertas → evalúa', async () => {
+            // Preparo datos simulados para las 4 plataformas.
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/jobs/1' },
                 { titulo: 'Dev React', url: 'https://linkedin.com/jobs/2' },
-            ];
-            const ofertasComputrabajo = [
+            ]);
+            servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([
                 { titulo: 'Frontend Jr', url: 'https://computrabajo.com/1' },
-            ];
-
-            // Configuro qué retornan los mocks.
-            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue(ofertasLinkedin);
-            servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue(ofertasComputrabajo);
-            modeloOferta.crearOferta.mockResolvedValue({ id: 1 });
+            ]);
+            servicioScraping.ejecutarScrapingIndeed.mockResolvedValue([
+                { titulo: 'Dev Node', url: 'https://ar.indeed.com/viewjob?jk=1' },
+            ]);
+            servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([
+                { titulo: 'Dev Full-stack', url: 'https://www.bumeran.com.ar/empleos/dev-1.html' },
+            ]);
             servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
-                total: 3,
-                aprobadas: 2,
-                rechazadas: 1,
+                total: 5,
+                aprobadas: 3,
+                rechazadas: 2,
                 errores: 0,
             });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // Verifico que se llamó al scraping de ambas plataformas.
+            // Verifico que se llamó al scraping de las 4 plataformas.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledTimes(1);
 
-            // Verifico que se guardaron las 3 ofertas (2 LinkedIn + 1 Computrabajo).
-            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(3);
+            // Verifico que se guardaron las 5 ofertas (2+1+1+1).
+            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(5);
 
             // Verifico que se evaluaron las pendientes.
             expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledTimes(1);
@@ -89,98 +102,117 @@ describe('Servicio de automatización', () => {
                 scraping: {
                     linkedin: 2,
                     computrabajo: 1,
-                    totalExtraidas: 3,
-                    guardadas: 3,
+                    indeed: 1,
+                    bumeran: 1,
+                    totalExtraidas: 5,
+                    guardadas: 5,
                 },
                 evaluacion: {
-                    total: 3,
-                    aprobadas: 2,
-                    rechazadas: 1,
+                    total: 5,
+                    aprobadas: 3,
+                    rechazadas: 2,
                     errores: 0,
                 },
                 errores: [],
             });
         });
 
-        test('si LinkedIn falla, sigue con Computrabajo y reporta el error', async () => {
-            // Simulo que LinkedIn tira un error.
+        test('si LinkedIn falla, sigue con las demás plataformas y reporta el error', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(
                 new Error('Apify timeout')
             );
             servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([
                 { titulo: 'Dev Jr', url: 'https://computrabajo.com/1' },
             ]);
-            modeloOferta.crearOferta.mockResolvedValue({ id: 1 });
-            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
-                total: 1, aprobadas: 1, rechazadas: 0, errores: 0,
-            });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // LinkedIn falló, pero Computrabajo siguió.
             expect(resultado.exito).toBe(true);
             expect(resultado.scraping.linkedin).toBe(0);
             expect(resultado.scraping.computrabajo).toBe(1);
+            expect(resultado.scraping.indeed).toBe(0);
+            expect(resultado.scraping.bumeran).toBe(0);
             expect(resultado.errores).toHaveLength(1);
             expect(resultado.errores[0]).toContain('LinkedIn');
         });
 
-        test('si Computrabajo falla, sigue con LinkedIn y reporta el error', async () => {
+        test('si Computrabajo falla, sigue con las demás plataformas y reporta el error', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
             ]);
             servicioScraping.ejecutarScrapingComputrabajo.mockRejectedValue(
                 new Error('Actor not found')
             );
-            modeloOferta.crearOferta.mockResolvedValue({ id: 1 });
-            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
-                total: 1, aprobadas: 0, rechazadas: 1, errores: 0,
-            });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             expect(resultado.exito).toBe(true);
             expect(resultado.scraping.linkedin).toBe(1);
             expect(resultado.scraping.computrabajo).toBe(0);
+            expect(resultado.scraping.indeed).toBe(0);
+            expect(resultado.scraping.bumeran).toBe(0);
             expect(resultado.errores).toHaveLength(1);
             expect(resultado.errores[0]).toContain('Computrabajo');
         });
 
-        test('si ambos scrapings fallan, no intenta evaluar y reporta ambos errores', async () => {
+        test('si Indeed falla, sigue con las demás plataformas y reporta el error', async () => {
+            servicioScraping.ejecutarScrapingIndeed.mockRejectedValue(
+                new Error('Indeed API error')
+            );
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.exito).toBe(true);
+            expect(resultado.scraping.indeed).toBe(0);
+            expect(resultado.errores).toHaveLength(1);
+            expect(resultado.errores[0]).toContain('Indeed');
+        });
+
+        test('si Bumeran falla, sigue con las demás plataformas y reporta el error', async () => {
+            servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(
+                new Error('Bumeran cheerio error')
+            );
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.exito).toBe(true);
+            expect(resultado.scraping.bumeran).toBe(0);
+            expect(resultado.errores).toHaveLength(1);
+            expect(resultado.errores[0]).toContain('Bumeran');
+        });
+
+        test('si todos los scrapings fallan, no guarda ofertas y reporta todos los errores', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(
                 new Error('LinkedIn error')
             );
             servicioScraping.ejecutarScrapingComputrabajo.mockRejectedValue(
                 new Error('Computrabajo error')
             );
+            servicioScraping.ejecutarScrapingIndeed.mockRejectedValue(
+                new Error('Indeed error')
+            );
+            servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(
+                new Error('Bumeran error')
+            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // No se guardó ninguna oferta.
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
-
-            // No se intentó evaluar (no tiene sentido sin ofertas nuevas).
-            // Pero SÍ se llama a evaluarOfertasPendientes porque puede haber
-            // pendientes de ciclos anteriores.
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            expect(resultado.errores).toHaveLength(2);
+            expect(resultado.errores).toHaveLength(4);
         });
 
         test('si la evaluación falla, reporta el error pero no crashea', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev', url: 'https://linkedin.com/1' },
             ]);
-            servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([]);
-            modeloOferta.crearOferta.mockResolvedValue({ id: 1 });
             servicioEvaluacion.evaluarOfertasPendientes.mockRejectedValue(
                 new Error('DeepSeek API down')
             );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // El scraping se completó bien.
             expect(resultado.scraping.linkedin).toBe(1);
-            // La evaluación falló, se reporta.
             expect(resultado.evaluacion).toBeNull();
             expect(resultado.errores).toHaveLength(1);
             expect(resultado.errores[0]).toContain('evaluación');
@@ -191,14 +223,10 @@ describe('Servicio de automatización', () => {
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
                 { titulo: 'Dev React', url: 'https://linkedin.com/2' },
             ]);
-            servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([]);
             // Simulo que la primera es nueva y la segunda es duplicada.
             modeloOferta.crearOferta
                 .mockResolvedValueOnce({ id: 1 })  // Nueva
                 .mockResolvedValueOnce(null);        // Duplicada (retorna null)
-            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
-                total: 1, aprobadas: 1, rechazadas: 0, errores: 0,
-            });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
@@ -208,13 +236,12 @@ describe('Servicio de automatización', () => {
     });
 
     describe('programarCron()', () => {
-        test('programa un cron job con la expresión por defecto (cada 12 horas)', () => {
+        test('programa un cron job con la expresión por defecto (cada 48 horas)', () => {
             servicioAutomatizacion.programarCron();
 
             expect(cron.schedule).toHaveBeenCalledTimes(1);
-            // El primer argumento es la expresión cron.
             const expresionCron = cron.schedule.mock.calls[0][0];
-            expect(expresionCron).toBe('0 */12 * * *');
+            expect(expresionCron).toBe('0 0 */2 * *');
         });
 
         test('acepta una expresión cron personalizada', () => {
@@ -272,7 +299,7 @@ describe('Servicio de automatización', () => {
             const estado = servicioAutomatizacion.obtenerEstado();
 
             expect(estado.activo).toBe(true);
-            expect(estado.expresionCron).toBe('0 */12 * * *');
+            expect(estado.expresionCron).toBe('0 0 */2 * *');
         });
     });
 });

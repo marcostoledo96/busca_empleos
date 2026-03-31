@@ -9,6 +9,8 @@
 const {
     normalizarOfertaLinkedin,
     normalizarOfertaComputrabajo,
+    normalizarOfertaIndeed,
+    normalizarOfertaBumeran,
     normalizarLote,
 } = require('../../src/servicios/servicio-normalizacion');
 
@@ -48,6 +50,47 @@ const itemComputrabajoReal = {
         lset: 'Jornada completa',
     },
     scrapedAt: '2026-03-31T14:05:07.418Z',
+};
+
+// Dato crudo real de Indeed Argentina (obtenido del actor valig/indeed-jobs-scraper).
+const itemIndeedArgentinaReal = {
+    key: '5a8b3c2d1e0f9876',
+    url: 'https://ar.indeed.com/viewjob?jk=5a8b3c2d1e0f9876',
+    title: 'Desarrollador Junior .NET',
+    jobUrl: 'http://ar.indeed.com/job/desarrollador-junior-net-5a8b3c2d1e0f9876',
+    datePublished: '2026-03-30T15:00:00.000Z',
+    expired: false,
+    language: 'es',
+    location: {
+        countryName: 'Argentina',
+        countryCode: 'AR',
+        city: 'Buenos Aires',
+        postalCode: '',
+        streetAddress: '',
+        latitude: -34.6037,
+        longitude: -58.3816,
+    },
+    employer: {
+        name: 'EPAM Systems',
+        companyPageUrl: 'https://ar.indeed.com/cmp/EPAM-Systems',
+    },
+    attributes: {},
+    baseSalary: null,
+    description: {
+        text: 'Buscamos un Desarrollador Junior .NET para unirse a nuestro equipo de tecnología...',
+        html: '<p>Buscamos un Desarrollador Junior .NET...</p>',
+    },
+};
+
+// Dato que simula la salida de la pageFunction del cheerio-scraper para Bumeran.
+// La pageFunction extrae los datos de las tarjetas de la página de búsqueda.
+const itemBumeranReal = {
+    url: 'https://www.bumeran.com.ar/empleos/semisr-full-stack-developer-node-react-aws-mindit-hr-agency-1118193886.html',
+    titulo: 'SemiSr Full-stack developer (Node/React/AWS)',
+    empresa: 'mindIT HR Agency',
+    ubicacion: 'Córdoba, Córdoba',
+    modalidad: 'Remoto',
+    descripcion: 'Nuestro cliente es una empresa tecnológica especializada en EdTech...',
 };
 
 describe('Servicio de normalización', () => {
@@ -173,6 +216,211 @@ describe('Servicio de normalización', () => {
         });
     });
 
+    describe('normalizarOfertaIndeed()', () => {
+
+        test('mapea todos los campos correctamente', () => {
+            const resultado = normalizarOfertaIndeed(itemIndeedArgentinaReal);
+
+            expect(resultado.titulo).toBe('Desarrollador Junior .NET');
+            expect(resultado.empresa).toBe('EPAM Systems');
+            expect(resultado.ubicacion).toBe('Buenos Aires, Argentina');
+            expect(resultado.url).toBe('https://ar.indeed.com/viewjob?jk=5a8b3c2d1e0f9876');
+            expect(resultado.plataforma).toBe('indeed');
+            expect(resultado.descripcion).toContain('Desarrollador Junior .NET');
+        });
+
+        test('asigna la fecha de publicación como objeto Date', () => {
+            const resultado = normalizarOfertaIndeed(itemIndeedArgentinaReal);
+
+            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
+            expect(resultado.fecha_publicacion.toISOString()).toBe('2026-03-30T15:00:00.000Z');
+        });
+
+        test('detecta modalidad remota cuando location.city es "Desde casa"', () => {
+            const itemRemoto = {
+                ...itemIndeedArgentinaReal,
+                location: { ...itemIndeedArgentinaReal.location, city: 'Desde casa' },
+            };
+            const resultado = normalizarOfertaIndeed(itemRemoto);
+
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('detecta modalidad remota desde atributos', () => {
+            const itemConAtributos = {
+                ...itemIndeedArgentinaReal,
+                attributes: { 'ABC12': 'Remote' },
+            };
+            const resultado = normalizarOfertaIndeed(itemConAtributos);
+
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('detecta modalidad presencial desde atributos', () => {
+            const itemPresencial = {
+                ...itemIndeedArgentinaReal,
+                attributes: { 'SWG7T': 'In-person' },
+            };
+            const resultado = normalizarOfertaIndeed(itemPresencial);
+
+            expect(resultado.modalidad).toBe('presencial');
+        });
+
+        test('detecta modalidad híbrida desde atributos', () => {
+            const itemHibrido = {
+                ...itemIndeedArgentinaReal,
+                attributes: { 'XYZ99': 'Hybrid work' },
+            };
+            const resultado = normalizarOfertaIndeed(itemHibrido);
+
+            expect(resultado.modalidad).toBe('hibrido');
+        });
+
+        test('detecta nivel junior desde atributos', () => {
+            const itemJunior = {
+                ...itemIndeedArgentinaReal,
+                attributes: { 'Y4JG9': 'Entry level' },
+            };
+            const resultado = normalizarOfertaIndeed(itemJunior);
+
+            expect(resultado.nivel_requerido).toBe('junior');
+        });
+
+        test('detecta nivel senior desde atributos', () => {
+            const itemSenior = {
+                ...itemIndeedArgentinaReal,
+                attributes: { 'Z1234': 'Senior level' },
+            };
+            const resultado = normalizarOfertaIndeed(itemSenior);
+
+            expect(resultado.nivel_requerido).toBe('senior');
+        });
+
+        test('extrae salario y moneda cuando baseSalary viene con datos', () => {
+            const itemConSalario = {
+                ...itemIndeedArgentinaReal,
+                baseSalary: { min: 60000, max: 80000, currencyCode: 'USD' },
+            };
+            const resultado = normalizarOfertaIndeed(itemConSalario);
+
+            expect(resultado.salario_min).toBe(60000);
+            expect(resultado.salario_max).toBe(80000);
+            expect(resultado.moneda).toBe('USD');
+        });
+
+        test('maneja baseSalary null sin romperse', () => {
+            const resultado = normalizarOfertaIndeed(itemIndeedArgentinaReal);
+
+            expect(resultado.salario_min).toBeNull();
+            expect(resultado.salario_max).toBeNull();
+            expect(resultado.moneda).toBeNull();
+        });
+
+        test('guarda el JSON crudo completo en datos_crudos', () => {
+            const resultado = normalizarOfertaIndeed(itemIndeedArgentinaReal);
+
+            expect(resultado.datos_crudos).toEqual(itemIndeedArgentinaReal);
+        });
+
+        test('maneja item con campos faltantes sin romperse', () => {
+            const itemMinimo = {
+                url: 'https://ar.indeed.com/viewjob?jk=abc123',
+            };
+
+            const resultado = normalizarOfertaIndeed(itemMinimo);
+
+            expect(resultado.url).toBe('https://ar.indeed.com/viewjob?jk=abc123');
+            expect(resultado.plataforma).toBe('indeed');
+            expect(resultado.titulo).toBeNull();
+            expect(resultado.empresa).toBeNull();
+        });
+
+        test('tira error si el item no tiene URL', () => {
+            const itemSinUrl = { title: 'Sin URL' };
+
+            expect(() => normalizarOfertaIndeed(itemSinUrl)).toThrow(
+                'El item de Indeed no tiene URL'
+            );
+        });
+    });
+
+    describe('normalizarOfertaBumeran()', () => {
+
+        test('mapea todos los campos correctamente', () => {
+            const resultado = normalizarOfertaBumeran(itemBumeranReal);
+
+            expect(resultado.titulo).toBe('SemiSr Full-stack developer (Node/React/AWS)');
+            expect(resultado.empresa).toBe('mindIT HR Agency');
+            expect(resultado.ubicacion).toBe('Córdoba, Córdoba');
+            expect(resultado.url).toBe('https://www.bumeran.com.ar/empleos/semisr-full-stack-developer-node-react-aws-mindit-hr-agency-1118193886.html');
+            expect(resultado.plataforma).toBe('bumeran');
+            expect(resultado.descripcion).toContain('EdTech');
+        });
+
+        test('mapea modalidad "Remoto" a "remoto"', () => {
+            const resultado = normalizarOfertaBumeran(itemBumeranReal);
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('mapea modalidad "Híbrido" a "hibrido"', () => {
+            const itemHibrido = { ...itemBumeranReal, modalidad: 'Híbrido' };
+            const resultado = normalizarOfertaBumeran(itemHibrido);
+            expect(resultado.modalidad).toBe('hibrido');
+        });
+
+        test('mapea modalidad "Presencial" a "presencial"', () => {
+            const itemPresencial = { ...itemBumeranReal, modalidad: 'Presencial' };
+            const resultado = normalizarOfertaBumeran(itemPresencial);
+            expect(resultado.modalidad).toBe('presencial');
+        });
+
+        test('deja modalidad null cuando no tiene dato', () => {
+            const itemSinModalidad = { ...itemBumeranReal, modalidad: null };
+            const resultado = normalizarOfertaBumeran(itemSinModalidad);
+            expect(resultado.modalidad).toBeNull();
+        });
+
+        test('no tiene datos de salario ni nivel (no disponibles en la tarjeta)', () => {
+            const resultado = normalizarOfertaBumeran(itemBumeranReal);
+
+            expect(resultado.nivel_requerido).toBeNull();
+            expect(resultado.salario_min).toBeNull();
+            expect(resultado.salario_max).toBeNull();
+            expect(resultado.moneda).toBeNull();
+        });
+
+        test('no tiene fecha de publicación (no disponible en la tarjeta)', () => {
+            const resultado = normalizarOfertaBumeran(itemBumeranReal);
+            expect(resultado.fecha_publicacion).toBeNull();
+        });
+
+        test('guarda el JSON crudo completo en datos_crudos', () => {
+            const resultado = normalizarOfertaBumeran(itemBumeranReal);
+            expect(resultado.datos_crudos).toEqual(itemBumeranReal);
+        });
+
+        test('maneja item con campos faltantes sin romperse', () => {
+            const itemMinimo = {
+                url: 'https://www.bumeran.com.ar/empleos/test-123.html',
+            };
+
+            const resultado = normalizarOfertaBumeran(itemMinimo);
+
+            expect(resultado.url).toBe('https://www.bumeran.com.ar/empleos/test-123.html');
+            expect(resultado.plataforma).toBe('bumeran');
+            expect(resultado.titulo).toBeNull();
+            expect(resultado.empresa).toBeNull();
+        });
+
+        test('tira error si el item no tiene URL', () => {
+            const itemSinUrl = { titulo: 'Sin URL' };
+
+            expect(() => normalizarOfertaBumeran(itemSinUrl)).toThrow(
+                'El item de Bumeran no tiene URL'
+            );
+        });
+    });
+
     describe('normalizarLote()', () => {
 
         test('normaliza un array de items de LinkedIn', () => {
@@ -190,6 +438,22 @@ describe('Servicio de normalización', () => {
 
             expect(resultados).toHaveLength(1);
             expect(resultados[0].plataforma).toBe('computrabajo');
+        });
+
+        test('normaliza un array de items de Indeed', () => {
+            const items = [itemIndeedArgentinaReal];
+            const resultados = normalizarLote(items, 'indeed');
+
+            expect(resultados).toHaveLength(1);
+            expect(resultados[0].plataforma).toBe('indeed');
+        });
+
+        test('normaliza un array de items de Bumeran', () => {
+            const items = [itemBumeranReal];
+            const resultados = normalizarLote(items, 'bumeran');
+
+            expect(resultados).toHaveLength(1);
+            expect(resultados[0].plataforma).toBe('bumeran');
         });
 
         test('ignora items que fallan al normalizar y loguea el error', () => {
