@@ -1,0 +1,107 @@
+// Configuración del cliente de Apify y constantes de los actores de scraping.
+//
+// ¿Qué es Apify? Es una plataforma en la nube que ejecuta "Actores" (scripts
+// de scraping) por nosotros. En vez de hacer scraping directo desde nuestra PC
+// (y arriesgarnos a que nos bloqueen la IP), le mandamos la orden a Apify,
+// sus servidores hacen el scraping, y nosotros recibimos los resultados limpios.
+//
+// ¿Qué es un Actor? Es como un robot especializado: le das instrucciones
+// (ej: "buscá ofertas de frontend en Argentina") y te devuelve los datos
+// estructurados en JSON.
+
+const { ApifyClient } = require('apify-client');
+const path = require('path');
+
+// Cargo las variables de entorno (el token de Apify está en .env).
+require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+
+// Creo el cliente de Apify con el token de autenticación.
+// Este cliente se reutiliza para todas las llamadas a la API.
+const clienteApify = new ApifyClient({
+    token: process.env.APIFY_TOKEN,
+});
+
+// IDs de los Actores que vamos a usar.
+// Cada Actor tiene un ID único en la plataforma de Apify.
+const ACTORES = {
+    // curious_coder/linkedin-jobs-scraper — Rating 4.9, 38K usuarios.
+    // Recibe URLs de búsqueda de LinkedIn y devuelve ofertas con detalles.
+    // Costo: $0.001 por resultado (~$1 por 1000 ofertas).
+    LINKEDIN: 'hKByXkMQaC5Qt9UMN',
+
+    // shahidirfan/Computrabajo-Jobs-Scraper — GRATIS.
+    // Scrapea ofertas de Computrabajo Argentina.
+    COMPUTRABAJO: '270QqNecZlrnDMveb',
+};
+
+// Términos de búsqueda que me interesan.
+// Se usan para construir las URLs de búsqueda de LinkedIn
+// y las URLs de Computrabajo.
+const TERMINOS_BUSQUEDA = [
+    'frontend developer junior',
+    'react developer',
+    'angular developer',
+    'desarrollador web junior',
+    'fullstack junior',
+    'tester qa',
+    'soporte it',
+];
+
+// LinkedIn usa filtros de nivel de experiencia en la URL.
+// f_E=1 → Internship, f_E=2 → Entry level.
+// Los combinamos con coma: f_E=1%2C2 (Internship + Entry level).
+const NIVELES_EXPERIENCIA_LINKEDIN = '1%2C2';
+
+/**
+ * Construyo las URLs de búsqueda de LinkedIn a partir de los términos.
+ *
+ * ¿Por qué URLs y no keywords directos? Porque el Actor de LinkedIn
+ * recibe URLs de la página pública de búsqueda (la que ves en incógnito).
+ * Eso nos permite usar TODOS los filtros de LinkedIn (nivel, ubicación, etc.)
+ * directamente en la URL.
+ *
+ * @param {Object} opciones - Opciones de búsqueda.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda.
+ * @param {string} [opciones.ubicacion] - Ubicación (ej: "Argentina").
+ * @returns {string[]} Array de URLs de búsqueda de LinkedIn.
+ */
+function construirUrlsLinkedin(opciones = {}) {
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+    const ubicacion = opciones.ubicacion || 'Argentina';
+
+    return terminos.map(termino => {
+        // Reemplazo espacios por + para la URL.
+        const terminoEncoded = encodeURIComponent(termino).replace(/%20/g, '+');
+        const ubicacionEncoded = encodeURIComponent(ubicacion).replace(/%20/g, '+');
+
+        return `https://www.linkedin.com/jobs/search/?keywords=${terminoEncoded}&location=${ubicacionEncoded}&f_E=${NIVELES_EXPERIENCIA_LINKEDIN}`;
+    });
+}
+
+/**
+ * Construyo las URLs de búsqueda de Computrabajo Argentina.
+ *
+ * Computrabajo usa un formato de URL más simple:
+ * https://www.computrabajo.com.ar/trabajo-de-{termino}
+ *
+ * @param {Object} opciones - Opciones de búsqueda.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda.
+ * @returns {string[]} Array de URLs de búsqueda de Computrabajo.
+ */
+function construirUrlsComputrabajo(opciones = {}) {
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+
+    return terminos.map(termino => {
+        // Computrabajo usa guiones en vez de espacios en la URL.
+        const terminoFormateado = termino.toLowerCase().replace(/\s+/g, '-');
+        return `https://www.computrabajo.com.ar/trabajo-de-${terminoFormateado}`;
+    });
+}
+
+module.exports = {
+    clienteApify,
+    ACTORES,
+    TERMINOS_BUSQUEDA,
+    construirUrlsLinkedin,
+    construirUrlsComputrabajo,
+};

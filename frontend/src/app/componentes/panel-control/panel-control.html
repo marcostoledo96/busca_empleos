@@ -1,0 +1,60 @@
+<!-- Panel de acciones: Scraping + Evaluación + Automatización -->
+<p-toast />
+
+<div class="panel-contenedor">
+    <h3 class="panel-titulo">
+        <i class="pi pi-cog"></i>
+        Panel de control
+    </h3>
+
+    <div class="panel-acciones">
+        <div class="accion-grupo">
+            <span class="accion-etiqueta">Scraping</span>
+            <div class="accion-botones">
+                <p-button
+                    label="LinkedIn"
+                    icon="pi pi-linkedin"
+                    [loading]="scrapeandoLinkedin()"
+                    (onClick)="scrapearLinkedin()"
+                    severity="info"
+                    size="small" />
+                <p-button
+                    label="Computrabajo"
+                    icon="pi pi-globe"
+                    [loading]="scrapeandoComputrabajo()"
+                    (onClick)="scrapearComputrabajo()"
+                    severity="secondary"
+                    size="small" />
+            </div>
+        </div>
+
+        <div class="accion-separador"></div>
+
+        <div class="accion-grupo">
+            <span class="accion-etiqueta">Evaluación IA</span>
+            <div class="accion-botones">
+                <p-button
+                    label="Evaluar pendientes"
+                    icon="pi pi-sparkles"
+                    [loading]="evaluando()"
+                    (onClick)="ejecutarEvaluacion()"
+                    severity="warn"
+                    size="small" />
+            </div>
+        </div>
+
+        <div class="accion-separador"></div>
+
+        <div class="accion-grupo">
+            <span class="accion-etiqueta">Automatización</span>
+            <div class="accion-botones accion-cron">
+                <p-toggleswitch
+                    [ngModel]="cronActivo()"
+                    (ngModelChange)="toggleCron($event)" />
+                <span class="cron-estado" [class.cron-activo]="cronActivo()">
+                    {{ cronActivo() ? 'Cada 12hs' : 'Inactivo' }}
+                </span>
+            </div>
+        </div>
+    </div>
+</div>

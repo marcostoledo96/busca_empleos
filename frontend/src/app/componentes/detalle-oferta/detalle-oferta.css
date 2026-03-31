@@ -1,0 +1,111 @@
+/* ============================================
+   Detalle de oferta — Modal
+   ============================================ */
+
+.detalle-contenido {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.detalle-encabezado {
+    border-bottom: 1px solid #f1f5f9;
+    padding-bottom: 1rem;
+}
+
+.detalle-titulo {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.5rem;
+    line-height: 1.4;
+}
+
+.detalle-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.meta-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: #64748b;
+}
+
+.meta-item i {
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.detalle-tags {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.detalle-seccion h4 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+
+.detalle-seccion h4 i {
+    font-size: 0.85rem;
+    color: #94a3b8;
+}
+
+.detalle-salario {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--color-exito);
+}
+
+.detalle-razon {
+    font-size: 0.9rem;
+    color: #334155;
+    background: #f8fafc;
+    border-left: 3px solid var(--color-info);
+    padding: 0.75rem 1rem;
+    border-radius: 0 8px 8px 0;
+    line-height: 1.5;
+}
+
+.detalle-descripcion {
+    font-size: 0.85rem;
+    color: #475569;
+    line-height: 1.6;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    background: #f8fafc;
+    padding: 0.75rem 1rem;
+    border-radius: 8px;
+}
+
+.detalle-fechas {
+    display: flex;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    padding-top: 0.75rem;
+    border-top: 1px solid #f1f5f9;
+}
+
+.fecha-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+}
+
+.fecha-item i {
+    font-size: 0.75rem;
+}

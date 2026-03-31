@@ -1,0 +1,87 @@
+/* ============================================
+   Tarjetas de estadísticas — Grid de 4 cards
+   ============================================ */
+
+.tarjetas-contenedor {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: var(--espaciado-seccion);
+}
+
+.tarjeta {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tarjeta:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+}
+
+.tarjeta-icono {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+}
+
+.tarjeta-total .tarjeta-icono {
+    background-color: #eff6ff;
+    color: var(--color-info);
+}
+
+.tarjeta-pendientes .tarjeta-icono {
+    background-color: #fffbeb;
+    color: var(--color-advertencia);
+}
+
+.tarjeta-aprobadas .tarjeta-icono {
+    background-color: #f0fdf4;
+    color: var(--color-exito);
+}
+
+.tarjeta-rechazadas .tarjeta-icono {
+    background-color: #fef2f2;
+    color: var(--color-peligro);
+}
+
+.tarjeta-datos {
+    display: flex;
+    flex-direction: column;
+}
+
+.tarjeta-valor {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1;
+    color: #1e293b;
+}
+
+.tarjeta-etiqueta {
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 0.25rem;
+}
+
+/* Responsive: en pantallas chicas, 2 columnas */
+@media (max-width: 768px) {
+    .tarjetas-contenedor {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    .tarjetas-contenedor {
+        grid-template-columns: 1fr;
+    }
+}

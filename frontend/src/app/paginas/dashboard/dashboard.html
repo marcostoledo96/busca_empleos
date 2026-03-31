@@ -1,0 +1,22 @@
+<!-- Página principal del dashboard -->
+<section class="dashboard">
+    <!-- Tarjetas de estadísticas -->
+    <app-tarjetas-estadisticas
+        [estadisticas]="estadisticas()"
+        [cargando]="cargando()" />
+
+    <!-- Panel de control (scraping + evaluación) -->
+    <app-panel-control
+        (accionCompletada)="onAccionCompletada()" />
+
+    <!-- Tabla de ofertas -->
+    <app-tabla-ofertas
+        [ofertas]="ofertas()"
+        [cargando]="cargando()"
+        (ofertaSeleccionada)="mostrarDetalle($event)" />
+
+    <!-- Diálogo de detalle -->
+    <app-detalle-oferta
+        [oferta]="ofertaSeleccionada()"
+        [(visible)]="dialogoVisible" />
+</section>

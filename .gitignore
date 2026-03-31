@@ -1,0 +1,13 @@
+# Sistema operativo
+Thumbs.db
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# Variables de entorno (contiene credenciales)
+**/.env
+
+# Dependencias (cada subcarpeta tiene su propio .gitignore pero esto cubre la raíz)
+node_modules/

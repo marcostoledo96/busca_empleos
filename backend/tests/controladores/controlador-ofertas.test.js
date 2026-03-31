@@ -1,0 +1,163 @@
+// Tests del controlador de ofertas — verifico que los endpoints HTTP
+// responden correctamente según lo que retorna el modelo.
+//
+// ¿Qué es supertest? Es una herramienta que simula requests HTTP contra
+// tu app Express SIN levantar un servidor real. Le paso la app configurada
+// y le digo "hacé un GET a /api/ofertas" — y me da el status, body, headers.
+// Perfecto para testear la API sin abrir un puerto ni usar el browser.
+//
+// ¿Por qué mockeo el modelo? Porque estos tests verifican que el CONTROLADOR
+// funciona bien (parsea params, llama al modelo, formatea la respuesta).
+// El modelo ya tiene sus propios tests contra la BD real. No necesito
+// testear la BD otra vez acá — sería redundante y lento.
+
+// Primero mockeo TODOS los módulos que hacen I/O.
+// jest.mock() se "hoistea" (se mueve al principio) automáticamente,
+// así que aunque esté antes del require, funciona.
+jest.mock('../../src/modelos/oferta');
+jest.mock('../../src/servicios/servicio-scraping');
+jest.mock('../../src/servicios/servicio-evaluacion');
+
+const request = require('supertest');
+const app = require('../../src/app');
+const modeloOferta = require('../../src/modelos/oferta');
+
+describe('Controlador de ofertas', () => {
+    // Después de cada test, limpio los mocks para que no se contaminen entre sí.
+    afterEach(() => jest.clearAllMocks());
+
+    // === GET /api/ofertas ===
+
+    describe('GET /api/ofertas', () => {
+        test('retorna status 200 con la lista de ofertas', async () => {
+            // Configuro el mock: cuando alguien llame a obtenerOfertas,
+            // retorná este array. Es como decirle "fingí que la BD tiene esto".
+            modeloOferta.obtenerOfertas.mockResolvedValue([
+                { id: 1, titulo: 'Dev Junior React' },
+                { id: 2, titulo: 'QA Tester' },
+            ]);
+
+            const res = await request(app).get('/api/ofertas');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos).toHaveLength(2);
+            expect(res.body.total).toBe(2);
+        });
+
+        test('pasa los filtros de query params al modelo', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue([]);
+
+            await request(app).get('/api/ofertas?estado=aprobada&plataforma=linkedin');
+
+            // Verifico que el controlador pasó los filtros correctamente.
+            expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({
+                estado: 'aprobada',
+                plataforma: 'linkedin',
+            });
+        });
+
+        test('retorna array vacío y total 0 cuando no hay ofertas', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue([]);
+
+            const res = await request(app).get('/api/ofertas');
+
+            expect(res.status).toBe(200);
+            expect(res.body.datos).toEqual([]);
+            expect(res.body.total).toBe(0);
+        });
+
+        test('no pasa filtros vacíos al modelo si no hay query params', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue([]);
+
+            await request(app).get('/api/ofertas');
+
+            expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({});
+        });
+    });
+
+    // === GET /api/ofertas/estadisticas ===
+
+    describe('GET /api/ofertas/estadisticas', () => {
+        test('retorna conteo por estado de evaluación', async () => {
+            modeloOferta.obtenerEstadisticas.mockResolvedValue({
+                total: 10,
+                pendientes: 3,
+                aprobadas: 5,
+                rechazadas: 2,
+            });
+
+            const res = await request(app).get('/api/ofertas/estadisticas');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.total).toBe(10);
+            expect(res.body.datos.aprobadas).toBe(5);
+            expect(res.body.datos.pendientes).toBe(3);
+            expect(res.body.datos.rechazadas).toBe(2);
+        });
+    });
+
+    // === GET /api/ofertas/:id ===
+
+    describe('GET /api/ofertas/:id', () => {
+        test('retorna la oferta con status 200 si existe', async () => {
+            modeloOferta.obtenerOfertaPorId.mockResolvedValue({
+                id: 1,
+                titulo: 'Desarrollador Angular Junior',
+                estado_evaluacion: 'aprobada',
+            });
+
+            const res = await request(app).get('/api/ofertas/1');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.titulo).toBe('Desarrollador Angular Junior');
+        });
+
+        test('retorna 404 si la oferta no existe', async () => {
+            modeloOferta.obtenerOfertaPorId.mockResolvedValue(null);
+
+            const res = await request(app).get('/api/ofertas/999');
+
+            expect(res.status).toBe(404);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('no encontrada');
+        });
+
+        test('retorna 400 si el ID no es un número válido', async () => {
+            const res = await request(app).get('/api/ofertas/abc');
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('número entero positivo');
+        });
+
+        test('retorna 400 si el ID es negativo', async () => {
+            const res = await request(app).get('/api/ofertas/-5');
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+    });
+});
+
+// === Tests generales de la app ===
+
+describe('Infraestructura de la API', () => {
+    test('GET /api/salud retorna status del servidor', async () => {
+        const res = await request(app).get('/api/salud');
+
+        expect(res.status).toBe(200);
+        expect(res.body.exito).toBe(true);
+        expect(res.body.mensaje).toContain('funcionando');
+    });
+
+    test('retorna 404 JSON para rutas inexistentes', async () => {
+        const res = await request(app).get('/api/ruta-que-no-existe');
+
+        expect(res.status).toBe(404);
+        expect(res.body.exito).toBe(false);
+        expect(res.body.error).toContain('no encontrada');
+    });
+});

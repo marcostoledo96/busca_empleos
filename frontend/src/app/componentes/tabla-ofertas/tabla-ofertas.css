@@ -1,0 +1,109 @@
+/* ============================================
+   Tabla de ofertas — Estilos
+   ============================================ */
+
+.tabla-contenedor {
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+}
+
+.tabla-encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+
+.tabla-encabezado h3 {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 0;
+}
+
+.tabla-filtros {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.filtro-busqueda {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    width: 300px;
+    transition: border-color 0.2s;
+}
+
+.filtro-busqueda:focus {
+    outline: none;
+    border-color: var(--color-info);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Celdas personalizadas */
+.celda-titulo {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.titulo-texto {
+    font-weight: 500;
+    color: #1e293b;
+}
+
+.titulo-ubicacion {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.titulo-ubicacion i {
+    font-size: 0.7rem;
+}
+
+/* Estado vacío */
+.tabla-vacia {
+    text-align: center;
+    padding: 3rem 1rem !important;
+    color: #94a3b8;
+}
+
+.tabla-vacia i {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+}
+
+.tabla-vacia p {
+    font-size: 1rem;
+    font-weight: 500;
+    color: #64748b;
+    margin-bottom: 0.25rem;
+}
+
+.tabla-vacia span {
+    font-size: 0.85rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .tabla-encabezado {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .filtro-busqueda {
+        width: 100%;
+    }
+}

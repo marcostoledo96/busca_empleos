@@ -1,0 +1,18 @@
+/* La página dashboard no necesita estilos propios —
+   cada componente maneja los suyos.
+   Este archivo existe por si a futuro se agrega layout específico. */
+
+.dashboard {
+    animation: aparecer 0.3s ease-out;
+}
+
+@keyframes aparecer {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
