@@ -13,8 +13,8 @@ Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) e
 |-----------|-------|-----|-------|--------|
 | LinkedIn | curious_coder/linkedin-jobs-scraper | `hKByXkMQaC5Qt9UMN` | ~$0.001/resultado | 4.9 (38K usuarios) |
 | Computrabajo | shahidirfan/Computrabajo-Jobs-Scraper | `270QqNecZlrnDMveb` | GRATIS | — |
-| Indeed | bebity/indeed-scraper | `TrtlecxAsNRbKl1na` | ~$0.001/resultado | — |
-| Bumeran | apify/cheerio-scraper (genérico) | `YrQuEkowkqqFoyaIT` | GRATIS (actor genérico) | — |
+| Indeed | valig/indeed-jobs-scraper | `TrtlecxAsNRbKl1na` | ~$0.08/1000 resultados | 5.0 (3.1K usuarios) |
+| Bumeran | apify/web-scraper (genérico + Puppeteer) | `apify/web-scraper` | GRATIS (actor genérico) | — |
 
 ## Archivos involucrados
 
@@ -31,15 +31,19 @@ Configurados en `config/apify.js`:
 
 ```javascript
 const TERMINOS_BUSQUEDA = [
-    'frontend developer junior',
-    'react developer',
-    'angular developer',
-    'desarrollador web junior',
-    'fullstack junior',
-    'tester qa',
+    'tester',
+    'qa',
+    'it',
     'soporte it',
+    'helpdesk',
+    'desarrollador',
+    'developer',
+    'frontend',
+    'soporte tecnico',
 ];
 ```
+
+Estos términos están en español (con excepción de `qa`, `it`, `developer` y `frontend` que se usan igual en ambos idiomas) porque las plataformas locales (Computrabajo, Bumeran) funcionan mejor con búsquedas en castellano.
 
 ## Construcción de URLs
 
@@ -53,7 +57,7 @@ https://www.linkedin.com/jobs/search/?keywords={termino}&location={ubicacion}&f_
 
 - `f_E=1%2C2` → Filtro de nivel: **Internship (1) + Entry level (2)**.
 - Ubicación default: "Argentina".
-- Se generan 7 URLs (una por término).
+- Se generan 9 URLs (una por término).
 
 ### Computrabajo
 
@@ -64,7 +68,7 @@ https://www.computrabajo.com.ar/trabajo-de-{termino-con-guiones}
 ```
 
 - Espacios se reemplazan por guiones.
-- Se generan 7 URLs (una por término).
+- Se generan 9 URLs (una por término).
 
 ### Bumeran
 
@@ -75,8 +79,8 @@ https://www.bumeran.com.ar/empleos-busqueda-{termino-con-guiones}.html
 ```
 
 - Espacios se reemplazan por guiones.
-- Se generan 7 URLs (una por término).
-- **Indeed** no necesita construcción de URLs: el actor recibe los términos directamente como `queries`.
+- Se generan 9 URLs (una por término).
+- **Indeed** no necesita construcción de URLs: el actor recibe los términos directamente como parámetro `title`.
 
 ## Flujo del scraping
 
@@ -110,12 +114,13 @@ Opciones configurables: `maxResultados` (default: 50), `terminos`.
 ### Indeed (`ejecutarScrapingIndeed`)
 
 ```
-1. Preparar queries con los términos de búsqueda
-2. Llamar al actor de Apify con .call()
-   - Parámetros: queries (array de strings), location: "Argentina", maxItems
-3. Obtener items del dataset
-4. Normalizar al formato de nuestra tabla
-5. Retornar ofertas normalizadas
+1. Iterar sobre los términos de búsqueda
+2. Por cada término, llamar al actor de Apify con .call()
+   - Parámetros: title (keyword), country: 'ar' (ISO 2-letter), limit
+3. Obtener items del dataset de cada ejecución
+4. Concatenar todos los items crudos
+5. Normalizar al formato de nuestra tabla
+6. Retornar ofertas normalizadas
 ```
 
 Opciones configurables: `maxResultados` (default: 100), `terminos`.
@@ -124,17 +129,30 @@ Opciones configurables: `maxResultados` (default: 100), `terminos`.
 
 ```
 1. Construir URLs de búsqueda (7 URLs de bumeran.com.ar)
-2. Llamar al actor cheerio-scraper genérico con .call()
-   - Parámetros: startUrls, pageFunction (scraping de tarjetas de búsqueda)
-   - La pageFunction usa selectores semánticos de Bumeran (h2 a[href*="/empleos/"])
-3. Obtener items del dataset
-4. Normalizar al formato de nuestra tabla
-5. Retornar ofertas normalizadas
+2. Llamar al actor web-scraper genérico con .call()
+   - Parámetros: startUrls, pageFunction (scraping con jQuery), proxyConfiguration
+   - web-scraper usa Puppeteer (Chrome headless) — NECESARIO porque Bumeran
+     es una SPA React que requiere JavaScript para renderizar las tarjetas.
+   - jQuery se inyecta automáticamente (injectJQuery: true por default).
+   - Espera a networkidle2 antes de ejecutar la pageFunction.
+3. La pageFunction extrae datos de las tarjetas usando selectores semánticos
+   (aria-label, IDs con patrón, tags h2/h3) porque las clases CSS de Bumeran
+   son hashes de styled-components que cambian en cada deploy.
+4. Obtener items del dataset
+5. Aplanar resultados (la pageFunction retorna arrays por página)
+6. Normalizar al formato de nuestra tabla
+7. Retornar ofertas normalizadas
 ```
 
 Opciones configurables: `terminos`.
 
-**Nota sobre Bumeran:** Se usa `apify/cheerio-scraper` (actor genérico) porque no existe un actor dedicado. El scraping se hace en un solo paso desde las tarjetas de la página de resultados, sin visitar cada oferta individual. Las tarjetas tienen toda la info necesaria (título, empresa, ubicación, modalidad, fecha).
+**Nota sobre Bumeran:** Se usa `apify/web-scraper` (actor genérico con Puppeteer) porque:
+1. No existe un actor dedicado para Bumeran.
+2. Bumeran es una SPA React — el HTML del servidor es un `<div id="root">` vacío que necesita JavaScript para renderizar las ofertas.
+3. `cheerio-scraper` (HTTP puro sin JS) NO funciona porque recibe el HTML sin renderizar.
+4. `web-scraper` abre un Chrome headless, ejecuta JavaScript, espera a que React renderice, y recién ahí corre la pageFunction con jQuery.
+
+El scraping se hace en un solo paso desde las tarjetas de la página de resultados, sin visitar cada oferta individual. Las tarjetas tienen toda la info necesaria (título, empresa, ubicación, modalidad, descripción).
 
 ## Normalización de datos
 
@@ -146,17 +164,17 @@ Cada plataforma devuelve datos en un formato distinto. El servicio de normalizac
 
 | Campo destino | LinkedIn | Computrabajo | Indeed | Bumeran |
 |--------------|----------|-------------|--------|--------|
-| `titulo` | `item.title` | `item.title` | `item.positionName` | `item.titulo` |
-| `empresa` | `item.companyName` | `item.company` | `item.company` | `item.empresa` |
-| `ubicacion` | `item.location` | `item.location` | `item.location` | `item.ubicacion` |
-| `modalidad` | Detectada por `detectarModalidad()` | `null` | `null` | `mapearModalidadBumeran(item.modalidad)` |
-| `descripcion` | `item.descriptionText` | `item.descriptionText` | `item.description` | `item.detalle` |
+| `titulo` | `item.title` | `item.title` | `item.title` | `item.titulo` |
+| `empresa` | `item.companyName` | `item.company` | `item.employer?.name` | `item.empresa` |
+| `ubicacion` | `item.location` | `item.location` | `item.location` (city + countryName) | `item.ubicacion` |
+| `modalidad` | Detectada por `detectarModalidad()` | `null` | `detectarModalidadIndeed(item)` | `mapearModalidadBumeran(item.modalidad)` |
+| `descripcion` | `item.descriptionText` | `item.descriptionText` | `item.description?.text` | `item.detalle` |
 | `url` | `item.link` | `item.url` | `item.url` | `item.url` |
 | `plataforma` | `'linkedin'` | `'computrabajo'` | `'indeed'` | `'bumeran'` |
-| `nivel_requerido` | `mapearNivelLinkedin(item.seniorityLevel)` | `null` | `null` | `null` |
-| `salario_min/max` | `parsearSalario(item.salary)` | `null` | `parsearSalario(item.salary)` | `null` |
-| `moneda` | Detectada en `parsearSalario()` | `null` | Detectada en `parsearSalario()` | `null` |
-| `fecha_publicacion` | `item.postedAt` | `item.postedDate` | `null` | `item.fechaPublicacion` |
+| `nivel_requerido` | `mapearNivelLinkedin(item.seniorityLevel)` | `null` | `detectarNivelIndeed(item)` | `null` |
+| `salario_min/max` | `parsearSalario(item.salary)` | `null` | `item.baseSalary?.min/max` | `null` |
+| `moneda` | Detectada en `parsearSalario()` | `null` | `item.baseSalary?.currencyCode` | `null` |
+| `fecha_publicacion` | `item.postedAt` | `item.postedDate` | `item.datePublished` | `item.fechaPublicacion` |
 | `datos_crudos` | `item` completo | `item` completo | `item` completo | `item` completo |
 
 #### `mapearModalidadBumeran(modalidad)`

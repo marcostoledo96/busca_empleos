@@ -1,23 +1,38 @@
-import { Component, input, model } from '@angular/core';
+import { Component, inject, input, model, output } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
+import { SelectModule } from 'primeng/select';
+import { FormsModule } from '@angular/forms';
 import { Oferta } from '../../modelos/oferta.model';
+import { OfertasService } from '../../servicios/ofertas.service';
 
 @Component({
     selector: 'app-detalle-oferta',
-    imports: [DatePipe, DialogModule, TagModule, ButtonModule],
+    imports: [DatePipe, DialogModule, TagModule, ButtonModule, SelectModule, FormsModule],
     templateUrl: './detalle-oferta.html',
     styleUrl: './detalle-oferta.css'
 })
 export class DetalleOferta {
+
+    private readonly ofertasService = inject(OfertasService);
 
     // La oferta a mostrar. null = diálogo cerrado.
     readonly oferta = input<Oferta | null>(null);
 
     // model() es un signal bidireccional — el padre puede abrirlo/cerrarlo.
     readonly visible = model(false);
+
+    // Evento que emite cuando se actualiza la postulación.
+    readonly postulacionActualizada = output<void>();
+
+    readonly opcionesPostulacion = [
+        { label: 'No postulado', value: 'no_postulado' },
+        { label: 'CV enviado', value: 'cv_enviado' },
+        { label: 'En proceso', value: 'en_proceso' },
+        { label: 'Descartada', value: 'descartada' },
+    ];
 
     // Determina el color del tag según el estado.
     severidadEstado(estado: string): 'success' | 'danger' | 'warn' | 'info' {
@@ -29,10 +44,32 @@ export class DetalleOferta {
         return mapa[estado] || 'info';
     }
 
+    // Determina el color del tag según el porcentaje de match.
+    severidadPorcentaje(porcentaje: number): 'success' | 'danger' | 'warn' | 'info' {
+        if (porcentaje >= 70) return 'success';
+        if (porcentaje >= 50) return 'warn';
+        return 'danger';
+    }
+
     abrirEnPagina(): void {
         const url = this.oferta()?.url;
         if (url) {
             window.open(url, '_blank', 'noopener,noreferrer');
         }
+    }
+
+    cambiarPostulacion(nuevoEstado: string): void {
+        const o = this.oferta();
+        if (!o) return;
+
+        this.ofertasService.actualizarPostulacion(o.id, nuevoEstado).subscribe({
+            next: (respuesta) => {
+                if (respuesta.exito) {
+                    o.estado_postulacion = respuesta.datos.estado_postulacion;
+                    this.postulacionActualizada.emit();
+                }
+            },
+            error: (error) => console.error('Error al actualizar postulación:', error)
+        });
     }
 }

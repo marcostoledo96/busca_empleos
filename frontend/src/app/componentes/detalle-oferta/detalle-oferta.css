@@ -78,6 +78,12 @@
     line-height: 1.5;
 }
 
+.detalle-porcentaje {
+    font-size: 0.9rem;
+    color: #334155;
+    margin-bottom: 0.5rem;
+}
+
 .detalle-descripcion {
     font-size: 0.85rem;
     color: #475569;

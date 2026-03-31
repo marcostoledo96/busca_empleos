@@ -54,11 +54,12 @@ INSTRUCCIONES DE RESPUESTA:
 1. Analizá la oferta comparándola con el perfil del candidato.
 2. Respondé ÚNICAMENTE con un objeto JSON válido, sin texto adicional.
 3. Formato exacto de respuesta:
-   {"match": true, "razon": "Explicación breve de por qué matchea"}
+   {"match": true, "porcentaje": 85, "razon": "Explicación breve de por qué matchea"}
    o
-   {"match": false, "razon": "Explicación breve de por qué no matchea"}
+   {"match": false, "porcentaje": 20, "razon": "Explicación breve de por qué no matchea"}
 
 CRITERIOS DE EVALUACIÓN:
+- "porcentaje" es un número entero de 0 a 100 que indica qué tan compatible es la oferta con el perfil del candidato. Tiene que reflejar la calidad del match: 90-100 = match perfecto, 70-89 = buen match, 50-69 = match parcial, 0-49 = no matchea.
 - match: true si el candidato cumple con al menos el 60% de los requisitos técnicos.
 - match: true si el nivel pedido es trainee, junior, o no se especifica nivel.
 - match: false si requiere Java (no JavaScript) como tecnología principal.
@@ -115,9 +116,16 @@ async function evaluarOferta(oferta) {
 
         const respuesta = JSON.parse(jsonLimpio);
 
+        // Valido y acoto el porcentaje al rango 0–100.
+        const porcentajeCrudo = parseInt(respuesta.porcentaje, 10);
+        const porcentaje = Number.isFinite(porcentajeCrudo)
+            ? Math.max(0, Math.min(100, porcentajeCrudo))
+            : null;
+
         return {
             match: respuesta.match === true,
             razon: respuesta.razon || 'Sin razón proporcionada.',
+            porcentaje,
         };
 
     } catch (error) {
@@ -179,8 +187,8 @@ async function evaluarOfertasPendientes() {
         const resultado = await evaluarOferta(oferta);
         const estado = resultado.match ? 'aprobada' : 'rechazada';
 
-        // Actualizo el estado en la base de datos.
-        await modeloOferta.actualizarEvaluacion(oferta.id, estado, resultado.razon);
+        // Actualizo el estado y el porcentaje en la base de datos.
+        await modeloOferta.actualizarEvaluacion(oferta.id, estado, resultado.razon, resultado.porcentaje);
 
         // Actualizo los contadores del resumen.
         if (resultado.error) {

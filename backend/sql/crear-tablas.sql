@@ -39,6 +39,16 @@ CREATE TABLE IF NOT EXISTS ofertas (
     -- Razón que da DeepSeek de por qué aprobó o rechazó la oferta.
     razon_evaluacion    TEXT,
 
+    -- Porcentaje de compatibilidad que asigna DeepSeek (0–100).
+    -- Permite ordenar las ofertas por "chance de éxito" en el dashboard.
+    -- NULL mientras la oferta esté en estado 'pendiente'.
+    porcentaje_match    INTEGER,
+
+    -- Estado de la postulación del usuario.
+    -- Arranca en 'no_postulado' y el usuario lo actualiza manualmente desde el dashboard.
+    -- Valores posibles: 'no_postulado', 'cv_enviado', 'en_proceso', 'descartada'.
+    estado_postulacion  VARCHAR(30)     DEFAULT 'no_postulado',
+
     -- Fecha en que se publicó la oferta (puede ser NULL si la plataforma no la da).
     fecha_publicacion   TIMESTAMP,
 
@@ -60,3 +70,11 @@ CREATE INDEX IF NOT EXISTS idx_ofertas_estado_evaluacion
 -- Índice para buscar ofertas por plataforma.
 CREATE INDEX IF NOT EXISTS idx_ofertas_plataforma
     ON ofertas (plataforma);
+
+-- Índice para buscar ofertas por estado de postulación (filtramos seguido por esto).
+CREATE INDEX IF NOT EXISTS idx_ofertas_estado_postulacion
+    ON ofertas (estado_postulacion);
+
+-- Índice para ordenar ofertas por porcentaje de match (ranking de IA).
+CREATE INDEX IF NOT EXISTS idx_ofertas_porcentaje_match
+    ON ofertas (porcentaje_match DESC NULLS LAST);

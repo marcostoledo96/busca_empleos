@@ -15,6 +15,8 @@ export interface Oferta {
     moneda: string | null;
     estado_evaluacion: 'pendiente' | 'aprobada' | 'rechazada';
     razon_evaluacion: string | null;
+    porcentaje_match: number | null;
+    estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada';
     fecha_publicacion: string | null;
     fecha_extraccion: string;
     datos_crudos: Record<string, unknown> | null;

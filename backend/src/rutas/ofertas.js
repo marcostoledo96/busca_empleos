@@ -23,4 +23,8 @@ router.get('/estadisticas', controlador.obtenerEstadisticas);
 router.get('/:id', controlador.obtenerOferta);
 router.get('/', controlador.listarOfertas);
 
+// PATCH para actualizar el estado de postulación de una oferta.
+// Uso PATCH (no PUT) porque solo modifico UN campo, no la oferta entera.
+router.patch('/:id/postulacion', controlador.actualizarPostulacion);
+
 module.exports = router;

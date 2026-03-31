@@ -38,23 +38,26 @@ const ACTORES = {
     // Costo: $0.08 por 1000 resultados.
     INDEED: 'TrtlecxAsNRbKl1na',
 
-    // apify/cheerio-scraper — Actor genérico GRATIS (solo compute units).
+    // apify/web-scraper — Actor genérico GRATIS (solo compute units).
     // Lo uso para Bumeran porque no existe un actor dedicado.
-    // Ejecuta una pageFunction con cheerio (jQuery server-side) sobre el HTML.
-    BUMERAN_CHEERIO: 'apify/cheerio-scraper',
+    // Usa Puppeteer (Chrome headless) para renderizar SPAs como Bumeran
+    // (que es React) y ejecuta una pageFunction con jQuery sobre el DOM renderizado.
+    BUMERAN_WEB: 'apify/web-scraper',
 };
 
 // Términos de búsqueda que me interesan.
 // Se usan para construir las URLs de búsqueda de LinkedIn
 // y las URLs de Computrabajo.
 const TERMINOS_BUSQUEDA = [
-    'frontend developer junior',
-    'react developer',
-    'angular developer',
-    'desarrollador web junior',
-    'fullstack junior',
-    'tester qa',
+    'tester',
+    'qa',
+    'it',
     'soporte it',
+    'helpdesk',
+    'desarrollador',
+    'developer',
+    'frontend',
+    'soporte tecnico',
 ];
 
 // LinkedIn usa filtros de nivel de experiencia en la URL.

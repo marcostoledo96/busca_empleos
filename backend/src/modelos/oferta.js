@@ -81,13 +81,30 @@ async function obtenerOfertas(filtros = {}) {
         condiciones.push(`plataforma = $${parametros.length}`);
     }
 
+    if (filtros.estado_postulacion) {
+        parametros.push(filtros.estado_postulacion);
+        condiciones.push(`estado_postulacion = $${parametros.length}`);
+    }
+
     // Si hay condiciones, las uno con AND. Si no, no agrego WHERE.
     const clausulaWhere = condiciones.length > 0
         ? `WHERE ${condiciones.join(' AND ')}`
         : '';
 
+    // Sorting: el controlador puede pedir ordenar por determinada columna.
+    // Solo permito columnas seguras (whitelist) para evitar SQL injection.
+    const columnasPermitidas = [
+        'fecha_extraccion', 'fecha_publicacion', 'porcentaje_match',
+        'titulo', 'empresa', 'estado_evaluacion'
+    ];
+    const columnaOrden = columnasPermitidas.includes(filtros.ordenar_por)
+        ? filtros.ordenar_por
+        : 'fecha_extraccion';
+    const direccion = filtros.direccion === 'ASC' ? 'ASC' : 'DESC';
+
+    // NULLS LAST para que las ofertas sin fecha o sin porcentaje queden al final.
     const resultado = await pool.query(
-        `SELECT * FROM ofertas ${clausulaWhere} ORDER BY fecha_extraccion DESC`,
+        `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST`,
         parametros
     );
 
@@ -129,15 +146,36 @@ async function obtenerOfertasPendientes() {
  * @param {number} id - El ID de la oferta a actualizar.
  * @param {string} estado - El nuevo estado: 'aprobada' o 'rechazada'.
  * @param {string} razon - La razón que dio la IA.
+ * @param {number|null} porcentaje - Porcentaje de match (0–100) que asignó la IA.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null) {
     const resultado = await pool.query(
         `UPDATE ofertas
-         SET estado_evaluacion = $1, razon_evaluacion = $2
-         WHERE id = $3
+         SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3
+         WHERE id = $4
          RETURNING *`,
-        [estado, razon, id]
+        [estado, razon, porcentaje, id]
+    );
+
+    return resultado.rows.length > 0 ? resultado.rows[0] : null;
+}
+
+/**
+ * Actualizo el estado de postulación de una oferta.
+ * El usuario marca manualmente si ya envió CV, está en proceso, etc.
+ *
+ * @param {number} id - El ID de la oferta.
+ * @param {string} estadoPostulacion - El nuevo estado: 'no_postulado', 'cv_enviado', 'en_proceso', 'descartada'.
+ * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
+ */
+async function actualizarPostulacion(id, estadoPostulacion) {
+    const resultado = await pool.query(
+        `UPDATE ofertas
+         SET estado_postulacion = $1
+         WHERE id = $2
+         RETURNING *`,
+        [estadoPostulacion, id]
     );
 
     return resultado.rows.length > 0 ? resultado.rows[0] : null;
@@ -182,5 +220,6 @@ module.exports = {
     obtenerOfertaPorId,
     obtenerOfertasPendientes,
     obtenerEstadisticas,
-    actualizarEvaluacion
+    actualizarEvaluacion,
+    actualizarPostulacion
 };

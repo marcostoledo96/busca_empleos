@@ -57,6 +57,20 @@ describe('Controlador de ofertas', () => {
             });
         });
 
+        test('pasa filtros de sorting y postulacion al modelo', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue([]);
+
+            await request(app).get(
+                '/api/ofertas?ordenar_por=porcentaje_match&direccion=DESC&estado_postulacion=cv_enviado'
+            );
+
+            expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({
+                ordenar_por: 'porcentaje_match',
+                direccion: 'DESC',
+                estado_postulacion: 'cv_enviado',
+            });
+        });
+
         test('retorna array vacío y total 0 cuando no hay ofertas', async () => {
             modeloOferta.obtenerOfertas.mockResolvedValue([]);
 
@@ -135,6 +149,66 @@ describe('Controlador de ofertas', () => {
 
         test('retorna 400 si el ID es negativo', async () => {
             const res = await request(app).get('/api/ofertas/-5');
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+    });
+
+    // === PATCH /api/ofertas/:id/postulacion ===
+
+    describe('PATCH /api/ofertas/:id/postulacion', () => {
+        test('actualiza el estado de postulación y retorna 200', async () => {
+            modeloOferta.actualizarPostulacion.mockResolvedValue({
+                id: 1,
+                titulo: 'Dev Junior',
+                estado_postulacion: 'cv_enviado',
+            });
+
+            const res = await request(app)
+                .patch('/api/ofertas/1/postulacion')
+                .send({ estado_postulacion: 'cv_enviado' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.estado_postulacion).toBe('cv_enviado');
+            expect(res.body.mensaje).toContain('cv_enviado');
+        });
+
+        test('retorna 400 si el estado no es válido', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/1/postulacion')
+                .send({ estado_postulacion: 'estado_inventado' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('estado_postulacion');
+        });
+
+        test('retorna 400 si no se envía estado_postulacion', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/1/postulacion')
+                .send({});
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+
+        test('retorna 404 si la oferta no existe', async () => {
+            modeloOferta.actualizarPostulacion.mockResolvedValue(null);
+
+            const res = await request(app)
+                .patch('/api/ofertas/999/postulacion')
+                .send({ estado_postulacion: 'cv_enviado' });
+
+            expect(res.status).toBe(404);
+            expect(res.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si el ID no es un número válido', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/abc/postulacion')
+                .send({ estado_postulacion: 'cv_enviado' });
 
             expect(res.status).toBe(400);
             expect(res.body.exito).toBe(false);

@@ -13,10 +13,12 @@
     <app-tabla-ofertas
         [ofertas]="ofertas()"
         [cargando]="cargando()"
-        (ofertaSeleccionada)="mostrarDetalle($event)" />
+        (ofertaSeleccionada)="mostrarDetalle($event)"
+        (postulacionActualizada)="onAccionCompletada()" />
 
     <!-- Diálogo de detalle -->
     <app-detalle-oferta
         [oferta]="ofertaSeleccionada()"
-        [(visible)]="dialogoVisible" />
+        [(visible)]="dialogoVisible"
+        (postulacionActualizada)="onAccionCompletada()" />
 </section>

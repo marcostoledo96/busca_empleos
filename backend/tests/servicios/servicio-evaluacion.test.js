@@ -100,6 +100,7 @@ describe('Servicio de evaluación con IA', () => {
             expect(INSTRUCCIONES_SISTEMA).toContain('JSON');
             expect(INSTRUCCIONES_SISTEMA).toContain('match');
             expect(INSTRUCCIONES_SISTEMA).toContain('razon');
+            expect(INSTRUCCIONES_SISTEMA).toContain('porcentaje');
         });
     });
 
@@ -130,6 +131,7 @@ describe('Servicio de evaluación con IA', () => {
             consultarDeepSeek.mockResolvedValueOnce(
                 JSON.stringify({
                     match: true,
+                    porcentaje: 85,
                     razon: 'La oferta pide React y TypeScript, que están en el perfil del candidato.',
                 })
             );
@@ -138,6 +140,7 @@ describe('Servicio de evaluación con IA', () => {
 
             expect(resultado.match).toBe(true);
             expect(resultado.razon).toContain('React');
+            expect(resultado.porcentaje).toBe(85);
             expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
         });
 
@@ -145,6 +148,7 @@ describe('Servicio de evaluación con IA', () => {
             consultarDeepSeek.mockResolvedValueOnce(
                 JSON.stringify({
                     match: false,
+                    porcentaje: 15,
                     razon: 'La oferta requiere 5 años de experiencia, no es junior.',
                 })
             );
@@ -153,6 +157,7 @@ describe('Servicio de evaluación con IA', () => {
 
             expect(resultado.match).toBe(false);
             expect(resultado.razon).toContain('experiencia');
+            expect(resultado.porcentaje).toBe(15);
         });
 
         test('pasa el perfil del candidato como mensaje de sistema', async () => {
@@ -170,13 +175,14 @@ describe('Servicio de evaluación con IA', () => {
         test('maneja respuesta con markdown fence (```json)', async () => {
             // Algunos modelos envuelven el JSON en bloques de código markdown.
             consultarDeepSeek.mockResolvedValueOnce(
-                '```json\n{"match": true, "razon": "Cumple."}\n```'
+                '```json\n{"match": true, "porcentaje": 70, "razon": "Cumple."}\n```'
             );
 
             const resultado = await evaluarOferta(ofertaEjemplo);
 
             expect(resultado.match).toBe(true);
             expect(resultado.razon).toBe('Cumple.');
+            expect(resultado.porcentaje).toBe(70);
         });
 
         test('retorna error descriptivo si DeepSeek falla', async () => {
@@ -202,6 +208,24 @@ describe('Servicio de evaluación con IA', () => {
             expect(resultado.razon).toContain('parsear');
             expect(resultado.error).toBe(true);
         });
+
+        test('acota el porcentaje a 0–100 si DeepSeek devuelve fuera de rango', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 150, razon: 'Excede rango.' })
+            );
+
+            const resultado = await evaluarOferta(ofertaEjemplo);
+            expect(resultado.porcentaje).toBe(100);
+        });
+
+        test('retorna porcentaje null si DeepSeek no lo incluye en la respuesta', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, razon: 'Cumple requisitos.' })
+            );
+
+            const resultado = await evaluarOferta(ofertaEjemplo);
+            expect(resultado.porcentaje).toBeNull();
+        });
     });
 
     describe('evaluarOfertasPendientes()', () => {
@@ -217,10 +241,12 @@ describe('Servicio de evaluación con IA', () => {
             consultarDeepSeek
                 .mockResolvedValueOnce(JSON.stringify({
                     match: true,
+                    porcentaje: 85,
                     razon: 'Cumple con React y TypeScript.',
                 }))
                 .mockResolvedValueOnce(JSON.stringify({
                     match: false,
+                    porcentaje: 20,
                     razon: 'Requiere experiencia en Selenium que no tiene.',
                 }));
 
@@ -240,14 +266,14 @@ describe('Servicio de evaluación con IA', () => {
             // Verifico que se llamó a actualizarEvaluacion 2 veces.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledTimes(2);
 
-            // Primera oferta: aprobada.
+            // Primera oferta: aprobada con porcentaje.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                1, 'aprobada', 'Cumple con React y TypeScript.'
+                1, 'aprobada', 'Cumple con React y TypeScript.', 85
             );
 
-            // Segunda oferta: rechazada.
+            // Segunda oferta: rechazada con porcentaje.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.'
+                3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.', 20
             );
         });
 

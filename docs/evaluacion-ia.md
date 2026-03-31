@@ -66,11 +66,17 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
 ### Formato de respuesta exigido
 
 ```json
-{"match": true, "razon": "Explicación breve en español"}
-{"match": false, "razon": "Explicación breve en español"}
+{"match": true, "razon": "Explicación breve en español", "porcentaje": 85}
+{"match": false, "razon": "Explicación breve en español", "porcentaje": 25}
 ```
 
-La razón debe ser 1-2 oraciones, en español, mencionando las tecnologías relevantes.
+- La razón debe ser 1-2 oraciones, en español, mencionando las tecnologías relevantes.
+- El porcentaje (0-100) indica qué tan buen match es la oferta con el perfil:
+  - **90-100:** Match perfecto. Cumple todas las tecnologías y el nivel.
+  - **70-89:** Buen match. Cumple la mayoría de requisitos.
+  - **50-69:** Match parcial. Algunas tecnologías coinciden.
+  - **0-49:** No es match. Requiere tecnologías o experiencia fuera del perfil.
+- El backend aplica un clamp `Math.max(0, Math.min(100, porcentaje))` para asegurar rango válido.
 
 ## Flujo de evaluación
 
@@ -113,7 +119,7 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 3. Para CADA oferta (secuencialmente):
    a. Evaluar con DeepSeek
    b. Determinar estado: match=true → 'aprobada', match=false → 'rechazada'
-   c. Actualizar en BD: actualizarEvaluacion(id, estado, razon)
+   c. Actualizar en BD: actualizarEvaluacion(id, estado, razon, porcentaje)
    d. Sumar contadores
 4. Retornar resumen con totales
 ```

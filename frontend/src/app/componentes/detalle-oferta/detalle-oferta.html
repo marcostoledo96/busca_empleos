@@ -32,6 +32,9 @@
                 <div class="detalle-tags">
                     <p-tag [value]="o.plataforma" severity="info" />
                     <p-tag [value]="o.estado_evaluacion" [severity]="severidadEstado(o.estado_evaluacion)" />
+                    @if (o.porcentaje_match !== null) {
+                        <p-tag [value]="o.porcentaje_match + '% match'" [severity]="severidadPorcentaje(o.porcentaje_match)" />
+                    }
                     @if (o.nivel_requerido) {
                         <p-tag [value]="o.nivel_requerido" severity="secondary" />
                     }
@@ -58,9 +61,26 @@
             @if (o.razon_evaluacion) {
                 <div class="detalle-seccion">
                     <h4><i class="pi pi-sparkles"></i> Evaluación de la IA</h4>
+                    @if (o.porcentaje_match !== null) {
+                        <p class="detalle-porcentaje">
+                            <strong>Compatibilidad:</strong> {{ o.porcentaje_match }}%
+                        </p>
+                    }
                     <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
                 </div>
             }
+
+            <!-- Estado de postulación -->
+            <div class="detalle-seccion">
+                <h4><i class="pi pi-send"></i> Estado de postulación</h4>
+                <p-select
+                    [options]="opcionesPostulacion"
+                    [ngModel]="o.estado_postulacion"
+                    (ngModelChange)="cambiarPostulacion($event)"
+                    optionLabel="label"
+                    optionValue="value"
+                    [style]="{ width: '220px' }" />
+            </div>
 
             <!-- Descripción -->
             @if (o.descripcion) {

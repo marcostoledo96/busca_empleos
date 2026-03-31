@@ -215,5 +215,109 @@ describe('Modelo de ofertas — CRUD', () => {
             const verificacion = await modeloOferta.obtenerOfertaPorId(oferta.id);
             expect(verificacion.estado_evaluacion).toBe('rechazada');
         });
+
+        test('debería guardar el porcentaje de match cuando se proporciona', async () => {
+            const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
+
+            const actualizada = await modeloOferta.actualizarEvaluacion(
+                oferta.id,
+                'aprobada',
+                'Match perfecto con Angular y TypeScript.',
+                85
+            );
+
+            expect(actualizada.porcentaje_match).toBe(85);
+
+            const verificacion = await modeloOferta.obtenerOfertaPorId(oferta.id);
+            expect(verificacion.porcentaje_match).toBe(85);
+        });
+
+        test('debería guardar porcentaje null si no se proporciona', async () => {
+            const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
+
+            const actualizada = await modeloOferta.actualizarEvaluacion(
+                oferta.id,
+                'aprobada',
+                'Cumple requisitos.'
+            );
+
+            expect(actualizada.porcentaje_match).toBeNull();
+        });
+    });
+
+    // === actualizarPostulacion() ===
+
+    describe('actualizarPostulacion()', () => {
+        test('debería cambiar el estado de postulación de una oferta', async () => {
+            const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
+
+            // Por default arranca en 'no_postulado'.
+            expect(oferta.estado_postulacion).toBe('no_postulado');
+
+            const actualizada = await modeloOferta.actualizarPostulacion(
+                oferta.id,
+                'cv_enviado'
+            );
+
+            expect(actualizada.estado_postulacion).toBe('cv_enviado');
+        });
+
+        test('debería retornar null si el ID no existe', async () => {
+            const resultado = await modeloOferta.actualizarPostulacion(99999, 'cv_enviado');
+            expect(resultado).toBeNull();
+        });
+    });
+
+    // === obtenerOfertas() — Sorting ===
+
+    describe('obtenerOfertas() — Sorting', () => {
+        test('debería ordenar por porcentaje_match DESC', async () => {
+            const oferta1 = await modeloOferta.crearOferta(ofertaEjemplo);
+            const oferta2 = await modeloOferta.crearOferta(segundaOferta);
+
+            await modeloOferta.actualizarEvaluacion(oferta1.id, 'aprobada', 'Match', 60);
+            await modeloOferta.actualizarEvaluacion(oferta2.id, 'aprobada', 'Match', 90);
+
+            const ofertas = await modeloOferta.obtenerOfertas({
+                ordenar_por: 'porcentaje_match',
+                direccion: 'DESC'
+            });
+
+            expect(ofertas[0].porcentaje_match).toBe(90);
+            expect(ofertas[1].porcentaje_match).toBe(60);
+        });
+
+        test('debería usar fecha_extraccion DESC como orden por defecto', async () => {
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+
+            const ofertas = await modeloOferta.obtenerOfertas();
+
+            // La segunda insertada tiene fecha_extraccion más reciente.
+            expect(ofertas[0].titulo).toBe(segundaOferta.titulo);
+        });
+
+        test('debería ignorar columnas de orden no permitidas (previene SQL injection)', async () => {
+            await modeloOferta.crearOferta(ofertaEjemplo);
+
+            // Intento meter una columna maliciosa — el modelo debería ignorarla
+            // y usar fecha_extraccion por defecto.
+            const ofertas = await modeloOferta.obtenerOfertas({
+                ordenar_por: 'DROP TABLE ofertas; --'
+            });
+
+            expect(ofertas).toHaveLength(1);
+        });
+
+        test('debería filtrar por estado_postulacion', async () => {
+            const oferta1 = await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+
+            await modeloOferta.actualizarPostulacion(oferta1.id, 'cv_enviado');
+
+            const conCv = await modeloOferta.obtenerOfertas({ estado_postulacion: 'cv_enviado' });
+            expect(conCv).toHaveLength(1);
+            expect(conCv[0].id).toBe(oferta1.id);
+        });
     });
 });

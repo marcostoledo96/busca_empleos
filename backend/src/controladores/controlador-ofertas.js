@@ -14,19 +14,25 @@ const modeloOferta = require('../modelos/oferta');
 
 /**
  * GET /api/ofertas
- * Retorno la lista de ofertas, con filtros opcionales por query params.
+ * Retorno la lista de ofertas, con filtros y sorting opcionales por query params.
  *
  * Query params soportados:
  * - estado: 'pendiente' | 'aprobada' | 'rechazada'
- * - plataforma: 'linkedin' | 'computrabajo'
+ * - plataforma: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran'
+ * - estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada'
+ * - ordenar_por: 'fecha_extraccion' | 'fecha_publicacion' | 'porcentaje_match' | 'titulo' | 'empresa' | 'estado_evaluacion'
+ * - direccion: 'ASC' | 'DESC'
  *
- * Ejemplo: GET /api/ofertas?estado=aprobada&plataforma=linkedin
+ * Ejemplo: GET /api/ofertas?estado=aprobada&ordenar_por=porcentaje_match&direccion=DESC
  */
 async function listarOfertas(req, res) {
     const filtros = {};
 
     if (req.query.estado) filtros.estado = req.query.estado;
     if (req.query.plataforma) filtros.plataforma = req.query.plataforma;
+    if (req.query.estado_postulacion) filtros.estado_postulacion = req.query.estado_postulacion;
+    if (req.query.ordenar_por) filtros.ordenar_por = req.query.ordenar_por;
+    if (req.query.direccion) filtros.direccion = req.query.direccion;
 
     const ofertas = await modeloOferta.obtenerOfertas(filtros);
 
@@ -84,4 +90,46 @@ async function obtenerOferta(req, res) {
     });
 }
 
-module.exports = { listarOfertas, obtenerEstadisticas, obtenerOferta };
+/**
+ * PATCH /api/ofertas/:id/postulacion
+ * Actualizo el estado de postulación de una oferta.
+ *
+ * Body: { estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada' }
+ */
+async function actualizarPostulacion(req, res) {
+    const id = parseInt(req.params.id, 10);
+
+    if (isNaN(id) || id <= 0) {
+        return res.status(400).json({
+            exito: false,
+            error: 'El ID debe ser un número entero positivo.',
+        });
+    }
+
+    const { estado_postulacion } = req.body;
+    const estadosValidos = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
+
+    if (!estado_postulacion || !estadosValidos.includes(estado_postulacion)) {
+        return res.status(400).json({
+            exito: false,
+            error: `El estado_postulacion debe ser uno de: ${estadosValidos.join(', ')}.`,
+        });
+    }
+
+    const oferta = await modeloOferta.actualizarPostulacion(id, estado_postulacion);
+
+    if (!oferta) {
+        return res.status(404).json({
+            exito: false,
+            error: 'Oferta no encontrada.',
+        });
+    }
+
+    res.json({
+        exito: true,
+        datos: oferta,
+        mensaje: `Estado de postulación actualizado a '${estado_postulacion}'.`,
+    });
+}
+
+module.exports = { listarOfertas, obtenerEstadisticas, obtenerOferta, actualizarPostulacion };

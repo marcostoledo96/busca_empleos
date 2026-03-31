@@ -26,6 +26,7 @@ Todas las respuestas siguen este formato:
 | GET | `/api/ofertas` | Lista ofertas con filtros opcionales | No |
 | GET | `/api/ofertas/estadisticas` | Contadores por estado de evaluación | No |
 | GET | `/api/ofertas/:id` | Detalle de una oferta | No |
+| PATCH | `/api/ofertas/:id/postulacion` | Actualizar estado de postulación | No |
 | POST | `/api/scraping/linkedin` | Ejecutar scraping de LinkedIn | **Sí** (5/min) |
 | POST | `/api/scraping/computrabajo` | Ejecutar scraping de Computrabajo | **Sí** (5/min) |
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** (5/min) |
@@ -55,10 +56,15 @@ Lista todas las ofertas, con filtros opcionales por query params.
 |-------|------|-----------------|
 | `estado` | string | `pendiente`, `aprobada`, `rechazada` |
 | `plataforma` | string | `linkedin`, `computrabajo`, `indeed`, `bumeran` |
+| `estado_postulacion` | string | `no_postulado`, `cv_enviado`, `en_proceso`, `descartada` |
+| `ordenar_por` | string | `fecha_extraccion`, `fecha_publicacion`, `porcentaje_match` |
+| `direccion` | string | `ASC`, `DESC` (default: `DESC`) |
 
 **Ejemplo request:**
 ```
 GET /api/ofertas?estado=aprobada&plataforma=linkedin
+GET /api/ofertas?ordenar_por=porcentaje_match&direccion=DESC
+GET /api/ofertas?estado_postulacion=cv_enviado
 ```
 
 **Ejemplo response (200):**
@@ -81,6 +87,8 @@ GET /api/ofertas?estado=aprobada&plataforma=linkedin
             "moneda": null,
             "estado_evaluacion": "aprobada",
             "razon_evaluacion": "Matchea con Angular y React del perfil.",
+            "porcentaje_match": 85,
+            "estado_postulacion": "no_postulado",
             "fecha_publicacion": "2026-03-28T00:00:00.000Z",
             "fecha_extraccion": "2026-03-29T14:30:00.000Z",
             "datos_crudos": { ... }
@@ -123,6 +131,54 @@ Retorna una oferta específica.
         ...
     }
 }
+```
+
+**Error — ID inválido (400):**
+```json
+{ "exito": false, "error": "El ID debe ser un número entero positivo." }
+```
+
+**Error — no encontrada (404):**
+```json
+{ "exito": false, "error": "Oferta no encontrada." }
+```
+
+### PATCH /api/ofertas/:id/postulacion
+
+Actualiza el estado de postulación de una oferta.
+
+**Body:**
+```json
+{
+    "estado_postulacion": "cv_enviado"
+}
+```
+
+| Campo | Tipo | Valores válidos |
+|-------|------|----------------|
+| `estado_postulacion` | string | `no_postulado`, `cv_enviado`, `en_proceso`, `descartada` |
+
+**Ejemplo response (200):**
+```json
+{
+    "exito": true,
+    "datos": {
+        "id": 42,
+        "titulo": "QA Tester Junior",
+        "estado_postulacion": "cv_enviado",
+        ...
+    }
+}
+```
+
+**Error — estado inválido (400):**
+```json
+{ "exito": false, "error": "El estado de postulación 'invalido' no es válido. Estados permitidos: no_postulado, cv_enviado, en_proceso, descartada." }
+```
+
+**Error — body vacío (400):**
+```json
+{ "exito": false, "error": "Se requiere el campo estado_postulacion." }
 ```
 
 **Error — ID inválido (400):**

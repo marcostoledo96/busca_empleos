@@ -43,6 +43,10 @@
                 <th pSortableColumn="estado_evaluacion" style="min-width: 120px">
                     Estado <p-sortIcon field="estado_evaluacion" />
                 </th>
+                <th pSortableColumn="porcentaje_match" style="min-width: 130px">
+                    Match % <p-sortIcon field="porcentaje_match" />
+                </th>
+                <th style="min-width: 150px">Postulación</th>
                 <th pSortableColumn="fecha_extraccion" style="min-width: 120px">
                     Extraída <p-sortIcon field="fecha_extraccion" />
                 </th>
@@ -77,6 +81,28 @@
                         [severity]="severidadEstado(oferta.estado_evaluacion)" />
                 </td>
                 <td>
+                    @if (oferta.porcentaje_match !== null) {
+                        <div class="celda-porcentaje">
+                            <p-progressBar
+                                [value]="oferta.porcentaje_match"
+                                [showValue]="true"
+                                [style]="{ height: '1.5rem', width: '100%' }" />
+                        </div>
+                    } @else {
+                        <span class="texto-sin-dato">—</span>
+                    }
+                </td>
+                <td>
+                    <p-select
+                        [options]="opcionesPostulacion"
+                        [ngModel]="oferta.estado_postulacion"
+                        (ngModelChange)="cambiarPostulacion(oferta, $event)"
+                        optionLabel="label"
+                        optionValue="value"
+                        [style]="{ width: '100%', minWidth: '130px' }"
+                        size="small" />
+                </td>
+                <td>
                     {{ oferta.fecha_extraccion | date:'dd/MM/yyyy' }}
                 </td>
                 <td>
@@ -94,7 +120,7 @@
         <!-- Mensaje cuando no hay datos -->
         <ng-template #emptymessage>
             <tr>
-                <td colspan="6" class="tabla-vacia">
+                <td colspan="8" class="tabla-vacia">
                     <i class="pi pi-inbox"></i>
                     <p>No hay ofertas todavía.</p>
                     <span>Usá el panel de control para ejecutar un scraping.</span>

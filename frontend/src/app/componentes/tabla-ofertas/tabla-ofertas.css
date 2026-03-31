@@ -72,6 +72,16 @@
     font-size: 0.7rem;
 }
 
+/* Celda de porcentaje de match */
+.celda-porcentaje {
+    min-width: 80px;
+}
+
+.texto-sin-dato {
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
 /* Estado vacío */
 .tabla-vacia {
     text-align: center;

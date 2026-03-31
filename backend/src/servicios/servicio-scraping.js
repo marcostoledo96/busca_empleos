@@ -172,9 +172,9 @@ async function ejecutarScrapingIndeed(opciones = {}) {
             // El actor de Indeed recibe keywords y país directamente.
             // No necesita URLs como LinkedIn o Computrabajo.
             const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
-                position: termino,
-                country: 'Argentina',
-                maxItems: maxResultadosPorTermino,
+                title: termino,
+                country: 'ar',
+                limit: maxResultadosPorTermino,
             });
 
             const { items } = await clienteApify
@@ -204,11 +204,10 @@ async function ejecutarScrapingIndeed(opciones = {}) {
  * Ejecuto el scraping de Bumeran Argentina (que también cubre ZonaJobs).
  *
  * A diferencia de los otros scrapers que usan actores dedicados,
- * Bumeran usa el cheerio-scraper (actor genérico de Apify). Le paso
- * las URLs de búsqueda y una función JavaScript (pageFunction) que
- * se ejecuta en los servidores de Apify con cheerio ($) para extraer
- * los datos de las tarjetas de cada oferta directamente de la página
- * de resultados de búsqueda.
+ * Bumeran usa el web-scraper (actor genérico de Apify con Puppeteer).
+ * Le paso las URLs de búsqueda y una función JavaScript (pageFunction)
+ * que se ejecuta dentro de un Chrome headless. Esto es necesario porque
+ * Bumeran es una SPA React que requiere JavaScript para renderizar.
  *
  * Los selectores CSS se basan en atributos semánticos (aria-label,
  * IDs con patrón fijo, tags HTML) para ser resistentes a cambios
@@ -228,13 +227,14 @@ async function ejecutarScrapingBumeran(opciones = {}) {
 
         const startUrls = urls.map(url => ({ url }));
 
-        // La pageFunction se ejecuta en los servidores de Apify por cada URL.
-        // Usa selectores semánticos (aria-label, IDs con patrón, tags HTML)
-        // porque las clases CSS de Bumeran son hashes de styled-components
-        // que cambian en cada deploy.
+        // La pageFunction se ejecuta dentro de un Chrome headless (Puppeteer)
+        // en los servidores de Apify, DESPUÉS de que React renderice la página.
+        // Usa jQuery (inyectado por web-scraper como context.jQuery) porque
+        // los selectores CSS de Bumeran son hashes de styled-components
+        // que cambian en cada deploy — usamos selectores semánticos.
         const pageFunction = `
             async function pageFunction(context) {
-                const { $, request, log } = context;
+                const { jQuery: $, request, log } = context;
                 const resultados = [];
 
                 // Cada tarjeta de oferta es un <a> con href que apunta a /empleos/{slug}-{id}.html
@@ -276,12 +276,14 @@ async function ejecutarScrapingBumeran(opciones = {}) {
             }
         `;
 
-        console.log('Scraping Bumeran: ejecutando cheerio-scraper de Apify...');
-        const ejecucion = await clienteApify.actor(ACTORES.BUMERAN_CHEERIO).call({
+        console.log('Scraping Bumeran: ejecutando web-scraper de Apify...');
+        const ejecucion = await clienteApify.actor(ACTORES.BUMERAN_WEB).call({
             startUrls,
             pageFunction,
             maxRequestsPerCrawl: urls.length,
             proxyConfiguration: { useApifyProxy: true },
+            // web-scraper espera a networkidle2 por defecto,
+            // lo cual da tiempo a que React renderice las tarjetas.
         });
 
         console.log('Scraping Bumeran: obteniendo resultados del dataset...');

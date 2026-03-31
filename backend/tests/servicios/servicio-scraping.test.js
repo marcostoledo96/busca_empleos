@@ -30,10 +30,18 @@ jest.mock('../../src/config/apify', () => {
             LINKEDIN: 'actor-linkedin-test',
             COMPUTRABAJO: 'actor-computrabajo-test',
             INDEED: 'actor-indeed-test',
-            BUMERAN_CHEERIO: 'actor-cheerio-test',
+            BUMERAN_WEB: 'actor-web-scraper-test',
         },
         TERMINOS_BUSQUEDA: [
-            'frontend developer junior',
+            'tester',
+            'qa',
+            'it',
+            'soporte it',
+            'helpdesk',
+            'desarrollador',
+            'developer',
+            'frontend',
+            'soporte tecnico',
         ],
         construirUrlsLinkedin: jest.fn(() => [
             'https://www.linkedin.com/jobs/search/?keywords=frontend+developer+junior&location=Argentina&f_E=1%2C2',
@@ -260,7 +268,7 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
         });
 
-        test('pasa position y country al actor', async () => {
+        test('pasa title, country y limit al actor', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-123' });
 
@@ -274,9 +282,9 @@ describe('Servicio de scraping', () => {
 
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    position: 'react developer',
-                    country: 'Argentina',
-                    maxItems: 20,
+                    title: 'react developer',
+                    country: 'ar',
+                    limit: 20,
                 })
             );
         });
@@ -310,7 +318,7 @@ describe('Servicio de scraping', () => {
 
     describe('ejecutarScrapingBumeran()', () => {
 
-        test('llama al actor cheerio-scraper correcto', async () => {
+        test('llama al actor web-scraper correcto', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-123' });
 
@@ -319,7 +327,7 @@ describe('Servicio de scraping', () => {
 
             await ejecutarScrapingBumeran();
 
-            expect(clienteApify.actor).toHaveBeenCalledWith('actor-cheerio-test');
+            expect(clienteApify.actor).toHaveBeenCalledWith('actor-web-scraper-test');
         });
 
         test('retorna ofertas normalizadas de Bumeran', async () => {

@@ -41,6 +41,8 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 | `moneda` | VARCHAR(10) | — | `'ARS'`, `'USD'`, `'EUR'` o null. |
 | `estado_evaluacion` | VARCHAR(20) | DEFAULT `'pendiente'` | `'pendiente'`, `'aprobada'` o `'rechazada'`. |
 | `razon_evaluacion` | TEXT | — | Razón que dio DeepSeek para aprobar o rechazar. |
+| `porcentaje_match` | INTEGER | — | Porcentaje de match (0-100) asignado por DeepSeek. |
+| `estado_postulacion` | VARCHAR(30) | DEFAULT `'no_postulado'` | `'no_postulado'`, `'cv_enviado'`, `'en_proceso'`, `'descartada'`. |
 | `fecha_publicacion` | TIMESTAMP | — | Fecha de publicación de la oferta (puede ser null). |
 | `fecha_extraccion` | TIMESTAMP | DEFAULT `NOW()` | Fecha en que el sistema extrajo la oferta. |
 | `datos_crudos` | JSONB | — | JSON original de Apify sin procesar. JSONB permite queries internas y ocupa menos espacio. |
@@ -51,6 +53,8 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 |--------|---------|----------|
 | `idx_ofertas_estado_evaluacion` | `estado_evaluacion` | Acelerar filtrado por estado (pendiente/aprobada/rechazada). |
 | `idx_ofertas_plataforma` | `plataforma` | Acelerar filtrado por plataforma (linkedin/computrabajo). |
+| `idx_ofertas_porcentaje_match` | `porcentaje_match` | Acelerar ordenamiento por porcentaje de match. |
+| `idx_ofertas_estado_postulacion` | `estado_postulacion` | Acelerar filtrado por estado de postulación. |
 
 ### Deduplicación
 
@@ -70,7 +74,8 @@ Archivo: `backend/src/modelos/oferta.js`. Funciones CRUD con queries SQL paramet
 | `obtenerOfertas(filtros)` | SELECT con WHERE dinámico | Lista ofertas. Filtros opcionales: `estado` y `plataforma`. Orden: `fecha_extraccion DESC`. |
 | `obtenerOfertaPorId(id)` | SELECT WHERE id=$1 | Retorna una oferta por ID, o `null` si no existe. |
 | `obtenerOfertasPendientes()` | SELECT WHERE estado='pendiente' | Lista ofertas no evaluadas. Usado por el servicio de evaluación. |
-| `actualizarEvaluacion(id, estado, razon)` | UPDATE SET estado, razon | Actualiza el resultado de la evaluación IA. Retorna la oferta actualizada o `null`. |
+| `actualizarEvaluacion(id, estado, razon, porcentaje)` | UPDATE SET estado, razon, porcentaje_match | Actualiza el resultado de la evaluación IA (incluye porcentaje 0-100). Retorna la oferta actualizada o `null`. |
+| `actualizarPostulacion(id, estadoPostulacion)` | UPDATE SET estado_postulacion | Cambia el estado de postulación de una oferta. Retorna la oferta actualizada o `null`. |
 | `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado | Retorna `{ total, pendientes, aprobadas, rechazadas }`. Usado por el dashboard. |
 
 ### Firma de `crearOferta`
@@ -100,6 +105,14 @@ La query se construye dinámicamente. Si vienen filtros, se agregan condiciones 
 
 - **Queries parametrizadas** ($1, $2, etc.) en todas las funciones. Los valores se pasan como array separado de la query. PostgreSQL los trata como datos, no como SQL ejecutable. Esto previene SQL Injection.
 - **Nunca se concatenan valores** en las queries (ni template literals ni string concatenation).
+- **Ordenamiento seguro:** `obtenerOfertas()` usa una whitelist de columnas permitidas para el ORDER BY. Si se recibe un nombre de columna no válido, se ignora y se usa el orden por defecto (`fecha_extraccion DESC`). Esto previene SQL injection en la cláusula ORDER BY.
+
+## Migraciones
+
+| Script | Descripción |
+|--------|-------------|
+| `backend/sql/crear-tablas.sql` | Creación inicial de la tabla (idempotente). |
+| `backend/sql/migracion-002-postulacion-y-porcentaje.sql` | Agrega columnas `porcentaje_match` y `estado_postulacion` con índices. Idempotente. |
 
 ## Documentos relacionados
 
