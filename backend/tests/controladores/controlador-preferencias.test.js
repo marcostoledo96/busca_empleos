@@ -56,16 +56,6 @@ describe('Controlador de preferencias', () => {
             expect(res.body.datos.nombre).toBe('Marcos Ezequiel Toledo');
             expect(res.body.datos.stack_tecnologico).toHaveLength(5);
         });
-
-        test('retorna 404 si no hay preferencias', async () => {
-            modeloPreferencia.obtenerPreferencias.mockResolvedValue(null);
-
-            const res = await request(app).get('/api/preferencias');
-
-            expect(res.status).toBe(404);
-            expect(res.body.exito).toBe(false);
-            expect(res.body.error).toContain('migración');
-        });
     });
 
     // === PUT /api/preferencias ===

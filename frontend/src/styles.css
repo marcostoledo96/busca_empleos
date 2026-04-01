@@ -2,20 +2,67 @@
 @import 'primeicons/primeicons.css';
 
 /* ============================================
-   Estilos globales — Busca Empleos Dashboard
+   Design System — "The Silent Processor"
+   Basado en prototipo_light.md y DESIGN.md
    ============================================ */
 
+/* === Design Tokens === */
 :root {
-    --color-fondo: #f8f9fa;
-    --color-encabezado: #1e293b;
-    --color-texto-encabezado: #ffffff;
-    --color-exito: #22c55e;
-    --color-peligro: #ef4444;
-    --color-advertencia: #f59e0b;
-    --color-info: #3b82f6;
+    /* Superficies */
+    --surface: #ffffff;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #f8fafc;
+    --surface-container: #f1f5f9;
+    --surface-container-high: #e2e8f0;
+    --surface-container-highest: #cbd5e1;
+    --surface-dim: #f1f5f9;
+
+    /* Texto */
+    --on-surface: #0f172a;
+    --on-surface-variant: #64748b;
+
+    /* Bordes */
+    --outline: #cbd5e1;
+    --outline-variant: #e2e8f0;
+
+    /* Primarios */
+    --primary: #000000;
+    --on-primary: #ffffff;
+    --primary-container: #0f172a;
+
+    /* Secundarios */
+    --secondary: #334155;
+    --secondary-container: #f1f5f9;
+
+    /* Error */
+    --error: #b91c1c;
+    --error-container: #fecaca;
+
+    /* Funcionales */
+    --color-exito: #16a34a;
+    --color-peligro: #dc2626;
+    --color-advertencia: #d97706;
+    --color-info: #2563eb;
+
+    /* Tipografía */
+    --font-headline: 'Inter', system-ui, sans-serif;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Cascadia Code', monospace;
+
+    /* Espaciado */
     --espaciado-seccion: 1.5rem;
+
+    /* Radii — The Silent Processor: sharp, precision */
+    --radius-sm: 2px;
+    --radius-md: 4px;
+    --radius-lg: 8px;
+
+    /* Layout */
+    --sidebar-ancho: 256px;
+    --topbar-alto: 64px;
 }
 
+/* === Reset global === */
 * {
     margin: 0;
     padding: 0;
@@ -23,15 +70,23 @@
 }
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    background-color: var(--color-fondo);
-    color: #334155;
+    font-family: var(--font-body);
+    background-color: var(--surface);
+    color: var(--on-surface);
     line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scrollbar sutil */
+/* === Material Symbols Outlined === */
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 20;
+}
+
+/* === Scrollbar minimal === */
 ::-webkit-scrollbar {
-    width: 8px;
+    width: 4px;
+    height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -39,10 +94,216 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+    background: var(--outline-variant);
 }
 
-::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+/* === Selection === */
+::selection {
+    background: var(--primary-container);
+    color: white;
+}
+
+/* ==============================================================
+   PrimeNG Theme Overrides — Light Mode "Silent Processor"
+   ============================================================== */
+
+/* --- DataTable --- */
+.p-datatable {
+    border: 1px solid var(--outline-variant) !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-body) !important;
+}
+
+.p-datatable .p-datatable-header {
+    background: var(--surface) !important;
+    border-bottom: 1px solid var(--outline-variant) !important;
+    padding: 1rem 1.5rem !important;
+    border-radius: 0 !important;
+}
+
+.p-datatable .p-datatable-thead > tr > th {
+    background: var(--surface-container-low) !important;
+    color: var(--on-surface-variant) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    padding: 1rem 1.5rem !important;
+    border-color: var(--outline-variant) !important;
+    border-radius: 0 !important;
+}
+
+.p-datatable .p-datatable-tbody > tr {
+    transition: background-color 150ms ease-out !important;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+    padding: 0.75rem 1.5rem !important;
+    border-color: var(--outline-variant) !important;
+    font-size: 0.875rem !important;
+    color: var(--on-surface) !important;
+}
+
+.p-datatable .p-datatable-tbody > tr:hover {
+    background: var(--surface-container-low) !important;
+}
+
+.p-datatable .p-datatable-tbody > tr.p-datatable-row-odd {
+    background: transparent !important;
+}
+
+.p-datatable .p-datatable-tbody > tr.p-datatable-row-odd:hover {
+    background: var(--surface-container-low) !important;
+}
+
+/* --- Paginator --- */
+.p-paginator {
+    background: var(--surface) !important;
+    border: none !important;
+    border-top: 1px solid var(--outline-variant) !important;
+    padding: 0.75rem 1.5rem !important;
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+}
+
+.p-paginator .p-paginator-page {
+    min-width: 2rem !important;
+    height: 2rem !important;
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+    color: var(--on-surface) !important;
+}
+
+.p-paginator .p-paginator-page.p-paginator-page-selected {
+    background: var(--primary) !important;
+    color: var(--on-primary) !important;
+    border-color: var(--primary) !important;
+}
+
+/* --- Buttons --- */
+.p-button {
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 11px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    transition: all 150ms ease-out !important;
+}
+
+/* --- Tags --- */
+.p-tag {
+    border-radius: var(--radius-sm) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+    padding: 0.25rem 0.5rem !important;
+}
+
+/* --- Dialog --- */
+.p-dialog {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--outline-variant) !important;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.04) !important;
+}
+
+.p-dialog .p-dialog-header {
+    background: var(--surface) !important;
+    border-bottom: 1px solid var(--outline-variant) !important;
+    padding: 1.25rem 1.5rem !important;
+    border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+}
+
+.p-dialog .p-dialog-header .p-dialog-title {
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.1em !important;
+    font-weight: 700 !important;
+    color: var(--on-surface-variant) !important;
+}
+
+.p-dialog .p-dialog-content {
+    background: var(--surface) !important;
+    padding: 1.5rem !important;
+}
+
+.p-dialog .p-dialog-footer {
+    background: var(--surface) !important;
+    border-top: 1px solid var(--outline-variant) !important;
+    padding: 1rem 1.5rem !important;
+    border-radius: 0 0 var(--radius-md) var(--radius-md) !important;
+}
+
+/* --- InputText / Textarea --- */
+.p-inputtext,
+.p-textarea {
+    border-radius: var(--radius-sm) !important;
+    border-color: var(--outline-variant) !important;
+    font-family: var(--font-body) !important;
+    font-size: 0.875rem !important;
+    transition: border-color 150ms ease !important;
+}
+
+.p-inputtext:focus,
+.p-inputtext:enabled:focus,
+.p-textarea:focus,
+.p-textarea:enabled:focus {
+    border-color: var(--primary) !important;
+    box-shadow: none !important;
+}
+
+/* --- Select / MultiSelect --- */
+.p-select,
+.p-multiselect {
+    border-radius: var(--radius-sm) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+.p-select-panel,
+.p-multiselect-panel {
+    border-radius: var(--radius-sm) !important;
+    border: 1px solid var(--outline-variant) !important;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* --- AutoComplete chips --- */
+.p-autocomplete-chip {
+    border-radius: var(--radius-sm) !important;
+}
+
+/* --- ToggleSwitch --- */
+.p-toggleswitch.p-toggleswitch-checked .p-toggleswitch-slider {
+    background: var(--primary) !important;
+}
+
+/* --- ProgressBar --- */
+.p-progressbar {
+    border-radius: var(--radius-sm) !important;
+    height: 6px !important;
+    background: var(--surface-container) !important;
+}
+
+.p-progressbar .p-progressbar-value {
+    border-radius: var(--radius-sm) !important;
+    background: var(--primary) !important;
+}
+
+.p-progressbar .p-progressbar-label {
+    font-family: var(--font-mono) !important;
+    font-size: 10px !important;
+}
+
+/* --- Toast --- */
+.p-toast .p-toast-message {
+    border-radius: var(--radius-md) !important;
+    border: 1px solid var(--outline-variant) !important;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* --- Sort Icon --- */
+.p-sortable-column-icon {
+    color: var(--on-surface-variant) !important;
 }

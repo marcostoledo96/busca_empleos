@@ -20,6 +20,7 @@ const router = Router();
 // Express pensaría que "estadisticas" es un :id y lo manejaría el
 // controlador equivocado. Es un gotcha clásico de Express.
 router.get('/estadisticas', controlador.obtenerEstadisticas);
+router.get('/diagnostico/persistencia', controlador.obtenerDiagnosticoPersistencia);
 router.get('/:id', controlador.obtenerOferta);
 router.get('/', controlador.listarOfertas);
 

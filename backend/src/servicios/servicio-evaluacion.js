@@ -46,6 +46,12 @@ function construirPerfilDesdePreferencias(prefs) {
 
     partes.push(`Soy ${nombre}, un candidato de nivel ${nivel} buscando empleo en tecnología.`);
 
+    partes.push('');
+    partes.push('MIS ROLES OBJETIVO (Aceptar ofertas si se trata de alguno de estos perfiles):');
+    partes.push('1. QA Tester / Analista QA / Tester Funcional (experiencia en pruebas E2E, reporte de bugs, metodologías ágiles).');
+    partes.push('2. Desarrollador Frontend / Full-Stack / Backend (Angular, React, Node.js, Express, PostgreSQL, C#).');
+    partes.push('3. Soporte Técnico IT / Help Desk / Analista de Soporte (Mantenimiento de hardware/software, Google Workspace, tickets).');
+
     if (perfil.trim()) {
         partes.push('');
         partes.push('Sobre mí:');
@@ -79,6 +85,14 @@ function construirPerfilDesdePreferencias(prefs) {
             partes.push('- Esta regla NO aplica a JavaScript (que SÍ está en mi stack). No confundir Java con JavaScript.');
         }
     }
+
+    partes.push('');
+    partes.push('REGLAS ESTRICTAS DE INDUSTRIA Y TIPO DE ROL:');
+    partes.push('- Si es un rol tecnológico (ej. Soporte Técnico, Desarrollador, QA) dentro de una empresa o contexto no tecnológico (hotel, hospital, agro, fábrica), SÍ ES VÁLIDO Y DEBE SER ACEPTADO.');
+    partes.push('- EXCLUSIÓN ABSOLUTA: Si el ROL en sí mismo es no tecnológico (ej: Agrónomo, Médico, Mecánico, Administrativo puro, Vendedor, Operario), RECHAZAR automáticamente con match: false y porcentaje 0.');
+    partes.push('- Cuidado con los roles de CALIDAD (Aseguramiento de Calidad / QA): Solo aceptar si son de QA de Software (testing). Rechazar los que sean QA industrial, farmacéutico o de manufactura.');
+    partes.push('- Aunque tenga experiencia en salud, busco EXCLUSIVAMENTE roles tecnológicos (Desarrollo, Testing, Soporte IT). Rechazar cualquier rol de atención al paciente o administración pura.');
+    partes.push('- Si la oferta pide "sistemas" refiriéndose a data entry o cajero, RECHAZAR. Solo aceptar si es para CONSTRUIR, TESTEAR o DAR SOPORTE a software/hardware.');
 
     return partes.join('\n');
 }

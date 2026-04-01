@@ -1,9 +1,14 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { forkJoin } from 'rxjs';
 import { TarjetasEstadisticas } from '../../componentes/tarjetas-estadisticas/tarjetas-estadisticas';
 import { PanelControl } from '../../componentes/panel-control/panel-control';
 import { TablaOfertas } from '../../componentes/tabla-ofertas/tabla-ofertas';
 import { DetalleOferta } from '../../componentes/detalle-oferta/detalle-oferta';
 import { OfertasService } from '../../servicios/ofertas.service';
+import {
+    PersistenciaDashboardService,
+    type CacheDashboard,
+} from '../../servicios/persistencia-dashboard.service';
 import { Oferta, Estadisticas } from '../../modelos/oferta.model';
 
 @Component({
@@ -20,6 +25,7 @@ import { Oferta, Estadisticas } from '../../modelos/oferta.model';
 export class Dashboard implements OnInit {
 
     private readonly ofertasService = inject(OfertasService);
+    private readonly persistenciaDashboard = inject(PersistenciaDashboardService);
 
     // Estado reactivo de la página.
     readonly ofertas = signal<Oferta[]>([]);
@@ -27,8 +33,11 @@ export class Dashboard implements OnInit {
     readonly cargando = signal(false);
     readonly ofertaSeleccionada = signal<Oferta | null>(null);
     readonly dialogoVisible = signal(false);
+    readonly mensajeEstado = signal<string | null>(null);
+    readonly datosDesdeCache = signal(false);
 
     ngOnInit(): void {
+        this.restaurarUltimaCargaGuardada();
         this.cargarDatos();
     }
 
@@ -36,25 +45,32 @@ export class Dashboard implements OnInit {
     cargarDatos(): void {
         this.cargando.set(true);
 
-        this.ofertasService.obtenerEstadisticas().subscribe({
-            next: (respuesta) => {
-                if (respuesta.exito) {
-                    this.estadisticas.set(respuesta.datos);
-                }
-            },
-            error: (error) => console.error('Error al cargar estadísticas:', error)
-        });
-
-        this.ofertasService.obtenerOfertas().subscribe({
-            next: (respuesta) => {
+        forkJoin({
+            estadisticas: this.ofertasService.obtenerEstadisticas(),
+            ofertas: this.ofertasService.obtenerOfertas(),
+        }).subscribe({
+            next: ({ estadisticas, ofertas }) => {
                 this.cargando.set(false);
-                if (respuesta.exito) {
-                    this.ofertas.set(respuesta.datos);
+
+                if (!estadisticas.exito || !ofertas.exito) {
+                    this.manejarFalloSincronizacion();
+                    return;
                 }
+
+                this.estadisticas.set(estadisticas.datos);
+                this.ofertas.set(ofertas.datos);
+                this.persistenciaDashboard.guardarCache({
+                    ofertas: ofertas.datos,
+                    estadisticas: estadisticas.datos,
+                    fechaGuardado: new Date().toISOString(),
+                });
+                this.datosDesdeCache.set(false);
+                this.mensajeEstado.set(null);
             },
             error: (error) => {
                 this.cargando.set(false);
-                console.error('Error al cargar ofertas:', error);
+                console.error('Error al cargar dashboard:', error);
+                this.manejarFalloSincronizacion();
             }
         });
     }
@@ -68,5 +84,51 @@ export class Dashboard implements OnInit {
     // Cuando una acción del panel de control termina, recargamos los datos.
     onAccionCompletada(): void {
         this.cargarDatos();
+    }
+
+    private restaurarUltimaCargaGuardada(): void {
+        const cache = this.persistenciaDashboard.leerCache();
+
+        if (!cache) {
+            return;
+        }
+
+        this.aplicarCache(cache);
+        this.mensajeEstado.set(
+            `Recuperé la última carga guardada del ${this.formatearFecha(cache.fechaGuardado)} mientras sincronizo con el backend.`
+        );
+    }
+
+    private manejarFalloSincronizacion(): void {
+        const cache = this.persistenciaDashboard.leerCache();
+
+        if (cache) {
+            this.aplicarCache(cache);
+            this.mensajeEstado.set(
+                `No pude sincronizar con el backend. Estoy mostrando la última carga guardada del ${this.formatearFecha(cache.fechaGuardado)}.`
+            );
+            return;
+        }
+
+        this.datosDesdeCache.set(false);
+        this.mensajeEstado.set(
+            'No pude cargar las ofertas guardadas. Verificá que el backend esté corriendo y conectado a PostgreSQL.'
+        );
+    }
+
+    private aplicarCache(cache: CacheDashboard): void {
+        this.ofertas.set(cache.ofertas);
+        this.estadisticas.set(cache.estadisticas);
+        this.datosDesdeCache.set(true);
+    }
+
+    private formatearFecha(fechaIso: string): string {
+        const fecha = new Date(fechaIso);
+
+        if (Number.isNaN(fecha.getTime())) {
+            return 'una fecha no válida';
+        }
+
+        return fecha.toLocaleString('es-AR');
     }
 }

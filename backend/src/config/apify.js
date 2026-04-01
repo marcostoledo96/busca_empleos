@@ -50,15 +50,11 @@ const ACTORES = {
 // Cuando el usuario configura sus propios términos en la página de
 // preferencias, esos reemplazan a estos.
 const TERMINOS_BUSQUEDA_DEFECTO = [
-    'tester',
-    'qa',
-    'it',
+    'qa tester',
     'soporte it',
-    'helpdesk',
-    'desarrollador',
-    'developer',
-    'frontend',
-    'soporte tecnico',
+    'desarrollador junior c#',
+    'frontend developer angular',
+    'full stack node',
 ];
 
 // LinkedIn usa filtros de nivel de experiencia en la URL.
@@ -129,7 +125,11 @@ function construirUrlsBumeran(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     return terminos.map(termino => {
-        const terminoFormateado = termino.toLowerCase().replace(/\s+/g, '-');
+        // Elimino caracteres especiales (ej: "#" de "c#") que rompen la URL
+        // porque el navegador los interpreta como fragmento hash.
+        // Solo dejo letras, espacios y caracteres del español.
+        const terminoLimpio = termino.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim();
+        const terminoFormateado = terminoLimpio.replace(/\s+/g, '-');
         return `https://www.bumeran.com.ar/empleos-busqueda-${terminoFormateado}.html`;
     });
 }

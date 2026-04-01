@@ -1,5 +1,17 @@
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
 <div class="tabla-contenedor">
+    <!-- Encabezado externo a PrimeNG -->
+    <div class="tabla-encabezado">
+        <span class="tabla-label">OFERTAS_EMPLEO</span>
+        <div class="tabla-filtros">
+            <input
+                type="text"
+                class="filtro-busqueda"
+                placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
+                (input)="tablaOfertas.filterGlobal($any($event.target).value, 'contains')" />
+        </div>
+    </div>
+
     <p-table
         [value]="ofertas()"
         [paginator]="true"
@@ -9,48 +21,30 @@
         [globalFilterFields]="['titulo', 'empresa', 'ubicacion']"
         [sortField]="'fecha_extraccion'"
         [sortOrder]="-1"
-        styleClass="p-datatable-striped p-datatable-sm"
+        styleClass="p-datatable-sm"
         #tablaOfertas>
-
-        <!-- Encabezado con búsqueda global -->
-        <ng-template #caption>
-            <div class="tabla-encabezado">
-                <h3>
-                    <i class="pi pi-list"></i>
-                    Ofertas de empleo
-                </h3>
-                <div class="tabla-filtros">
-                    <input
-                        pInputText
-                        type="text"
-                        placeholder="Buscar por título, empresa o ubicación..."
-                        class="filtro-busqueda"
-                        (input)="tablaOfertas.filterGlobal($any($event.target).value, 'contains')" />
-                </div>
-            </div>
-        </ng-template>
 
         <!-- Definición de columnas -->
         <ng-template #header>
             <tr>
                 <th pSortableColumn="titulo" style="min-width: 250px">
-                    Título <p-sortIcon field="titulo" />
+                    TÍTULO <p-sortIcon field="titulo" />
                 </th>
                 <th pSortableColumn="empresa" style="min-width: 150px">
-                    Empresa <p-sortIcon field="empresa" />
+                    EMPRESA <p-sortIcon field="empresa" />
                 </th>
-                <th style="min-width: 120px">Plataforma</th>
-                <th pSortableColumn="estado_evaluacion" style="min-width: 120px">
-                    Estado <p-sortIcon field="estado_evaluacion" />
+                <th style="min-width: 110px">PLATAFORMA</th>
+                <th pSortableColumn="estado_evaluacion" style="min-width: 110px">
+                    ESTADO <p-sortIcon field="estado_evaluacion" />
                 </th>
-                <th pSortableColumn="porcentaje_match" style="min-width: 130px">
-                    Match % <p-sortIcon field="porcentaje_match" />
+                <th pSortableColumn="porcentaje_match" style="min-width: 90px">
+                    MATCH % <p-sortIcon field="porcentaje_match" />
                 </th>
-                <th style="min-width: 150px">Postulación</th>
-                <th pSortableColumn="fecha_extraccion" style="min-width: 120px">
-                    Extraída <p-sortIcon field="fecha_extraccion" />
+                <th style="min-width: 150px">POSTULACIÓN</th>
+                <th pSortableColumn="fecha_extraccion" style="min-width: 110px">
+                    EXTRAÍDA <p-sortIcon field="fecha_extraccion" />
                 </th>
-                <th style="width: 80px">Acción</th>
+                <th style="width: 56px"></th>
             </tr>
         </ng-template>
 
@@ -61,33 +55,24 @@
                     <div class="celda-titulo">
                         <span class="titulo-texto">{{ oferta.titulo }}</span>
                         @if (oferta.ubicacion) {
-                            <span class="titulo-ubicacion">
-                                <i class="pi pi-map-marker"></i>
-                                {{ oferta.ubicacion }}
-                            </span>
+                            <span class="titulo-ubicacion">{{ oferta.ubicacion }}</span>
                         }
                     </div>
                 </td>
-                <td>{{ oferta.empresa || '—' }}</td>
+                <td class="celda-mono">{{ oferta.empresa || '—' }}</td>
                 <td>
-                    <p-tag
-                        [value]="oferta.plataforma"
-                        [icon]="iconoPlataforma(oferta.plataforma)"
-                        severity="info" />
+                    <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
                 </td>
                 <td>
-                    <p-tag
-                        [value]="oferta.estado_evaluacion"
-                        [severity]="severidadEstado(oferta.estado_evaluacion)" />
+                    <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
+                        {{ oferta.estado_evaluacion | uppercase }}
+                    </span>
                 </td>
                 <td>
                     @if (oferta.porcentaje_match !== null) {
-                        <div class="celda-porcentaje">
-                            <p-progressBar
-                                [value]="oferta.porcentaje_match"
-                                [showValue]="true"
-                                [style]="{ height: '1.5rem', width: '100%' }" />
-                        </div>
+                        <span class="celda-match" [attr.data-nivel]="nivelMatch(oferta.porcentaje_match)">
+                            {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
+                        </span>
                     } @else {
                         <span class="texto-sin-dato">—</span>
                     }
@@ -102,17 +87,13 @@
                         [style]="{ width: '100%', minWidth: '130px' }"
                         size="small" />
                 </td>
-                <td>
-                    {{ oferta.fecha_extraccion | date:'dd/MM/yyyy' }}
+                <td class="celda-mono celda-fecha">
+                    {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
                 </td>
                 <td>
-                    <p-button
-                        icon="pi pi-eye"
-                        [rounded]="true"
-                        [text]="true"
-                        severity="info"
-                        size="small"
-                        (onClick)="verDetalle(oferta)" />
+                    <button class="btn-ver" (click)="verDetalle(oferta)" title="Ver detalle">
+                        <span class="material-symbols-outlined">open_in_new</span>
+                    </button>
                 </td>
             </tr>
         </ng-template>
@@ -121,9 +102,9 @@
         <ng-template #emptymessage>
             <tr>
                 <td colspan="8" class="tabla-vacia">
-                    <i class="pi pi-inbox"></i>
-                    <p>No hay ofertas todavía.</p>
-                    <span>Usá el panel de control para ejecutar un scraping.</span>
+                    <span class="material-symbols-outlined">inbox</span>
+                    <p>NO_HAY_OFERTAS</p>
+                    <span>Ejecutá un scraping desde el panel de control.</span>
                 </td>
             </tr>
         </ng-template>

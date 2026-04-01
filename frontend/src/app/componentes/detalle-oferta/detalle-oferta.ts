@@ -1,8 +1,6 @@
 import { Component, inject, input, model, output } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, UpperCasePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
-import { TagModule } from 'primeng/tag';
-import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { Oferta } from '../../modelos/oferta.model';
@@ -10,7 +8,7 @@ import { OfertasService } from '../../servicios/ofertas.service';
 
 @Component({
     selector: 'app-detalle-oferta',
-    imports: [DatePipe, DialogModule, TagModule, ButtonModule, SelectModule, FormsModule],
+    imports: [DatePipe, UpperCasePipe, DialogModule, SelectModule, FormsModule],
     templateUrl: './detalle-oferta.html',
     styleUrl: './detalle-oferta.css'
 })

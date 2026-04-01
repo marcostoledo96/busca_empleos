@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 
 @Component({
@@ -7,4 +7,14 @@ import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
     templateUrl: './app.html',
     styleUrl: './app.css'
 })
-export class App {}
+export class App {
+    readonly sidebarAbierta = signal(false);
+
+    toggleSidebar(): void {
+        this.sidebarAbierta.update(v => !v);
+    }
+
+    cerrarSidebar(): void {
+        this.sidebarAbierta.set(false);
+    }
+}

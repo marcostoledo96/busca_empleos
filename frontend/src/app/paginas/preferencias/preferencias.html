@@ -3,147 +3,155 @@
 @if (!cargando()) {
 <div class="preferencias-contenedor">
 
-    <h2 class="preferencias-titulo">
-        <i class="pi pi-cog"></i>
-        Preferencias de búsqueda
-    </h2>
-    <p class="preferencias-descripcion">
-        Configurá tu perfil, las keywords de búsqueda y el comportamiento de la IA
-        para personalizar las ofertas que el sistema encuentra y evalúa.
-    </p>
+    <div class="preferencias-cabecera">
+        <span class="preferencias-label">CONFIGURACIÓN</span>
+        <h2 class="preferencias-titulo">Preferencias de búsqueda</h2>
+        <p class="preferencias-descripcion">
+            Configurá tu perfil, keywords de búsqueda y comportamiento de la IA.
+        </p>
+    </div>
 
     <!-- === Sección 1: Perfil profesional === -->
     <section class="seccion">
-        <h3 class="seccion-titulo">
-            <i class="pi pi-user"></i>
-            Perfil profesional
-        </h3>
-
-        <div class="campo">
-            <label for="nombre">Nombre completo</label>
-            <input pInputText id="nombre" [(ngModel)]="nombre"
-                   placeholder="Tu nombre para el prompt de IA" />
+        <div class="seccion-cabecera">
+            <span class="seccion-label">PERFIL_PROFESIONAL</span>
         </div>
 
-        <div class="campo-fila">
+        <div class="seccion-cuerpo">
             <div class="campo">
-                <label for="nivel">Nivel de experiencia</label>
-                <p-select id="nivel" [(ngModel)]="nivelExperiencia"
-                          [options]="opcionesNivel"
-                          placeholder="Seleccionar nivel" />
+                <label class="campo-etiqueta" for="nombre">Nombre completo</label>
+                <input pInputText id="nombre" [(ngModel)]="nombre"
+                       placeholder="Tu nombre para el prompt de IA" />
             </div>
-            <div class="campo">
-                <label for="modalidad">Modalidad aceptada</label>
-                <p-select id="modalidad" [(ngModel)]="modalidadAceptada"
-                          [options]="opcionesModalidad"
-                          placeholder="Seleccionar modalidad" />
-            </div>
-        </div>
 
-        <div class="campo">
-            <label for="perfil">Descripción del perfil</label>
-            <textarea pTextarea id="perfil" [(ngModel)]="perfilProfesional"
-                      [rows]="4" [autoResize]="true"
-                      placeholder="Describí tu experiencia, formación y lo que buscás..."></textarea>
+            <div class="campo-fila">
+                <div class="campo">
+                    <label class="campo-etiqueta" for="nivel">Nivel de experiencia</label>
+                    <p-select id="nivel" [(ngModel)]="nivelExperiencia"
+                              [options]="opcionesNivel"
+                              placeholder="Seleccionar nivel" />
+                </div>
+                <div class="campo">
+                    <label class="campo-etiqueta" for="modalidad">Modalidad aceptada</label>
+                    <p-select id="modalidad" [(ngModel)]="modalidadAceptada"
+                              [options]="opcionesModalidad"
+                              placeholder="Seleccionar modalidad" />
+                </div>
+            </div>
+
+            <div class="campo">
+                <label class="campo-etiqueta" for="perfil">Descripción del perfil</label>
+                <textarea pTextarea id="perfil" [(ngModel)]="perfilProfesional"
+                          [rows]="4" [autoResize]="true"
+                          placeholder="Describí tu experiencia, formación y lo que buscás..."></textarea>
+            </div>
         </div>
     </section>
 
     <!-- === Sección 2: Stack tecnológico === -->
     <section class="seccion">
-        <h3 class="seccion-titulo">
-            <i class="pi pi-code"></i>
-            Stack tecnológico
-        </h3>
-
-        <div class="campo">
-            <label for="stack">Tecnologías que manejás</label>
-            <p-autocomplete id="stack" [(ngModel)]="stackTecnologico"
-                           [multiple]="true" [suggestions]="sugerenciasVacias"
-                           (completeMethod)="buscarVacio()"
-                           placeholder="Escribí y presioná Enter" />
-            <small class="campo-ayuda">Agregá cada tecnología y presioná Enter.</small>
+        <div class="seccion-cabecera">
+            <span class="seccion-label">STACK_TECNOLÓGICO</span>
         </div>
 
-        <div class="campo">
-            <label for="exclusiones">Reglas de exclusión</label>
-            <p-autocomplete id="exclusiones" [(ngModel)]="reglasExclusion"
-                           [multiple]="true" [suggestions]="sugerenciasVacias"
-                           (completeMethod)="buscarVacio()"
-                           placeholder="Ej: Java, SAP" />
-            <small class="campo-ayuda">Ofertas que requieran estas tecnologías serán rechazadas automáticamente.</small>
+        <div class="seccion-cuerpo">
+            <div class="campo">
+                <label class="campo-etiqueta" for="stack">Tecnologías que manejás</label>
+                <p-autocomplete id="stack" [(ngModel)]="stackTecnologico"
+                               [multiple]="true" [suggestions]="sugerenciasVacias"
+                               (completeMethod)="buscarVacio()"
+                               placeholder="Escribí y presioná Enter" />
+                <small class="campo-ayuda">Agregá cada tecnología y presioná Enter.</small>
+            </div>
+
+            <div class="campo">
+                <label class="campo-etiqueta" for="exclusiones">Reglas de exclusión</label>
+                <p-autocomplete id="exclusiones" [(ngModel)]="reglasExclusion"
+                               [multiple]="true" [suggestions]="sugerenciasVacias"
+                               (completeMethod)="buscarVacio()"
+                               placeholder="Ej: Java, SAP" />
+                <small class="campo-ayuda">Ofertas que requieran estas tecnologías serán rechazadas automáticamente.</small>
+            </div>
         </div>
     </section>
 
     <!-- === Sección 3: Ubicación === -->
     <section class="seccion">
-        <h3 class="seccion-titulo">
-            <i class="pi pi-map-marker"></i>
-            Ubicación
-        </h3>
+        <div class="seccion-cabecera">
+            <span class="seccion-label">UBICACIÓN</span>
+        </div>
 
-        <div class="campo">
-            <label for="zonas">Zonas donde aceptás trabajar presencial</label>
-            <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas"
-                           [options]="opcionesZonas"
-                           placeholder="Seleccioná las zonas"
-                           display="chip" />
-            <small class="campo-ayuda">Dejalo vacío si solo buscás remoto o no tenés preferencia.</small>
+        <div class="seccion-cuerpo">
+            <div class="campo">
+                <label class="campo-etiqueta" for="zonas">Zonas donde aceptás trabajar presencial</label>
+                <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas"
+                               [options]="opcionesZonas"
+                               placeholder="Seleccioná las zonas"
+                               display="chip" />
+                <small class="campo-ayuda">Dejalo vacío si solo buscás remoto o no tenés preferencia.</small>
+            </div>
         </div>
     </section>
 
     <!-- === Sección 4: Búsqueda === -->
     <section class="seccion">
-        <h3 class="seccion-titulo">
-            <i class="pi pi-search"></i>
-            Términos de búsqueda
-        </h3>
+        <div class="seccion-cabecera">
+            <span class="seccion-label">TÉRMINOS_DE_BÚSQUEDA</span>
+        </div>
 
-        <div class="campo">
-            <label for="terminos">Keywords para los scrapers</label>
-            <p-autocomplete id="terminos" [(ngModel)]="terminosBusqueda"
-                           [multiple]="true" [suggestions]="sugerenciasVacias"
-                           (completeMethod)="buscarVacio()"
-                           placeholder="Ej: Angular developer, Frontend junior" />
-            <small class="campo-ayuda">Estas palabras se usan para buscar ofertas en LinkedIn, Computrabajo, Indeed y Bumeran.</small>
+        <div class="seccion-cuerpo">
+            <div class="campo">
+                <label class="campo-etiqueta" for="terminos">Keywords para los scrapers</label>
+                <p-autocomplete id="terminos" [(ngModel)]="terminosBusqueda"
+                               [multiple]="true" [suggestions]="sugerenciasVacias"
+                               (completeMethod)="buscarVacio()"
+                               placeholder="Ej: Angular developer, Frontend junior" />
+                <small class="campo-ayuda">Estas palabras se usan para buscar ofertas en LinkedIn, Computrabajo, Indeed y Bumeran.</small>
+            </div>
         </div>
     </section>
 
     <!-- === Sección 5: Configuración de IA === -->
     <section class="seccion">
-        <h3 class="seccion-titulo">
-            <i class="pi pi-bolt"></i>
-            Configuración de IA
-        </h3>
-
-        <div class="campo">
-            <label for="modelo">Modelo de DeepSeek</label>
-            <p-select id="modelo" [(ngModel)]="modeloIa"
-                      [options]="opcionesModelo"
-                      placeholder="Seleccionar modelo" />
+        <div class="seccion-cabecera">
+            <span class="seccion-label">CONFIGURACIÓN_IA</span>
         </div>
 
-        <div class="campo campo-toggle">
-            <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
-            <label>Usar prompt personalizado</label>
-        </div>
-
-        @if (usarPromptPersonalizado) {
+        <div class="seccion-cuerpo">
             <div class="campo">
-                <label for="prompt">Prompt personalizado</label>
-                <textarea pTextarea id="prompt" [(ngModel)]="promptPersonalizado"
-                          [rows]="6" [autoResize]="true"
-                          placeholder="Escribí las instrucciones que querés que use la IA para evaluar ofertas..."></textarea>
-                <small class="campo-ayuda">Este prompt reemplaza al que genera el sistema automáticamente.</small>
+                <label class="campo-etiqueta" for="modelo">Modelo de DeepSeek</label>
+                <p-select id="modelo" [(ngModel)]="modeloIa"
+                          [options]="opcionesModelo"
+                          placeholder="Seleccionar modelo" />
             </div>
-        }
+
+            <div class="campo campo-toggle">
+                <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
+                <label class="campo-etiqueta campo-etiqueta--inline">Usar prompt personalizado</label>
+            </div>
+
+            @if (usarPromptPersonalizado) {
+                <div class="campo">
+                    <label class="campo-etiqueta" for="prompt">Prompt personalizado</label>
+                    <textarea pTextarea id="prompt" [(ngModel)]="promptPersonalizado"
+                              [rows]="6" [autoResize]="true"
+                              placeholder="Escribí las instrucciones que querés que use la IA..."></textarea>
+                    <small class="campo-ayuda">Este prompt reemplaza al que genera el sistema automáticamente.</small>
+                </div>
+            }
+        </div>
     </section>
 
     <!-- === Botón guardar === -->
     <div class="acciones">
-        <p-button label="Guardar preferencias"
-                  icon="pi pi-check"
-                  [loading]="guardando()"
-                  (onClick)="guardar()" />
+        <button class="btn-guardar" [disabled]="guardando()" (click)="guardar()">
+            @if (guardando()) {
+                <span class="material-symbols-outlined btn-spin">progress_activity</span>
+            } @else {
+                <span class="material-symbols-outlined">save</span>
+            }
+            GUARDAR PREFERENCIAS
+        </button>
     </div>
 
 </div>

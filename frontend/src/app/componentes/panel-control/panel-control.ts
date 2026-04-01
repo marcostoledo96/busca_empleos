@@ -187,7 +187,7 @@ export class PanelControl implements OnInit {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Bumeran completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
                     life: 5000
                 });
                 this.accionCompletada.emit();

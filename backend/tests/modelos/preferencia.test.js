@@ -69,11 +69,15 @@ describe('Modelo de preferencias — lectura y actualización', () => {
             expect(prefs.reglas_exclusion).toEqual(['Java']);
         });
 
-        test('debería retornar null si la tabla está vacía', async () => {
+        test('debería autocrearse si la tabla está vacía', async () => {
             await pool.query('TRUNCATE TABLE preferencias RESTART IDENTITY');
 
             const prefs = await modeloPreferencia.obtenerPreferencias();
-            expect(prefs).toBeNull();
+
+            expect(prefs).not.toBeNull();
+            expect(prefs.id).toBe(1);
+            expect(prefs.nombre).toBe('Marcos Ezequiel Toledo');
+            expect(prefs.nivel_experiencia).toBe('junior');
         });
     });
 

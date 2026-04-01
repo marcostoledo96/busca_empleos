@@ -188,5 +188,27 @@ describe('Controlador de scraping', () => {
                 terminos: ['react junior'],
             });
         });
+
+        test('informa correctamente cuando todas las ofertas son duplicadas', async () => {
+            // Escenario real: Bumeran encontró 2 ofertas pero las dos ya estaban en BD.
+            // crearOferta retorna null para las dos (ON CONFLICT DO NOTHING).
+            servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([
+                { titulo: 'Dev 1', url: 'https://www.bumeran.com.ar/empleos/dev-1-123.html' },
+                { titulo: 'Dev 2', url: 'https://www.bumeran.com.ar/empleos/dev-2-456.html' },
+            ]);
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(null);
+
+            const res = await request(app)
+                .post('/api/scraping/bumeran')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.ofertas_duplicadas).toBe(2);
+            expect(res.body.datos.total_extraidas).toBe(2);
+        });
     });
 });

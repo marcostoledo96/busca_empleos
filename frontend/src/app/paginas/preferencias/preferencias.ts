@@ -10,7 +10,6 @@ import { Select } from 'primeng/select';
 import { MultiSelect } from 'primeng/multiselect';
 import { AutoComplete } from 'primeng/autocomplete';
 import { ToggleSwitch } from 'primeng/toggleswitch';
-import { Button } from 'primeng/button';
 import { Toast } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
@@ -24,7 +23,6 @@ import { MessageService } from 'primeng/api';
         MultiSelect,
         AutoComplete,
         ToggleSwitch,
-        Button,
         Toast,
     ],
     providers: [MessageService],

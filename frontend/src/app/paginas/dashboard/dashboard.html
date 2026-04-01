@@ -1,5 +1,11 @@
 <!-- Página principal del dashboard -->
 <section class="dashboard">
+    @if (mensajeEstado(); as mensaje) {
+        <div class="dashboard__mensaje" [class.dashboard__mensaje--cache]="datosDesdeCache()">
+            <strong>Estado de carga:</strong> {{ mensaje }}
+        </div>
+    }
+
     <!-- Tarjetas de estadísticas -->
     <app-tarjetas-estadisticas
         [estadisticas]="estadisticas()"

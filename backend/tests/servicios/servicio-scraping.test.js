@@ -370,5 +370,62 @@ describe('Servicio de scraping', () => {
                 'Error al ejecutar scraping de Bumeran'
             );
         });
+
+        test('retorna array vacío si el dataset viene vacío', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-empty' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: [] });
+
+            const resultado = await ejecutarScrapingBumeran();
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBe(0);
+        });
+
+        test('aplana correctamente arrays anidados del dataset de web-scraper', async () => {
+            // web-scraper guarda el return value de pageFunction como UN item del dataset.
+            // Si pageFunction retorna [oferta1, oferta2], el dataset tiene 1 item: [oferta1, oferta2].
+            // Por eso items llega como [[oferta1], [oferta2]] (un sub-array por página scrapeada).
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-nested' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({
+                items: [
+                    [itemsBumeranFalsos[0]],
+                ],
+            });
+
+            const resultado = await ejecutarScrapingBumeran();
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].plataforma).toBe('bumeran');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+        });
+
+        test('descarta silenciosamente items sin URL sin interrumpir el resto', async () => {
+            // Si la pageFunction no pudo extraer la URL de una tarjeta, el item llega sin url.
+            // normalizarOfertaBumeran() lanza un error que normalizarLote() captura con console.warn.
+            // El resto de los items válidos deben seguir procesándose.
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-invalid' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({
+                items: [
+                    { titulo: 'Oferta sin URL', empresa: 'TestCorp', url: null },
+                    itemsBumeranFalsos[0],
+                ],
+            });
+
+            const resultado = await ejecutarScrapingBumeran();
+
+            // Solo el item con URL válida debe quedar normalizado.
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+        });
     });
 });

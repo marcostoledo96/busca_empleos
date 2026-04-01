@@ -1,50 +1,64 @@
 <!-- Diálogo modal con el detalle completo de una oferta -->
 <p-dialog
-    header="Detalle de oferta"
     [(visible)]="visible"
     [modal]="true"
-    [style]="{ width: '700px', maxHeight: '90vh' }"
+    [style]="{ width: '680px', maxHeight: '90vh' }"
     [draggable]="false"
-    [resizable]="false">
+    [resizable]="false"
+    styleClass="dialogo-detalle">
 
     @if (oferta(); as o) {
-        <div class="detalle-contenido">
-            <!-- Encabezado -->
-            <div class="detalle-encabezado">
-                <h2 class="detalle-titulo">{{ o.titulo }}</h2>
-                <div class="detalle-meta">
-                    @if (o.empresa) {
-                        <span class="meta-item">
-                            <i class="pi pi-building"></i> {{ o.empresa }}
-                        </span>
-                    }
-                    @if (o.ubicacion) {
-                        <span class="meta-item">
-                            <i class="pi pi-map-marker"></i> {{ o.ubicacion }}
-                        </span>
-                    }
-                    @if (o.modalidad) {
-                        <span class="meta-item">
-                            <i class="pi pi-desktop"></i> {{ o.modalidad }}
-                        </span>
-                    }
-                </div>
-                <div class="detalle-tags">
-                    <p-tag [value]="o.plataforma" severity="info" />
-                    <p-tag [value]="o.estado_evaluacion" [severity]="severidadEstado(o.estado_evaluacion)" />
-                    @if (o.porcentaje_match !== null) {
-                        <p-tag [value]="o.porcentaje_match + '% match'" [severity]="severidadPorcentaje(o.porcentaje_match)" />
-                    }
-                    @if (o.nivel_requerido) {
-                        <p-tag [value]="o.nivel_requerido" severity="secondary" />
-                    }
-                </div>
+        <!-- Header propio dentro del dialog -->
+        <ng-template #header>
+            <div class="dialogo-cabecera">
+                <span class="dialogo-label">DETALLE_OFERTA</span>
+                <span class="dialogo-titulo">{{ o.titulo }}</span>
             </div>
+        </ng-template>
+
+        <div class="detalle-contenido">
+            <!-- Meta: empresa / ubicación / modalidad -->
+            <div class="detalle-meta">
+                @if (o.empresa) {
+                    <span class="meta-item">
+                        <span class="material-symbols-outlined">business</span>
+                        {{ o.empresa }}
+                    </span>
+                }
+                @if (o.ubicacion) {
+                    <span class="meta-item">
+                        <span class="material-symbols-outlined">location_on</span>
+                        {{ o.ubicacion }}
+                    </span>
+                }
+                @if (o.modalidad) {
+                    <span class="meta-item">
+                        <span class="material-symbols-outlined">computer</span>
+                        {{ o.modalidad }}
+                    </span>
+                }
+            </div>
+
+            <!-- Tags -->
+            <div class="detalle-tags">
+                <span class="tag-detalle">{{ o.plataforma | uppercase }}</span>
+                <span class="tag-detalle" [attr.data-estado]="o.estado_evaluacion">
+                    {{ o.estado_evaluacion | uppercase }}
+                </span>
+                @if (o.porcentaje_match !== null) {
+                    <span class="tag-match">{{ o.porcentaje_match }}% MATCH</span>
+                }
+                @if (o.nivel_requerido) {
+                    <span class="tag-detalle">{{ o.nivel_requerido | uppercase }}</span>
+                }
+            </div>
+
+            <div class="detalle-separador"></div>
 
             <!-- Salario -->
             @if (o.salario_min || o.salario_max) {
                 <div class="detalle-seccion">
-                    <h4><i class="pi pi-wallet"></i> Salario</h4>
+                    <span class="seccion-label">SALARIO</span>
                     <p class="detalle-salario">
                         @if (o.salario_min && o.salario_max) {
                             {{ o.moneda || '$' }} {{ o.salario_min }} — {{ o.salario_max }}
@@ -57,22 +71,17 @@
                 </div>
             }
 
-            <!-- Razón de evaluación -->
+            <!-- Evaluación IA -->
             @if (o.razon_evaluacion) {
                 <div class="detalle-seccion">
-                    <h4><i class="pi pi-sparkles"></i> Evaluación de la IA</h4>
-                    @if (o.porcentaje_match !== null) {
-                        <p class="detalle-porcentaje">
-                            <strong>Compatibilidad:</strong> {{ o.porcentaje_match }}%
-                        </p>
-                    }
+                    <span class="seccion-label">EVALUACIÓN_IA</span>
                     <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
                 </div>
             }
 
-            <!-- Estado de postulación -->
+            <!-- Postulación -->
             <div class="detalle-seccion">
-                <h4><i class="pi pi-send"></i> Estado de postulación</h4>
+                <span class="seccion-label">ESTADO_POSTULACIÓN</span>
                 <p-select
                     [options]="opcionesPostulacion"
                     [ngModel]="o.estado_postulacion"
@@ -85,20 +94,21 @@
             <!-- Descripción -->
             @if (o.descripcion) {
                 <div class="detalle-seccion">
-                    <h4><i class="pi pi-align-left"></i> Descripción</h4>
+                    <span class="seccion-label">DESCRIPCIÓN</span>
                     <div class="detalle-descripcion">{{ o.descripcion }}</div>
                 </div>
             }
 
             <!-- Fechas -->
-            <div class="detalle-seccion detalle-fechas">
+            <div class="detalle-separador"></div>
+            <div class="detalle-fechas">
                 <span class="fecha-item">
-                    <i class="pi pi-calendar"></i>
+                    <span class="material-symbols-outlined">calendar_today</span>
                     Extraída: {{ o.fecha_extraccion | date:'dd/MM/yyyy HH:mm' }}
                 </span>
                 @if (o.fecha_publicacion) {
                     <span class="fecha-item">
-                        <i class="pi pi-calendar-plus"></i>
+                        <span class="material-symbols-outlined">event_available</span>
                         Publicada: {{ o.fecha_publicacion | date:'dd/MM/yyyy' }}
                     </span>
                 }
@@ -107,17 +117,13 @@
 
         <!-- Footer del diálogo -->
         <ng-template #footer>
-            <p-button
-                label="Ver oferta original"
-                icon="pi pi-external-link"
-                (onClick)="abrirEnPagina()"
-                severity="info" />
-            <p-button
-                label="Cerrar"
-                icon="pi pi-times"
-                (onClick)="visible.set(false)"
-                severity="secondary"
-                [text]="true" />
+            <button class="btn-detalle-secundario" (click)="visible.set(false)">
+                CERRAR
+            </button>
+            <button class="btn-detalle-primario" (click)="abrirEnPagina()">
+                <span class="material-symbols-outlined">open_in_new</span>
+                VER ORIGINAL
+            </button>
         </ng-template>
     }
 </p-dialog>

@@ -1,5 +1,5 @@
 import { Component, inject, input, output } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, UpperCasePipe } from '@angular/common';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
@@ -12,7 +12,7 @@ import { OfertasService } from '../../servicios/ofertas.service';
 
 @Component({
     selector: 'app-tabla-ofertas',
-    imports: [DatePipe, TableModule, TagModule, ButtonModule, SelectModule, InputTextModule, ProgressBarModule, FormsModule],
+    imports: [DatePipe, UpperCasePipe, TableModule, SelectModule, FormsModule],
     templateUrl: './tabla-ofertas.html',
     styleUrl: './tabla-ofertas.css'
 })
@@ -83,6 +83,13 @@ export class TablaOfertas {
             'descartada': 'Descartada',
         };
         return mapa[estado] || estado;
+    }
+
+    // Retorna el nivel semántico del match para colorear monocromáticamente.
+    nivelMatch(porcentaje: number): 'alto' | 'medio' | 'bajo' {
+        if (porcentaje >= 70) return 'alto';
+        if (porcentaje >= 40) return 'medio';
+        return 'bajo';
     }
 
     // Determina el icono del tag según la plataforma.

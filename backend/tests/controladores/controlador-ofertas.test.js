@@ -17,10 +17,17 @@
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
+jest.mock('../../src/config/base-datos', () => ({
+    on: jest.fn(),
+    query: jest.fn(),
+    end: jest.fn(),
+    obtenerDiagnosticoPersistencia: jest.fn(),
+}));
 
 const request = require('supertest');
 const app = require('../../src/app');
 const modeloOferta = require('../../src/modelos/oferta');
+const baseDatos = require('../../src/config/base-datos');
 
 describe('Controlador de ofertas', () => {
     // Después de cada test, limpio los mocks para que no se contaminen entre sí.
@@ -109,6 +116,35 @@ describe('Controlador de ofertas', () => {
             expect(res.body.datos.aprobadas).toBe(5);
             expect(res.body.datos.pendientes).toBe(3);
             expect(res.body.datos.rechazadas).toBe(2);
+        });
+    });
+
+    describe('GET /api/ofertas/diagnostico/persistencia', () => {
+        test('retorna el diagnostico de persistencia visible por la API', async () => {
+            baseDatos.obtenerDiagnosticoPersistencia.mockResolvedValue({
+                configuracion: {
+                    host: 'localhost',
+                    puerto: 5432,
+                    baseDatos: 'busca_empleos',
+                    usuario: 'postgres',
+                },
+                conexion: {
+                    base_datos_actual: 'busca_empleos',
+                    usuario_actual: 'postgres',
+                    puerto_postgresql: 5432,
+                    host_postgresql: '127.0.0.1',
+                    tabla_ofertas_existe: true,
+                    total_ofertas: 12,
+                },
+            });
+
+            const res = await request(app).get('/api/ofertas/diagnostico/persistencia');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.configuracion.baseDatos).toBe('busca_empleos');
+            expect(res.body.datos.conexion.total_ofertas).toBe(12);
+            expect(res.body.datos.fecha_consulta).toBeDefined();
         });
     });
 

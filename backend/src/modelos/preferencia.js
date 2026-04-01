@@ -15,10 +15,10 @@ const ID_PREFERENCIAS = 1;
 
 /**
  * Obtengo las preferencias actuales del usuario.
- * Si la tabla está vacía (no se ejecutó la migración con el INSERT),
- * retorno null.
+ * Si la tabla está vacía, llamo a crearPreferenciasPorDefecto() para
+ * garantizar que siempre haya una fila con id = 1.
  *
- * @returns {Object|null} Las preferencias, o null si no existen.
+ * @returns {Object} Las preferencias del usuario.
  */
 async function obtenerPreferencias() {
     const resultado = await pool.query(
@@ -26,7 +26,49 @@ async function obtenerPreferencias() {
         [ID_PREFERENCIAS]
     );
 
-    return resultado.rows.length > 0 ? resultado.rows[0] : null;
+    if (resultado.rows.length > 0) {
+        return resultado.rows[0];
+    }
+
+    return crearPreferenciasPorDefecto();
+}
+
+/**
+ * Creo la fila de preferencias con los valores por defecto del perfil.
+ * Si ya existe (ON CONFLICT), no modifica ningún dato.
+ *
+ * ¿Por qué uso ON CONFLICT DO UPDATE SET id = EXCLUDED.id?
+ * Porque necesito el RETURNING * para devolver la fila existente.
+ * El SET id = EXCLUDED.id es una operación sin efecto real: el id ya es 1.
+ *
+ * @returns {Object} Las preferencias creadas (o las existentes sin cambios).
+ */
+async function crearPreferenciasPorDefecto() {
+    const resultado = await pool.query(
+        `INSERT INTO preferencias (
+            id, nombre, nivel_experiencia, perfil_profesional,
+            stack_tecnologico, modalidad_aceptada, zonas_preferidas,
+            terminos_busqueda, reglas_exclusion, modelo_ia
+        ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+        )
+        ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
+        RETURNING *`,
+        [
+            ID_PREFERENCIAS,
+            'Marcos Ezequiel Toledo',
+            'junior',
+            'Desarrollador de software junior, QA Tester y soporte IT de primer nivel. Perfil híbrido con experiencia en desarrollo full-stack (Angular, Node, C#). Busco roles técnicos de Desarrollo, Testing o Soporte IT en Buenos Aires, Argentina.',
+            ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'C#', 'SQL', 'Angular', 'React', 'React Native', 'Node.js', 'Express', 'ASP.NET', 'PostgreSQL', 'SQL Server', 'Git', 'API REST', 'Figma'],
+            'cualquiera',
+            ['CABA', 'GBA Oeste'],
+            ['qa tester', 'soporte tecnico it', 'desarrollador junior c#', 'frontend developer angular', 'full stack node'],
+            ['Java'],
+            'deepseek-chat',
+        ]
+    );
+
+    return resultado.rows[0];
 }
 
 /**
@@ -96,4 +138,5 @@ async function actualizarPreferencias(datos) {
 module.exports = {
     obtenerPreferencias,
     actualizarPreferencias,
+    crearPreferenciasPorDefecto,
 };

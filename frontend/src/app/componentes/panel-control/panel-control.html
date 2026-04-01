@@ -1,72 +1,58 @@
 <!-- Panel de acciones: Scraping + Evaluación + Automatización -->
 <p-toast />
 
-<div class="panel-contenedor">
-    <h3 class="panel-titulo">
-        <i class="pi pi-cog"></i>
-        Panel de control
-    </h3>
+<div class="panel">
+    <div class="panel-cabecera">
+        <span class="panel-label">Panel de control</span>
+    </div>
 
-    <div class="panel-acciones">
-        <div class="accion-grupo">
-            <span class="accion-etiqueta">Scraping</span>
-            <div class="accion-botones">
-                <p-button
-                    label="LinkedIn"
-                    icon="pi pi-linkedin"
-                    [loading]="scrapeandoLinkedin()"
-                    (onClick)="scrapearLinkedin()"
-                    severity="info"
-                    size="small" />
-                <p-button
-                    label="Computrabajo"
-                    icon="pi pi-globe"
-                    [loading]="scrapeandoComputrabajo()"
-                    (onClick)="scrapearComputrabajo()"
-                    severity="secondary"
-                    size="small" />
-                <p-button
-                    label="Indeed"
-                    icon="pi pi-search"
-                    [loading]="scrapeandoIndeed()"
-                    (onClick)="scrapearIndeed()"
-                    severity="success"
-                    size="small" />
-                <p-button
-                    label="Bumeran"
-                    icon="pi pi-briefcase"
-                    [loading]="scrapeandoBumeran()"
-                    (onClick)="scrapearBumeran()"
-                    severity="contrast"
-                    size="small" />
+    <div class="panel-cuerpo">
+        <!-- Scraping -->
+        <div class="panel-grupo">
+            <span class="grupo-label">Scraping</span>
+            <div class="grupo-acciones">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin()" (click)="scrapearLinkedin()">
+                    <i class="pi pi-linkedin"></i>
+                    {{ scrapeandoLinkedin() ? '...' : 'LinkedIn' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo()" (click)="scrapearComputrabajo()">
+                    <i class="pi pi-globe"></i>
+                    {{ scrapeandoComputrabajo() ? '...' : 'Computrabajo' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed()" (click)="scrapearIndeed()">
+                    <i class="pi pi-search"></i>
+                    {{ scrapeandoIndeed() ? '...' : 'Indeed' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran()" (click)="scrapearBumeran()">
+                    <i class="pi pi-briefcase"></i>
+                    {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
+                </button>
             </div>
         </div>
 
-        <div class="accion-separador"></div>
+        <div class="panel-separador"></div>
 
-        <div class="accion-grupo">
-            <span class="accion-etiqueta">Evaluación IA</span>
-            <div class="accion-botones">
-                <p-button
-                    label="Evaluar pendientes"
-                    icon="pi pi-sparkles"
-                    [loading]="evaluando()"
-                    (onClick)="ejecutarEvaluacion()"
-                    severity="warn"
-                    size="small" />
+        <!-- Evaluación IA -->
+        <div class="panel-grupo">
+            <span class="grupo-label">Evaluación IA</span>
+            <div class="grupo-acciones">
+                <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando()" (click)="ejecutarEvaluacion()">
+                    {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
+                </button>
             </div>
         </div>
 
-        <div class="accion-separador"></div>
+        <div class="panel-separador"></div>
 
-        <div class="accion-grupo">
-            <span class="accion-etiqueta">Automatización</span>
-            <div class="accion-botones accion-cron">
+        <!-- Automatización -->
+        <div class="panel-grupo">
+            <span class="grupo-label">Automatización</span>
+            <div class="grupo-acciones grupo-cron">
                 <p-toggleswitch
                     [ngModel]="cronActivo()"
                     (ngModelChange)="toggleCron($event)" />
-                <span class="cron-estado" [class.cron-activo]="cronActivo()">
-                    {{ cronActivo() ? 'Cada 48hs' : 'Inactivo' }}
+                <span class="cron-texto" [class.cron-activo]="cronActivo()">
+                    {{ cronActivo() ? 'Cada 48 hs' : 'Inactivo' }}
                 </span>
             </div>
         </div>

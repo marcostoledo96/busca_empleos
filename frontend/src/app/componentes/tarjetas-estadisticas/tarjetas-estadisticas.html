@@ -1,42 +1,25 @@
-<!-- Fila de 4 tarjetas con las estadísticas principales -->
-<div class="tarjetas-contenedor">
-    <div class="tarjeta tarjeta-total">
-        <div class="tarjeta-icono">
-            <i class="pi pi-list"></i>
-        </div>
-        <div class="tarjeta-datos">
-            <span class="tarjeta-valor">{{ estadisticas()?.total ?? '—' }}</span>
-            <span class="tarjeta-etiqueta">Total ofertas</span>
-        </div>
+<!-- Barra horizontal de 4 métricas — estilo "terminal editorial" -->
+<div class="metricas">
+    <div class="metrica">
+        <span class="metrica-etiqueta">Total</span>
+        <span class="metrica-valor">{{ estadisticas()?.total ?? '—' }}</span>
     </div>
+    <div class="metrica-divisor"></div>
 
-    <div class="tarjeta tarjeta-pendientes">
-        <div class="tarjeta-icono">
-            <i class="pi pi-clock"></i>
-        </div>
-        <div class="tarjeta-datos">
-            <span class="tarjeta-valor">{{ estadisticas()?.pendientes ?? '—' }}</span>
-            <span class="tarjeta-etiqueta">Pendientes</span>
-        </div>
+    <div class="metrica">
+        <span class="metrica-etiqueta">Pendientes</span>
+        <span class="metrica-valor">{{ estadisticas()?.pendientes ?? '—' }}</span>
     </div>
+    <div class="metrica-divisor"></div>
 
-    <div class="tarjeta tarjeta-aprobadas">
-        <div class="tarjeta-icono">
-            <i class="pi pi-check-circle"></i>
-        </div>
-        <div class="tarjeta-datos">
-            <span class="tarjeta-valor">{{ estadisticas()?.aprobadas ?? '—' }}</span>
-            <span class="tarjeta-etiqueta">Aprobadas</span>
-        </div>
+    <div class="metrica">
+        <span class="metrica-etiqueta">Aprobadas</span>
+        <span class="metrica-valor metrica-valor--aprobadas">{{ estadisticas()?.aprobadas ?? '—' }}</span>
     </div>
+    <div class="metrica-divisor"></div>
 
-    <div class="tarjeta tarjeta-rechazadas">
-        <div class="tarjeta-icono">
-            <i class="pi pi-times-circle"></i>
-        </div>
-        <div class="tarjeta-datos">
-            <span class="tarjeta-valor">{{ estadisticas()?.rechazadas ?? '—' }}</span>
-            <span class="tarjeta-etiqueta">Rechazadas</span>
-        </div>
+    <div class="metrica">
+        <span class="metrica-etiqueta">Rechazadas</span>
+        <span class="metrica-valor metrica-valor--rechazadas">{{ estadisticas()?.rechazadas ?? '—' }}</span>
     </div>
 </div>

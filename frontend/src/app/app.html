@@ -1,23 +1,47 @@
-﻿<!-- Layout principal: encabezado fijo con navegación + contenido con router-outlet -->
-<header class="encabezado">
-    <div class="encabezado-contenido">
-        <div class="encabezado-marca">
-            <i class="pi pi-briefcase"></i>
-            <h1>Busca Empleos</h1>
+﻿<!-- Overlay de sidebar en mobile (cierra al hacer click) -->
+@if (sidebarAbierta()) {
+    <div class="sidebar-overlay" (click)="cerrarSidebar()"></div>
+}
+
+<!-- Barra lateral de navegación -->
+<nav class="sidebar" [class.sidebar--abierta]="sidebarAbierta()">
+    <div class="sidebar-marca">
+        <span class="sidebar-titulo">Busca Empleos</span>
+        <span class="sidebar-version">v1.0.0</span>
+    </div>
+    <div class="sidebar-nav">
+        <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}"
+           class="sidebar-enlace" (click)="cerrarSidebar()">
+            <span class="material-symbols-outlined">dashboard</span>
+            Dashboard
+        </a>
+        <a routerLink="/preferencias" routerLinkActive="nav-activo"
+           class="sidebar-enlace" (click)="cerrarSidebar()">
+            <span class="material-symbols-outlined">settings</span>
+            Preferencias
+        </a>
+    </div>
+</nav>
+
+<!-- Barra superior con efecto frosted glass -->
+<header class="topbar">
+    <!-- Botón hamburger (solo mobile) -->
+    <button class="topbar-hamburger" (click)="toggleSidebar()" aria-label="Abrir menú">
+        <span class="material-symbols-outlined">
+            {{ sidebarAbierta() ? 'close' : 'menu' }}
+        </span>
+    </button>
+    <!-- Marca (solo mobile) -->
+    <span class="topbar-marca-mobile">Busca Empleos</span>
+    <div class="topbar-contenido">
+        <div class="topbar-izquierda"></div>
+        <div class="topbar-derecha">
+            <span class="material-symbols-outlined topbar-icono">notifications</span>
         </div>
-        <nav class="encabezado-nav">
-            <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}" class="nav-enlace">
-                <i class="pi pi-chart-bar"></i>
-                Dashboard
-            </a>
-            <a routerLink="/preferencias" routerLinkActive="nav-activo" class="nav-enlace">
-                <i class="pi pi-cog"></i>
-                Preferencias
-            </a>
-        </nav>
     </div>
 </header>
 
+<!-- Contenido principal -->
 <main class="contenido-principal">
     <router-outlet />
 </main>

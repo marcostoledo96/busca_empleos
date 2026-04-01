@@ -291,6 +291,10 @@ async function ejecutarScrapingBumeran(opciones = {}) {
             .dataset(ejecucion.defaultDatasetId)
             .listItems();
 
+        // Logueo el tamaño del dataset crudo antes de aplanar para diagnosticar
+        // si el problema está en la extracción (0 items) o en la normalización.
+        console.log(`Scraping Bumeran: dataset con ${items.length} entradas crudas del actor.`);
+
         // La pageFunction retorna arrays de ofertas por cada página.
         // Aplano por si algún item es un array anidado.
         const itemsAplanados = items.flat();

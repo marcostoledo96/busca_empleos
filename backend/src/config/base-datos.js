@@ -18,6 +18,13 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
 const pool = new Pool();
 
+const configuracionConexion = {
+    host: process.env.PGHOST || null,
+    puerto: process.env.PGPORT ? Number(process.env.PGPORT) : null,
+    baseDatos: process.env.PGDATABASE || null,
+    usuario: process.env.PGUSER || null,
+};
+
 // Evento que se dispara cuando una conexión nueva se abre.
 // Útil para debugging: si veo este log, sé que el pool está funcionando.
 pool.on('connect', () => {
@@ -30,4 +37,25 @@ pool.on('error', (error) => {
     console.error('Base de datos: error inesperado en conexión idle:', error.message);
 });
 
+async function obtenerDiagnosticoPersistencia() {
+    const resultado = await pool.query(
+        `SELECT
+            current_database() AS base_datos_actual,
+            current_user AS usuario_actual,
+            current_setting('port')::integer AS puerto_postgresql,
+            COALESCE(inet_server_addr()::text, 'localhost') AS host_postgresql,
+            to_regclass('public.ofertas') IS NOT NULL AS tabla_ofertas_existe,
+            CASE
+                WHEN to_regclass('public.ofertas') IS NULL THEN NULL
+                ELSE (SELECT COUNT(*)::integer FROM ofertas)
+            END AS total_ofertas`
+    );
+
+    return {
+        configuracion: configuracionConexion,
+        conexion: resultado.rows[0],
+    };
+}
+
 module.exports = pool;
+module.exports.obtenerDiagnosticoPersistencia = obtenerDiagnosticoPersistencia;

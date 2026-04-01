@@ -20,13 +20,6 @@ const MODELOS_IA_VALIDOS = ['deepseek-chat', 'deepseek-reasoner'];
 async function obtenerPreferencias(req, res) {
     const preferencias = await modeloPreferencia.obtenerPreferencias();
 
-    if (!preferencias) {
-        return res.status(404).json({
-            exito: false,
-            error: 'No se encontraron preferencias. Ejecutá la migración 003 primero.',
-        });
-    }
-
     res.json({
         exito: true,
         datos: preferencias,

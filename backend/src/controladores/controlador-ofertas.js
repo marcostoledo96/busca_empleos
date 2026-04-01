@@ -11,6 +11,7 @@
 // y te trae el plato. No cocina.
 
 const modeloOferta = require('../modelos/oferta');
+const baseDatos = require('../config/base-datos');
 
 /**
  * GET /api/ofertas
@@ -54,6 +55,23 @@ async function obtenerEstadisticas(req, res) {
     res.json({
         exito: true,
         datos: estadisticas,
+    });
+}
+
+/**
+ * GET /api/ofertas/diagnostico/persistencia
+ * Retorno información mínima para verificar que la API está leyendo
+ * la base correcta y cuántas ofertas persistidas ve en este momento.
+ */
+async function obtenerDiagnosticoPersistencia(req, res) {
+    const diagnostico = await baseDatos.obtenerDiagnosticoPersistencia();
+
+    res.json({
+        exito: true,
+        datos: {
+            ...diagnostico,
+            fecha_consulta: new Date().toISOString(),
+        },
     });
 }
 
@@ -132,4 +150,10 @@ async function actualizarPostulacion(req, res) {
     });
 }
 
-module.exports = { listarOfertas, obtenerEstadisticas, obtenerOferta, actualizarPostulacion };
+module.exports = {
+    listarOfertas,
+    obtenerEstadisticas,
+    obtenerDiagnosticoPersistencia,
+    obtenerOferta,
+    actualizarPostulacion,
+};

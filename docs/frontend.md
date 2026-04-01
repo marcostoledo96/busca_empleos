@@ -24,6 +24,10 @@ export const environment = {
 
 Todos los servicios usan `environment.urlApi` como base para las peticiones HTTP.
 
+Además, el dashboard guarda la última carga exitosa en `localStorage` bajo la clave
+`busca-empleos.dashboard.cache`. Esto permite rehidratar la vista cuando el usuario
+reabre localhost pero el backend todavía no respondió o está caído.
+
 ## Configuración de la app
 
 Archivo: `frontend/src/app/app.config.ts`
@@ -154,6 +158,18 @@ Archivo: `frontend/src/app/servicios/automatizacion.service.ts`
 | `detenerCron()` | POST | `/automatizacion/detener` | `Observable<RespuestaApi<EstadoAutomatizacion>>` |
 | `ejecutarCiclo()` | POST | `/automatizacion/ejecutar` | `Observable<RespuestaApi<Record<string, unknown>>>` |
 
+### PersistenciaDashboardService
+
+Archivo: `frontend/src/app/servicios/persistencia-dashboard.service.ts`
+
+Responsabilidad: guardar y recuperar la última carga exitosa del dashboard para
+mostrar búsquedas previas aunque el backend no pueda responder en ese momento.
+
+| Método | Uso |
+|--------|-----|
+| `guardarCache(cache)` | Persiste ofertas + estadísticas + fecha de guardado en `localStorage` |
+| `leerCache()` | Rehidrata el dashboard con la última carga válida |
+
 ## Componentes
 
 ### Patrón container-presentational
@@ -173,10 +189,14 @@ Archivo: `frontend/src/app/paginas/dashboard/`
 | Selector | `app-dashboard` |
 | Tipo | Container (orquestador) |
 | Servicios | `OfertasService` |
-| Estado reactivo | `ofertas`, `estadisticas`, `cargando`, `ofertaSeleccionada`, `dialogoVisible` (todos signals) |
+| Servicios | `OfertasService`, `PersistenciaDashboardService` |
+| Estado reactivo | `ofertas`, `estadisticas`, `cargando`, `ofertaSeleccionada`, `dialogoVisible`, `mensajeEstado`, `datosDesdeCache` (todos signals) |
 
 **Comportamiento:**
-- `ngOnInit()` → `cargarDatos()`: carga ofertas y estadísticas en paralelo.
+- `ngOnInit()` → rehidrata cache local y luego intenta sincronizar con la API.
+- `cargarDatos()`: carga ofertas y estadísticas en paralelo.
+- Si la API responde bien, actualiza los signals y refresca el cache local.
+- Si la API falla, conserva o restaura la última carga exitosa y muestra un mensaje visible para evitar el falso "no hay registros".
 - `mostrarDetalle(oferta)`: setea la oferta seleccionada y abre el diálogo.
 - `onAccionCompletada()`: recarga datos cuando el panel de control ejecuta una acción.
 

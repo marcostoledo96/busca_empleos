@@ -25,6 +25,7 @@ Todas las respuestas siguen este formato:
 | GET | `/api/salud` | Health check del servidor | No |
 | GET | `/api/ofertas` | Lista ofertas con filtros opcionales | No |
 | GET | `/api/ofertas/estadisticas` | Contadores por estado de evaluación | No |
+| GET | `/api/ofertas/diagnostico/persistencia` | Verifica qué base está leyendo la API y cuántas ofertas ve | No |
 | GET | `/api/ofertas/:id` | Detalle de una oferta | No |
 | PATCH | `/api/ofertas/:id/postulacion` | Actualizar estado de postulación | No |
 | POST | `/api/scraping/linkedin` | Ejecutar scraping de LinkedIn | **Sí** (5/min) |
@@ -114,6 +115,43 @@ Retorna contadores agrupados por estado de evaluación.
     }
 }
 ```
+
+### GET /api/ofertas/diagnostico/persistencia
+
+Retorna un diagnóstico mínimo de la conexión PostgreSQL visible desde la API.
+Sirve para confirmar si el backend está leyendo la base esperada y cuántas ofertas
+persistidas detecta al momento de la consulta.
+
+**Ejemplo response (200):**
+```json
+{
+    "exito": true,
+    "datos": {
+        "configuracion": {
+            "host": "localhost",
+            "puerto": 5432,
+            "baseDatos": "busca_empleos",
+            "usuario": "postgres"
+        },
+        "conexion": {
+            "base_datos_actual": "busca_empleos",
+            "usuario_actual": "postgres",
+            "puerto_postgresql": 5432,
+            "host_postgresql": "127.0.0.1",
+            "tabla_ofertas_existe": true,
+            "total_ofertas": 24
+        },
+        "fecha_consulta": "2026-04-01T18:30:00.000Z"
+    }
+}
+```
+
+**Uso recomendado para debugging:**
+1. Scrapear o evaluar una búsqueda.
+2. Consultar este endpoint y anotar `total_ofertas`.
+3. Reiniciar el backend.
+4. Consultar de nuevo el endpoint.
+5. Si `total_ofertas` cambia inesperadamente, el problema está en la persistencia real o en la base apuntada por el `.env`.
 
 ### GET /api/ofertas/:id
 
