@@ -38,9 +38,10 @@ const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
  *
  * @param {string} mensajeSistema - Instrucciones para la IA (quién es, cómo responder).
  * @param {string} mensajeUsuario - El contenido a evaluar.
+ * @param {string} [modelo] - Modelo a usar (default: DEEPSEEK_MODELO).
  * @returns {string} La respuesta de la IA en texto plano.
  */
-async function consultarDeepSeek(mensajeSistema, mensajeUsuario) {
+async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
     if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'tu_api_key_de_deepseek') {
         throw new Error(
             'DEEPSEEK_API_KEY no está configurada. Revisá el archivo .env.'
@@ -54,7 +55,7 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario) {
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
         },
         body: JSON.stringify({
-            model: DEEPSEEK_MODELO,
+            model: modelo || DEEPSEEK_MODELO,
             messages: [
                 { role: 'system', content: mensajeSistema },
                 { role: 'user', content: mensajeUsuario },

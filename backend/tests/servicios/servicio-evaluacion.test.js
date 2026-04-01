@@ -2,16 +2,16 @@
 //
 // ¿Qué testeamos acá?
 // 1. Que el prompt se construya correctamente con los datos de la oferta.
-// 2. Que la respuesta de DeepSeek se parsee bien (JSON → objeto).
-// 3. Que una oferta aprobada actualice el estado en la BD.
-// 4. Que una oferta rechazada actualice el estado correctamente.
-// 5. Que el filtro de Java funcione (regla estricta).
+// 2. Que las funciones dinámicas generen instrucciones correctas desde preferencias.
+// 3. Que la respuesta de DeepSeek se parsee bien (JSON → objeto).
+// 4. Que una oferta aprobada actualice el estado en la BD.
+// 5. Que una oferta rechazada actualice el estado correctamente.
 // 6. Que se manejen errores de la API sin romper el flujo.
-// 7. Que evaluarOfertasPendientes() procese todas las pendientes.
+// 7. Que evaluarOfertasPendientes() procese todas las pendientes usando preferencias de BD.
 //
 // IMPORTANTE: Mockeamos DeepSeek (no queremos gastar plata ni depender
-// de la red en cada test). También mockeamos el modelo de ofertas
-// para no depender de la BD en estos tests unitarios.
+// de la red en cada test). También mockeamos los modelos de ofertas y
+// preferencias para no depender de la BD en estos tests unitarios.
 
 // Mockeo el módulo de configuración de DeepSeek.
 jest.mock('../../src/config/deepseek', () => ({
@@ -26,14 +26,20 @@ jest.mock('../../src/modelos/oferta', () => ({
     actualizarEvaluacion: jest.fn(),
 }));
 
+// Mockeo el modelo de preferencias para controlar qué perfil se usa.
+jest.mock('../../src/modelos/preferencia', () => ({
+    obtenerPreferencias: jest.fn(),
+}));
+
 const { consultarDeepSeek } = require('../../src/config/deepseek');
 const modeloOferta = require('../../src/modelos/oferta');
+const modeloPreferencia = require('../../src/modelos/preferencia');
 const {
     construirPromptEvaluacion,
+    construirPerfilDesdePreferencias,
+    construirInstruccionesDesdePreferencias,
     evaluarOferta,
     evaluarOfertasPendientes,
-    PERFIL_CANDIDATO,
-    INSTRUCCIONES_SISTEMA,
 } = require('../../src/servicios/servicio-evaluacion');
 
 // Oferta de ejemplo que simula lo que viene de la BD.
@@ -62,11 +68,29 @@ const ofertaConJava = {
     url: 'https://linkedin.com/jobs/5678',
 };
 
+// Preferencias de ejemplo que simulan la fila de la tabla preferencias.
+const preferenciasEjemplo = {
+    id: 1,
+    nombre: 'Marcos Ezequiel Toledo',
+    nivel_experiencia: 'junior',
+    perfil_profesional: 'Desarrollador de software junior y QA Tester.',
+    stack_tecnologico: ['JavaScript', 'TypeScript', 'Angular', 'React', 'Node.js', 'PostgreSQL'],
+    modalidad_aceptada: 'cualquiera',
+    zonas_preferidas: ['CABA', 'GBA Oeste'],
+    terminos_busqueda: ['developer', 'qa', 'tester'],
+    reglas_exclusion: ['Java'],
+    prompt_personalizado: null,
+    usar_prompt_personalizado: false,
+    modelo_ia: 'deepseek-chat',
+};
+
 describe('Servicio de evaluación con IA', () => {
 
     // Limpio los mocks antes de cada test para que no se contaminen.
     beforeEach(() => {
         jest.clearAllMocks();
+        // Por defecto, el modelo de preferencias retorna las preferencias de ejemplo.
+        modeloPreferencia.obtenerPreferencias.mockResolvedValue(preferenciasEjemplo);
     });
 
     describe('construirPromptEvaluacion()', () => {
@@ -91,40 +115,108 @@ describe('Servicio de evaluación con IA', () => {
             expect(prompt).toContain('remoto');
             expect(prompt).toContain('Buenos Aires');
         });
+    });
 
-        test('las instrucciones de sistema incluyen formato JSON de respuesta', () => {
-            // Las instrucciones de JSON van en el mensaje de sistema,
-            // no en el prompt del usuario. El prompt solo lleva los datos
-            // de la oferta. Las instrucciones de formato las recibe DeepSeek
-            // como "contexto de sistema" separado.
-            expect(INSTRUCCIONES_SISTEMA).toContain('JSON');
-            expect(INSTRUCCIONES_SISTEMA).toContain('match');
-            expect(INSTRUCCIONES_SISTEMA).toContain('razon');
-            expect(INSTRUCCIONES_SISTEMA).toContain('porcentaje');
+    describe('construirPerfilDesdePreferencias()', () => {
+
+        test('incluye el nombre del candidato', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('Marcos Ezequiel Toledo');
+        });
+
+        test('incluye el nivel de experiencia', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('junior');
+        });
+
+        test('incluye las tecnologías del stack', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('Angular');
+            expect(perfil).toContain('React');
+            expect(perfil).toContain('Node.js');
+            expect(perfil).toContain('PostgreSQL');
+        });
+
+        test('incluye reglas de exclusión', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('Java');
+            expect(perfil).toMatch(/rechazar|excluir/i);
+        });
+
+        test('aclara diferencia Java/JavaScript cuando Java está en exclusiones', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('JavaScript');
+            expect(perfil).toMatch(/no confundir/i);
+        });
+
+        test('incluye zonas preferidas', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('CABA');
+            expect(perfil).toContain('GBA Oeste');
+        });
+
+        test('incluye perfil profesional libre', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('QA Tester');
         });
     });
 
-    describe('PERFIL_CANDIDATO', () => {
+    describe('construirInstruccionesDesdePreferencias()', () => {
 
-        test('menciona nivel trainee/junior', () => {
-            expect(PERFIL_CANDIDATO).toMatch(/trainee|junior/i);
+        test('genera instrucciones con formato JSON de respuesta', () => {
+            const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
+            expect(instrucciones).toContain('JSON');
+            expect(instrucciones).toContain('match');
+            expect(instrucciones).toContain('razon');
+            expect(instrucciones).toContain('porcentaje');
         });
 
-        test('incluye exclusión explícita de Java', () => {
-            expect(PERFIL_CANDIDATO).toMatch(/java/i);
-            expect(PERFIL_CANDIDATO).toMatch(/excluir|rechazar|no.*match/i);
+        test('incluye criterios de ubicación cuando hay zonas', () => {
+            const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
+            expect(instrucciones).toContain('CABA');
+            expect(instrucciones).toContain('GBA Oeste');
+            expect(instrucciones).toMatch(/penalizar/i);
         });
 
-        test('incluye las tecnologías principales del stack', () => {
-            expect(PERFIL_CANDIDATO).toMatch(/angular/i);
-            expect(PERFIL_CANDIDATO).toMatch(/react/i);
-            expect(PERFIL_CANDIDATO).toMatch(/node/i);
-            expect(PERFIL_CANDIDATO).toMatch(/typescript/i);
-            expect(PERFIL_CANDIDATO).toMatch(/postgresql/i);
+        test('no incluye criterios de ubicación sin zonas', () => {
+            const sinZonas = { ...preferenciasEjemplo, zonas_preferidas: [] };
+            const instrucciones = construirInstruccionesDesdePreferencias(sinZonas);
+            expect(instrucciones).not.toContain('CRITERIOS DE UBICACIÓN');
+        });
+
+        test('usa prompt personalizado cuando está activado', () => {
+            const conPrompt = {
+                ...preferenciasEjemplo,
+                usar_prompt_personalizado: true,
+                prompt_personalizado: 'Mi prompt custom para la IA.',
+            };
+            const instrucciones = construirInstruccionesDesdePreferencias(conPrompt);
+            expect(instrucciones).toBe('Mi prompt custom para la IA.');
+        });
+
+        test('ignora prompt personalizado cuando está desactivado', () => {
+            const conPromptDesactivado = {
+                ...preferenciasEjemplo,
+                usar_prompt_personalizado: false,
+                prompt_personalizado: 'Este NO debería usarse.',
+            };
+            const instrucciones = construirInstruccionesDesdePreferencias(conPromptDesactivado);
+            expect(instrucciones).not.toBe('Este NO debería usarse.');
+            expect(instrucciones).toContain('evaluador de ofertas');
+        });
+
+        test('ajusta criterios de nivel según trainee', () => {
+            const trainee = { ...preferenciasEjemplo, nivel_experiencia: 'trainee' };
+            const instrucciones = construirInstruccionesDesdePreferencias(trainee);
+            expect(instrucciones).toContain('trainee');
+            expect(instrucciones).toMatch(/junior.*experiencia comprobable|semi-senior/i);
         });
     });
 
     describe('evaluarOferta()', () => {
+
+        // Instrucciones pre-construidas para pasar a evaluarOferta() en los tests.
+        const instruccionesTest = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
 
         test('retorna match:true cuando DeepSeek aprueba la oferta', async () => {
             // Simulo que DeepSeek responde con match: true.
@@ -136,7 +228,7 @@ describe('Servicio de evaluación con IA', () => {
                 })
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-chat');
 
             expect(resultado.match).toBe(true);
             expect(resultado.razon).toContain('React');
@@ -153,23 +245,38 @@ describe('Servicio de evaluación con IA', () => {
                 })
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
 
             expect(resultado.match).toBe(false);
             expect(resultado.razon).toContain('experiencia');
             expect(resultado.porcentaje).toBe(15);
         });
 
-        test('pasa el perfil del candidato como mensaje de sistema', async () => {
+        test('pasa las instrucciones de sistema a DeepSeek', async () => {
             consultarDeepSeek.mockResolvedValueOnce(
                 JSON.stringify({ match: true, razon: 'Cumple requisitos.' })
             );
 
-            await evaluarOferta(ofertaEjemplo);
+            await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-chat');
 
             // Verifico que el primer argumento (mensaje sistema) contiene el perfil.
             const mensajeSistema = consultarDeepSeek.mock.calls[0][0];
-            expect(mensajeSistema).toContain(PERFIL_CANDIDATO);
+            expect(mensajeSistema).toContain('evaluador de ofertas');
+            // Verifico que pasó el modelo como tercer argumento.
+            expect(consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-chat');
+        });
+
+        test('lee preferencias de BD si no recibe instrucciones', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 80, razon: 'Cumple.' })
+            );
+
+            // Llamo sin instrucciones — debe leer de BD.
+            await evaluarOferta(ofertaEjemplo);
+
+            expect(modeloPreferencia.obtenerPreferencias).toHaveBeenCalledTimes(1);
+            const mensajeSistema = consultarDeepSeek.mock.calls[0][0];
+            expect(mensajeSistema).toContain('Marcos Ezequiel Toledo');
         });
 
         test('maneja respuesta con markdown fence (```json)', async () => {
@@ -178,7 +285,7 @@ describe('Servicio de evaluación con IA', () => {
                 '```json\n{"match": true, "porcentaje": 70, "razon": "Cumple."}\n```'
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
 
             expect(resultado.match).toBe(true);
             expect(resultado.razon).toBe('Cumple.');
@@ -190,7 +297,7 @@ describe('Servicio de evaluación con IA', () => {
                 new Error('DeepSeek respondió con error 500')
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
 
             expect(resultado.match).toBe(false);
             expect(resultado.razon).toContain('error');
@@ -202,7 +309,7 @@ describe('Servicio de evaluación con IA', () => {
                 'Esto no es JSON, es texto libre de la IA.'
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
 
             expect(resultado.match).toBe(false);
             expect(resultado.razon).toContain('parsear');
@@ -214,7 +321,7 @@ describe('Servicio de evaluación con IA', () => {
                 JSON.stringify({ match: true, porcentaje: 150, razon: 'Excede rango.' })
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
             expect(resultado.porcentaje).toBe(100);
         });
 
@@ -223,7 +330,7 @@ describe('Servicio de evaluación con IA', () => {
                 JSON.stringify({ match: true, razon: 'Cumple requisitos.' })
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo);
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
             expect(resultado.porcentaje).toBeNull();
         });
     });

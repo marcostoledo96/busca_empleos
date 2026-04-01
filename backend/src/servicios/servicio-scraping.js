@@ -17,7 +17,7 @@
 const {
     clienteApify,
     ACTORES,
-    TERMINOS_BUSQUEDA,
+    TERMINOS_BUSQUEDA_DEFECTO,
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
     construirUrlsBumeran,
@@ -160,7 +160,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
  */
 async function ejecutarScrapingIndeed(opciones = {}) {
     const maxResultadosPorTermino = opciones.maxResultados || 15;
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     try {
         console.log(`Scraping Indeed: buscando ${terminos.length} término(s)...`);

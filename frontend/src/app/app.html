@@ -1,11 +1,20 @@
-﻿<!-- Layout principal: encabezado fijo + contenido con router-outlet -->
+﻿<!-- Layout principal: encabezado fijo con navegación + contenido con router-outlet -->
 <header class="encabezado">
     <div class="encabezado-contenido">
         <div class="encabezado-marca">
             <i class="pi pi-briefcase"></i>
             <h1>Busca Empleos</h1>
         </div>
-        <span class="encabezado-subtitulo">Dashboard de ofertas laborales</span>
+        <nav class="encabezado-nav">
+            <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}" class="nav-enlace">
+                <i class="pi pi-chart-bar"></i>
+                Dashboard
+            </a>
+            <a routerLink="/preferencias" routerLinkActive="nav-activo" class="nav-enlace">
+                <i class="pi pi-cog"></i>
+                Preferencias
+            </a>
+        </nav>
     </div>
 </header>
 

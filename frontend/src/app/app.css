@@ -40,9 +40,33 @@
     letter-spacing: -0.02em;
 }
 
-.encabezado-subtitulo {
-    font-size: 0.85rem;
+.encabezado-nav {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.nav-enlace {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    color: var(--color-texto-encabezado);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
     opacity: 0.7;
+    transition: opacity 0.2s, background-color 0.2s;
+}
+
+.nav-enlace:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.nav-enlace.nav-activo {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 .contenido-principal {

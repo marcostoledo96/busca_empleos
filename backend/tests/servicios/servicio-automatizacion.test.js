@@ -20,11 +20,13 @@ jest.mock('node-cron');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/modelos/oferta');
+jest.mock('../../src/modelos/preferencia');
 
 const cron = require('node-cron');
 const servicioScraping = require('../../src/servicios/servicio-scraping');
 const servicioEvaluacion = require('../../src/servicios/servicio-evaluacion');
 const modeloOferta = require('../../src/modelos/oferta');
+const modeloPreferencia = require('../../src/modelos/preferencia');
 
 // Importo el servicio que vamos a testear.
 const servicioAutomatizacion = require('../../src/servicios/servicio-automatizacion');
@@ -57,6 +59,10 @@ describe('Servicio de automatización', () => {
 
         // Valido expresiones cron como válidas por defecto.
         cron.validate.mockReturnValue(true);
+
+        // Mock de preferencias: sin términos de búsqueda por defecto.
+        // Así los scrapers usan sus defaults internos (TERMINOS_BUSQUEDA_DEFECTO).
+        modeloPreferencia.obtenerPreferencias.mockResolvedValue(null);
     });
 
     describe('ejecutarCicloCompleto()', () => {
@@ -232,6 +238,45 @@ describe('Servicio de automatización', () => {
 
             expect(resultado.scraping.totalExtraidas).toBe(2);
             expect(resultado.scraping.guardadas).toBe(1); // Solo 1 nueva.
+        });
+
+        test('pasa términos de búsqueda de preferencias a los scrapers', async () => {
+            const terminosPersonalizados = ['Angular developer', 'React junior'];
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                terminos_busqueda: terminosPersonalizados,
+            });
+
+            await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            const opcionesEsperadas = { terminos: terminosPersonalizados };
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledWith(opcionesEsperadas);
+        });
+
+        test('usa defaults si las preferencias no tienen términos de búsqueda', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                terminos_busqueda: [],
+            });
+
+            await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            // Sin términos, pasa un objeto vacío (los scrapers usan sus fallbacks).
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({});
+            expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
+        });
+
+        test('si obtenerPreferencias falla, continúa con defaults sin crashear', async () => {
+            modeloPreferencia.obtenerPreferencias.mockRejectedValue(
+                new Error('BD no disponible')
+            );
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            // El ciclo no crashea, usa defaults.
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({});
+            expect(resultado.exito).toBe(true);
         });
     });
 

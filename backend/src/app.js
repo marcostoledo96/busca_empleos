@@ -25,6 +25,7 @@ const rutasOfertas = require('./rutas/ofertas');
 const rutasScraping = require('./rutas/scraping');
 const rutasEvaluacion = require('./rutas/evaluacion');
 const rutasAutomatizacion = require('./rutas/automatizacion');
+const rutasPreferencias = require('./rutas/preferencias');
 
 // Importo los middlewares de manejo de errores.
 const { rutaNoEncontrada, manejarErrores } = require('./utils/middleware-errores');
@@ -48,7 +49,7 @@ app.use(helmet());
 const origenesPermitidos = process.env.CORS_ORIGEN || 'http://localhost:4200';
 app.use(cors({
     origin: origenesPermitidos.split(','),
-    methods: ['GET', 'POST'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH'],
 }));
 
 // express.json() parsea el body de las requests que vienen en formato JSON.
@@ -86,6 +87,7 @@ app.use('/api/ofertas', rutasOfertas);
 app.use('/api/scraping', limitadorCostoso, rutasScraping);
 app.use('/api/evaluacion', limitadorCostoso, rutasEvaluacion);
 app.use('/api/automatizacion', rutasAutomatizacion);
+app.use('/api/preferencias', rutasPreferencias);
 
 // Endpoint de salud — para verificar rápidamente que el servidor anda.
 // Útil para monitoreo, Docker health checks, o simplemente abrir en el browser.

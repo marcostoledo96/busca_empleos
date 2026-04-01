@@ -45,10 +45,11 @@ const ACTORES = {
     BUMERAN_WEB: 'apify/web-scraper',
 };
 
-// Términos de búsqueda que me interesan.
-// Se usan para construir las URLs de búsqueda de LinkedIn
-// y las URLs de Computrabajo.
-const TERMINOS_BUSQUEDA = [
+// Términos de búsqueda por defecto.
+// Se usan como fallback si no hay preferencias guardadas en la BD.
+// Cuando el usuario configura sus propios términos en la página de
+// preferencias, esos reemplazan a estos.
+const TERMINOS_BUSQUEDA_DEFECTO = [
     'tester',
     'qa',
     'it',
@@ -79,7 +80,7 @@ const NIVELES_EXPERIENCIA_LINKEDIN = '1%2C2';
  * @returns {string[]} Array de URLs de búsqueda de LinkedIn.
  */
 function construirUrlsLinkedin(opciones = {}) {
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
     const ubicacion = opciones.ubicacion || 'Argentina';
 
     return terminos.map(termino => {
@@ -102,7 +103,7 @@ function construirUrlsLinkedin(opciones = {}) {
  * @returns {string[]} Array de URLs de búsqueda de Computrabajo.
  */
 function construirUrlsComputrabajo(opciones = {}) {
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     return terminos.map(termino => {
         // Computrabajo usa guiones en vez de espacios en la URL.
@@ -125,7 +126,7 @@ function construirUrlsComputrabajo(opciones = {}) {
  * @returns {string[]} Array de URLs de búsqueda de Bumeran.
  */
 function construirUrlsBumeran(opciones = {}) {
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     return terminos.map(termino => {
         const terminoFormateado = termino.toLowerCase().replace(/\s+/g, '-');
@@ -136,7 +137,7 @@ function construirUrlsBumeran(opciones = {}) {
 module.exports = {
     clienteApify,
     ACTORES,
-    TERMINOS_BUSQUEDA,
+    TERMINOS_BUSQUEDA_DEFECTO,
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
     construirUrlsBumeran,

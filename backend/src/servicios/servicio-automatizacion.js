@@ -26,6 +26,7 @@ const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
 const modeloOferta = require('../modelos/oferta');
+const modeloPreferencia = require('../modelos/preferencia');
 
 // Expresión cron por defecto: cada 48 horas (a las 00:00 cada 2 días).
 // Con 4 plataformas, ejecutar cada 48h ahorra créditos de Apify.
@@ -57,6 +58,23 @@ async function ejecutarCicloCompleto() {
     console.log('[Automatización] Iniciando ciclo completo...');
     const inicio = new Date();
 
+    // Leo las preferencias UNA vez al inicio del ciclo.
+    // Si hay términos de búsqueda configurados, los uso; si no, los scrapers
+    // usan sus defaults internos (TERMINOS_BUSQUEDA_DEFECTO).
+    let terminosBusqueda;
+    try {
+        const prefs = await modeloPreferencia.obtenerPreferencias();
+        if (prefs && prefs.terminos_busqueda && prefs.terminos_busqueda.length > 0) {
+            terminosBusqueda = prefs.terminos_busqueda;
+            console.log(`[Automatización] Usando ${terminosBusqueda.length} términos de búsqueda de preferencias.`);
+        }
+    } catch (error) {
+        console.error(`[Automatización] Error al leer preferencias, usando defaults: ${error.message}`);
+    }
+
+    // Opciones de scraping con los términos dinámicos.
+    const opcionesScraping = terminosBusqueda ? { terminos: terminosBusqueda } : {};
+
     const resultado = {
         exito: true,
         scraping: {
@@ -74,7 +92,7 @@ async function ejecutarCicloCompleto() {
     // --- Paso 1: Scraping de LinkedIn ---
     let ofertasLinkedin = [];
     try {
-        ofertasLinkedin = await servicioScraping.ejecutarScrapingLinkedin();
+        ofertasLinkedin = await servicioScraping.ejecutarScrapingLinkedin(opcionesScraping);
         resultado.scraping.linkedin = ofertasLinkedin.length;
         console.log(`[Automatización] LinkedIn: ${ofertasLinkedin.length} ofertas extraídas.`);
     } catch (error) {
@@ -85,7 +103,7 @@ async function ejecutarCicloCompleto() {
     // --- Paso 2: Scraping de Computrabajo ---
     let ofertasComputrabajo = [];
     try {
-        ofertasComputrabajo = await servicioScraping.ejecutarScrapingComputrabajo();
+        ofertasComputrabajo = await servicioScraping.ejecutarScrapingComputrabajo(opcionesScraping);
         resultado.scraping.computrabajo = ofertasComputrabajo.length;
         console.log(`[Automatización] Computrabajo: ${ofertasComputrabajo.length} ofertas extraídas.`);
     } catch (error) {
@@ -96,7 +114,7 @@ async function ejecutarCicloCompleto() {
     // --- Paso 3: Scraping de Indeed ---
     let ofertasIndeed = [];
     try {
-        ofertasIndeed = await servicioScraping.ejecutarScrapingIndeed();
+        ofertasIndeed = await servicioScraping.ejecutarScrapingIndeed(opcionesScraping);
         resultado.scraping.indeed = ofertasIndeed.length;
         console.log(`[Automatización] Indeed: ${ofertasIndeed.length} ofertas extraídas.`);
     } catch (error) {
@@ -107,7 +125,7 @@ async function ejecutarCicloCompleto() {
     // --- Paso 4: Scraping de Bumeran ---
     let ofertasBumeran = [];
     try {
-        ofertasBumeran = await servicioScraping.ejecutarScrapingBumeran();
+        ofertasBumeran = await servicioScraping.ejecutarScrapingBumeran(opcionesScraping);
         resultado.scraping.bumeran = ofertasBumeran.length;
         console.log(`[Automatización] Bumeran: ${ofertasBumeran.length} ofertas extraídas.`);
     } catch (error) {
