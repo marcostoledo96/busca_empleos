@@ -1,6 +1,8 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
-import { TarjetasEstadisticas } from '../../componentes/tarjetas-estadisticas/tarjetas-estadisticas';
+import { TabsModule } from 'primeng/tabs';
+import { SelectModule } from 'primeng/select';
+import { FormsModule } from '@angular/forms';
 import { PanelControl } from '../../componentes/panel-control/panel-control';
 import { TablaOfertas } from '../../componentes/tabla-ofertas/tabla-ofertas';
 import { DetalleOferta } from '../../componentes/detalle-oferta/detalle-oferta';
@@ -14,10 +16,12 @@ import { Oferta, Estadisticas } from '../../modelos/oferta.model';
 @Component({
     selector: 'app-dashboard',
     imports: [
-        TarjetasEstadisticas,
         PanelControl,
         TablaOfertas,
-        DetalleOferta
+        DetalleOferta,
+        TabsModule,
+        SelectModule,
+        FormsModule,
     ],
     templateUrl: './dashboard.html',
     styleUrl: './dashboard.css'
@@ -35,6 +39,68 @@ export class Dashboard implements OnInit {
     readonly dialogoVisible = signal(false);
     readonly mensajeEstado = signal<string | null>(null);
     readonly datosDesdeCache = signal(false);
+
+    // Filtro global de plataforma.
+    readonly filtroPlataforma = signal<string | null>(null);
+
+    // Opciones del dropdown de plataforma.
+    readonly opcionesPlataforma = [
+        { label: 'Todas', value: null },
+        { label: 'LinkedIn', value: 'linkedin' },
+        { label: 'Computrabajo', value: 'computrabajo' },
+        { label: 'Indeed', value: 'indeed' },
+        { label: 'Bumeran', value: 'bumeran' },
+    ];
+
+    // Computed: aplica el filtro de plataforma al array completo base.
+    private readonly ofertasFiltradas = computed(() => {
+        const plataforma = this.filtroPlataforma();
+        const todas = this.ofertas();
+        if (!plataforma) return todas;
+        return todas.filter(o => o.plataforma === plataforma);
+    });
+
+    // Tab 1: aprobadas por la IA y todavía no postuladas.
+    readonly ofertasAprobadas = computed(() =>
+        this.ofertasFiltradas()
+            .filter(o =>
+                o.estado_evaluacion === 'aprobada' &&
+                o.estado_postulacion === 'no_postulado'
+            )
+            .sort((a, b) => (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0))
+    );
+
+    // Tab 2: las que ya mandé CV o están en proceso.
+    readonly ofertasPostuladas = computed(() =>
+        this.ofertasFiltradas()
+            .filter(o =>
+                o.estado_postulacion === 'cv_enviado' ||
+                o.estado_postulacion === 'en_proceso'
+            )
+            .sort((a, b) => (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0))
+    );
+
+    // Tab 3: rechazadas por la IA o descartadas manualmente.
+    readonly ofertasRechazadas = computed(() =>
+        this.ofertasFiltradas()
+            .filter(o =>
+                o.estado_evaluacion === 'rechazada' ||
+                o.estado_postulacion === 'descartada'
+            )
+            .sort((a, b) => (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0))
+    );
+
+    // Tab 4: pendientes de evaluación (no postuladas ni descartadas).
+    readonly ofertasPendientes = computed(() =>
+        this.ofertasFiltradas()
+            .filter(o =>
+                o.estado_evaluacion === 'pendiente' &&
+                o.estado_postulacion !== 'cv_enviado' &&
+                o.estado_postulacion !== 'en_proceso' &&
+                o.estado_postulacion !== 'descartada'
+            )
+            .sort((a, b) => new Date(b.fecha_extraccion).getTime() - new Date(a.fecha_extraccion).getTime())
+    );
 
     ngOnInit(): void {
         this.restaurarUltimaCargaGuardada();

@@ -42,6 +42,46 @@ let estado = {
     ultimoResultado: null,
 };
 
+// Progreso del ciclo completo — lo usa el frontend para mostrar la barra de carga.
+// Se reinicia al iniciar cada ciclo y queda disponible hasta el próximo.
+let progreso = {
+    activo: false,
+    pasos: [],
+    porcentaje: 0,
+};
+
+/**
+ * Retorna el progreso actual del ciclo en ejecución.
+ * Si no hay ciclo activo, retorna el último estado conocido.
+ *
+ * @returns {Object} Estado del progreso.
+ */
+function obtenerProgreso() {
+    return { ...progreso, pasos: progreso.pasos.map(p => ({ ...p })) };
+}
+
+/**
+ * Actualizo el estado de un paso dentro del progreso actual.
+ * También recalcula el porcentaje total.
+ *
+ * @param {string} nombre - Nombre del paso (ej: 'linkedin').
+ * @param {'pendiente'|'procesando'|'completada'|'error'} nuevoEstado - Nuevo estado.
+ * @param {number} [extraidas] - Ofertas extraídas (solo cuando se completa).
+ */
+function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
+    const paso = progreso.pasos.find(p => p.nombre === nombre);
+    if (!paso) return;
+    paso.estado = nuevoEstado;
+    if (extraidas !== undefined) paso.extraidas = extraidas;
+
+    // Porcentaje: scraping = 80% (20% cada plataforma), evaluación = 20%.
+    const pesos = { linkedin: 16, computrabajo: 16, indeed: 16, bumeran: 16, evaluacion: 16, guardado: 20 };
+    const completadas = progreso.pasos
+        .filter(p => p.estado === 'completada' || p.estado === 'error')
+        .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
+    progreso.porcentaje = Math.min(Math.round(completadas), 100);
+}
+
 /**
  * Ejecuto un ciclo completo de scraping + guardado + evaluación.
  *
@@ -57,6 +97,20 @@ let estado = {
 async function ejecutarCicloCompleto() {
     console.log('[Automatización] Iniciando ciclo completo...');
     const inicio = new Date();
+
+    // Inicializo el progreso para este ciclo.
+    progreso = {
+        activo: true,
+        pasos: [
+            { nombre: 'linkedin', label: 'LinkedIn', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'computrabajo', label: 'Computrabajo', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'indeed', label: 'Indeed', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'bumeran', label: 'Bumeran', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'guardado', label: 'Guardando en BD', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'evaluacion', label: 'Evaluación IA', estado: 'pendiente', extraidas: 0 },
+        ],
+        porcentaje: 0,
+    };
 
     // Leo las preferencias UNA vez al inicio del ciclo.
     // Si hay términos de búsqueda configurados, los uso; si no, los scrapers
@@ -91,44 +145,56 @@ async function ejecutarCicloCompleto() {
 
     // --- Paso 1: Scraping de LinkedIn ---
     let ofertasLinkedin = [];
+    actualizarPasoPorgreso('linkedin', 'procesando');
     try {
         ofertasLinkedin = await servicioScraping.ejecutarScrapingLinkedin(opcionesScraping);
         resultado.scraping.linkedin = ofertasLinkedin.length;
+        actualizarPasoPorgreso('linkedin', 'completada', ofertasLinkedin.length);
         console.log(`[Automatización] LinkedIn: ${ofertasLinkedin.length} ofertas extraídas.`);
     } catch (error) {
+        actualizarPasoPorgreso('linkedin', 'error', 0);
         resultado.errores.push(`Error en scraping de LinkedIn: ${error.message}`);
         console.error(`[Automatización] Error en LinkedIn: ${error.message}`);
     }
 
     // --- Paso 2: Scraping de Computrabajo ---
     let ofertasComputrabajo = [];
+    actualizarPasoPorgreso('computrabajo', 'procesando');
     try {
         ofertasComputrabajo = await servicioScraping.ejecutarScrapingComputrabajo(opcionesScraping);
         resultado.scraping.computrabajo = ofertasComputrabajo.length;
+        actualizarPasoPorgreso('computrabajo', 'completada', ofertasComputrabajo.length);
         console.log(`[Automatización] Computrabajo: ${ofertasComputrabajo.length} ofertas extraídas.`);
     } catch (error) {
+        actualizarPasoPorgreso('computrabajo', 'error', 0);
         resultado.errores.push(`Error en scraping de Computrabajo: ${error.message}`);
         console.error(`[Automatización] Error en Computrabajo: ${error.message}`);
     }
 
     // --- Paso 3: Scraping de Indeed ---
     let ofertasIndeed = [];
+    actualizarPasoPorgreso('indeed', 'procesando');
     try {
         ofertasIndeed = await servicioScraping.ejecutarScrapingIndeed(opcionesScraping);
         resultado.scraping.indeed = ofertasIndeed.length;
+        actualizarPasoPorgreso('indeed', 'completada', ofertasIndeed.length);
         console.log(`[Automatización] Indeed: ${ofertasIndeed.length} ofertas extraídas.`);
     } catch (error) {
+        actualizarPasoPorgreso('indeed', 'error', 0);
         resultado.errores.push(`Error en scraping de Indeed: ${error.message}`);
         console.error(`[Automatización] Error en Indeed: ${error.message}`);
     }
 
     // --- Paso 4: Scraping de Bumeran ---
     let ofertasBumeran = [];
+    actualizarPasoPorgreso('bumeran', 'procesando');
     try {
         ofertasBumeran = await servicioScraping.ejecutarScrapingBumeran(opcionesScraping);
         resultado.scraping.bumeran = ofertasBumeran.length;
+        actualizarPasoPorgreso('bumeran', 'completada', ofertasBumeran.length);
         console.log(`[Automatización] Bumeran: ${ofertasBumeran.length} ofertas extraídas.`);
     } catch (error) {
+        actualizarPasoPorgreso('bumeran', 'error', 0);
         resultado.errores.push(`Error en scraping de Bumeran: ${error.message}`);
         console.error(`[Automatización] Error en Bumeran: ${error.message}`);
     }
@@ -136,6 +202,7 @@ async function ejecutarCicloCompleto() {
     // --- Paso 5: Guardar ofertas en la BD ---
     const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
+    actualizarPasoPorgreso('guardado', 'procesando');
 
     for (const oferta of todasLasOfertas) {
         try {
@@ -149,13 +216,17 @@ async function ejecutarCicloCompleto() {
         }
     }
 
+    actualizarPasoPorgreso('guardado', 'completada', resultado.scraping.guardadas);
     console.log(`[Automatización] ${resultado.scraping.guardadas} ofertas nuevas guardadas de ${resultado.scraping.totalExtraidas} extraídas.`);
 
     // --- Paso 6: Evaluar ofertas pendientes ---
+    actualizarPasoPorgreso('evaluacion', 'procesando');
     try {
         resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
+        actualizarPasoPorgreso('evaluacion', 'completada', resultado.evaluacion.aprobadas);
         console.log(`[Automatización] Evaluación: ${resultado.evaluacion.aprobadas} aprobadas, ${resultado.evaluacion.rechazadas} rechazadas.`);
     } catch (error) {
+        actualizarPasoPorgreso('evaluacion', 'error', 0);
         resultado.errores.push(`Error en evaluación: ${error.message}`);
         console.error(`[Automatización] Error en evaluación: ${error.message}`);
     }
@@ -165,6 +236,8 @@ async function ejecutarCicloCompleto() {
     const duracion = (fin - inicio) / 1000; // en segundos
     console.log(`[Automatización] Ciclo completo en ${duracion}s. Errores: ${resultado.errores.length}`);
 
+    progreso.activo = false;
+    progreso.porcentaje = 100;
     estado.ultimaEjecucion = inicio.toISOString();
     estado.ultimoResultado = resultado;
 
@@ -265,6 +338,11 @@ function _resetearEstado() {
         ultimaEjecucion: null,
         ultimoResultado: null,
     };
+    progreso = {
+        activo: false,
+        pasos: [],
+        porcentaje: 0,
+    };
 }
 
 module.exports = {
@@ -272,5 +350,6 @@ module.exports = {
     programarCron,
     detenerCron,
     obtenerEstado,
+    obtenerProgreso,
     _resetearEstado,
 };

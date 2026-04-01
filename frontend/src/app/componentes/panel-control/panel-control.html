@@ -1,6 +1,66 @@
 <!-- Panel de acciones: Scraping + Evaluación + Automatización -->
 <p-toast />
 
+<!-- Overlay: scraping individual (spinner simple, sin % real) -->
+@if (mostrarOverlayIndividual()) {
+    <div class="overlay-carga">
+        <div class="overlay-carga__cuadro">
+            <div class="overlay-spinner">
+                <span class="overlay-spinner__anillo"></span>
+            </div>
+            <p class="overlay-carga__titulo">EXTRAYENDO OFERTAS</p>
+            <p class="overlay-carga__plataforma">{{ plataformaEnProceso() }}</p>
+            <p class="overlay-carga__aviso">Esto puede tardar hasta 2 minutos.</p>
+        </div>
+    </div>
+}
+
+<!-- Overlay: ciclo completo (pasos reales + % via polling) -->
+@if (mostrarOverlayCiclo()) {
+    <div class="overlay-carga">
+        <div class="overlay-carga__cuadro overlay-carga__cuadro--ciclo">
+            <p class="overlay-carga__titulo">CICLO COMPLETO</p>
+            <p class="overlay-carga__subtitulo">SCRAPING + EVALUACIÓN IA</p>
+
+            @if (progresoCiclo(); as progreso) {
+                <!-- Barra de porcentaje -->
+                <div class="overlay-progreso">
+                    <div class="overlay-progreso__barra">
+                        <div class="overlay-progreso__relleno" [style.width.%]="progreso.porcentaje"></div>
+                    </div>
+                    <span class="overlay-progreso__pct">{{ progreso.porcentaje }}%</span>
+                </div>
+
+                <!-- Lista de pasos -->
+                <ul class="overlay-pasos">
+                    @for (paso of progreso.pasos; track paso.nombre) {
+                        <li class="overlay-paso" [attr.data-estado]="paso.estado">
+                            <span class="overlay-paso__icono">
+                                @switch (paso.estado) {
+                                    @case ('completada') { <span class="material-symbols-outlined">check_circle</span> }
+                                    @case ('error') { <span class="material-symbols-outlined">cancel</span> }
+                                    @case ('procesando') { <span class="overlay-paso__spin">◌</span> }
+                                    @default { <span class="material-symbols-outlined">radio_button_unchecked</span> }
+                                }
+                            </span>
+                            <span class="overlay-paso__label">{{ paso.label }}</span>
+                            @if (paso.estado === 'completada' && paso.extraidas > 0) {
+                                <span class="overlay-paso__extra">{{ paso.extraidas }}</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            } @else {
+                <!-- Estado inicial mientras no llegó el primer polling -->
+                <div class="overlay-spinner">
+                    <span class="overlay-spinner__anillo"></span>
+                </div>
+                <p class="overlay-carga__aviso">Iniciando ciclo...</p>
+            }
+        </div>
+    </div>
+}
+
 <div class="panel">
     <div class="panel-cabecera">
         <span class="panel-label">Panel de control</span>
@@ -26,6 +86,10 @@
                 <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran()" (click)="scrapearBumeran()">
                     <i class="pi pi-briefcase"></i>
                     {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
+                </button>
+                <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo()" (click)="ejecutarCicloCompleto()">
+                    <span class="material-symbols-outlined">play_circle</span>
+                    {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
                 </button>
             </div>
         </div>

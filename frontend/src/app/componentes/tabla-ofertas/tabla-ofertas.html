@@ -19,8 +19,8 @@
         [rowsPerPageOptions]="[5, 10, 25, 50]"
         [loading]="cargando()"
         [globalFilterFields]="['titulo', 'empresa', 'ubicacion']"
-        [sortField]="'fecha_extraccion'"
-        [sortOrder]="-1"
+        [sortField]="sortField()"
+        [sortOrder]="sortOrder()"
         styleClass="p-datatable-sm"
         #tablaOfertas>
 

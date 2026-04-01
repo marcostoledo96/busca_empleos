@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RespuestaApi, EstadoAutomatizacion } from '../modelos/respuesta-api.model';
+import { RespuestaApi, EstadoAutomatizacion, ProgresoAutomatizacion } from '../modelos/respuesta-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class AutomatizacionService {
@@ -29,5 +29,10 @@ export class AutomatizacionService {
     // Ejecuta un ciclo completo manualmente (sin esperar al cron).
     ejecutarCiclo(): Observable<RespuestaApi<Record<string, unknown>>> {
         return this.http.post<RespuestaApi<Record<string, unknown>>>(`${this.urlBase}/ejecutar`, {});
+    }
+
+    // Consulta el progreso en tiempo real del ciclo completo (para polling).
+    obtenerProgreso(): Observable<RespuestaApi<ProgresoAutomatizacion>> {
+        return this.http.get<RespuestaApi<ProgresoAutomatizacion>>(`${this.urlBase}/progreso`);
     }
 }

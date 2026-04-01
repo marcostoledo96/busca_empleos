@@ -17,6 +17,15 @@ async function obtenerEstado(req, res) {
 }
 
 /**
+ * Retorno el progreso en tiempo real del ciclo completo que está corriendo.
+ * Si no hay ciclo activo, retorna el último estado conocido.
+ */
+async function obtenerProgreso(req, res) {
+    const progresoActual = servicioAutomatizacion.obtenerProgreso();
+    res.json({ exito: true, datos: progresoActual });
+}
+
+/**
  * Programo el cron para que se ejecute periódicamente.
  * El body puede incluir una expresión cron personalizada.
  *
@@ -86,4 +95,5 @@ module.exports = {
     iniciarCron,
     detenerCron,
     ejecutarCiclo,
+    obtenerProgreso,
 };

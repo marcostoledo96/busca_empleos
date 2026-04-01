@@ -38,3 +38,18 @@ export interface RespuestaAutomatizacion {
     mensaje: string;
     datos?: EstadoAutomatizacion;
 }
+
+// Paso individual del progreso del ciclo completo.
+export interface PasoProgreso {
+    nombre: string;
+    label: string;
+    estado: 'pendiente' | 'procesando' | 'completada' | 'error';
+    extraidas: number;
+}
+
+// Progreso del ciclo automático completo.
+export interface ProgresoAutomatizacion {
+    activo: boolean;
+    pasos: PasoProgreso[];
+    porcentaje: number;
+}

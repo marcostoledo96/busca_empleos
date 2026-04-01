@@ -6,24 +6,28 @@
 <!-- Barra lateral de navegación -->
 <nav class="sidebar" [class.sidebar--abierta]="sidebarAbierta()">
     <div class="sidebar-marca">
-        <span class="sidebar-titulo">Busca Empleos</span>
-        <span class="sidebar-version">v1.0.0</span>
+        <span class="sidebar-titulo">BUSCA_EMPLEOS</span>
+        <span class="sidebar-version">v1.0.0 // AR-2026</span>
     </div>
-    <div class="sidebar-nav">
-        <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}"
-           class="sidebar-enlace" (click)="cerrarSidebar()">
-            <span class="material-symbols-outlined">dashboard</span>
-            Dashboard
-        </a>
-        <a routerLink="/preferencias" routerLinkActive="nav-activo"
-           class="sidebar-enlace" (click)="cerrarSidebar()">
-            <span class="material-symbols-outlined">settings</span>
-            Preferencias
-        </a>
-    </div>
+    <ul class="sidebar-nav">
+        <li>
+            <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}"
+               class="sidebar-enlace" (click)="cerrarSidebar()">
+                <span class="material-symbols-outlined">dashboard</span>
+                DASHBOARD
+            </a>
+        </li>
+        <li>
+            <a routerLink="/preferencias" routerLinkActive="nav-activo"
+               class="sidebar-enlace" (click)="cerrarSidebar()">
+                <span class="material-symbols-outlined">settings</span>
+                PREFERENCIAS
+            </a>
+        </li>
+    </ul>
 </nav>
 
-<!-- Barra superior con efecto frosted glass -->
+<!-- Barra superior -->
 <header class="topbar">
     <!-- Botón hamburger (solo mobile) -->
     <button class="topbar-hamburger" (click)="toggleSidebar()" aria-label="Abrir menú">
@@ -31,12 +35,21 @@
             {{ sidebarAbierta() ? 'close' : 'menu' }}
         </span>
     </button>
-    <!-- Marca (solo mobile) -->
-    <span class="topbar-marca-mobile">Busca Empleos</span>
+
     <div class="topbar-contenido">
-        <div class="topbar-izquierda"></div>
+        <div class="topbar-izquierda">
+            <span class="topbar-seccion">{{ nombreSeccion() }}</span>
+            <div class="topbar-meta">
+                <span class="topbar-meta-punto"></span>
+                <span>SISTEMA_ACTIVO</span>
+                <span class="topbar-meta-sep">|</span>
+                <span>AR-2026</span>
+            </div>
+        </div>
         <div class="topbar-derecha">
-            <span class="material-symbols-outlined topbar-icono">notifications</span>
+            <a routerLink="/preferencias" class="topbar-btn" aria-label="Configuración">
+                <span class="material-symbols-outlined">settings</span>
+            </a>
         </div>
     </div>
 </header>
@@ -45,3 +58,19 @@
 <main class="contenido-principal">
     <router-outlet />
 </main>
+
+<!-- Pie de página fijo -->
+<footer class="footer">
+    <div class="footer-izquierda">
+        <span class="footer-build">v1.0.0 // BUSCA_EMPLEOS</span>
+        <span class="footer-sep">|</span>
+        <span class="footer-estado">SISTEMA_ESTABLE</span>
+    </div>
+    <div class="footer-derecha">
+        <span>REGIÓN: AR</span>
+        <span class="footer-sep">|</span>
+        <span>NODO: LOCAL_HOST</span>
+        <span class="footer-sep">|</span>
+        <span>EPOCH: 2026-A</span>
+    </div>
+</footer>

@@ -138,6 +138,219 @@
     font-weight: 700;
 }
 
+/* === Botón Ejecutar todo === */
+
+.btn-ejecutar-todo {
+    gap: 0.375rem;
+}
+
+.btn-ejecutar-todo .material-symbols-outlined {
+    font-size: 14px;
+}
+
+/* ============================================
+   Overlays de carga
+   ============================================ */
+
+.overlay-carga {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.72);
+    backdrop-filter: blur(4px);
+    animation: overlay-aparecer 200ms ease-out;
+}
+
+@keyframes overlay-aparecer {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+.overlay-carga__cuadro {
+    background: var(--surface);
+    border: 1px solid var(--outline-variant);
+    border-top: 2px solid var(--primary);
+    padding: 2rem 2.5rem;
+    min-width: 280px;
+    max-width: 400px;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    text-align: center;
+    border-radius: var(--radius-sm);
+}
+
+.overlay-carga__cuadro--ciclo {
+    min-width: 340px;
+    max-width: 460px;
+    align-items: stretch;
+    text-align: left;
+}
+
+.overlay-carga__titulo {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: var(--on-surface);
+    margin: 0;
+}
+
+.overlay-carga__subtitulo {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--on-surface-variant);
+    margin: 0;
+}
+
+.overlay-carga__plataforma {
+    font-family: var(--font-mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--primary);
+    margin: 0;
+    letter-spacing: 0.05em;
+}
+
+.overlay-carga__aviso {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--on-surface-variant);
+    margin: 0;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+/* === Spinner circular === */
+
+.overlay-spinner {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0.5rem 0;
+}
+
+.overlay-spinner__anillo {
+    display: block;
+    width: 36px;
+    height: 36px;
+    border: 2.5px solid var(--outline-variant);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: girar 0.8s linear infinite;
+}
+
+@keyframes girar {
+    to { transform: rotate(360deg); }
+}
+
+/* === Barra de progreso === */
+
+.overlay-progreso {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0.5rem 0;
+}
+
+.overlay-progreso__barra {
+    flex: 1;
+    height: 4px;
+    background: var(--outline-variant);
+    border-radius: 2px;
+    overflow: hidden;
+}
+
+.overlay-progreso__relleno {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 2px;
+    transition: width 600ms ease-out;
+}
+
+.overlay-progreso__pct {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--primary);
+    min-width: 32px;
+    text-align: right;
+}
+
+/* === Lista de pasos === */
+
+.overlay-pasos {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.overlay-paso {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--on-surface-variant);
+    padding: 0.375rem 0;
+    border-bottom: 1px solid var(--outline-variant);
+    transition: color 300ms ease-out;
+}
+
+.overlay-paso:last-child {
+    border-bottom: none;
+}
+
+.overlay-paso[data-estado="procesando"] {
+    color: var(--on-surface);
+}
+
+.overlay-paso[data-estado="completada"] {
+    color: var(--color-exito);
+}
+
+.overlay-paso[data-estado="error"] {
+    color: var(--color-error);
+}
+
+.overlay-paso__icono {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.overlay-paso__icono .material-symbols-outlined {
+    font-size: 14px;
+}
+
+.overlay-paso__spin {
+    display: inline-block;
+    font-size: 14px;
+    animation: girar 1s linear infinite;
+}
+
+.overlay-paso__label {
+    flex: 1;
+}
+
+.overlay-paso__extra {
+    font-weight: 700;
+    color: var(--color-exito);
+    font-size: 9px;
+}
+
 /* === Responsive === */
 @media (max-width: 900px) {
     .panel-cuerpo {

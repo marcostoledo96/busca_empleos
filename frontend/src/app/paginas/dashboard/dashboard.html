@@ -6,21 +6,133 @@
         </div>
     }
 
-    <!-- Tarjetas de estadísticas -->
-    <app-tarjetas-estadisticas
-        [estadisticas]="estadisticas()"
-        [cargando]="cargando()" />
+    <!-- Encabezado con estadísticas inline -->
+    <div class="dashboard-encabezado">
+        <h1 class="dashboard-titulo">OFERTAS_DISPONIBLES</h1>
+        <div class="dashboard-stats">
+            <div class="dashboard-stat">
+                <span class="dashboard-stat__label">Total</span>
+                <span class="dashboard-stat__valor">{{ estadisticas()?.total ?? '—' }}</span>
+            </div>
+            <div class="dashboard-stat">
+                <span class="dashboard-stat__label">Pendientes</span>
+                <span class="dashboard-stat__valor">{{ estadisticas()?.pendientes ?? '—' }}</span>
+            </div>
+            <div class="dashboard-stat dashboard-stat--aprobadas">
+                <span class="dashboard-stat__label">Aprobadas</span>
+                <span class="dashboard-stat__valor">{{ estadisticas()?.aprobadas ?? '—' }}</span>
+            </div>
+            <div class="dashboard-stat dashboard-stat--rechazadas">
+                <span class="dashboard-stat__label">Rechazadas</span>
+                <span class="dashboard-stat__valor">{{ estadisticas()?.rechazadas ?? '—' }}</span>
+            </div>
+        </div>
+    </div>
 
     <!-- Panel de control (scraping + evaluación) -->
     <app-panel-control
         (accionCompletada)="onAccionCompletada()" />
 
-    <!-- Tabla de ofertas -->
-    <app-tabla-ofertas
-        [ofertas]="ofertas()"
-        [cargando]="cargando()"
-        (ofertaSeleccionada)="mostrarDetalle($event)"
-        (postulacionActualizada)="onAccionCompletada()" />
+    <!-- Sección de resultados: filtro global + 4 tabs -->
+    <div class="resultados">
+        <!-- Filtro global de plataforma -->
+        <div class="resultados__filtro">
+            <span class="resultados__filtro-label">FILTRAR POR PLATAFORMA</span>
+            <p-select
+                [options]="opcionesPlataforma"
+                [(ngModel)]="filtroPlataforma"
+                optionLabel="label"
+                optionValue="value"
+                placeholder="Todas"
+                size="small"
+                [style]="{ minWidth: '160px' }" />
+        </div>
+
+        <!-- Tabs de resultados -->
+        <p-tabs [value]="0">
+            <!-- Tab 1: Aprobadas -->
+            <p-tablist>
+                <p-tab [value]="0">
+                    <span class="tab-label">
+                        APROBADAS
+                        @if (ofertasAprobadas().length > 0) {
+                            <span class="tab-badge tab-badge--aprobada">{{ ofertasAprobadas().length }}</span>
+                        }
+                    </span>
+                </p-tab>
+                <p-tab [value]="1">
+                    <span class="tab-label">
+                        POSTULADAS
+                        @if (ofertasPostuladas().length > 0) {
+                            <span class="tab-badge tab-badge--postulada">{{ ofertasPostuladas().length }}</span>
+                        }
+                    </span>
+                </p-tab>
+                <p-tab [value]="2">
+                    <span class="tab-label">
+                        RECHAZADAS
+                        @if (ofertasRechazadas().length > 0) {
+                            <span class="tab-badge tab-badge--rechazada">{{ ofertasRechazadas().length }}</span>
+                        }
+                    </span>
+                </p-tab>
+                <p-tab [value]="3">
+                    <span class="tab-label">
+                        PENDIENTES
+                        @if (ofertasPendientes().length > 0) {
+                            <span class="tab-badge tab-badge--pendiente">{{ ofertasPendientes().length }}</span>
+                        }
+                    </span>
+                </p-tab>
+            </p-tablist>
+
+            <p-tabpanels>
+                <!-- Panel: Aprobadas -->
+                <p-tabpanel [value]="0">
+                    <app-tabla-ofertas
+                        [ofertas]="ofertasAprobadas()"
+                        [cargando]="cargando()"
+                        [sortField]="'porcentaje_match'"
+                        [sortOrder]="-1"
+                        (ofertaSeleccionada)="mostrarDetalle($event)"
+                        (postulacionActualizada)="onAccionCompletada()" />
+                </p-tabpanel>
+
+                <!-- Panel: Postuladas -->
+                <p-tabpanel [value]="1">
+                    <app-tabla-ofertas
+                        [ofertas]="ofertasPostuladas()"
+                        [cargando]="cargando()"
+                        [sortField]="'porcentaje_match'"
+                        [sortOrder]="-1"
+                        (ofertaSeleccionada)="mostrarDetalle($event)"
+                        (postulacionActualizada)="onAccionCompletada()" />
+                </p-tabpanel>
+
+                <!-- Panel: Rechazadas -->
+                <p-tabpanel [value]="2">
+                    <app-tabla-ofertas
+                        [ofertas]="ofertasRechazadas()"
+                        [cargando]="cargando()"
+                        [sortField]="'porcentaje_match'"
+                        [sortOrder]="-1"
+                        (ofertaSeleccionada)="mostrarDetalle($event)"
+                        (postulacionActualizada)="onAccionCompletada()" />
+                </p-tabpanel>
+
+                <!-- Panel: Pendientes -->
+                <p-tabpanel [value]="3">
+                    <app-tabla-ofertas
+                        [ofertas]="ofertasPendientes()"
+                        [cargando]="cargando()"
+                        [sortField]="'fecha_extraccion'"
+                        [sortOrder]="-1"
+                        (ofertaSeleccionada)="mostrarDetalle($event)"
+                        (postulacionActualizada)="onAccionCompletada()" />
+                </p-tabpanel>
+            </p-tabpanels>
+        </p-tabs>
+    </div>
 
     <!-- Diálogo de detalle -->
     <app-detalle-oferta

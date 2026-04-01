@@ -13,6 +13,7 @@ const controlador = require('../controladores/controlador-automatizacion');
 const router = Router();
 
 router.get('/estado', controlador.obtenerEstado);
+router.get('/progreso', controlador.obtenerProgreso);
 router.post('/iniciar', controlador.iniciarCron);
 router.post('/detener', controlador.detenerCron);
 router.post('/ejecutar', controlador.ejecutarCiclo);

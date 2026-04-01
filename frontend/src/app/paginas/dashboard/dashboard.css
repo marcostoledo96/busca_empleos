@@ -2,6 +2,76 @@
    Dashboard — Estilos de página
    ============================================ */
 
+/* === Encabezado con estadísticas inline === */
+
+.dashboard-encabezado {
+    margin-bottom: 2rem;
+}
+
+.dashboard-titulo {
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    letter-spacing: -0.04em;
+    color: #000000;
+    text-transform: uppercase;
+    border-left: 8px solid #000000;
+    padding-left: 1.5rem;
+    margin-bottom: 1.25rem;
+    line-height: 1;
+}
+
+.dashboard-stats {
+    display: flex;
+    align-items: baseline;
+    gap: 3rem;
+    padding-left: calc(1.5rem + 8px);
+    font-family: var(--font-mono);
+}
+
+.dashboard-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+}
+
+.dashboard-stat__label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #000000;
+    opacity: 0.5;
+}
+
+.dashboard-stat__valor {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #000000;
+    line-height: 1.1;
+}
+
+.dashboard-stat--aprobadas .dashboard-stat__label,
+.dashboard-stat--aprobadas .dashboard-stat__valor {
+    color: var(--color-exito);
+    opacity: 1;
+}
+
+.dashboard-stat--aprobadas .dashboard-stat__label {
+    opacity: 0.7;
+}
+
+.dashboard-stat--rechazadas .dashboard-stat__label,
+.dashboard-stat--rechazadas .dashboard-stat__valor {
+    color: var(--color-peligro);
+    opacity: 1;
+}
+
+.dashboard-stat--rechazadas .dashboard-stat__label {
+    opacity: 0.7;
+}
+
+/* === Animación de entrada === */
+
 .dashboard {
     animation: aparecer 0.3s ease-out;
 }
@@ -23,6 +93,124 @@
 .dashboard__mensaje--cache {
     border-left-color: var(--color-advertencia);
     color: var(--color-advertencia);
+}
+
+/* ============================================
+   Sección de resultados (filtro + tabs)
+   ============================================ */
+
+.resultados {
+    border: 1px solid var(--outline-variant);
+    background: var(--surface);
+}
+
+/* Barra de filtro encima de los tabs */
+.resultados__filtro {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--outline-variant);
+    background: var(--surface-container-low);
+}
+
+.resultados__filtro-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--on-surface-variant);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+/* Tabs de PrimeNG — overrides editoriales */
+.resultados :deep(.p-tabs) {
+    background: transparent;
+}
+
+.resultados :deep(.p-tablist) {
+    background: var(--surface-container-low);
+    border-bottom: 1px solid var(--outline-variant);
+    padding: 0 1.5rem;
+    gap: 0;
+}
+
+.resultados :deep(.p-tab) {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--on-surface-variant);
+    padding: 0.75rem 1.25rem;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: color 150ms ease-out, border-color 150ms ease-out;
+    background: transparent;
+    border-radius: 0;
+}
+
+.resultados :deep(.p-tab:hover) {
+    color: var(--on-surface);
+}
+
+.resultados :deep(.p-tab.p-tab-active) {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+}
+
+.resultados :deep(.p-tabpanels) {
+    background: transparent;
+    padding: 0;
+}
+
+.resultados :deep(.p-tabpanel) {
+    padding: 0;
+}
+
+/* Badge de contador en cada tab */
+.tab-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1;
+}
+
+.tab-badge--aprobada {
+    background: color-mix(in srgb, var(--color-exito) 15%, transparent);
+    color: var(--color-exito);
+    border: 1px solid color-mix(in srgb, var(--color-exito) 30%, transparent);
+}
+
+.tab-badge--postulada {
+    background: color-mix(in srgb, var(--primary) 15%, transparent);
+    color: var(--primary);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+}
+
+.tab-badge--rechazada {
+    background: color-mix(in srgb, var(--color-error) 15%, transparent);
+    color: var(--color-error);
+    border: 1px solid color-mix(in srgb, var(--color-error) 30%, transparent);
+}
+
+.tab-badge--pendiente {
+    background: color-mix(in srgb, var(--color-advertencia) 15%, transparent);
+    color: var(--color-advertencia);
+    border: 1px solid color-mix(in srgb, var(--color-advertencia) 30%, transparent);
 }
 
 @keyframes aparecer {

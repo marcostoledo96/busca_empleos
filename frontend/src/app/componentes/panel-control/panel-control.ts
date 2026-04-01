@@ -1,21 +1,23 @@
-import { Component, inject, OnInit, output, signal } from '@angular/core';
+import { Component, inject, OnDestroy, OnInit, output, signal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
+import { ProgressBarModule } from 'primeng/progressbar';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
+import { ProgresoAutomatizacion } from '../../modelos/respuesta-api.model';
 
 @Component({
     selector: 'app-panel-control',
-    imports: [ButtonModule, ToastModule, ToggleSwitchModule, FormsModule],
+    imports: [ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule],
     providers: [MessageService],
     templateUrl: './panel-control.html',
     styleUrl: './panel-control.css'
 })
-export class PanelControl implements OnInit {
+export class PanelControl implements OnInit, OnDestroy {
 
     private readonly scrapingService = inject(ScrapingService);
     private readonly evaluacionService = inject(EvaluacionService);
@@ -33,11 +35,27 @@ export class PanelControl implements OnInit {
     readonly cronActivo = signal(false);
     readonly ultimaEjecucion = signal<string | null>(null);
 
+    // Overlay de scraping individual (spinner simple, sin % real).
+    readonly mostrarOverlayIndividual = signal(false);
+    readonly plataformaEnProceso = signal('');
+
+    // Overlay del ciclo completo (con pasos reales y % via polling).
+    readonly mostrarOverlayCiclo = signal(false);
+    readonly progresoCiclo = signal<ProgresoAutomatizacion | null>(null);
+    readonly ejecutandoCiclo = signal(false);
+
+    // ID del intervalo de polling — para poder limpiarlo al destruir.
+    private intervalIdPolling: ReturnType<typeof setInterval> | null = null;
+
     // Evento que emite cuando una acción completó para que el padre recargue datos.
     readonly accionCompletada = output<void>();
 
     ngOnInit(): void {
         this.consultarEstadoCron();
+    }
+
+    ngOnDestroy(): void {
+        this.detenerPolling();
     }
 
     // Consulto el estado del cron al iniciar el componente.
@@ -50,6 +68,80 @@ export class PanelControl implements OnInit {
                 }
             },
             error: () => {} // Silencioso — no es crítico si falla al iniciar.
+        });
+    }
+
+    // Inicia el polling al endpoint de progreso (cada 2 segundos).
+    private iniciarPolling(): void {
+        this.detenerPolling(); // Evito duplicados.
+        this.intervalIdPolling = setInterval(() => {
+            this.automatizacionService.obtenerProgreso().subscribe({
+                next: (respuesta) => {
+                    if (respuesta.exito) {
+                        this.progresoCiclo.set(respuesta.datos);
+                        // Si el backend terminó, detengo el polling.
+                        if (!respuesta.datos.activo && respuesta.datos.porcentaje >= 100) {
+                            this.detenerPolling();
+                        }
+                    }
+                },
+                error: () => {} // Silencioso — no corto el polling por un error de red.
+            });
+        }, 2000);
+    }
+
+    // Limpia el intervalo de polling.
+    private detenerPolling(): void {
+        if (this.intervalIdPolling !== null) {
+            clearInterval(this.intervalIdPolling);
+            this.intervalIdPolling = null;
+        }
+    }
+
+    // Ejecuta el ciclo completo (scraping de las 4 plataformas + evaluación IA).
+    ejecutarCicloCompleto(): void {
+        this.ejecutandoCiclo.set(true);
+        this.mostrarOverlayCiclo.set(true);
+        this.progresoCiclo.set(null);
+
+        // Espero 500ms antes de iniciar el polling para que el backend
+        // tenga tiempo de inicializar el objeto de progreso.
+        setTimeout(() => this.iniciarPolling(), 500);
+
+        this.automatizacionService.ejecutarCiclo().subscribe({
+            next: (respuesta) => {
+                this.detenerPolling();
+                this.ejecutandoCiclo.set(false);
+
+                // Aseguro que el overlay muestre 100% antes de cerrar.
+                if (this.progresoCiclo()) {
+                    this.progresoCiclo.set({ ...this.progresoCiclo()!, porcentaje: 100, activo: false });
+                }
+
+                setTimeout(() => {
+                    this.mostrarOverlayCiclo.set(false);
+                    this.progresoCiclo.set(null);
+                    this.mensajes.add({
+                        severity: 'success',
+                        summary: 'Ciclo completo',
+                        detail: 'Scraping y evaluación finalizados.',
+                        life: 5000
+                    });
+                    this.accionCompletada.emit();
+                }, 1200);
+            },
+            error: (error) => {
+                this.detenerPolling();
+                this.ejecutandoCiclo.set(false);
+                this.mostrarOverlayCiclo.set(false);
+                this.progresoCiclo.set(null);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en ciclo completo',
+                    detail: error.error?.error || 'Error al ejecutar el ciclo.',
+                    life: 5000
+                });
+            }
         });
     }
 
@@ -102,9 +194,12 @@ export class PanelControl implements OnInit {
 
     scrapearLinkedin(): void {
         this.scrapeandoLinkedin.set(true);
+        this.plataformaEnProceso.set('LinkedIn');
+        this.mostrarOverlayIndividual.set(true);
         this.scrapingService.scrapearLinkedin().subscribe({
             next: (respuesta) => {
                 this.scrapeandoLinkedin.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
                     severity: 'success',
@@ -116,6 +211,7 @@ export class PanelControl implements OnInit {
             },
             error: (error) => {
                 this.scrapeandoLinkedin.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en LinkedIn',
@@ -128,9 +224,12 @@ export class PanelControl implements OnInit {
 
     scrapearComputrabajo(): void {
         this.scrapeandoComputrabajo.set(true);
+        this.plataformaEnProceso.set('Computrabajo');
+        this.mostrarOverlayIndividual.set(true);
         this.scrapingService.scrapearComputrabajo().subscribe({
             next: (respuesta) => {
                 this.scrapeandoComputrabajo.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
                     severity: 'success',
@@ -142,6 +241,7 @@ export class PanelControl implements OnInit {
             },
             error: (error) => {
                 this.scrapeandoComputrabajo.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Computrabajo',
@@ -154,9 +254,12 @@ export class PanelControl implements OnInit {
 
     scrapearIndeed(): void {
         this.scrapeandoIndeed.set(true);
+        this.plataformaEnProceso.set('Indeed');
+        this.mostrarOverlayIndividual.set(true);
         this.scrapingService.scrapearIndeed().subscribe({
             next: (respuesta) => {
                 this.scrapeandoIndeed.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
                     severity: 'success',
@@ -168,6 +271,7 @@ export class PanelControl implements OnInit {
             },
             error: (error) => {
                 this.scrapeandoIndeed.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Indeed',
@@ -180,9 +284,12 @@ export class PanelControl implements OnInit {
 
     scrapearBumeran(): void {
         this.scrapeandoBumeran.set(true);
+        this.plataformaEnProceso.set('Bumeran');
+        this.mostrarOverlayIndividual.set(true);
         this.scrapingService.scrapearBumeran().subscribe({
             next: (respuesta) => {
                 this.scrapeandoBumeran.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
                     severity: 'success',
@@ -194,6 +301,7 @@ export class PanelControl implements OnInit {
             },
             error: (error) => {
                 this.scrapeandoBumeran.set(false);
+                this.mostrarOverlayIndividual.set(false);
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Bumeran',

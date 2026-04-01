@@ -23,6 +23,8 @@ export class TablaOfertas {
     // Datos que recibe del componente padre.
     readonly ofertas = input<Oferta[]>([]);
     readonly cargando = input(false);
+    readonly sortField = input('porcentaje_match');
+    readonly sortOrder = input(-1);
 
     // Evento que emite cuando el usuario hace clic en una oferta.
     readonly ofertaSeleccionada = output<Oferta>();
