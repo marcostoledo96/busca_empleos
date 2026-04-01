@@ -57,6 +57,9 @@
     --radius-md: 4px;
     --radius-lg: 8px;
 
+    /* Bordes estructurales (sidebar, topbar, footer) */
+    --border-structure: #000000;
+
     /* Layout */
     --sidebar-ancho: 256px;
     --topbar-alto: 64px;
@@ -306,4 +309,385 @@ body {
 /* --- Sort Icon --- */
 .p-sortable-column-icon {
     color: var(--on-surface-variant) !important;
+}
+
+/* ============================================
+   Design Tokens — Dark Mode "The Silent Processor"
+   Basado en prototipo_dark_mobile y prototipo_dark.md
+   ============================================ */
+
+html.dark {
+    /* Bordes estructurales — más sutiles que en light */
+    --border-structure: #353535;
+
+    /* Superficies */
+    --surface: #131313;
+    --surface-container-lowest: #0e0e0e;
+    --surface-container-low: #1b1b1b;
+    --surface-container: #1f1f1f;
+    --surface-container-high: #2a2a2a;
+    --surface-container-highest: #353535;
+    --surface-dim: #131313;
+
+    /* Texto */
+    --on-surface: #e2e2e2;
+    --on-surface-variant: #c6c6c6;
+
+    /* Bordes */
+    --outline: #919191;
+    --outline-variant: #474747;
+
+    /* Primarios */
+    --primary: #ffffff;
+    --on-primary: #1a1c1c;
+    --primary-container: #353535;
+
+    /* Secundarios */
+    --secondary: #c6c6c6;
+    --secondary-container: #464747;
+
+    /* Error */
+    --error: #ffb4ab;
+    --error-container: #93000a;
+
+    /* Funcionales */
+    --color-exito: #72ff70;
+    --color-peligro: #f87171;
+    --color-advertencia: #fbbf24;
+    --color-info: #60a5fa;
+}
+
+html.dark body {
+    background-color: var(--surface);
+    color: var(--on-surface);
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+    background: #2a2a2a;
+}
+
+html.dark ::selection {
+    background: #353535;
+    color: #ffffff;
+}
+
+/* PrimeNG dark overrides */
+html.dark .p-dialog,
+html.dark .p-select-panel,
+html.dark .p-multiselect-panel {
+    background: var(--surface-container) !important;
+}
+
+html.dark .p-toast .p-toast-message {
+    background: var(--surface-container) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-inputtext,
+html.dark .p-textarea {
+    background: var(--surface-container-low) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-select,
+html.dark .p-multiselect {
+    background: var(--surface-container-low) !important;
+    color: var(--on-surface) !important;
+}
+
+/* --- DataTable dark --- */
+html.dark .p-datatable {
+    background: var(--surface) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-datatable .p-datatable-header {
+    background: var(--surface) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-datatable .p-datatable-thead > tr > th {
+    background: var(--surface-container-low) !important;
+    color: var(--on-surface-variant) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-datatable .p-datatable-tbody > tr {
+    background: var(--surface) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-datatable .p-datatable-tbody > tr > td {
+    border-color: var(--outline-variant) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-datatable .p-datatable-tbody > tr:hover {
+    background: var(--surface-container-low) !important;
+}
+
+html.dark .p-datatable .p-datatable-tbody > tr.p-datatable-row-odd {
+    background: var(--surface) !important;
+}
+
+html.dark .p-datatable .p-datatable-tfoot > tr > td {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+/* --- Paginator dark --- */
+html.dark .p-paginator {
+    background: var(--surface) !important;
+    border-color: var(--outline-variant) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-paginator .p-paginator-page {
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-paginator .p-paginator-page:hover {
+    background: var(--surface-container-low) !important;
+}
+
+html.dark .p-paginator-first,
+html.dark .p-paginator-prev,
+html.dark .p-paginator-next,
+html.dark .p-paginator-last {
+    color: var(--on-surface-variant) !important;
+}
+
+html.dark .p-paginator-first:hover,
+html.dark .p-paginator-prev:hover,
+html.dark .p-paginator-next:hover,
+html.dark .p-paginator-last:hover {
+    background: var(--surface-container-low) !important;
+}
+
+/* --- Tabs dark --- */
+html.dark .p-tabs {
+    background: transparent !important;
+}
+
+html.dark .p-tablist {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-tab {
+    background: transparent !important;
+    color: var(--on-surface-variant) !important;
+    border-color: transparent !important;
+}
+
+html.dark .p-tab:hover {
+    color: var(--on-surface) !important;
+    background: transparent !important;
+}
+
+html.dark .p-tab.p-tab-active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary) !important;
+    background: transparent !important;
+}
+
+html.dark .p-tabpanels {
+    background: transparent !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-tabpanel {
+    background: transparent !important;
+}
+
+/* --- Select / MultiSelect opciones dark --- */
+html.dark .p-select-list,
+html.dark .p-multiselect-list {
+    background: var(--surface-container-low) !important;
+}
+
+html.dark .p-select-option,
+html.dark .p-multiselect-option {
+    background: transparent !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-select-option:hover,
+html.dark .p-multiselect-option:hover {
+    background: var(--surface-container) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-select-option.p-select-option-selected,
+html.dark .p-multiselect-option.p-multiselect-option-selected {
+    background: var(--surface-container-high) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-select-label,
+html.dark .p-select-dropdown,
+html.dark .p-multiselect-label,
+html.dark .p-multiselect-dropdown {
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-select-overlay,
+html.dark .p-multiselect-overlay {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+/* --- Dialog dark --- */
+html.dark .p-dialog {
+    background: var(--surface-container) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-dialog .p-dialog-header {
+    background: var(--surface-container) !important;
+    border-color: var(--outline-variant) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-dialog .p-dialog-header .p-dialog-title {
+    color: var(--on-surface-variant) !important;
+}
+
+html.dark .p-dialog .p-dialog-content {
+    background: var(--surface-container) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-dialog .p-dialog-footer {
+    background: var(--surface-container) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-dialog-mask {
+    background: rgba(0, 0, 0, 0.72) !important;
+}
+
+/* --- Buttons dark --- */
+html.dark .p-button-outlined {
+    border-color: var(--outline-variant) !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-button-outlined:hover {
+    background: var(--surface-container-low) !important;
+}
+
+/* --- InputText / Textarea dark --- */
+html.dark .p-inputtext:focus,
+html.dark .p-inputtext:enabled:focus {
+    border-color: var(--primary) !important;
+    box-shadow: none !important;
+}
+
+/* --- ToggleSwitch dark --- */
+html.dark .p-toggleswitch-slider {
+    background: var(--surface-container-high) !important;
+}
+
+/* --- Sort Icon dark --- */
+html.dark .p-sortable-column-icon {
+    color: var(--on-surface-variant) !important;
+}
+
+/* --- Toast dark --- */
+html.dark .p-toast .p-toast-message-content {
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-toast .p-toast-message-icon {
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-toast .p-toast-detail {
+    color: var(--on-surface-variant) !important;
+}
+
+/* --- ProgressBar dark --- */
+html.dark .p-progressbar {
+    background: var(--surface-container-high) !important;
+}
+
+/* --- Tag dark --- */
+html.dark .p-tag {
+    opacity: 0.9;
+}
+
+/* --- Separadores sidebar en dark (invisibles, como en el prototipo) --- */
+html.dark .sidebar-nav li {
+    border-bottom-color: transparent !important;
+}
+
+html.dark .sidebar-marca {
+    border-bottom-color: var(--surface-container) !important;
+}
+
+/* --- AutoComplete dark --- */
+html.dark .p-autocomplete {
+    background: var(--surface-container-low) !important;
+}
+
+html.dark .p-autocomplete-input-chip-list,
+html.dark .p-autocomplete .p-autocomplete-multiple-container,
+html.dark .p-autocomplete-fluid {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-autocomplete input,
+html.dark .p-autocomplete .p-inputtext {
+    background: transparent !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-autocomplete-panel,
+html.dark .p-autocomplete-overlay {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-autocomplete-option,
+html.dark .p-autocomplete-item {
+    background: transparent !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-autocomplete-option:hover {
+    background: var(--surface-container) !important;
+}
+
+/* --- Chips dark (dentro de autocomplete y multiselect) --- */
+html.dark .p-chip {
+    background: var(--surface-container-high) !important;
+    color: var(--on-surface) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-chip .p-chip-remove-icon {
+    color: var(--on-surface-variant) !important;
+}
+
+html.dark .p-chip .p-chip-remove-icon:hover {
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-autocomplete-chip-item {
+    background: var(--surface-container-high) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+/* --- InputChip (PrimeNG v19 nombre del component) --- */
+html.dark .p-inputchips,
+html.dark .p-inputchips-list {
+    background: var(--surface-container-low) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-inputchips input {
+    background: transparent !important;
+    color: var(--on-surface) !important;
 }

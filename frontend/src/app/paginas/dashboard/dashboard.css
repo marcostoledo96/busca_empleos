@@ -13,9 +13,9 @@
     font-size: 2.5rem;
     font-weight: 700;
     letter-spacing: -0.04em;
-    color: #000000;
+    color: var(--on-surface);
     text-transform: uppercase;
-    border-left: 8px solid #000000;
+    border-left: 8px solid var(--on-surface);
     padding-left: 1.5rem;
     margin-bottom: 1.25rem;
     line-height: 1;
@@ -39,14 +39,14 @@
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.12em;
-    color: #000000;
+    color: var(--on-surface);
     opacity: 0.5;
 }
 
 .dashboard-stat__valor {
     font-size: 1.75rem;
     font-weight: 700;
-    color: #000000;
+    color: var(--on-surface);
     line-height: 1.1;
 }
 

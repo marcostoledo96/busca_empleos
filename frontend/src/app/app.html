@@ -47,6 +47,11 @@
             </div>
         </div>
         <div class="topbar-derecha">
+            <button class="topbar-btn" (click)="toggleTema()" aria-label="Cambiar tema">
+                <span class="material-symbols-outlined">
+                    {{ modoOscuro() ? 'light_mode' : 'dark_mode' }}
+                </span>
+            </button>
             <a routerLink="/preferencias" class="topbar-btn" aria-label="Configuración">
                 <span class="material-symbols-outlined">settings</span>
             </a>
