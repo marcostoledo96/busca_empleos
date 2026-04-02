@@ -25,6 +25,17 @@ export interface RespuestaEvaluacion {
     errores: number;
 }
 
+// Progreso en tiempo real de la evaluación IA (para polling).
+export interface ProgresoEvaluacion {
+    activo: boolean;
+    total: number;
+    evaluadas: number;
+    aprobadas: number;
+    rechazadas: number;
+    errores: number;
+    porcentaje: number;
+}
+
 // Estado del cron de automatización.
 export interface EstadoAutomatizacion {
     activo: boolean;

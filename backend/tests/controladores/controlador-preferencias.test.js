@@ -250,6 +250,41 @@ describe('Controlador de preferencias', () => {
             expect(res.body.error).toContain('true o false');
         });
 
+        // --- Validación de idioma_candidato ---
+
+        test('acepta idioma_candidato como string válido', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                idioma_candidato: 'Español nativo, Inglés básico oral / intermedio escrito',
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ idioma_candidato: 'Español nativo, Inglés básico oral / intermedio escrito' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('rechaza idioma_candidato vacío', async () => {
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ idioma_candidato: '' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('idioma_candidato');
+        });
+
+        test('rechaza idioma_candidato que no es string', async () => {
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ idioma_candidato: 3 });
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toContain('idioma_candidato');
+        });
+
         // --- Múltiples errores ---
 
         test('acumula múltiples errores de validación', async () => {

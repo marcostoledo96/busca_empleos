@@ -409,3 +409,69 @@
         font-size: 9px;
     }
 }
+
+/* === Progreso inline de evaluación IA === */
+
+.eval-acciones {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    flex-wrap: wrap;
+}
+
+.eval-progreso {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex: 1;
+    min-width: 120px;
+}
+
+.eval-progreso__barra {
+    flex: 1;
+    height: 6px;
+    background: var(--outline-variant, #e0e0e0);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.eval-progreso__relleno {
+    height: 100%;
+    background: var(--primary, #1976d2);
+    border-radius: 3px;
+    transition: width 400ms ease-out;
+}
+
+.eval-progreso__texto {
+    font-family: var(--font-mono, monospace);
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--on-surface-variant, #666);
+    white-space: nowrap;
+}
+
+.btn-cancelar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    background: transparent;
+    border: 1px solid var(--outline-variant, #ccc);
+    border-radius: 50%;
+    cursor: pointer;
+    color: var(--on-surface-variant, #666);
+    transition: background 150ms, color 150ms;
+    flex-shrink: 0;
+}
+
+.btn-cancelar:hover {
+    background: var(--error-container, #fdecea);
+    border-color: var(--error, #d32f2f);
+    color: var(--error, #d32f2f);
+}
+
+.btn-cancelar .material-symbols-outlined {
+    font-size: 16px;
+}

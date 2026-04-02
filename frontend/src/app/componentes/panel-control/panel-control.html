@@ -114,10 +114,24 @@
         <div class="panel-fila-secundaria">
             <div class="panel-grupo">
                 <span class="grupo-label">Evaluación IA</span>
-                <div class="grupo-acciones">
+                <div class="grupo-acciones eval-acciones">
                     <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando()" (click)="ejecutarEvaluacion()">
                         {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
                     </button>
+                    @if (evaluando()) {
+                        <div class="eval-progreso">
+                            <div class="eval-progreso__barra">
+                                <div class="eval-progreso__relleno" [style.width.%]="progresoEvaluacion()?.porcentaje ?? 0"></div>
+                            </div>
+                            <span class="eval-progreso__texto">
+                                {{ progresoEvaluacion()?.evaluadas ?? 0 }}/{{ progresoEvaluacion()?.total ?? '...' }}
+                                ({{ progresoEvaluacion()?.porcentaje ?? 0 }}%)
+                            </span>
+                        </div>
+                        <button class="btn-cancelar" title="Cancelar evaluación" (click)="cancelarEvaluacion()">
+                            <span class="material-symbols-outlined">close</span>
+                        </button>
+                    }
                 </div>
             </div>
 

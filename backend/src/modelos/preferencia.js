@@ -47,10 +47,10 @@ async function crearPreferenciasPorDefecto() {
     const resultado = await pool.query(
         `INSERT INTO preferencias (
             id, nombre, nivel_experiencia, perfil_profesional,
-            stack_tecnologico, modalidad_aceptada, zonas_preferidas,
+            idioma_candidato, stack_tecnologico, modalidad_aceptada, zonas_preferidas,
             terminos_busqueda, reglas_exclusion, modelo_ia
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
         )
         ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
         RETURNING *`,
@@ -59,6 +59,7 @@ async function crearPreferenciasPorDefecto() {
             'Marcos Ezequiel Toledo',
             'junior',
             'Desarrollador de software junior, QA Tester y soporte IT de primer nivel. Perfil híbrido con experiencia en desarrollo full-stack (Angular, Node, C#). Busco roles técnicos de Desarrollo, Testing o Soporte IT en Buenos Aires, Argentina.',
+            'Español nativo, Inglés básico oral / intermedio escrito',
             ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'C#', 'SQL', 'Angular', 'React', 'React Native', 'Node.js', 'Express', 'ASP.NET', 'PostgreSQL', 'SQL Server', 'Git', 'API REST', 'Figma'],
             'cualquiera',
             ['CABA', 'GBA Oeste'],
@@ -92,6 +93,7 @@ async function actualizarPreferencias(datos) {
         'nombre',
         'nivel_experiencia',
         'perfil_profesional',
+        'idioma_candidato',
         'stack_tecnologico',
         'modalidad_aceptada',
         'zonas_preferidas',

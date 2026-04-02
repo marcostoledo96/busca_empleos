@@ -42,6 +42,7 @@ export class Preferencias implements OnInit {
     nombre = '';
     nivelExperiencia: PreferenciasModel['nivel_experiencia'] = 'junior';
     perfilProfesional = '';
+    idiomaCandidato = 'Español nativo, Inglés básico oral / intermedio escrito';
     stackTecnologico: string[] = [];
     modalidadAceptada: PreferenciasModel['modalidad_aceptada'] = 'cualquiera';
     zonasPreferidas: string[] = [];
@@ -121,6 +122,7 @@ export class Preferencias implements OnInit {
             nombre: this.nombre,
             nivel_experiencia: this.nivelExperiencia,
             perfil_profesional: this.perfilProfesional,
+            idioma_candidato: this.idiomaCandidato,
             stack_tecnologico: this.stackTecnologico,
             modalidad_aceptada: this.modalidadAceptada,
             zonas_preferidas: this.zonasPreferidas,
@@ -159,6 +161,7 @@ export class Preferencias implements OnInit {
         this.nombre = prefs.nombre ?? '';
         this.nivelExperiencia = prefs.nivel_experiencia ?? 'junior';
         this.perfilProfesional = prefs.perfil_profesional ?? '';
+        this.idiomaCandidato = prefs.idioma_candidato ?? 'Español nativo, Inglés básico oral / intermedio escrito';
         this.stackTecnologico = prefs.stack_tecnologico ?? [];
         this.modalidadAceptada = prefs.modalidad_aceptada ?? 'cualquiera';
         this.zonasPreferidas = prefs.zonas_preferidas ?? [];

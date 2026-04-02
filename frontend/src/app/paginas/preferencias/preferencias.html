@@ -45,6 +45,14 @@
                           [rows]="4" [autoResize]="true"
                           placeholder="Describí tu experiencia, formación y lo que buscás..."></textarea>
             </div>
+
+            <div class="campo">
+                <label class="campo-etiqueta" for="idioma">Nivel de idiomas</label>
+                <textarea pTextarea id="idioma" [(ngModel)]="idiomaCandidato"
+                          [rows]="2" [autoResize]="true"
+                          placeholder="Ej: Español nativo, Inglés básico oral / intermedio escrito"></textarea>
+                <small class="campo-ayuda">La IA usa este campo para rechazar automáticamente ofertas que requieran un nivel de inglés que no tenés.</small>
+            </div>
         </div>
     </section>
 

@@ -8,7 +8,7 @@ import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
-import { ProgresoAutomatizacion } from '../../modelos/respuesta-api.model';
+import { ProgresoAutomatizacion, ProgresoEvaluacion } from '../../modelos/respuesta-api.model';
 
 @Component({
     selector: 'app-panel-control',
@@ -34,6 +34,10 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoJooble = signal(false);
     readonly scrapeandoGoogleJobs = signal(false);
     readonly evaluando = signal(false);
+    readonly progresoEvaluacion = signal<ProgresoEvaluacion | null>(null);
+
+    // ID del intervalo de polling para la evaluación.
+    private intervalIdPollingEval: ReturnType<typeof setInterval> | null = null;
 
     // Estado de la automatización.
     readonly cronActivo = signal(false);
@@ -60,6 +64,7 @@ export class PanelControl implements OnInit, OnDestroy {
 
     ngOnDestroy(): void {
         this.detenerPolling();
+        this.detenerPollingEvaluacion();
     }
 
     // Consulto el estado del cron al iniciar el componente.
@@ -99,6 +104,44 @@ export class PanelControl implements OnInit, OnDestroy {
         if (this.intervalIdPolling !== null) {
             clearInterval(this.intervalIdPolling);
             this.intervalIdPolling = null;
+        }
+    }
+
+    // Inicia el polling al endpoint de progreso de evaluación (cada 2 segundos).
+    private iniciarPollingEvaluacion(): void {
+        this.detenerPollingEvaluacion();
+        this.intervalIdPollingEval = setInterval(() => {
+            this.evaluacionService.obtenerProgreso().subscribe({
+                next: (respuesta) => {
+                    if (respuesta.exito) {
+                        this.progresoEvaluacion.set(respuesta.datos);
+                        // Si el backend terminó, detengo el polling y notifico.
+                        if (!respuesta.datos.activo) {
+                            this.detenerPollingEvaluacion();
+                            this.evaluando.set(false);
+                            const p = respuesta.datos;
+                            this.mensajes.add({
+                                severity: 'success',
+                                summary: 'Evaluación completada',
+                                detail: `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`,
+                                life: 5000
+                            });
+                            this.accionCompletada.emit();
+                            // Limpio el progreso después de mostrar el toast.
+                            setTimeout(() => this.progresoEvaluacion.set(null), 1500);
+                        }
+                    }
+                },
+                error: () => {} // Silencioso — no corto el polling por un error de red.
+            });
+        }, 2000);
+    }
+
+    // Limpia el intervalo de polling de evaluación.
+    private detenerPollingEvaluacion(): void {
+        if (this.intervalIdPollingEval !== null) {
+            clearInterval(this.intervalIdPollingEval);
+            this.intervalIdPollingEval = null;
         }
     }
 
@@ -438,20 +481,21 @@ export class PanelControl implements OnInit, OnDestroy {
 
     ejecutarEvaluacion(): void {
         this.evaluando.set(true);
+        this.progresoEvaluacion.set(null);
+
+        // Espero 500ms antes de iniciar el polling para que el backend
+        // tenga tiempo de inicializar el objeto de progreso.
+        setTimeout(() => this.iniciarPollingEvaluacion(), 500);
+
         this.evaluacionService.ejecutarEvaluacion().subscribe({
-            next: (respuesta) => {
-                this.evaluando.set(false);
-                const datos = respuesta.datos;
-                this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Evaluación completada',
-                    detail: `${datos.aprobadas} aprobadas, ${datos.rechazadas} rechazadas de ${datos.total_evaluadas}`,
-                    life: 5000
-                });
-                this.accionCompletada.emit();
+            next: () => {
+                // El backend responde de inmediato (fire-and-forget).
+                // El polling se encarga de detectar cuándo terminó.
             },
             error: (error) => {
+                this.detenerPollingEvaluacion();
                 this.evaluando.set(false);
+                this.progresoEvaluacion.set(null);
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en evaluación',
@@ -459,6 +503,20 @@ export class PanelControl implements OnInit, OnDestroy {
                     life: 5000
                 });
             }
+        });
+    }
+
+    cancelarEvaluacion(): void {
+        this.evaluacionService.cancelarEvaluacion().subscribe({
+            next: () => {
+                this.mensajes.add({
+                    severity: 'info',
+                    summary: 'Cancelando',
+                    detail: 'Se solicitó la cancelación. La oferta actual termina antes de detenerse.',
+                    life: 4000
+                });
+            },
+            error: () => {}
         });
     }
 }

@@ -105,6 +105,13 @@ async function actualizarPreferencias(req, res) {
         }
     }
 
+    // Valido idioma_candidato: si viene, debe ser string no vacío.
+    if (datos.idioma_candidato !== undefined) {
+        if (typeof datos.idioma_candidato !== 'string' || datos.idioma_candidato.trim().length === 0) {
+            errores.push('idioma_candidato debe ser un texto no vacío.');
+        }
+    }
+
     // Si hay errores de validación, respondo 400 con todos los errores juntos.
     if (errores.length > 0) {
         return res.status(400).json({

@@ -21,6 +21,40 @@ const { consultarDeepSeek } = require('../config/deepseek');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 
+// Progreso de la evaluación en curso.
+// ¿Por qué un objeto en memoria y no en la BD? Porque el progreso es efímero:
+// nace cuando arranca la evaluación y muere cuando termina. No tiene sentido
+// guardarlo en la base de datos; alcanza con que sea accesible dentro del
+// mismo proceso de Node.js. El frontend hace polling cada 2 segundos.
+let progresoEvaluacion = {
+    activo: false,
+    total: 0,
+    evaluadas: 0,
+    aprobadas: 0,
+    rechazadas: 0,
+    errores: 0,
+    porcentaje: 0,
+};
+
+// Bandera para interrumpir el loop de evaluación.
+let _cancelarEvaluacion = false;
+
+/**
+ * Devuelvo una copia del estado actual del progreso.
+ * @returns {Object} Estado del progreso de evaluación.
+ */
+function obtenerProgresoEvaluacion() {
+    return { ...progresoEvaluacion };
+}
+
+/**
+ * Activo la bandera de cancelación para que el loop de evaluarOfertasPendientes
+ * se detenga después de procesar la oferta actual (no la corta a mitad de oferta).
+ */
+function cancelarEvaluacionPendiente() {
+    _cancelarEvaluacion = true;
+}
+
 /**
  * Construyo el texto del perfil del candidato a partir de las preferencias
  * guardadas en la base de datos.
@@ -41,6 +75,7 @@ function construirPerfilDesdePreferencias(prefs) {
     const zonas = prefs.zonas_preferidas || [];
     const exclusiones = prefs.reglas_exclusion || [];
     const perfil = prefs.perfil_profesional || '';
+    const idioma = prefs.idioma_candidato || 'Español nativo';
 
     const partes = [];
 
@@ -87,6 +122,8 @@ function construirPerfilDesdePreferencias(prefs) {
     }
 
     partes.push('');
+    partes.push('MI NIVEL DE IDIOMAS:');
+    partes.push(idioma);
     partes.push('REGLAS ESTRICTAS DE INDUSTRIA Y TIPO DE ROL:');
     partes.push('- Si es un rol tecnológico (ej. Soporte Técnico, Desarrollador, QA) dentro de una empresa o contexto no tecnológico (hotel, hospital, agro, fábrica), SÍ ES VÁLIDO Y DEBE SER ACEPTADO.');
     partes.push('- EXCLUSIÓN ABSOLUTA: Si el ROL en sí mismo es no tecnológico (ej: Agrónomo, Médico, Mecánico, Administrativo puro, Vendedor, Operario), RECHAZAR automáticamente con match: false y porcentaje 0.');
@@ -155,6 +192,13 @@ function construirInstruccionesDesdePreferencias(prefs) {
     }
 
     partes.push('- match: false si requiere tecnologías completamente fuera del stack del candidato como requisito principal.');
+
+    // Criterio de idioma: basado en el nivel declarado del candidato.
+    partes.push('');
+    partes.push('CRITERIOS DE IDIOMA (REGLA ESTRICTA):');
+    partes.push('- Si la oferta está escrita íntegramente en inglés O requiere inglés fluido/avanzado/bilingüe como requisito excluyente, RECHAZAR automáticamente con match: false y porcentaje igual o menor a 20. Justificar mencionando el idioma como causa del rechazo.');
+    partes.push('- Si la oferta es en español pero menciona inglés como "deseable", "plus" o "nice to have", NO penalizar. No es un requisito excluyente.');
+    partes.push('- Si la oferta es en español y requiere inglés intermedio, evaluar según el nivel declarado del candidato. Si el candidato declara nivel intermedio o superior para ese idioma, aceptar.');
 
     // Criterios de ubicación/zona si hay zonas preferidas.
     if (zonas.length > 0) {
@@ -293,63 +337,94 @@ async function evaluarOferta(oferta, instrucciones, modelo) {
  * @returns {Object} Resumen: { total, aprobadas, rechazadas, errores, detalle }.
  */
 async function evaluarOfertasPendientes() {
-    // Leo las preferencias UNA sola vez para todo el lote.
-    // Así evito hacer una query por cada oferta (serían N queries innecesarias).
-    const prefs = await modeloPreferencia.obtenerPreferencias();
-    const instrucciones = prefs
-        ? construirInstruccionesDesdePreferencias(prefs)
-        : null;
-    const modeloIA = prefs ? prefs.modelo_ia : undefined;
-
-    const pendientes = await modeloOferta.obtenerOfertasPendientes();
-
-    const resumen = {
-        total: pendientes.length,
+    // Inicializo el progreso y reseteo la bandera de cancelación.
+    _cancelarEvaluacion = false;
+    progresoEvaluacion = {
+        activo: true,
+        total: 0,
+        evaluadas: 0,
         aprobadas: 0,
         rechazadas: 0,
         errores: 0,
-        detalle: [],
+        porcentaje: 0,
     };
 
-    if (pendientes.length === 0) {
-        console.log('[Evaluación] No hay ofertas pendientes para evaluar.');
+    try {
+        // Leo las preferencias UNA sola vez para todo el lote.
+        // Así evito hacer una query por cada oferta (serían N queries innecesarias).
+        const prefs = await modeloPreferencia.obtenerPreferencias();
+        const instrucciones = prefs
+            ? construirInstruccionesDesdePreferencias(prefs)
+            : null;
+        const modeloIA = prefs ? prefs.modelo_ia : undefined;
+
+        const pendientes = await modeloOferta.obtenerOfertasPendientes();
+
+        progresoEvaluacion.total = pendientes.length;
+
+        const resumen = {
+            total: pendientes.length,
+            aprobadas: 0,
+            rechazadas: 0,
+            errores: 0,
+            detalle: [],
+        };
+
+        if (pendientes.length === 0) {
+            console.log('[Evaluación] No hay ofertas pendientes para evaluar.');
+            return resumen;
+        }
+
+        console.log(`[Evaluación] Evaluando ${pendientes.length} ofertas pendientes...`);
+
+        for (const oferta of pendientes) {
+            // Si el usuario canceló, detengo el loop antes de la siguiente oferta.
+            if (_cancelarEvaluacion) {
+                console.log('[Evaluación] Cancelada por el usuario.');
+                break;
+            }
+
+            console.log(`[Evaluación] Procesando oferta ID ${oferta.id}: "${oferta.titulo}"...`);
+
+            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA);
+            const estado = resultado.match ? 'aprobada' : 'rechazada';
+
+            // Actualizo el estado y el porcentaje en la base de datos.
+            await modeloOferta.actualizarEvaluacion(oferta.id, estado, resultado.razon, resultado.porcentaje);
+
+            // Actualizo los contadores del resumen y del progreso.
+            progresoEvaluacion.evaluadas++;
+            if (resultado.error) {
+                resumen.errores++;
+                progresoEvaluacion.errores++;
+            }
+            if (resultado.match) {
+                resumen.aprobadas++;
+                progresoEvaluacion.aprobadas++;
+            } else {
+                resumen.rechazadas++;
+                progresoEvaluacion.rechazadas++;
+            }
+            progresoEvaluacion.porcentaje = progresoEvaluacion.total > 0
+                ? Math.round((progresoEvaluacion.evaluadas / progresoEvaluacion.total) * 100)
+                : 0;
+
+            resumen.detalle.push({
+                id: oferta.id,
+                titulo: oferta.titulo,
+                estado,
+                razon: resultado.razon,
+                error: resultado.error || false,
+            });
+        }
+
+        console.log(`[Evaluación] Completado. Aprobadas: ${resumen.aprobadas}, Rechazadas: ${resumen.rechazadas}, Errores: ${resumen.errores}`);
+
         return resumen;
+    } finally {
+        // Siempre marco el progreso como inactivo al terminar (o al cancelar).
+        progresoEvaluacion.activo = false;
     }
-
-    console.log(`[Evaluación] Evaluando ${pendientes.length} ofertas pendientes...`);
-
-    for (const oferta of pendientes) {
-        console.log(`[Evaluación] Procesando oferta ID ${oferta.id}: "${oferta.titulo}"...`);
-
-        const resultado = await evaluarOferta(oferta, instrucciones, modeloIA);
-        const estado = resultado.match ? 'aprobada' : 'rechazada';
-
-        // Actualizo el estado y el porcentaje en la base de datos.
-        await modeloOferta.actualizarEvaluacion(oferta.id, estado, resultado.razon, resultado.porcentaje);
-
-        // Actualizo los contadores del resumen.
-        if (resultado.error) {
-            resumen.errores++;
-        }
-
-        if (resultado.match) {
-            resumen.aprobadas++;
-        } else {
-            resumen.rechazadas++;
-        }
-
-        resumen.detalle.push({
-            id: oferta.id,
-            titulo: oferta.titulo,
-            estado,
-            razon: resultado.razon,
-            error: resultado.error || false,
-        });
-    }
-
-    console.log(`[Evaluación] Completado. Aprobadas: ${resumen.aprobadas}, Rechazadas: ${resumen.rechazadas}, Errores: ${resumen.errores}`);
-
-    return resumen;
 }
 
 module.exports = {
@@ -358,4 +433,6 @@ module.exports = {
     construirInstruccionesDesdePreferencias,
     evaluarOferta,
     evaluarOfertasPendientes,
+    obtenerProgresoEvaluacion,
+    cancelarEvaluacionPendiente,
 };

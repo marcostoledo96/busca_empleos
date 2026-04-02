@@ -5,6 +5,7 @@ export interface Preferencias {
     nombre: string | null;
     nivel_experiencia: 'trainee' | 'junior' | 'semi-senior';
     perfil_profesional: string | null;
+    idioma_candidato: string | null;
     stack_tecnologico: string[];
     modalidad_aceptada: 'cualquiera' | 'remoto' | 'hibrido' | 'presencial';
     zonas_preferidas: string[];

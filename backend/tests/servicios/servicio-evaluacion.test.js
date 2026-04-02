@@ -82,6 +82,7 @@ const preferenciasEjemplo = {
     prompt_personalizado: null,
     usar_prompt_personalizado: false,
     modelo_ia: 'deepseek-chat',
+    idioma_candidato: 'Español nativo, Inglés básico oral / intermedio escrito',
 };
 
 describe('Servicio de evaluación con IA', () => {
@@ -159,6 +160,20 @@ describe('Servicio de evaluación con IA', () => {
             const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
             expect(perfil).toContain('QA Tester');
         });
+
+        test('incluye nivel de idiomas del candidato', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toContain('MI NIVEL DE IDIOMAS');
+            expect(perfil).toContain('Español nativo');
+            expect(perfil).toContain('Inglés básico oral');
+        });
+
+        test('usa fallback de idioma si no hay idioma_candidato en preferencias', () => {
+            const sinIdioma = { ...preferenciasEjemplo, idioma_candidato: null };
+            const perfil = construirPerfilDesdePreferencias(sinIdioma);
+            expect(perfil).toContain('MI NIVEL DE IDIOMAS');
+            expect(perfil).toContain('Español nativo');
+        });
     });
 
     describe('construirInstruccionesDesdePreferencias()', () => {
@@ -182,6 +197,19 @@ describe('Servicio de evaluación con IA', () => {
             const sinZonas = { ...preferenciasEjemplo, zonas_preferidas: [] };
             const instrucciones = construirInstruccionesDesdePreferencias(sinZonas);
             expect(instrucciones).not.toContain('CRITERIOS DE UBICACIÓN');
+        });
+
+        test('incluye criterio estricto de idioma en las instrucciones', () => {
+            const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
+            expect(instrucciones).toContain('CRITERIOS DE IDIOMA');
+            expect(instrucciones).toMatch(/inglés.*fluido|bilingüe/i);
+            expect(instrucciones).toMatch(/porcentaje.*20|20.*porcentaje/i);
+        });
+
+        test('no penaliza inglés como deseable según las instrucciones', () => {
+            const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
+            expect(instrucciones).toContain('nice to have');
+            expect(instrucciones).toContain('deseable');
         });
 
         test('usa prompt personalizado cuando está activado', () => {
