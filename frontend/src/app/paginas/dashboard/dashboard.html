@@ -95,7 +95,8 @@
                         [sortField]="'porcentaje_match'"
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
-                        (postulacionActualizada)="onAccionCompletada()" />
+                        (postulacionActualizada)="onAccionCompletada()"
+                        (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
 
                 <!-- Panel: Postuladas -->
@@ -106,7 +107,8 @@
                         [sortField]="'porcentaje_match'"
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
-                        (postulacionActualizada)="onAccionCompletada()" />
+                        (postulacionActualizada)="onAccionCompletada()"
+                        (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
 
                 <!-- Panel: Rechazadas -->
@@ -117,7 +119,8 @@
                         [sortField]="'porcentaje_match'"
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
-                        (postulacionActualizada)="onAccionCompletada()" />
+                        (postulacionActualizada)="onAccionCompletada()"
+                        (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
 
                 <!-- Panel: Pendientes -->
@@ -128,7 +131,8 @@
                         [sortField]="'fecha_extraccion'"
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
-                        (postulacionActualizada)="onAccionCompletada()" />
+                        (postulacionActualizada)="onAccionCompletada()"
+                        (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
             </p-tabpanels>
         </p-tabs>

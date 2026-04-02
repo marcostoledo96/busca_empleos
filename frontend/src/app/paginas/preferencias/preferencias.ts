@@ -1,6 +1,7 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PreferenciasService } from '../../servicios/preferencias.service';
+import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { Preferencias as PreferenciasModel, PreferenciasActualizar } from '../../modelos/preferencia.model';
 
 // PrimeNG
@@ -32,11 +33,16 @@ import { MessageService } from 'primeng/api';
 export class Preferencias implements OnInit {
 
     private readonly servicio = inject(PreferenciasService);
+    private readonly evaluacionService = inject(EvaluacionService);
     private readonly mensajes = inject(MessageService);
 
     // Estado de carga y guardado.
     cargando = signal(true);
     guardando = signal(false);
+
+    // Estado para el reseteo de evaluaciones.
+    diasReset = signal<number | null>(null);
+    reseteando = signal(false);
 
     // Datos del formulario — inicializo con valores por defecto.
     nombre = '';
@@ -170,5 +176,37 @@ export class Preferencias implements OnInit {
         this.promptPersonalizado = prefs.prompt_personalizado ?? '';
         this.usarPromptPersonalizado = prefs.usar_prompt_personalizado ?? false;
         this.modeloIa = prefs.modelo_ia ?? 'deepseek-chat';
+    }
+
+    // Resetea a "pendiente" las evaluaciones de los últimos N días.
+    resetearEvaluaciones(): void {
+        const dias = this.diasReset();
+        if (!dias || dias < 1 || dias > 365) return;
+
+        this.reseteando.set(true);
+        this.evaluacionService.resetearEvaluaciones(dias).subscribe({
+            next: (respuesta) => {
+                this.reseteando.set(false);
+                if (respuesta.exito) {
+                    const n = respuesta.datos?.reseteadas ?? 0;
+                    this.mensajes.add({
+                        severity: n > 0 ? 'success' : 'info',
+                        summary: n > 0 ? 'Listo' : 'Sin cambios',
+                        detail: n > 0
+                            ? `Se resetearon ${n} oferta${n !== 1 ? 's' : ''} a pendiente.`
+                            : `No había evaluaciones en los últimos ${dias} día${dias !== 1 ? 's' : ''}.`,
+                    });
+                    this.diasReset.set(null);
+                }
+            },
+            error: () => {
+                this.reseteando.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: 'No se pudo ejecutar el reseteo. Verificá que el backend esté corriendo.',
+                });
+            }
+        });
     }
 }

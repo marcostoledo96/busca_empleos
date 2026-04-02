@@ -12,6 +12,35 @@
         </div>
     </div>
 
+    <!-- Barra de acciones masivas: visible solo cuando hay selección -->
+    @if (algunaSeleccionada()) {
+        <div class="barra-bulk">
+            <span class="barra-bulk__conteo">
+                <span class="material-symbols-outlined">check_box</span>
+                {{ seleccionadas().size }} oferta{{ seleccionadas().size !== 1 ? 's' : '' }} seleccionada{{ seleccionadas().size !== 1 ? 's' : '' }}
+            </span>
+            <div class="barra-bulk__acciones">
+                <p-select
+                    [options]="opcionesAccionMasiva"
+                    [(ngModel)]="estadoBulkSeleccionado"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Cambiar estado a..."
+                    size="small"
+                    [style]="{ minWidth: '170px' }" />
+                <button
+                    class="btn-bulk-aplicar"
+                    [disabled]="!estadoBulkSeleccionado"
+                    (click)="aplicarAccionMasiva()">
+                    APLICAR
+                </button>
+                <button class="btn-bulk-cancelar" (click)="limpiarSeleccion()">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+    }
+
     <p-table
         [value]="ofertas()"
         [paginator]="true"
@@ -27,6 +56,15 @@
         <!-- Definición de columnas -->
         <ng-template #header>
             <tr>
+                <th style="width: 40px; padding: 0.5rem 0.75rem;">
+                    <input
+                        type="checkbox"
+                        class="checkbox-tabla"
+                        [checked]="todasSeleccionadas()"
+                        [indeterminate]="algunaSeleccionada() && !todasSeleccionadas()"
+                        (change)="toggleSeleccionarTodas()"
+                        title="Seleccionar todas" />
+                </th>
                 <th pSortableColumn="titulo" style="min-width: 250px">
                     TÍTULO <p-sortIcon field="titulo" />
                 </th>
@@ -50,7 +88,14 @@
 
         <!-- Filas de datos -->
         <ng-template #body let-oferta>
-            <tr>
+            <tr [class.fila-seleccionada]="seleccionadas().has(oferta.id)">
+                <td style="padding: 0.5rem 0.75rem;">
+                    <input
+                        type="checkbox"
+                        class="checkbox-tabla"
+                        [checked]="seleccionadas().has(oferta.id)"
+                        (change)="toggleSeleccion(oferta.id)" />
+                </td>
                 <td>
                     <div class="celda-titulo">
                         <span class="titulo-texto">{{ oferta.titulo }}</span>
@@ -101,7 +146,7 @@
         <!-- Mensaje cuando no hay datos -->
         <ng-template #emptymessage>
             <tr>
-                <td colspan="8" class="tabla-vacia">
+                <td colspan="9" class="tabla-vacia">
                     <span class="material-symbols-outlined">inbox</span>
                     <p>NO_HAY_OFERTAS</p>
                     <span>Ejecutá un scraping desde el panel de control.</span>

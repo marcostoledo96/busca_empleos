@@ -253,6 +253,70 @@ describe('Controlador de ofertas', () => {
             expect(res.body.exito).toBe(false);
         });
     });
+
+    // === PATCH /api/ofertas/bulk/postulacion ===
+
+    describe('PATCH /api/ofertas/bulk/postulacion', () => {
+        test('actualiza múltiples ofertas y retorna la cantidad actualizadas', async () => {
+            modeloOferta.actualizarPostulacionMasiva.mockResolvedValue(3);
+
+            const res = await request(app)
+                .patch('/api/ofertas/bulk/postulacion')
+                .send({ ids: [1, 2, 3], estado_postulacion: 'descartada' });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.actualizadas).toBe(3);
+            expect(res.body.mensaje).toContain('descartada');
+        });
+
+        test('retorna 400 si ids no es un array', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/bulk/postulacion')
+                .send({ ids: 1, estado_postulacion: 'descartada' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('ids');
+        });
+
+        test('retorna 400 si ids es un array vacío', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/bulk/postulacion')
+                .send({ ids: [], estado_postulacion: 'descartada' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si ids contiene valores no enteros', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/bulk/postulacion')
+                .send({ ids: [1, 'dos', 3], estado_postulacion: 'descartada' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si estado_postulacion no es válido', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/bulk/postulacion')
+                .send({ ids: [1, 2], estado_postulacion: 'estado_inventado' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('estado_postulacion');
+        });
+
+        test('retorna 400 si falta estado_postulacion', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/bulk/postulacion')
+                .send({ ids: [1, 2] });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+    });
 });
 
 // === Tests generales de la app ===

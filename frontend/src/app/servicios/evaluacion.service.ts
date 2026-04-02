@@ -24,4 +24,12 @@ export class EvaluacionService {
     cancelarEvaluacion(): Observable<RespuestaApi<void>> {
         return this.http.post<RespuestaApi<void>>(`${this.urlBase}/cancelar`, {});
     }
+
+    // Resetea a "pendiente" las evaluaciones de los últimos N días.
+    resetearEvaluaciones(dias: number): Observable<RespuestaApi<{ reseteadas: number; ofertas: { id: number; titulo: string }[] }>> {
+        return this.http.post<RespuestaApi<{ reseteadas: number; ofertas: { id: number; titulo: string }[] }>>(
+            `${this.urlBase}/resetear`,
+            { dias }
+        );
+    }
 }

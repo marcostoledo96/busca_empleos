@@ -156,10 +156,53 @@ async function actualizarPostulacion(req, res) {
     });
 }
 
+/**
+ * PATCH /api/ofertas/bulk/postulacion
+ * Actualizo el estado de postulación de múltiples ofertas en una sola operación.
+ *
+ * Body: { ids: [1, 2, 3], estado_postulacion: 'descartada' }
+ *
+ * ¿Por qué PATCH y no POST? Porque PATCH modifica recursos existentes
+ * sin reemplazarlos. Es semánticamente correcto para actualizaciones parciales.
+ */
+async function actualizarPostulacionMasiva(req, res) {
+    const { ids, estado_postulacion } = req.body;
+
+    // Valido que ids sea un array no vacío de números enteros positivos.
+    if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        !ids.every(id => Number.isInteger(id) && id > 0)
+    ) {
+        return res.status(400).json({
+            exito: false,
+            error: 'El campo ids debe ser un array no vacío de números enteros positivos.',
+        });
+    }
+
+    const estadosValidos = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
+
+    if (!estado_postulacion || !estadosValidos.includes(estado_postulacion)) {
+        return res.status(400).json({
+            exito: false,
+            error: `El estado_postulacion debe ser uno de: ${estadosValidos.join(', ')}.`,
+        });
+    }
+
+    const actualizadas = await modeloOferta.actualizarPostulacionMasiva(ids, estado_postulacion);
+
+    res.json({
+        exito: true,
+        datos: { actualizadas },
+        mensaje: `${actualizadas} oferta(s) actualizadas a '${estado_postulacion}'.`,
+    });
+}
+
 module.exports = {
     listarOfertas,
     obtenerEstadisticas,
     obtenerDiagnosticoPersistencia,
     obtenerOferta,
     actualizarPostulacion,
+    actualizarPostulacionMasiva,
 };

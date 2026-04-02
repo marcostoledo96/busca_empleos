@@ -24,7 +24,11 @@ router.get('/diagnostico/persistencia', controlador.obtenerDiagnosticoPersistenc
 router.get('/:id', controlador.obtenerOferta);
 router.get('/', controlador.listarOfertas);
 
-// PATCH para actualizar el estado de postulación de una oferta.
+// PATCH masivo: DEBE ir ANTES que /:id/postulacion para que Express no confunda
+// "bulk" con un :id numérico al evaluar rutas en orden.
+router.patch('/bulk/postulacion', controlador.actualizarPostulacionMasiva);
+
+// PATCH para actualizar el estado de postulación de una oferta individual.
 // Uso PATCH (no PUT) porque solo modifico UN campo, no la oferta entera.
 router.patch('/:id/postulacion', controlador.actualizarPostulacion);
 

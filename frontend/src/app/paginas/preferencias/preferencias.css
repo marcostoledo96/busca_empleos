@@ -197,3 +197,82 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* === Sección peligro / gestión evaluaciones === */
+.seccion--peligro {
+    border-color: color-mix(in srgb, var(--error, #b3261e) 35%, transparent);
+    background: color-mix(in srgb, var(--error, #b3261e) 5%, transparent);
+}
+
+.seccion--peligro .seccion-label {
+    color: var(--error, #b3261e);
+}
+
+.reset-descripcion {
+    display: block;
+    margin-bottom: 1rem;
+}
+
+.reset-grupo {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.reset-campo-dias {
+    flex: 0 0 auto;
+}
+
+.input-dias-reset {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    width: 110px;
+    padding: 0.5rem 0.6rem;
+    background: var(--surface-container);
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-sm);
+    color: var(--on-surface);
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.input-dias-reset:focus {
+    border-color: var(--primary);
+}
+
+.reset-boton-wrapper {
+    padding-bottom: 0;
+    display: flex;
+    align-items: flex-end;
+}
+
+.btn-reset {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    padding: 0.6rem 1rem;
+    background: var(--error, #b3261e);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: opacity 0.15s;
+}
+
+.btn-reset:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-reset:not(:disabled):hover {
+    opacity: 0.88;
+}
+
+.btn-reset .material-symbols-outlined {
+    font-size: 15px;
+}

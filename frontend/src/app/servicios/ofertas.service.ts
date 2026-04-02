@@ -58,4 +58,12 @@ export class OfertasService {
             { estado_postulacion: estadoPostulacion }
         );
     }
+
+    // Actualiza el estado de postulación de múltiples ofertas en una sola operación.
+    actualizarPostulacionMasiva(ids: number[], estadoPostulacion: string): Observable<RespuestaApi<{ actualizadas: number }>> {
+        return this.http.patch<RespuestaApi<{ actualizadas: number }>>(
+            `${this.urlBase}/bulk/postulacion`,
+            { ids, estado_postulacion: estadoPostulacion }
+        );
+    }
 }

@@ -1,12 +1,14 @@
 // Controlador de evaluación — maneja la request para evaluar ofertas con IA.
 //
-// Este controlador tiene tres endpoints:
+// Este controlador tiene cuatro endpoints:
 // - POST /ejecutar: Inicia la evaluación en segundo plano (fire-and-forget)
 //   y responde di inmediatamente. El cliente hace polling a /progreso.
 // - GET /progreso: Devuelve el estado actual del progreso.
 // - POST /cancelar: Interrumpe la evaluación en curso.
+// - POST /resetear: Resetea a 'pendiente' las evaluaciones de los últimos N días.
 
 const servicioEvaluacion = require('../servicios/servicio-evaluacion');
+const modeloOferta = require('../modelos/oferta');
 
 /**
  * POST /api/evaluacion/ejecutar
@@ -59,4 +61,39 @@ function cancelarEvaluacion(req, res) {
     });
 }
 
-module.exports = { ejecutarEvaluacion, obtenerProgresoEvaluacion, cancelarEvaluacion };
+/**
+ * POST /api/evaluacion/resetear
+ * Reseteo a 'pendiente' las evaluaciones de la IA para ofertas evaluadas
+ * en los últimos N días.
+ *
+ * Body: { dias: 7 }
+ *
+ * ¿Por qué resetear y no borrar? Porque al volver a 'pendiente',
+ * la próxima vez que se ejecute la evaluación, la IA las revisa de nuevo
+ * con el perfil actualizado. Es como darle una segunda oportunidad a las
+ * ofertas que tal vez cambiaron o que el perfil ahora cubre mejor.
+ */
+async function resetearEvaluaciones(req, res) {
+    const dias = parseInt(req.body.dias, 10);
+
+    // Valido que dias sea un entero entre 1 y 365.
+    if (!Number.isInteger(dias) || dias < 1 || dias > 365) {
+        return res.status(400).json({
+            exito: false,
+            error: 'El campo dias debe ser un número entero entre 1 y 365.',
+        });
+    }
+
+    const ofertasReseteadas = await modeloOferta.resetearEvaluacionesPorDias(dias);
+
+    res.json({
+        exito: true,
+        datos: {
+            reseteadas: ofertasReseteadas.length,
+            ofertas: ofertasReseteadas,
+        },
+        mensaje: `${ofertasReseteadas.length} oferta(s) reseteadas a 'pendiente'.`,
+    });
+}
+
+module.exports = { ejecutarEvaluacion, obtenerProgresoEvaluacion, cancelarEvaluacion, resetearEvaluaciones };

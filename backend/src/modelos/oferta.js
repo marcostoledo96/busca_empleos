@@ -152,7 +152,8 @@ async function obtenerOfertasPendientes() {
 async function actualizarEvaluacion(id, estado, razon, porcentaje = null) {
     const resultado = await pool.query(
         `UPDATE ofertas
-         SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3
+         SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3,
+             fecha_evaluacion = NOW()
          WHERE id = $4
          RETURNING *`,
         [estado, razon, porcentaje, id]
@@ -214,6 +215,61 @@ async function obtenerEstadisticas() {
     return estadisticas;
 }
 
+/**
+ * Actualizo el estado de postulación de múltiples ofertas en una sola operación.
+ * Permite al usuario descartar (o cambiar estado a) varias ofertas desde el dashboard.
+ *
+ * ¿Por qué ANY($2::int[])? Porque PostgreSQL permite pasar un array de enteros
+ * como parámetro y compararlos contra una columna en una sola query.
+ * Es la forma segura (parametrizada) de hacer un IN (...) dinámico.
+ *
+ * @param {number[]} ids - Array de IDs de las ofertas a actualizar.
+ * @param {string} estadoPostulacion - El nuevo estado: 'no_postulado', 'cv_enviado', 'en_proceso', 'descartada'.
+ * @returns {number} Cantidad de filas efectivamente actualizadas.
+ */
+async function actualizarPostulacionMasiva(ids, estadoPostulacion) {
+    const resultado = await pool.query(
+        `UPDATE ofertas
+         SET estado_postulacion = $1
+         WHERE id = ANY($2::int[])
+         RETURNING id`,
+        [estadoPostulacion, ids]
+    );
+
+    return resultado.rowCount;
+}
+
+/**
+ * Reseteo a 'pendiente' las evaluaciones de la IA para ofertas evaluadas
+ * dentro de los últimos N días.
+ *
+ * Esto le permite al usuario volver a evaluar ofertas recientes si cambió
+ * su perfil o sus preferencias para la IA.
+ *
+ * ¿Por qué make_interval en vez de INTERVAL '1 day' * $1?
+ * Porque PostgreSQL no permite multiplicar un INTERVAL fijo por un parámetro
+ * directamente en todas las versiones. make_interval(days => $1) es la forma
+ * estándar y segura de construir un intervalo dinámico a partir de un número.
+ *
+ * @param {number} dias - Cantidad de días hacia atrás a resetear.
+ * @returns {{ id: number, titulo: string }[]} Lista de ofertas reseteadas.
+ */
+async function resetearEvaluacionesPorDias(dias) {
+    const resultado = await pool.query(
+        `UPDATE ofertas
+         SET estado_evaluacion = 'pendiente',
+             razon_evaluacion  = NULL,
+             porcentaje_match  = NULL,
+             fecha_evaluacion  = NULL
+         WHERE estado_evaluacion IN ('aprobada', 'rechazada')
+           AND fecha_evaluacion > NOW() - make_interval(days => $1)
+         RETURNING id, titulo`,
+        [dias]
+    );
+
+    return resultado.rows;
+}
+
 module.exports = {
     crearOferta,
     obtenerOfertas,
@@ -221,5 +277,7 @@ module.exports = {
     obtenerOfertasPendientes,
     obtenerEstadisticas,
     actualizarEvaluacion,
-    actualizarPostulacion
+    actualizarPostulacion,
+    actualizarPostulacionMasiva,
+    resetearEvaluacionesPorDias
 };

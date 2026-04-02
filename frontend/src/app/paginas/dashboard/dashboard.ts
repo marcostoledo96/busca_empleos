@@ -156,6 +156,20 @@ export class Dashboard implements OnInit {
         this.cargarDatos();
     }
 
+    // Cuando la tabla dispara una acción masiva de postulación.
+    onAccionMasiva(evento: { ids: number[]; estadoPostulacion: string }): void {
+        this.ofertasService.actualizarPostulacionMasiva(evento.ids, evento.estadoPostulacion).subscribe({
+            next: (resp) => {
+                if (resp.exito) {
+                    this.cargarDatos();
+                }
+            },
+            error: (error) => {
+                console.error('Error al aplicar acción masiva:', error);
+            }
+        });
+    }
+
     private restaurarUltimaCargaGuardada(): void {
         const cache = this.persistenciaDashboard.leerCache();
 

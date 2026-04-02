@@ -162,6 +162,51 @@
         </button>
     </div>
 
+    <!-- === Sección: Gestión de evaluaciones === -->
+    <section class="seccion seccion--peligro">
+        <div class="seccion-cabecera">
+            <span class="seccion-label">GESTIÓN_EVALUACIONES</span>
+        </div>
+        <div class="seccion-cuerpo">
+            <p class="campo-ayuda reset-descripcion">
+                Útil cuando actualizás tu perfil o prompt y querés que la IA vuelva a analizar
+                las ofertas recientes desde cero.
+                Ingresá cuántos días atrás querés resetear.
+            </p>
+            <div class="reset-grupo">
+                <div class="campo reset-campo-dias">
+                    <label class="campo-etiqueta" for="diasReset">Días atrás a resetear</label>
+                    <input
+                        type="number"
+                        id="diasReset"
+                        class="input-dias-reset"
+                        [ngModel]="diasReset()"
+                        (ngModelChange)="diasReset.set(+$event || null)"
+                        min="1"
+                        max="365"
+                        placeholder="Ej: 7" />
+                </div>
+                <div class="reset-boton-wrapper">
+                    <button
+                        class="btn-reset"
+                        [disabled]="!diasReset() || reseteando()"
+                        (click)="resetearEvaluaciones()">
+                        @if (reseteando()) {
+                            <span class="material-symbols-outlined btn-spin">progress_activity</span>
+                        } @else {
+                            <span class="material-symbols-outlined">restart_alt</span>
+                        }
+                        RESETEAR EVALUACIONES
+                    </button>
+                </div>
+            </div>
+            <small class="campo-ayuda">
+                Solo se resetean ofertas con estado "aprobada" o "rechazada" evaluadas en ese rango.
+                Las evaluadas hace más tiempo no se tocan.
+            </small>
+        </div>
+    </section>
+
 </div>
 } @else {
 <div class="preferencias-contenedor">

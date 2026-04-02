@@ -1,4 +1,4 @@
-import { Component, inject, input, output } from '@angular/core';
+import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -31,6 +31,33 @@ export class TablaOfertas {
 
     // Evento que emite cuando se actualiza una postulación (para refrescar datos).
     readonly postulacionActualizada = output<void>();
+
+    // Evento que emite cuando el usuario aplica una acción masiva.
+    readonly accionMasiva = output<{ ids: number[]; estadoPostulacion: string }>();
+
+    // Set de IDs de ofertas seleccionadas con checkbox.
+    readonly seleccionadas = signal<Set<number>>(new Set());
+
+    // Estado del dropdown de selección masiva.
+    estadoBulkSeleccionado: string | null = null;
+
+    // Opciones de estado para la acción masiva (mismo set que el individual).
+    readonly opcionesAccionMasiva = [
+        { label: 'No postulado', value: 'no_postulado' },
+        { label: 'CV enviado', value: 'cv_enviado' },
+        { label: 'En proceso', value: 'en_proceso' },
+        { label: 'Descartar', value: 'descartada' },
+    ];
+
+    // True si al menos una oferta de la página está seleccionada.
+    readonly algunaSeleccionada = computed(() => this.seleccionadas().size > 0);
+
+    // True si TODAS las ofertas visibles están seleccionadas.
+    readonly todasSeleccionadas = computed(() => {
+        const total = this.ofertas().length;
+        if (total === 0) return false;
+        return this.ofertas().every(o => this.seleccionadas().has(o.id));
+    });
 
     // Opciones para los filtros de los dropdowns.
     readonly opcionesEstado = [
@@ -121,5 +148,39 @@ export class TablaOfertas {
             },
             error: (error) => console.error('Error al actualizar postulación:', error)
         });
+    }
+
+    // Alterna la selección de una oferta individual.
+    toggleSeleccion(id: number): void {
+        const actual = new Set(this.seleccionadas());
+        if (actual.has(id)) {
+            actual.delete(id);
+        } else {
+            actual.add(id);
+        }
+        this.seleccionadas.set(actual);
+    }
+
+    // Alterna la selección de todas las ofertas visibles.
+    toggleSeleccionarTodas(): void {
+        if (this.todasSeleccionadas()) {
+            this.seleccionadas.set(new Set());
+        } else {
+            this.seleccionadas.set(new Set(this.ofertas().map(o => o.id)));
+        }
+    }
+
+    // Limpia la selección actual.
+    limpiarSeleccion(): void {
+        this.seleccionadas.set(new Set());
+        this.estadoBulkSeleccionado = null;
+    }
+
+    // Aplica la acción masiva y emite el evento al padre para confirmación.
+    aplicarAccionMasiva(): void {
+        if (!this.estadoBulkSeleccionado || this.seleccionadas().size === 0) return;
+        const ids = Array.from(this.seleccionadas());
+        this.accionMasiva.emit({ ids, estadoPostulacion: this.estadoBulkSeleccionado });
+        this.limpiarSeleccion();
     }
 }

@@ -17,6 +17,7 @@ jest.mock('../../src/utils/middleware-auth', () => ({
 const request = require('supertest');
 const app = require('../../src/app');
 const servicioEvaluacion = require('../../src/servicios/servicio-evaluacion');
+const modeloOferta = require('../../src/modelos/oferta');
 
 describe('Controlador de evaluación', () => {
     afterEach(() => jest.clearAllMocks());
@@ -115,6 +116,77 @@ describe('Controlador de evaluación', () => {
             expect(res.body.exito).toBe(true);
             expect(res.body.mensaje).toContain('cancelación');
             expect(servicioEvaluacion.cancelarEvaluacionPendiente).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // === POST /api/evaluacion/resetear ===
+
+    describe('POST /api/evaluacion/resetear', () => {
+        test('resetea las ofertas de los últimos N días y retorna el conteo', async () => {
+            modeloOferta.resetearEvaluacionesPorDias.mockResolvedValue([
+                { id: 1, titulo: 'Dev Junior React' },
+                { id: 2, titulo: 'QA Tester' },
+            ]);
+
+            const res = await request(app)
+                .post('/api/evaluacion/resetear')
+                .send({ dias: 7 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.reseteadas).toBe(2);
+            expect(res.body.datos.ofertas).toHaveLength(2);
+            expect(res.body.mensaje).toContain('pendiente');
+            expect(modeloOferta.resetearEvaluacionesPorDias).toHaveBeenCalledWith(7);
+        });
+
+        test('retorna vacío si no hay ofertas en ese rango de días', async () => {
+            modeloOferta.resetearEvaluacionesPorDias.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/evaluacion/resetear')
+                .send({ dias: 1 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.reseteadas).toBe(0);
+        });
+
+        test('retorna 400 si dias no es un número', async () => {
+            const res = await request(app)
+                .post('/api/evaluacion/resetear')
+                .send({ dias: 'una semana' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('dias');
+        });
+
+        test('retorna 400 si dias es menor a 1', async () => {
+            const res = await request(app)
+                .post('/api/evaluacion/resetear')
+                .send({ dias: 0 });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si dias supera 365', async () => {
+            const res = await request(app)
+                .post('/api/evaluacion/resetear')
+                .send({ dias: 400 });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si falta el campo dias', async () => {
+            const res = await request(app)
+                .post('/api/evaluacion/resetear')
+                .send({});
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
         });
     });
 });
