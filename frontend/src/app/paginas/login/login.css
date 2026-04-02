@@ -1,0 +1,337 @@
+/*
+ * Login — "The Silent Processor"
+ * Estética: dark techno minimalista. Espacio negativo extremo.
+ * Tipografía: JetBrains Mono (monoespaciada) + Inter para el título.
+ * Usa los design tokens globales de styles.css — dark/light automático.
+ */
+
+/* === Fuentes === */
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
+
+/* === Reset local === */
+:host {
+    display: block;
+}
+
+/* === Layout completo de página === */
+.login-header,
+.login-main,
+.login-footer {
+    font-family: var(--font-mono);
+}
+
+/* ------------------------------------------------------------------
+   HEADER
+   ------------------------------------------------------------------ */
+.login-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 3rem;
+    background-color: var(--surface);
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.login-header-marca {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    color: var(--on-surface);
+    text-transform: uppercase;
+}
+
+.login-header-nav {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.login-header-tema {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--on-surface-variant);
+    display: flex;
+    align-items: center;
+    padding: 0.25rem;
+    transition: color 150ms ease;
+}
+
+.login-header-tema:hover {
+    color: var(--on-surface);
+}
+
+.login-header-tema .material-symbols-outlined {
+    font-size: 1.1rem;
+}
+
+.login-header-version {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.25em;
+    color: var(--outline);
+    text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------
+   MAIN — espacio negativo extremo
+   ------------------------------------------------------------------ */
+.login-main {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 8rem 1.5rem 6rem;
+    background-color: var(--surface);
+}
+
+.login-card {
+    width: 100%;
+    max-width: 440px;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+/* ------------------------------------------------------------------
+   IDENTIDAD TÉCNICA
+   ------------------------------------------------------------------ */
+.login-identidad {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.login-label {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.3em;
+    color: var(--outline);
+    text-transform: uppercase;
+}
+
+.login-titulo {
+    font-family: var(--font-headline);
+    font-size: 2.5rem;
+    font-weight: 200;
+    letter-spacing: -0.03em;
+    color: var(--on-surface);
+    line-height: 1.1;
+}
+
+/* ------------------------------------------------------------------
+   SEPARADOR
+   ------------------------------------------------------------------ */
+.login-divisor {
+    height: 1px;
+    background-color: var(--outline-variant);
+    opacity: 0.4;
+}
+
+/* ------------------------------------------------------------------
+   BLOQUE DE ACCIÓN
+   ------------------------------------------------------------------ */
+.login-accion {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.login-descripcion {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.8;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.02em;
+}
+
+/* Error */
+.login-error {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--error);
+    background-color: color-mix(in srgb, var(--error) 8%, transparent);
+    color: var(--error);
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.login-error-icono {
+    font-size: 0.875rem;
+    flex-shrink: 0;
+}
+
+/* Botón Google */
+.login-btn-google {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.875rem;
+    padding: 1.125rem 1.5rem;
+    background-color: var(--primary);
+    color: var(--on-primary);
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: opacity 150ms ease, transform 80ms ease;
+    border-radius: var(--radius-sm);
+}
+
+.login-btn-google:hover:not(:disabled) {
+    opacity: 0.88;
+}
+
+.login-btn-google:active:not(:disabled) {
+    transform: scale(0.99);
+    opacity: 0.7;
+}
+
+.login-btn-google:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.login-btn-google--cargando {
+    opacity: 0.7;
+}
+
+.login-btn-google-icono {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+}
+
+/* Spinner de carga */
+.login-spinner {
+    width: 0.875rem;
+    height: 0.875rem;
+    border: 1.5px solid var(--on-primary);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: login-spin 0.7s linear infinite;
+    flex-shrink: 0;
+}
+
+@keyframes login-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ------------------------------------------------------------------
+   METADATA DECORATIVA
+   ------------------------------------------------------------------ */
+.login-metadata {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.login-metadata-sep {
+    height: 1px;
+    background-color: var(--outline-variant);
+    opacity: 0.15;
+}
+
+.login-metadata-coords {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.15em;
+    color: var(--outline);
+    text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------
+   FOOTER
+   ------------------------------------------------------------------ */
+.login-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 3rem;
+    background-color: var(--surface);
+    border-top: 1px solid var(--outline-variant);
+    opacity: 0.6;
+}
+
+.login-footer-copy {
+    font-family: var(--font-mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.2em;
+    color: var(--on-surface);
+    text-transform: uppercase;
+}
+
+.login-footer-estado {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.15em;
+    color: var(--on-surface-variant);
+    text-transform: uppercase;
+}
+
+.login-footer-punto {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background-color: var(--color-exito);
+    animation: login-pulso 2.5s ease-in-out infinite;
+}
+
+@keyframes login-pulso {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+}
+
+/* ------------------------------------------------------------------
+   RESPONSIVE — mobile
+   ------------------------------------------------------------------ */
+@media (max-width: 640px) {
+    .login-header {
+        padding: 1.25rem 1.5rem;
+    }
+
+    .login-header-version {
+        display: none;
+    }
+
+    .login-main {
+        padding: 7rem 1.25rem 5rem;
+    }
+
+    .login-titulo {
+        font-size: 2rem;
+    }
+
+    .login-metadata-coords {
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .login-footer {
+        padding: 0.875rem 1.5rem;
+    }
+}

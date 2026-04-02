@@ -11,6 +11,9 @@ jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
+jest.mock('../../src/utils/middleware-auth', () => ({
+    verificarAuth: (req, res, next) => next(),
+}));
 
 const request = require('supertest');
 const app = require('../../src/app');

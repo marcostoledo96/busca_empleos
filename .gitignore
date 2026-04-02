@@ -9,5 +9,16 @@ Thumbs.db
 # Variables de entorno (contiene credenciales)
 **/.env
 
+# CV y datos personales
+docs/cv.md
+docs/*.pdf
+docs/*.docx
+
+# Artefactos de herramientas de desarrollo
+.playwright-mcp/
+
+# Prototipos y archivos temporales de diseño
+docs/login
+
 # Dependencias (cada subcarpeta tiene su propio .gitignore pero esto cubre la raíz)
 node_modules/

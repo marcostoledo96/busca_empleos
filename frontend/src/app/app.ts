@@ -3,6 +3,7 @@ import { DOCUMENT } from '@angular/common';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
+import { AuthService } from './servicios/auth.service';
 
 const CLAVE_TEMA = 'busca-empleos.tema';
 
@@ -15,6 +16,7 @@ const CLAVE_TEMA = 'busca-empleos.tema';
 export class App {
     private readonly router = inject(Router);
     private readonly documento = inject(DOCUMENT);
+    readonly authService = inject(AuthService);
 
     readonly sidebarAbierta = signal(false);
     readonly modoOscuro = signal(false);
@@ -36,6 +38,17 @@ export class App {
         { initialValue: 'DASHBOARD' }
     );
 
+    // Controla si la ruta actual es la página de login.
+    // Cuando es true, el template oculta el sidebar, topbar y footer.
+    readonly esPaginaLogin = toSignal(
+        this.router.events.pipe(
+            filter(e => e instanceof NavigationEnd),
+            startWith(null),
+            map(() => this.router.url === '/login' || this.router.url.startsWith('/login?'))
+        ),
+        { initialValue: false }
+    );
+
     toggleSidebar(): void {
         this.sidebarAbierta.update(v => !v);
     }
@@ -54,5 +67,9 @@ export class App {
             this.documento.documentElement.classList.remove('dark');
             localStorage.setItem(CLAVE_TEMA, 'light');
         }
+    }
+
+    cerrarSesion(): void {
+        this.authService.logout().subscribe();
     }
 }

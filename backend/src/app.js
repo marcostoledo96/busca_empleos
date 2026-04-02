@@ -30,6 +30,9 @@ const rutasPreferencias = require('./rutas/preferencias');
 // Importo los middlewares de manejo de errores.
 const { rutaNoEncontrada, manejarErrores } = require('./utils/middleware-errores');
 
+// Importo el middleware de autenticación Firebase.
+const { verificarAuth } = require('./utils/middleware-auth');
+
 const app = express();
 
 // === Middlewares globales ===
@@ -78,6 +81,20 @@ const limitadorCostoso = esTest
 
 // === Rutas ===
 
+// Endpoint de salud — público, sin autenticación.
+// Solo sirve para verificar que el servidor anda (monitoreo, health checks).
+app.get('/api/salud', (req, res) => {
+    res.json({
+        exito: true,
+        mensaje: 'El servidor está funcionando correctamente.',
+    });
+});
+
+// Todas las rutas de la API requieren autenticación Firebase.
+// El middleware verifica el JWT Bearer token antes de llegar a cualquier controlador.
+// Montamos como middleware global sobre /api para no repetirlo en cada router.
+app.use('/api', verificarAuth);
+
 // Cada grupo de rutas se monta bajo su propio prefijo.
 // Las rutas internas del archivo se concatenan con el prefijo.
 // Ej: rutasOfertas tiene GET '/' → se convierte en GET '/api/ofertas/'.
@@ -88,15 +105,6 @@ app.use('/api/scraping', limitadorCostoso, rutasScraping);
 app.use('/api/evaluacion', limitadorCostoso, rutasEvaluacion);
 app.use('/api/automatizacion', rutasAutomatizacion);
 app.use('/api/preferencias', rutasPreferencias);
-
-// Endpoint de salud — para verificar rápidamente que el servidor anda.
-// Útil para monitoreo, Docker health checks, o simplemente abrir en el browser.
-app.get('/api/salud', (req, res) => {
-    res.json({
-        exito: true,
-        mensaje: 'El servidor está funcionando correctamente.',
-    });
-});
 
 // === Manejo de errores ===
 

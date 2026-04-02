@@ -6,7 +6,26 @@
 http://localhost:3000/api
 ```
 
-## Formato de respuesta estándar
+## Autenticación
+
+Todos los endpoints bajo `/api/` (excepto `/api/salud`) requieren un token JWT de Firebase en el header `Authorization`.
+
+```
+Authorization: Bearer <firebase_id_token>
+```
+
+El token se obtiene desde el cliente Angular (Firebase Auth). El middleware del backend verifica:
+1. Que el token sea válido (firmado por Firebase).
+2. Que el email del usuario autenticado coincida con `EMAIL_AUTORIZADO` en las variables de entorno.
+
+Si falta el token o no es válido, la API retorna `401 Unauthorized`:
+```json
+{ "exito": false, "error": "No autorizado." }
+```
+
+> **Nota para desarrollo local:** Los tests de Jest mockean el middleware de auth (`verificarAuth`) para poder testear los controladores sin token real.
+
+
 
 Todas las respuestas siguen este formato:
 
@@ -20,23 +39,23 @@ Todas las respuestas siguen este formato:
 
 ## Resumen de endpoints
 
-| Método | Ruta | Descripción | Rate Limited |
-|--------|------|-------------|:----------:|
-| GET | `/api/salud` | Health check del servidor | No |
-| GET | `/api/ofertas` | Lista ofertas con filtros opcionales | No |
-| GET | `/api/ofertas/estadisticas` | Contadores por estado de evaluación | No |
-| GET | `/api/ofertas/diagnostico/persistencia` | Verifica qué base está leyendo la API y cuántas ofertas ve | No |
-| GET | `/api/ofertas/:id` | Detalle de una oferta | No |
-| PATCH | `/api/ofertas/:id/postulacion` | Actualizar estado de postulación | No |
-| POST | `/api/scraping/linkedin` | Ejecutar scraping de LinkedIn | **Sí** (5/min) |
-| POST | `/api/scraping/computrabajo` | Ejecutar scraping de Computrabajo | **Sí** (5/min) |
-| POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** (5/min) |
-| POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** (5/min) |
-| POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** (5/min) |
-| GET | `/api/automatizacion/estado` | Estado actual del cron | No |
-| POST | `/api/automatizacion/iniciar` | Programar el cron | No |
-| POST | `/api/automatizacion/detener` | Detener el cron | No |
-| POST | `/api/automatizacion/ejecutar` | Ejecutar ciclo completo manual | No |
+| Método | Ruta | Descripción | Auth | Rate Limited |
+|--------|------|-------------|:----:|:----------:|
+| GET | `/api/salud` | Health check del servidor | No | No |
+| GET | `/api/ofertas` | Lista ofertas con filtros opcionales | **Sí** | No |
+| GET | `/api/ofertas/estadisticas` | Contadores por estado de evaluación | **Sí** | No |
+| GET | `/api/ofertas/diagnostico/persistencia` | Verifica qué base está leyendo la API y cuántas ofertas ve | **Sí** | No |
+| GET | `/api/ofertas/:id` | Detalle de una oferta | **Sí** | No |
+| PATCH | `/api/ofertas/:id/postulacion` | Actualizar estado de postulación | **Sí** | No |
+| POST | `/api/scraping/linkedin` | Ejecutar scraping de LinkedIn | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/computrabajo` | Ejecutar scraping de Computrabajo | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** | **Sí** (5/min) |
+| POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
+| GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
+| POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
+| POST | `/api/automatizacion/detener` | Detener el cron | **Sí** | No |
+| POST | `/api/automatizacion/ejecutar` | Ejecutar ciclo completo manual | **Sí** | No |
 
 ---
 

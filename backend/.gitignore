@@ -4,6 +4,9 @@ node_modules/
 # Variables de entorno (contiene credenciales)
 .env
 
+# Service account de Firebase (clave privada — NUNCA commitear)
+firebase-service-account.json
+
 # Logs
 *.log
 

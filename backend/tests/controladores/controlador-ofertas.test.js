@@ -17,6 +17,9 @@
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
+jest.mock('../../src/utils/middleware-auth', () => ({
+    verificarAuth: (req, res, next) => next(),
+}));
 jest.mock('../../src/config/base-datos', () => ({
     on: jest.fn(),
     query: jest.fn(),

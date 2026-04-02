@@ -7,6 +7,9 @@
 // - Se llama a las funciones del servicio con los parámetros correctos.
 
 jest.mock('../../src/servicios/servicio-automatizacion');
+jest.mock('../../src/utils/middleware-auth', () => ({
+    verificarAuth: (req, res, next) => next(),
+}));
 
 const request = require('supertest');
 const app = require('../../src/app');
