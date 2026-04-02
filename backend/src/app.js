@@ -72,11 +72,15 @@ app.use(cors({
             return callback(null, true);
         }
 
-        return callback(new Error(`Origen no permitido por CORS: ${origin}`));
+        // No lanzar error: devolver false hace que cors() omita el header
+        // sin generar un 500 que oculte el diagnóstico real.
+        console.warn(`[CORS] Origen bloqueado: ${origin} | Permitidos: ${origenesPermitidos.join(', ')}`);
+        return callback(null, false);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     optionsSuccessStatus: 204,
+    credentials: false,
 }));
 
 // express.json() parsea el body de las requests que vienen en formato JSON.
