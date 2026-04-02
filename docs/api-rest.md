@@ -366,6 +366,74 @@ Ejecuta el scraping de Bumeran usando cheerio-scraper, normaliza y guarda en BD.
 
 ---
 
+### POST /api/scraping/glassdoor
+
+Ejecuta el scraping de Glassdoor Argentina usando el actor de Apify, normaliza y guarda en BD.
+
+**Body (opcional):**
+```json
+{
+    "maxResultados": 50,
+    "terminos": ["React developer junior"]
+}
+```
+
+| Campo | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `maxResultados` | number | 50 | Cantidad máxima de ofertas a extraer. |
+| `terminos` | string[] | 7 términos predefinidos | Términos de búsqueda personalizados. |
+
+**Ejemplo response (200):**
+```json
+{
+    "exito": true,
+    "datos": {
+        "mensaje": "Scraping de Glassdoor completado: 11 ofertas nuevas.",
+        "plataforma": "glassdoor",
+        "ofertas_nuevas": 11,
+        "ofertas_duplicadas": 3,
+        "total_extraidas": 14
+    }
+}
+```
+
+---
+
+### POST /api/scraping/getonbrd
+
+Ejecuta el scraping de GetOnBrd usando su API pública gratuita (sin Apify), normaliza y guarda en BD.
+
+**Body (opcional):**
+```json
+{
+    "maxResultados": 50,
+    "terminos": ["angular developer"]
+}
+```
+
+| Campo | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `maxResultados` | number | 50 | Cantidad máxima de ofertas a extraer por término. |
+| `terminos` | string[] | 9 términos predefinidos | Términos de búsqueda personalizados. |
+
+**Ejemplo response (200):**
+```json
+{
+    "exito": true,
+    "datos": {
+        "mensaje": "Scraping de GetOnBrd completado: 9 ofertas nuevas.",
+        "plataforma": "getonbrd",
+        "ofertas_nuevas": 9,
+        "ofertas_duplicadas": 2,
+        "total_extraidas": 11
+    }
+}
+```
+
+**Nota:** El campo `empresa` siempre es `null` en GetOnBrd porque el endpoint de búsqueda no devuelve el nombre de la empresa. El salario viene en USD cuando está disponible.
+
+---
+
 Archivo de rutas: `backend/src/rutas/evaluacion.js`
 Controlador: `backend/src/controladores/controlador-evaluacion.js`
 

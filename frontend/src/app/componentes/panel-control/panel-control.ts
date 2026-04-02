@@ -29,6 +29,10 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoComputrabajo = signal(false);
     readonly scrapeandoIndeed = signal(false);
     readonly scrapeandoBumeran = signal(false);
+    readonly scrapeandoGlassdoor = signal(false);
+    readonly scrapeandoGetonbrd = signal(false);
+    readonly scrapeandoJooble = signal(false);
+    readonly scrapeandoGoogleJobs = signal(false);
     readonly evaluando = signal(false);
 
     // Estado de la automatización.
@@ -305,6 +309,126 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Bumeran',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearGlassdoor(): void {
+        this.scrapeandoGlassdoor.set(true);
+        this.plataformaEnProceso.set('Glassdoor');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearGlassdoor().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoGlassdoor.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Glassdoor completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoGlassdoor.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Glassdoor',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearGetonbrd(): void {
+        this.scrapeandoGetonbrd.set(true);
+        this.plataformaEnProceso.set('GetOnBrd');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearGetonbrd().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoGetonbrd.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'GetOnBrd completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoGetonbrd.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en GetOnBrd',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearJooble(): void {
+        this.scrapeandoJooble.set(true);
+        this.plataformaEnProceso.set('Jooble');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearJooble().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoJooble.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Jooble completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoJooble.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Jooble',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearGoogleJobs(): void {
+        this.scrapeandoGoogleJobs.set(true);
+        this.plataformaEnProceso.set('Google Jobs');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearGoogleJobs().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoGoogleJobs.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Google Jobs completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoGoogleJobs.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Google Jobs',
                     detail: error.error?.error || 'Error al conectar con el servidor',
                     life: 5000
                 });

@@ -31,8 +31,21 @@ jest.mock('../../src/config/apify', () => {
             COMPUTRABAJO: 'actor-computrabajo-test',
             INDEED: 'actor-indeed-test',
             BUMERAN_WEB: 'actor-web-scraper-test',
+            GLASSDOOR: 'actor-glassdoor-test',
         },
         TERMINOS_BUSQUEDA: [
+            'tester',
+            'qa',
+            'it',
+            'soporte it',
+            'helpdesk',
+            'desarrollador',
+            'developer',
+            'frontend',
+            'soporte tecnico',
+        ],
+        // El servicio importa TERMINOS_BUSQUEDA_DEFECTO — alias necesario para el mock.
+        TERMINOS_BUSQUEDA_DEFECTO: [
             'tester',
             'qa',
             'it',
@@ -52,6 +65,12 @@ jest.mock('../../src/config/apify', () => {
         construirUrlsBumeran: jest.fn(() => [
             'https://www.bumeran.com.ar/empleos-busqueda-frontend-developer-junior.html',
         ]),
+        GETONBRD_API_BASE: 'https://www.getonbrd.com/api/v0',
+        construirUrlsGetonbrd: jest.fn(() => [
+            'https://www.getonbrd.com/api/v0/search/jobs?query=frontend+developer&page=1',
+        ]),
+        JOOBLE_API_URL: 'https://jooble.org/api/',
+        JOOBLE_API_KEY: 'api-key-de-prueba',
     };
 });
 
@@ -61,6 +80,9 @@ const {
     ejecutarScrapingComputrabajo,
     ejecutarScrapingIndeed,
     ejecutarScrapingBumeran,
+    ejecutarScrapingGlassdoor,
+    ejecutarScrapingGetonbrd,
+    ejecutarScrapingJooble,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -426,6 +448,300 @@ describe('Servicio de scraping', () => {
             // Solo el item con URL válida debe quedar normalizado.
             expect(resultado.length).toBe(1);
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+        });
+    });
+
+    describe('ejecutarScrapingGlassdoor()', () => {
+
+        // Datos de prueba que simulan la respuesta del actor de Glassdoor.
+        const itemsGlassdoorFalsos = [
+            {
+                jobUrl: 'https://www.glassdoor.com.ar/job-listing/frontend-developer-testcorp-JV_IC123_KO0,19_KE20,28.htm?jl=9999999',
+                title: 'Frontend Developer Junior',
+                company: { companyName: 'TestCorp Argentina' },
+                location_city: 'Buenos Aires',
+                location_state: 'Buenos Aires',
+                remoteWorkTypes: ['Remote'],
+                description_text: 'Buscamos frontend developer junior con React...',
+                baseSalary_min: 150000,
+                baseSalary_max: 250000,
+                salary_currency: 'ARS',
+                datePublished: '2026-03-28',
+            },
+        ];
+
+        test('llama al actor correcto con keywords y ubicación', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-glassdoor-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsGlassdoorFalsos });
+
+            await ejecutarScrapingGlassdoor();
+
+            expect(clienteApify.actor).toHaveBeenCalledWith('actor-glassdoor-test');
+        });
+
+        test('retorna ofertas normalizadas de Glassdoor', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-glassdoor-123' });
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsGlassdoorFalsos });
+
+            const resultado = await ejecutarScrapingGlassdoor();
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].plataforma).toBe('glassdoor');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+            expect(resultado[0].modalidad).toBe('remoto');
+        });
+
+        test('pasa keywords, location y maxItems al actor', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-glassdoor-123' });
+
+            clienteApify.dataset().listItems.mockResolvedValue({ items: [] });
+
+            await ejecutarScrapingGlassdoor({ maxResultados: 30, terminos: ['qa tester'] });
+
+            expect(mockCall).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    keywords: ['qa tester'],
+                    location: 'Buenos Aires',
+                    maxItems: 30,
+                })
+            );
+        });
+
+        test('tira error descriptivo si falla la API de Apify', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockRejectedValue(new Error('Glassdoor blocked'));
+
+            await expect(ejecutarScrapingGlassdoor()).rejects.toThrow(
+                'Error al ejecutar scraping de Glassdoor'
+            );
+        });
+    });
+
+    // ===========================================================================
+    // GetOnBrd — usa fetch() nativo, NO Apify
+    // ===========================================================================
+
+    describe('ejecutarScrapingGetonbrd()', () => {
+        // Respuesta simulada de la API pública de GetOnBrd.
+        const respuestaGetonbrdFalsa = {
+            data: [
+                {
+                    id: '40873',
+                    type: 'job_posting',
+                    attributes: {
+                        title: 'Frontend Developer Junior',
+                        description: '<p>Buscamos un developer frontend...</p>',
+                        remote_modality: 'fully_remote',
+                        countries: ['AR'],
+                        min_salary: 1500,
+                        max_salary: 2500,
+                        published_at: 1711929600,
+                    },
+                    relationships: {
+                        seniority: { data: { id: 2 } },
+                    },
+                    links: {
+                        public_url: 'https://www.getonbrd.com/jobs/programming/frontend-junior-testcorp-40873',
+                    },
+                },
+            ],
+            meta: { page: 1, per_page: 120, total_pages: 1 },
+        };
+
+        // Antes de cada test, instalo un mock de fetch en el objeto global.
+        // Así intercepto las llamadas HTTP sin red real.
+        beforeEach(() => {
+            global.fetch = jest.fn();
+        });
+
+        afterEach(() => {
+            delete global.fetch;
+        });
+
+        test('llama a la API de GetOnBrd con el término correcto', async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue(respuestaGetonbrdFalsa),
+            });
+
+            await ejecutarScrapingGetonbrd({ terminos: ['qa tester'] });
+
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('qa%20tester')
+            );
+        });
+
+        test('retorna ofertas normalizadas de GetOnBrd', async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue(respuestaGetonbrdFalsa),
+            });
+
+            const resultado = await ejecutarScrapingGetonbrd({ terminos: ['frontend'] });
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].plataforma).toBe('getonbrd');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+            expect(resultado[0].modalidad).toBe('remoto');
+        });
+
+        test('pagina hasta llegar a maxResultados', async () => {
+            // Simulo 3 páginas disponibles.
+            const respuestaPagina1 = {
+                data: [{ ...respuestaGetonbrdFalsa.data[0] }],
+                meta: { total_pages: 3 },
+            };
+            const respuestaOtrasPaginas = {
+                data: [{ ...respuestaGetonbrdFalsa.data[0], id: '99999', links: { public_url: 'https://www.getonbrd.com/jobs/test-99999' } }],
+                meta: { total_pages: 3 },
+            };
+
+            global.fetch
+                .mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue(respuestaPagina1) })
+                .mockResolvedValue({ ok: true, json: jest.fn().mockResolvedValue(respuestaOtrasPaginas) });
+
+            // Con maxResultados=50, debe procesar las 3 páginas (1 item c/u).
+            const resultado = await ejecutarScrapingGetonbrd({ terminos: ['qa'], maxResultados: 50 });
+
+            // 3 páginas × 1 item = 3 items (aunque la URL puede estar duplicada).
+            // El servicio normaliza todos; la deduplicación real es por BD.
+            expect(resultado.length).toBeGreaterThanOrEqual(1);
+            expect(global.fetch).toHaveBeenCalledTimes(3);
+        });
+
+        test('continua con el siguiente término si la API devuelve error HTTP', async () => {
+            global.fetch
+                .mockResolvedValueOnce({ ok: false, status: 429 }) // primer término falla
+                .mockResolvedValue({
+                    ok: true,
+                    json: jest.fn().mockResolvedValue(respuestaGetonbrdFalsa),
+                }); // segundo término OK
+
+            const resultado = await ejecutarScrapingGetonbrd({
+                terminos: ['termino-que-falla', 'frontend'],
+            });
+
+            // El primer término falló, el segundo dio 1 oferta.
+            expect(resultado.length).toBe(1);
+        });
+
+        test('tira error descriptivo si fetch lanza excepción', async () => {
+            global.fetch.mockRejectedValue(new Error('Network error'));
+
+            await expect(ejecutarScrapingGetonbrd()).rejects.toThrow(
+                'Error al ejecutar scraping de GetOnBrd'
+            );
+        });
+    });
+
+    // ===========================================================================
+    // Jooble — usa fetch() nativo (POST), NO Apify
+    // ===========================================================================
+
+    describe('ejecutarScrapingJooble()', () => {
+        // Respuesta simulada de la API de Jooble.
+        const respuestaJoobleFalsa = {
+            totalCount: 1,
+            jobs: [
+                {
+                    title: 'Frontend Developer Junior',
+                    location: 'Buenos Aires',
+                    snippet: 'Buscamos frontend developer con React y Angular...',
+                    salary: '',
+                    source: 'LinkedIn',
+                    type: 'Full-time',
+                    link: 'https://jooble.org/desc/1234567890',
+                    company: 'TestCorp Argentina',
+                    updated: '2026-03-28T12:00:00.0000000',
+                },
+            ],
+        };
+
+        // Antes de cada test instalo un mock de fetch en el objeto global.
+        beforeEach(() => {
+            global.fetch = jest.fn();
+        });
+
+        afterEach(() => {
+            delete global.fetch;
+        });
+
+        test('llama a la API de Jooble con POST y el término correcto', async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue(respuestaJoobleFalsa),
+            });
+
+            await ejecutarScrapingJooble({ terminos: ['qa tester'] });
+
+            expect(global.fetch).toHaveBeenCalledWith(
+                expect.stringContaining('jooble.org/api/'),
+                expect.objectContaining({
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: expect.stringContaining('qa tester'),
+                })
+            );
+        });
+
+        test('retorna ofertas normalizadas de Jooble', async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue(respuestaJoobleFalsa),
+            });
+
+            const resultado = await ejecutarScrapingJooble({ terminos: ['frontend'] });
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].plataforma).toBe('jooble');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+            expect(resultado[0].empresa).toBe('TestCorp Argentina');
+        });
+
+        test('retorna array vacío si la API devuelve jobs vacío', async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ totalCount: 0, jobs: [] }),
+            });
+
+            const resultado = await ejecutarScrapingJooble({ terminos: ['termino-raro'] });
+
+            expect(resultado).toBeInstanceOf(Array);
+            expect(resultado.length).toBe(0);
+        });
+
+        test('continua con el siguiente término si la API devuelve error HTTP', async () => {
+            global.fetch
+                .mockResolvedValueOnce({ ok: false, status: 403 }) // primer término falla
+                .mockResolvedValue({
+                    ok: true,
+                    json: jest.fn().mockResolvedValue(respuestaJoobleFalsa),
+                }); // segundo término OK
+
+            const resultado = await ejecutarScrapingJooble({
+                terminos: ['termino-que-falla', 'frontend'],
+            });
+
+            // El primer término falló, el segundo dio 1 oferta.
+            expect(resultado.length).toBe(1);
+        });
+
+        test('tira error descriptivo si fetch lanza excepción', async () => {
+            global.fetch.mockRejectedValue(new Error('Network error'));
+
+            await expect(ejecutarScrapingJooble()).rejects.toThrow(
+                'Error al ejecutar scraping de Jooble'
+            );
         });
     });
 });

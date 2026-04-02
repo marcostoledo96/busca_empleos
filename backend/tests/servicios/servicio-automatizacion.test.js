@@ -46,6 +46,9 @@ describe('Servicio de automatización', () => {
         servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingIndeed.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingGlassdoor.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingJooble.mockResolvedValue([]);
         servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
             total: 0, aprobadas: 0, rechazadas: 0, errores: 0,
         });
@@ -66,8 +69,8 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
-        test('ejecuta scraping de las 4 plataformas → guarda ofertas → evalúa', async () => {
-            // Preparo datos simulados para las 4 plataformas.
+        test('ejecuta scraping de las 7 plataformas → guarda ofertas → evalúa', async () => {
+            // Preparo datos simulados para las 7 plataformas.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/jobs/1' },
                 { titulo: 'Dev React', url: 'https://linkedin.com/jobs/2' },
@@ -81,23 +84,35 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingBumeran.mockResolvedValue([
                 { titulo: 'Dev Full-stack', url: 'https://www.bumeran.com.ar/empleos/dev-1.html' },
             ]);
+            servicioScraping.ejecutarScrapingGlassdoor.mockResolvedValue([
+                { titulo: 'QA Engineer', url: 'https://www.glassdoor.com.ar/job-listing/qa.htm?jl=1' },
+            ]);
+            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([
+                { titulo: 'Frontend Junior', url: 'https://www.getonbrd.com/jobs/programming/frontend-1' },
+            ]);
+            servicioScraping.ejecutarScrapingJooble.mockResolvedValue([
+                { titulo: 'Dev TypeScript', url: 'https://jooble.org/desc/1234567890' },
+            ]);
             servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
-                total: 5,
-                aprobadas: 3,
-                rechazadas: 2,
+                total: 7,
+                aprobadas: 4,
+                rechazadas: 3,
                 errores: 0,
             });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // Verifico que se llamó al scraping de las 4 plataformas.
+            // Verifico que se llamó al scraping de las 7 plataformas.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledTimes(1);
 
-            // Verifico que se guardaron las 5 ofertas (2+1+1+1).
-            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(5);
+            // Verifico que se guardaron las 8 ofertas (2+1+1+1+1+1+1).
+            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(8);
 
             // Verifico que se evaluaron las pendientes.
             expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledTimes(1);
@@ -110,13 +125,16 @@ describe('Servicio de automatización', () => {
                     computrabajo: 1,
                     indeed: 1,
                     bumeran: 1,
-                    totalExtraidas: 5,
-                    guardadas: 5,
+                    glassdoor: 1,
+                    getonbrd: 1,
+                    jooble: 1,
+                    totalExtraidas: 8,
+                    guardadas: 8,
                 },
                 evaluacion: {
-                    total: 5,
-                    aprobadas: 3,
-                    rechazadas: 2,
+                    total: 7,
+                    aprobadas: 4,
+                    rechazadas: 3,
                     errores: 0,
                 },
                 errores: [],
@@ -187,6 +205,57 @@ describe('Servicio de automatización', () => {
             expect(resultado.errores[0]).toContain('Bumeran');
         });
 
+        test('si Glassdoor falla, sigue con las demás plataformas y reporta el error', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+            servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(
+                new Error('Glassdoor blocked')
+            );
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.exito).toBe(true);
+            expect(resultado.scraping.linkedin).toBe(1);
+            expect(resultado.scraping.glassdoor).toBe(0);
+            expect(resultado.errores).toHaveLength(1);
+            expect(resultado.errores[0]).toContain('Glassdoor');
+        });
+
+        test('si GetOnBrd falla, sigue con las demás plataformas y reporta el error', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+            servicioScraping.ejecutarScrapingGetonbrd.mockRejectedValue(
+                new Error('GetOnBrd API error')
+            );
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.exito).toBe(true);
+            expect(resultado.scraping.linkedin).toBe(1);
+            expect(resultado.scraping.getonbrd).toBe(0);
+            expect(resultado.errores).toHaveLength(1);
+            expect(resultado.errores[0]).toContain('GetOnBrd');
+        });
+
+        test('si Jooble falla, sigue con las demás plataformas y reporta el error', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+            servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
+                new Error('Jooble API error')
+            );
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.exito).toBe(true);
+            expect(resultado.scraping.linkedin).toBe(1);
+            expect(resultado.scraping.jooble).toBe(0);
+            expect(resultado.errores).toHaveLength(1);
+            expect(resultado.errores[0]).toContain('Jooble');
+        });
+
         test('si todos los scrapings fallan, no guarda ofertas y reporta todos los errores', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(
                 new Error('LinkedIn error')
@@ -200,12 +269,21 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(
                 new Error('Bumeran error')
             );
+            servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(
+                new Error('Glassdoor error')
+            );
+            servicioScraping.ejecutarScrapingGetonbrd.mockRejectedValue(
+                new Error('GetOnBrd error')
+            );
+            servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
+                new Error('Jooble error')
+            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            expect(resultado.errores).toHaveLength(4);
+            expect(resultado.errores).toHaveLength(7);
         });
 
         test('si la evaluación falla, reporta el error pero no crashea', async () => {
@@ -253,6 +331,9 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledWith(opcionesEsperadas);
         });
 
         test('usa defaults si las preferencias no tienen términos de búsqueda', async () => {
@@ -265,6 +346,8 @@ describe('Servicio de automatización', () => {
             // Sin términos, pasa un objeto vacío (los scrapers usan sus fallbacks).
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
+            expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
+            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({});
         });
 
         test('si obtenerPreferencias falla, continúa con defaults sin crashear', async () => {
@@ -281,12 +364,12 @@ describe('Servicio de automatización', () => {
     });
 
     describe('programarCron()', () => {
-        test('programa un cron job con la expresión por defecto (cada 48 horas)', () => {
+        test('programa un cron job con la expresión por defecto (cada 72 horas)', () => {
             servicioAutomatizacion.programarCron();
 
             expect(cron.schedule).toHaveBeenCalledTimes(1);
             const expresionCron = cron.schedule.mock.calls[0][0];
-            expect(expresionCron).toBe('0 0 */2 * *');
+            expect(expresionCron).toBe('0 0 */3 * *');
         });
 
         test('acepta una expresión cron personalizada', () => {
@@ -344,7 +427,7 @@ describe('Servicio de automatización', () => {
             const estado = servicioAutomatizacion.obtenerEstado();
 
             expect(estado.activo).toBe(true);
-            expect(estado.expresionCron).toBe('0 0 */2 * *');
+            expect(estado.expresionCron).toBe('0 0 */3 * *');
         });
     });
 });

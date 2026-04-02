@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --verbose"
+    "test": "jest --verbose",
+    "test:modelos": "jest tests/modelos --verbose --runInBand"
   },
   "keywords": [],
   "author": "Marcos Ezequiel Toledo",

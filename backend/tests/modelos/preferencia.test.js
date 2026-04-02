@@ -3,11 +3,17 @@
 //
 // La tabla preferencias es de una sola fila (id = 1).
 // Estos tests verifican que la lectura y actualización funcionan correctamente.
+//
+// ⚠️  IMPORTANTE: estos tests hacen TRUNCATE sobre la tabla preferencias.
+// Solo corren si ALLOW_DB_TESTS=true está activo. Ver instrucciones en oferta.test.js.
 
 const pool = require('../../src/config/base-datos');
 const modeloPreferencia = require('../../src/modelos/preferencia');
 
-describe('Modelo de preferencias — lectura y actualización', () => {
+// Si no está el flag, todos los tests de este archivo se marcan como 'skipped'.
+const contexto = process.env.ALLOW_DB_TESTS === 'true' ? describe : describe.skip;
+
+contexto('Modelo de preferencias — lectura y actualización', () => {
     // Antes de cada test, limpio la tabla y creo la fila por defecto.
     // Uso los mismos valores que la migración-003 para ser consistente.
     beforeEach(async () => {

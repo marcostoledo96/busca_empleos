@@ -599,6 +599,27 @@ html.dark .p-toast .p-toast-message-content {
     color: var(--on-surface) !important;
 }
 
+/* --- AutoComplete múltiple dark (chips) --- */
+html.dark .p-autocomplete-input-multiple,
+html.dark .p-autocomplete .p-autocomplete-input-multiple {
+    background: var(--surface-container-low) !important;
+    color: var(--on-surface) !important;
+    border-color: var(--outline-variant) !important;
+}
+
+html.dark .p-autocomplete-input-multiple input,
+html.dark .p-autocomplete .p-autocomplete-input-multiple input {
+    background: transparent !important;
+    color: var(--on-surface) !important;
+}
+
+html.dark .p-autocomplete-chip,
+html.dark .p-autocomplete-chip-item {
+    background: var(--surface-container-high) !important;
+    color: var(--on-surface) !important;
+    border-color: var(--outline-variant) !important;
+}
+
 html.dark .p-toast .p-toast-message-icon {
     color: var(--on-surface) !important;
 }

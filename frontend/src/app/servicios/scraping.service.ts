@@ -29,4 +29,24 @@ export class ScrapingService {
     scrapearBumeran(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/bumeran`, {});
     }
+
+    // Ejecuta el scraping de Glassdoor Argentina. Llama al Actor de Apify y guarda en BD.
+    scrapearGlassdoor(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/glassdoor`, {});
+    }
+
+    // Ejecuta el scraping de GetOnBrd usando su API pública gratuita y guarda en BD.
+    scrapearGetonbrd(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/getonbrd`, {});
+    }
+
+    // Ejecuta el scraping de Jooble usando su API REST oficial y guarda en BD.
+    scrapearJooble(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/jooble`, {});
+    }
+
+    // Ejecuta el scraping de Google Jobs usando un actor de Apify y guarda en BD.
+    scrapearGoogleJobs(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/google-jobs`, {});
+    }
 }

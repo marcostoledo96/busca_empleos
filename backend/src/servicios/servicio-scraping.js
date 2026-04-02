@@ -18,9 +18,13 @@ const {
     clienteApify,
     ACTORES,
     TERMINOS_BUSQUEDA_DEFECTO,
+    GETONBRD_API_BASE,
+    JOOBLE_API_URL,
+    JOOBLE_API_KEY,
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
     construirUrlsBumeran,
+    construirUrlsGetonbrd,
 } = require('../config/apify');
 
 const { normalizarLote } = require('./servicio-normalizacion');
@@ -314,9 +318,341 @@ async function ejecutarScrapingBumeran(opciones = {}) {
     }
 }
 
+/**
+ * Ejecuto el scraping de Glassdoor Argentina.
+ *
+ * A diferencia de LinkedIn y Computrabajo (que reciben URLs de búsqueda),
+ * este actor recibe keywords, location y country como parámetros directos,
+ * al igual que Indeed. Por eso no necesito construir URLs de búsqueda.
+ *
+ * El actor soporta deduplicación nativa con saveOnlyUniqueItems, lo que
+ * reduce el ruido antes de llegar a la normalización.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo de ofertas a extraer.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingGlassdoor(opciones = {}) {
+    const maxResultados = opciones.maxResultados || 50;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+
+    try {
+        console.log(`Scraping Glassdoor: buscando ${terminos.length} término(s) en Argentina...`);
+
+        // El actor recibe keywords como array de strings, location y country directamente.
+        // No necesita URLs — similar al actor de Indeed.
+        const ejecucion = await clienteApify.actor(ACTORES.GLASSDOOR).call({
+            keywords: terminos,
+            location: 'Buenos Aires',
+            country: 'Argentina',
+            maxItems: maxResultados,
+            saveOnlyUniqueItems: true,
+            includeNoSalaryJob: true,
+            datePosted: '14',
+        });
+
+        console.log('Scraping Glassdoor: obteniendo resultados del dataset...');
+        const { items } = await clienteApify
+            .dataset(ejecucion.defaultDatasetId)
+            .listItems();
+
+        console.log(`Scraping Glassdoor: ${items.length} ofertas crudas obtenidas.`);
+
+        const ofertasNormalizadas = normalizarLote(items, 'glassdoor');
+        console.log(`Scraping Glassdoor: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Glassdoor: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
+/**
+ * Ejecuto el scraping de GetOnBrd usando su API REST pública (gratuita, sin auth).
+ *
+ * A diferencia del resto de las plataformas, GetOnBrd NO usa Apify.
+ * Su API pública devuelve JSON directamente:
+ * GET https://www.getonbrd.com/api/v0/search/jobs?query={termino}&page={n}
+ *
+ * La paginación trae hasta 120 ítems por página. El campo `meta.total_pages`
+ * indica cuántas páginas existen para ese término.
+ *
+ * El flujo por cada término:
+ * 1. Pido la página 1 para obtener el total de páginas.
+ * 2. Si hay más páginas, las pido secuencialmente hasta llegar a maxResultados.
+ * 3. Acumulo todos los ítems de todos los términos.
+ * 4. Normalizo al formato de nuestra tabla.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo total de ofertas a extraer.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingGetonbrd(opciones = {}) {
+    const maxResultados = opciones.maxResultados || 50;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+
+    try {
+        console.log(`Scraping GetOnBrd: buscando ${terminos.length} término(s) con la API pública...`);
+        let itemsCrudos = [];
+
+        for (const termino of terminos) {
+            if (itemsCrudos.length >= maxResultados) break;
+
+            console.log(`Scraping GetOnBrd: buscando "${termino}"...`);
+
+            // Pido la primera página para saber cuántas páginas hay en total.
+            const urlPrimeraPagina = `${GETONBRD_API_BASE}/search/jobs?query=${encodeURIComponent(termino)}&page=1`;
+            const respuestaPrimeraPagina = await fetch(urlPrimeraPagina);
+
+            if (!respuestaPrimeraPagina.ok) {
+                console.warn(`Scraping GetOnBrd: error HTTP ${respuestaPrimeraPagina.status} para "${termino}". Saltando.`);
+                continue;
+            }
+
+            const jsonPrimeraPagina = await respuestaPrimeraPagina.json();
+            const totalPaginas = jsonPrimeraPagina.meta?.total_pages || 1;
+
+            // Acumulo los ítems de la primera página.
+            const itemsPrimeraPagina = jsonPrimeraPagina.data || [];
+            itemsCrudos = itemsCrudos.concat(itemsPrimeraPagina);
+            console.log(`Scraping GetOnBrd: página 1/${totalPaginas} → ${itemsPrimeraPagina.length} ítem(s) para "${termino}".`);
+
+            // Si hay más páginas y no llegué al máximo, las pido.
+            for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+                if (itemsCrudos.length >= maxResultados) break;
+
+                const urlPagina = `${GETONBRD_API_BASE}/search/jobs?query=${encodeURIComponent(termino)}&page=${pagina}`;
+                const respuestaPagina = await fetch(urlPagina);
+
+                if (!respuestaPagina.ok) {
+                    console.warn(`Scraping GetOnBrd: error HTTP ${respuestaPagina.status} en página ${pagina} para "${termino}". Deteniendo paginación.`);
+                    break;
+                }
+
+                const jsonPagina = await respuestaPagina.json();
+                const itemsPagina = jsonPagina.data || [];
+                itemsCrudos = itemsCrudos.concat(itemsPagina);
+                console.log(`Scraping GetOnBrd: página ${pagina}/${totalPaginas} → ${itemsPagina.length} ítem(s) para "${termino}".`);
+            }
+        }
+
+        console.log(`Scraping GetOnBrd: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'getonbrd');
+        console.log(`Scraping GetOnBrd: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de GetOnBrd: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
+/**
+ * Ejecuto el scraping de Jooble usando su API REST oficial (gratuita, requiere API key).
+ *
+ * Jooble es un agregador mundial de ofertas de empleo. Para Argentina
+ * devuelve resultados de LinkedIn, Computrabajo, ZonaJobs, Bumeran y otros.
+ * Por eso puede traer ofertas que los actores individuales se pierdan.
+ *
+ * La API es POST en vez de GET (a diferencia de GetOnBrd):
+ * POST https://jooble.org/api/{API_KEY}
+ * Body: { "keywords": "término", "location": "Buenos Aires", "page": N }
+ *
+ * Respuesta: { totalCount: N, jobs: [{ title, location, snippet, salary,
+ *              source, type, link, company, updated }] }
+ *
+ * La paginación no tiene un campo "total_pages" — se calcula dividiendo
+ * `totalCount` / 20 (20 resultados por página, límite de la API gratuita).
+ * Limitamos a 5 páginas por término para no agotar la cuota.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo total de ofertas a extraer.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingJooble(opciones = {}) {
+    const maxResultados = opciones.maxResultados || 50;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    // Máximo de páginas por término para no agotar la cuota gratuita.
+    const MAX_PAGINAS_POR_TERMINO = 5;
+
+    try {
+        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) con la API oficial...`);
+        let itemsCrudos = [];
+
+        for (const termino of terminos) {
+            if (itemsCrudos.length >= maxResultados) break;
+
+            console.log(`Scraping Jooble: buscando "${termino}"...`);
+
+            // Pido la primera página para obtener totalCount y los primeros resultados.
+            const urlApi = `${JOOBLE_API_URL}${JOOBLE_API_KEY}`;
+            const respuestaPrimeraPagina = await fetch(urlApi, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    keywords: termino,
+                    // Jooble no indexa Argentina. Sin location trae trabajos remotos
+                    // globales que el evaluador de DeepSeek filtra por relevancia.
+                    page: 1,
+                }),
+            });
+
+            if (!respuestaPrimeraPagina.ok) {
+                console.warn(`Scraping Jooble: error HTTP ${respuestaPrimeraPagina.status} para "${termino}". Saltando.`);
+                continue;
+            }
+
+            const jsonPrimeraPagina = await respuestaPrimeraPagina.json();
+            const totalCount = jsonPrimeraPagina.totalCount || 0;
+            // La API gratuita devuelve 20 resultados por página.
+            const totalPaginas = Math.min(
+                Math.ceil(totalCount / 20),
+                MAX_PAGINAS_POR_TERMINO
+            );
+
+            // Acumulo los ítems de la primera página.
+            const jobsPrimeraPagina = jsonPrimeraPagina.jobs || [];
+            itemsCrudos = itemsCrudos.concat(jobsPrimeraPagina);
+            console.log(`Scraping Jooble: página 1/${totalPaginas} → ${jobsPrimeraPagina.length} ítem(s) para "${termino}".`);
+
+            // Si hay más páginas y no llegué al máximo, las pido.
+            for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+                if (itemsCrudos.length >= maxResultados) break;
+
+                const respuestaPagina = await fetch(urlApi, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        keywords: termino,
+                        page: pagina,
+                    }),
+                });
+
+                if (!respuestaPagina.ok) {
+                    console.warn(`Scraping Jooble: error HTTP ${respuestaPagina.status} en página ${pagina} para "${termino}". Deteniendo paginación.`);
+                    break;
+                }
+
+                const jsonPagina = await respuestaPagina.json();
+                const jobsPagina = jsonPagina.jobs || [];
+                itemsCrudos = itemsCrudos.concat(jobsPagina);
+                console.log(`Scraping Jooble: página ${pagina}/${totalPaginas} → ${jobsPagina.length} ítem(s) para "${termino}".`);
+            }
+        }
+
+        console.log(`Scraping Jooble: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'jooble');
+        console.log(`Scraping Jooble: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Jooble: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
+/**
+ * Ejecuto el scraping de Google Jobs usando el actor de Apify.
+ *
+ * Google Jobs es el agregador de empleo de Google: cuando buscás "empleos" en
+ * Google, te muestra ofertas de LinkedIn, Indeed, Glassdoor, Computrabajo,
+ * ZonaJobs, Bumeran y muchos otros portales. Esto nos permite capturar ofertas
+ * de portales que no tenemos integrados individualmente.
+ *
+ * El actor recibe query + country + filtros directamente (como Indeed y Glassdoor).
+ * Iteramos por cada término de búsqueda y acumulamos resultados.
+ *
+ * IMPORTANTE: Google Jobs agrega ofertas de portales que YA scrapeamos
+ * (LinkedIn, Indeed, etc.). La deduplicación por URL en la BD se encarga
+ * de evitar duplicados exactos, pero además el normalizador registra el
+ * `jobPublisher` (portal original) en los datos para trazabilidad.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo de ofertas a extraer.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingGoogleJobs(opciones = {}) {
+    const maxResultados = opciones.maxResultados || 50;
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+
+    try {
+        console.log(`Scraping Google Jobs: buscando ${terminos.length} término(s) en Argentina...`);
+        let itemsCrudos = [];
+
+        for (const termino of terminos) {
+            if (itemsCrudos.length >= maxResultados) break;
+
+            console.log(`Scraping Google Jobs: buscando "${termino}" en Argentina...`);
+
+            const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
+                query: termino,
+                location: 'Argentina',
+                country: 'ar',
+                language: 'es',
+                num_results: maxResultados,
+            });
+
+            const { items } = await clienteApify
+                .dataset(ejecucion.defaultDatasetId)
+                .listItems();
+
+            // johnvc/google-jobs-scraper devuelve un objeto por run con `jobs: [...]`.
+            // Extraigo los trabajos del array interno; si viniera en otro formato
+            // (items individuales), lo manejo también.
+            for (const item of items) {
+                if (item.jobs && Array.isArray(item.jobs)) {
+                    itemsCrudos = itemsCrudos.concat(item.jobs);
+                } else if (item.title) {
+                    itemsCrudos.push(item);
+                }
+            }
+
+            console.log(`Scraping Google Jobs: ${itemsCrudos.length} resultados acumulados para "${termino}".`);
+        }
+
+        // Recorto si pasamos del máximo acumulando entre términos.
+        if (itemsCrudos.length > maxResultados) {
+            itemsCrudos = itemsCrudos.slice(0, maxResultados);
+        }
+
+        console.log(`Scraping Google Jobs: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'google_jobs');
+        console.log(`Scraping Google Jobs: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Google Jobs: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
 module.exports = {
     ejecutarScrapingLinkedin,
     ejecutarScrapingComputrabajo,
     ejecutarScrapingIndeed,
     ejecutarScrapingBumeran,
+    ejecutarScrapingGlassdoor,
+    ejecutarScrapingGetonbrd,
+    ejecutarScrapingJooble,
+    ejecutarScrapingGoogleJobs,
 };

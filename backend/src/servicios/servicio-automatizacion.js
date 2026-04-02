@@ -15,7 +15,7 @@
 // │ │ │ │ │
 // * * * * *
 //
-// '0 0 */2 * *' = "A las 00:00, cada 2 días"
+// '0 0 */3 * *' = "A las 00:00, cada 3 días"
 //
 // ¿Por qué no usar setInterval? Porque cron es más expresivo y resistente:
 // - setInterval mide "cada X milisegundos desde que arrancó".
@@ -25,12 +25,16 @@
 const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
+const { detectarIdioma } = require('./servicio-normalizacion');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 
-// Expresión cron por defecto: cada 48 horas (a las 00:00 cada 2 días).
-// Con 4 plataformas, ejecutar cada 48h ahorra créditos de Apify.
-const EXPRESION_CRON_DEFECTO = '0 0 */2 * *';
+// Expresión cron por defecto: todos los miércoles a las 8:00 AM hora Argentina (ART).
+// En sintaxis cron: minuto=0, hora=8, cualquier día del mes, cualquier mes, miércoles=3.
+// La timezone 'America/Argentina/Buenos_Aires' hace que el 08:00 sea exactamente
+// las 8 AM en Argentina sin tener que calcular el offset UTC manualmente.
+const EXPRESION_CRON_DEFECTO = '0 8 * * 3';
+const TIMEZONE_CRON = 'America/Argentina/Buenos_Aires';
 
 // Estado interno del servicio — guardo el cron activo y los resultados.
 // Esto es un "singleton": un único objeto compartido por todo el proceso.
@@ -74,8 +78,8 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     paso.estado = nuevoEstado;
     if (extraidas !== undefined) paso.extraidas = extraidas;
 
-    // Porcentaje: scraping = 80% (20% cada plataforma), evaluación = 20%.
-    const pesos = { linkedin: 16, computrabajo: 16, indeed: 16, bumeran: 16, evaluacion: 16, guardado: 20 };
+    // Porcentaje: 8 plataformas × 7% = 56%, evaluación 15%, guardado 29%.
+    const pesos = { linkedin: 7, computrabajo: 7, indeed: 7, bumeran: 7, glassdoor: 7, getonbrd: 7, jooble: 7, google_jobs: 7, evaluacion: 15, guardado: 29 };
     const completadas = progreso.pasos
         .filter(p => p.estado === 'completada' || p.estado === 'error')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
@@ -106,6 +110,10 @@ async function ejecutarCicloCompleto() {
             { nombre: 'computrabajo', label: 'Computrabajo', estado: 'pendiente', extraidas: 0 },
             { nombre: 'indeed', label: 'Indeed', estado: 'pendiente', extraidas: 0 },
             { nombre: 'bumeran', label: 'Bumeran', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'glassdoor', label: 'Glassdoor', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'getonbrd', label: 'GetOnBrd', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'jooble', label: 'Jooble', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'google_jobs', label: 'Google Jobs', estado: 'pendiente', extraidas: 0 },
             { nombre: 'guardado', label: 'Guardando en BD', estado: 'pendiente', extraidas: 0 },
             { nombre: 'evaluacion', label: 'Evaluación IA', estado: 'pendiente', extraidas: 0 },
         ],
@@ -136,6 +144,10 @@ async function ejecutarCicloCompleto() {
             computrabajo: 0,
             indeed: 0,
             bumeran: 0,
+            glassdoor: 0,
+            getonbrd: 0,
+            jooble: 0,
+            google_jobs: 0,
             totalExtraidas: 0,
             guardadas: 0,
         },
@@ -199,12 +211,84 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en Bumeran: ${error.message}`);
     }
 
-    // --- Paso 5: Guardar ofertas en la BD ---
-    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran];
+    // --- Paso 5: Scraping de Glassdoor ---
+    let ofertasGlassdoor = [];
+    actualizarPasoPorgreso('glassdoor', 'procesando');
+    try {
+        ofertasGlassdoor = await servicioScraping.ejecutarScrapingGlassdoor(opcionesScraping);
+        resultado.scraping.glassdoor = ofertasGlassdoor.length;
+        actualizarPasoPorgreso('glassdoor', 'completada', ofertasGlassdoor.length);
+        console.log(`[Automatización] Glassdoor: ${ofertasGlassdoor.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('glassdoor', 'error', 0);
+        resultado.errores.push(`Error en scraping de Glassdoor: ${error.message}`);
+        console.error(`[Automatización] Error en Glassdoor: ${error.message}`);
+    }
+
+    // --- Paso 6: Scraping de GetOnBrd (API pública gratuita, sin Apify) ---
+    let ofertasGetonbrd = [];
+    actualizarPasoPorgreso('getonbrd', 'procesando');
+    try {
+        ofertasGetonbrd = await servicioScraping.ejecutarScrapingGetonbrd(opcionesScraping);
+        resultado.scraping.getonbrd = ofertasGetonbrd.length;
+        actualizarPasoPorgreso('getonbrd', 'completada', ofertasGetonbrd.length);
+        console.log(`[Automatización] GetOnBrd: ${ofertasGetonbrd.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('getonbrd', 'error', 0);
+        resultado.errores.push(`Error en scraping de GetOnBrd: ${error.message}`);
+        console.error(`[Automatización] Error en GetOnBrd: ${error.message}`);
+    }
+
+    // --- Paso 7: Scraping de Jooble (API REST oficial gratuita, requiere API key) ---
+    let ofertasJooble = [];
+    actualizarPasoPorgreso('jooble', 'procesando');
+    try {
+        ofertasJooble = await servicioScraping.ejecutarScrapingJooble(opcionesScraping);
+        resultado.scraping.jooble = ofertasJooble.length;
+        actualizarPasoPorgreso('jooble', 'completada', ofertasJooble.length);
+        console.log(`[Automatización] Jooble: ${ofertasJooble.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('jooble', 'error', 0);
+        resultado.errores.push(`Error en scraping de Jooble: ${error.message}`);
+        console.error(`[Automatización] Error en Jooble: ${error.message}`);
+    }
+
+    // --- Paso 8: Scraping de Google Jobs (actor de Apify, agregador multi-portal) ---
+    let ofertasGoogleJobs = [];
+    actualizarPasoPorgreso('google_jobs', 'procesando');
+    try {
+        ofertasGoogleJobs = await servicioScraping.ejecutarScrapingGoogleJobs(opcionesScraping);
+        resultado.scraping.google_jobs = ofertasGoogleJobs.length;
+        actualizarPasoPorgreso('google_jobs', 'completada', ofertasGoogleJobs.length);
+        console.log(`[Automatización] Google Jobs: ${ofertasGoogleJobs.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('google_jobs', 'error', 0);
+        resultado.errores.push(`Error en scraping de Google Jobs: ${error.message}`);
+        console.error(`[Automatización] Error en Google Jobs: ${error.message}`);
+    }
+
+    // --- Paso 9: Guardar ofertas en la BD ---
+    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
+
+    // Filtro de idioma: descarto ofertas claramente en inglés antes de guardar.
+    // Aplica a todas las plataformas. Jooble en particular trae resultados globales
+    // (USA, UK) que no aplican porque el perfil del usuario no habla inglés.
+    const ofertasFiltradas = todasLasOfertas.filter((oferta) => {
+        if (detectarIdioma(oferta.titulo, oferta.descripcion) === 'en') {
+            console.log(`[Automatización] Descartando por idioma inglés: "${oferta.titulo}" (${oferta.plataforma})`);
+            return false;
+        }
+        return true;
+    });
+    const descartadasPorIdioma = todasLasOfertas.length - ofertasFiltradas.length;
+    if (descartadasPorIdioma > 0) {
+        console.log(`[Automatización] ${descartadasPorIdioma} ofertas descartadas por estar en inglés.`);
+    }
+
     actualizarPasoPorgreso('guardado', 'procesando');
 
-    for (const oferta of todasLasOfertas) {
+    for (const oferta of ofertasFiltradas) {
         try {
             const insertada = await modeloOferta.crearOferta(oferta);
             // crearOferta retorna null si la URL ya existía (deduplicación).
@@ -219,7 +303,7 @@ async function ejecutarCicloCompleto() {
     actualizarPasoPorgreso('guardado', 'completada', resultado.scraping.guardadas);
     console.log(`[Automatización] ${resultado.scraping.guardadas} ofertas nuevas guardadas de ${resultado.scraping.totalExtraidas} extraídas.`);
 
-    // --- Paso 6: Evaluar ofertas pendientes ---
+    // --- Paso 10: Evaluar ofertas pendientes ---
     actualizarPasoPorgreso('evaluacion', 'procesando');
     try {
         resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
@@ -264,10 +348,11 @@ function programarCron(opciones = {}) {
         estado.cronActivo.stop();
     }
 
-    console.log(`[Automatización] Programando cron: "${expresion}"`);
+    console.log(`[Automatización] Programando cron: "${expresion}" (timezone: ${TIMEZONE_CRON})`);
 
-    // cron.schedule() acepta la expresión y un callback.
-    // Cada vez que "suena la alarma", ejecuta el callback.
+    // cron.schedule() acepta la expresión, un callback y opciones.
+    // La opción `timezone` hace que node-cron interprete la hora en ART
+    // en vez de UTC. Sin esto, las 08:00 serían las 5 AM Argentina.
     const tarea = cron.schedule(expresion, async () => {
         console.log(`[Automatización] Cron disparado a las ${new Date().toISOString()}`);
         try {
@@ -277,7 +362,7 @@ function programarCron(opciones = {}) {
             // Lo logeo y el cron sigue programado para la siguiente ejecución.
             console.error(`[Automatización] Error fatal en ciclo: ${error.message}`);
         }
-    });
+    }, { timezone: TIMEZONE_CRON });
 
     estado.cronActivo = tarea;
     estado.expresionCron = expresion;

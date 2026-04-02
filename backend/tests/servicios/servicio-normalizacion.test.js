@@ -11,7 +11,11 @@ const {
     normalizarOfertaComputrabajo,
     normalizarOfertaIndeed,
     normalizarOfertaBumeran,
+    normalizarOfertaGlassdoor,
+    normalizarOfertaGetonbrd,
+    normalizarOfertaJooble,
     normalizarLote,
+    detectarIdioma,
 } = require('../../src/servicios/servicio-normalizacion');
 
 // Dato crudo real de LinkedIn (obtenido del actor curious_coder/linkedin-jobs-scraper).
@@ -91,6 +95,20 @@ const itemBumeranReal = {
     ubicacion: 'Córdoba, Córdoba',
     modalidad: 'Remoto',
     descripcion: 'Nuestro cliente es una empresa tecnológica especializada en EdTech...',
+};
+
+// Dato crudo representativo de la API de Jooble.
+// Jooble es un agregador: devuelve ofertas de LinkedIn, Computrabajo y otros sitios.
+const itemJoobleReal = {
+    title: 'Desarrollador Frontend Junior',
+    location: 'Buenos Aires, Argentina',
+    snippet: 'Buscamos desarrollador frontend con Angular y React para proyecto SaaS...',
+    salary: '$80,000 - $120,000',
+    source: 'LinkedIn',
+    type: 'Full-time',
+    link: 'https://jooble.org/desc/9876543210',
+    company: 'TestCorp Argentina',
+    updated: '2026-03-28T12:00:00.0000000',
 };
 
 describe('Servicio de normalización', () => {
@@ -471,6 +489,410 @@ describe('Servicio de normalización', () => {
         test('retorna array vacío si no hay items', () => {
             const resultados = normalizarLote([], 'linkedin');
             expect(resultados).toEqual([]);
+        });
+    });
+
+    describe('normalizarOfertaGlassdoor()', () => {
+
+        // Dato crudo representativo del actor de Glassdoor.
+        const itemGlassdoorReal = {
+            jobUrl: 'https://www.glassdoor.com.ar/job-listing/frontend-developer-testcorp-JV_IC123_KO0,19_KE20,28.htm?jl=9999999',
+            title: 'Frontend Developer Junior',
+            company: { companyName: '  TestCorp Argentina  ' },
+            location_city: 'Buenos Aires',
+            location_state: 'Buenos Aires',
+            remoteWorkTypes: ['Remote'],
+            description_text: 'Buscamos frontend developer junior con React...',
+            baseSalary_min: 150000,
+            baseSalary_max: 250000,
+            salary_currency: 'ARS',
+            datePublished: '2026-03-28',
+        };
+
+        test('mapea los campos principales correctamente', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.titulo).toBe('Frontend Developer Junior');
+            expect(resultado.empresa).toBe('TestCorp Argentina'); // trim aplicado
+            expect(resultado.url).toBe(itemGlassdoorReal.jobUrl);
+            expect(resultado.plataforma).toBe('glassdoor');
+            expect(resultado.descripcion).toBe('Buscamos frontend developer junior con React...');
+        });
+
+        test('construye la ubicación combinando ciudad y estado', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.ubicacion).toBe('Buenos Aires, Buenos Aires');
+        });
+
+        test('ubicón es null si no hay ciudad ni estado', () => {
+            const item = { ...itemGlassdoorReal, location_city: null, location_state: null };
+            const resultado = normalizarOfertaGlassdoor(item);
+
+            expect(resultado.ubicacion).toBeNull();
+        });
+
+        test('detecta modalidad remoto desde remoteWorkTypes', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('detecta modalidad hibrido', () => {
+            const item = { ...itemGlassdoorReal, remoteWorkTypes: ['Hybrid'] };
+            const resultado = normalizarOfertaGlassdoor(item);
+
+            expect(resultado.modalidad).toBe('hibrido');
+        });
+
+        test('modalidad es null si remoteWorkTypes es null o vacío', () => {
+            const itemNull = { ...itemGlassdoorReal, remoteWorkTypes: null };
+            expect(normalizarOfertaGlassdoor(itemNull).modalidad).toBeNull();
+
+            const itemVacio = { ...itemGlassdoorReal, remoteWorkTypes: [] };
+            expect(normalizarOfertaGlassdoor(itemVacio).modalidad).toBeNull();
+        });
+
+        test('mapea salarios y moneda', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.salario_min).toBe(150000);
+            expect(resultado.salario_max).toBe(250000);
+            expect(resultado.moneda).toBe('ARS');
+        });
+
+        test('parsea fecha de publicación como Date', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
+        });
+
+        test('nivel_requerido es siempre null', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.nivel_requerido).toBeNull();
+        });
+
+        test('incluye datos_crudos con el item completo', () => {
+            const resultado = normalizarOfertaGlassdoor(itemGlassdoorReal);
+
+            expect(resultado.datos_crudos).toEqual(itemGlassdoorReal);
+        });
+
+        test('maneja item con campos faltantes sin romperse', () => {
+            const itemMinimo = {
+                jobUrl: 'https://www.glassdoor.com.ar/job-listing/test-123.htm?jl=123',
+            };
+
+            const resultado = normalizarOfertaGlassdoor(itemMinimo);
+
+            expect(resultado.url).toBe(itemMinimo.jobUrl);
+            expect(resultado.plataforma).toBe('glassdoor');
+            expect(resultado.titulo).toBeNull();
+            expect(resultado.empresa).toBeNull();
+            expect(resultado.ubicacion).toBeNull();
+            expect(resultado.modalidad).toBeNull();
+        });
+
+        test('tira error si el item no tiene jobUrl', () => {
+            const itemSinUrl = { title: 'Oferta sin URL' };
+
+            expect(() => normalizarOfertaGlassdoor(itemSinUrl)).toThrow(
+                'El item de Glassdoor no tiene URL'
+            );
+        });
+
+        test('normalizarLote funciona con plataforma glassdoor', () => {
+            const resultados = normalizarLote([itemGlassdoorReal], 'glassdoor');
+
+            expect(resultados).toHaveLength(1);
+            expect(resultados[0].plataforma).toBe('glassdoor');
+        });
+    });
+
+    // ===========================================================================
+    // GetOnBrd
+    // ===========================================================================
+
+    describe('normalizarOfertaGetonbrd()', () => {
+        // Dato crudo representativo de la API pública de GetOnBrd.
+        // Estructura real: { id, type, attributes, relationships, links }
+        const itemGetonbrdReal = {
+            id: '40873',
+            type: 'job_posting',
+            attributes: {
+                title: 'Frontend Developer (Junior)',
+                description: '<p>Buscamos un desarrollador frontend con ganas de aprender...</p>',
+                remote_modality: 'fully_remote',
+                countries: ['AR', 'CL', 'CO'],
+                min_salary: 1500,
+                max_salary: 2500,
+                published_at: 1711929600, // 2024-04-01 00:00:00 UTC
+            },
+            relationships: {
+                seniority: {
+                    data: { id: 2, type: 'seniority' },
+                },
+            },
+            links: {
+                public_url: 'https://www.getonbrd.com/jobs/programming/frontend-developer-junior-acme-corp-40873',
+            },
+        };
+
+        test('mapea los campos principales correctamente', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+
+            expect(resultado.titulo).toBe('Frontend Developer (Junior)');
+            expect(resultado.url).toBe(itemGetonbrdReal.links.public_url);
+            expect(resultado.plataforma).toBe('getonbrd');
+        });
+
+        test('empresa siempre es null (endpoint de búsqueda no la devuelve)', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.empresa).toBeNull();
+        });
+
+        test('la ubicación se construye uniendo los países del array', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.ubicacion).toBe('AR, CL, CO');
+        });
+
+        test('mapea modalidad fully_remote a "remoto"', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('mapea modalidad remote_local a "remoto"', () => {
+            const item = { ...itemGetonbrdReal, attributes: { ...itemGetonbrdReal.attributes, remote_modality: 'remote_local' } };
+            expect(normalizarOfertaGetonbrd(item).modalidad).toBe('remoto');
+        });
+
+        test('mapea modalidad hybrid a "hibrido"', () => {
+            const item = { ...itemGetonbrdReal, attributes: { ...itemGetonbrdReal.attributes, remote_modality: 'hybrid' } };
+            expect(normalizarOfertaGetonbrd(item).modalidad).toBe('hibrido');
+        });
+
+        test('mapea modalidad no_remote a "presencial"', () => {
+            const item = { ...itemGetonbrdReal, attributes: { ...itemGetonbrdReal.attributes, remote_modality: 'no_remote' } };
+            expect(normalizarOfertaGetonbrd(item).modalidad).toBe('presencial');
+        });
+
+        test('mapea nivel seniority id=2 a "junior"', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.nivel_requerido).toBe('junior');
+        });
+
+        test('mapea seniority id=1 a "trainee"', () => {
+            const item = { ...itemGetonbrdReal, relationships: { seniority: { data: { id: 1 } } } };
+            expect(normalizarOfertaGetonbrd(item).nivel_requerido).toBe('trainee');
+        });
+
+        test('mapea seniority id=3 a "semi-senior"', () => {
+            const item = { ...itemGetonbrdReal, relationships: { seniority: { data: { id: 3 } } } };
+            expect(normalizarOfertaGetonbrd(item).nivel_requerido).toBe('semi-senior');
+        });
+
+        test('mapea seniority id=4 y 5 a "senior"', () => {
+            const item4 = { ...itemGetonbrdReal, relationships: { seniority: { data: { id: 4 } } } };
+            const item5 = { ...itemGetonbrdReal, relationships: { seniority: { data: { id: 5 } } } };
+            expect(normalizarOfertaGetonbrd(item4).nivel_requerido).toBe('senior');
+            expect(normalizarOfertaGetonbrd(item5).nivel_requerido).toBe('senior');
+        });
+
+        test('la moneda es USD cuando hay salario', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.moneda).toBe('USD');
+            expect(resultado.salario_min).toBe(1500);
+            expect(resultado.salario_max).toBe(2500);
+        });
+
+        test('la moneda es null cuando no hay salario', () => {
+            const itemSinSalario = {
+                ...itemGetonbrdReal,
+                attributes: { ...itemGetonbrdReal.attributes, min_salary: null, max_salary: null },
+            };
+            expect(normalizarOfertaGetonbrd(itemSinSalario).moneda).toBeNull();
+        });
+
+        test('convierte published_at unix timestamp a Date', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
+            expect(resultado.fecha_publicacion.getFullYear()).toBe(2024);
+        });
+
+        test('guarda el item completo en datos_crudos', () => {
+            const resultado = normalizarOfertaGetonbrd(itemGetonbrdReal);
+            expect(resultado.datos_crudos).toEqual(itemGetonbrdReal);
+        });
+
+        test('maneja item con campos faltantes sin romperse', () => {
+            const itemMinimo = {
+                attributes: {},
+                relationships: {},
+                links: {
+                    public_url: 'https://www.getonbrd.com/jobs/test-123',
+                },
+            };
+
+            const resultado = normalizarOfertaGetonbrd(itemMinimo);
+
+            expect(resultado.url).toBe(itemMinimo.links.public_url);
+            expect(resultado.plataforma).toBe('getonbrd');
+            expect(resultado.titulo).toBeNull();
+            expect(resultado.empresa).toBeNull();
+            expect(resultado.ubicacion).toBeNull();
+            expect(resultado.modalidad).toBeNull();
+            expect(resultado.nivel_requerido).toBeNull();
+        });
+
+        test('tira error si el item no tiene links.public_url', () => {
+            const itemSinUrl = { attributes: { title: 'Oferta sin URL' }, links: {} };
+
+            expect(() => normalizarOfertaGetonbrd(itemSinUrl)).toThrow(
+                'El item de GetOnBrd no tiene URL'
+            );
+        });
+
+        test('normalizarLote funciona con plataforma getonbrd', () => {
+            const resultados = normalizarLote([itemGetonbrdReal], 'getonbrd');
+
+            expect(resultados).toHaveLength(1);
+            expect(resultados[0].plataforma).toBe('getonbrd');
+        });
+    });
+
+    describe('normalizarOfertaJooble()', () => {
+
+        test('mapea todos los campos correctamente', () => {
+            const resultado = normalizarOfertaJooble(itemJoobleReal);
+
+            expect(resultado.titulo).toBe('Desarrollador Frontend Junior');
+            expect(resultado.empresa).toBe('TestCorp Argentina');
+            expect(resultado.ubicacion).toBe('Buenos Aires, Argentina');
+            expect(resultado.url).toBe('https://jooble.org/desc/9876543210');
+            expect(resultado.plataforma).toBe('jooble');
+            expect(resultado.descripcion).toContain('Angular y React');
+        });
+
+        test('asigna la fecha de publicación como objeto Date', () => {
+            const resultado = normalizarOfertaJooble(itemJoobleReal);
+
+            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
+            expect(resultado.fecha_publicacion.getFullYear()).toBe(2026);
+        });
+
+        test('detecta modalidad null cuando type es "Full-time"', () => {
+            const resultado = normalizarOfertaJooble(itemJoobleReal);
+
+            // "Full-time" no contiene "Remote" ni "Hybrid", se mapea a presencial.
+            expect(resultado.modalidad).toBe('presencial');
+        });
+
+        test('detecta modalidad remota cuando type contiene "Remote"', () => {
+            const itemRemoto = { ...itemJoobleReal, type: 'Remote' };
+            const resultado = normalizarOfertaJooble(itemRemoto);
+
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('detecta modalidad híbrida cuando type contiene "Hybrid"', () => {
+            const itemHibrido = { ...itemJoobleReal, type: 'Hybrid work' };
+            const resultado = normalizarOfertaJooble(itemHibrido);
+
+            expect(resultado.modalidad).toBe('hibrido');
+        });
+
+        test('deja modalidad null cuando type es null o vacío', () => {
+            const itemSinType = { ...itemJoobleReal, type: null };
+            const resultado = normalizarOfertaJooble(itemSinType);
+
+            expect(resultado.modalidad).toBeNull();
+        });
+
+        test('deja nivel_requerido como null (Jooble no lo expone)', () => {
+            const resultado = normalizarOfertaJooble(itemJoobleReal);
+
+            expect(resultado.nivel_requerido).toBeNull();
+        });
+
+        test('guarda el JSON crudo completo en datos_crudos', () => {
+            const resultado = normalizarOfertaJooble(itemJoobleReal);
+
+            expect(resultado.datos_crudos).toEqual(itemJoobleReal);
+        });
+
+        test('maneja item con campos faltantes sin romperse', () => {
+            const itemMinimo = {
+                link: 'https://jooble.org/desc/111',
+            };
+
+            const resultado = normalizarOfertaJooble(itemMinimo);
+
+            expect(resultado.url).toBe('https://jooble.org/desc/111');
+            expect(resultado.plataforma).toBe('jooble');
+            expect(resultado.titulo).toBeNull();
+            expect(resultado.empresa).toBeNull();
+            expect(resultado.ubicacion).toBeNull();
+        });
+
+        test('tira error si el item no tiene link', () => {
+            const itemSinUrl = { title: 'Sin URL' };
+
+            expect(() => normalizarOfertaJooble(itemSinUrl)).toThrow(
+                'El item de Jooble no tiene URL'
+            );
+        });
+
+        test('normalizarLote funciona con plataforma jooble', () => {
+            const resultados = normalizarLote([itemJoobleReal], 'jooble');
+
+            expect(resultados).toHaveLength(1);
+            expect(resultados[0].plataforma).toBe('jooble');
+        });
+    });
+
+    describe('detectarIdioma()', () => {
+        test('detecta inglés cuando hay frases claras de HR anglosajón', () => {
+            const titulo = 'Frontend Developer';
+            const descripcion = 'We are looking for a frontend developer. You will be joining our team. Requirements: 3 years of experience with React.';
+
+            expect(detectarIdioma(titulo, descripcion)).toBe('en');
+        });
+
+        test('devuelve español para ofertas claramente en español', () => {
+            const titulo = 'Desarrollador Frontend Junior';
+            const descripcion = 'Buscamos un desarrollador con experiencia en React. Te ofrecemos trabajo remoto y sueldo competitivo. Requisitos: 2 años de experiencia.';
+
+            expect(detectarIdioma(titulo, descripcion)).toBe('es');
+        });
+
+        test('devuelve español para oferta en español con términos técnicos en inglés', () => {
+            const titulo = 'React Developer Junior';
+            const descripcion = 'Empresa líder de tecnología busca desarrollador con experiencia en React, TypeScript y Node.js. Ofrecemos buen clima laboral y trabajo en equipo.';
+
+            expect(detectarIdioma(titulo, descripcion)).toBe('es');
+        });
+
+        test('devuelve español cuando titulo y descripcion son undefined', () => {
+            expect(detectarIdioma(undefined, undefined)).toBe('es');
+        });
+
+        test('devuelve español cuando titulo y descripcion son strings vacíos', () => {
+            expect(detectarIdioma('', '')).toBe('es');
+        });
+
+        test('detecta inglés sin importar mayúsculas', () => {
+            const titulo = 'FRONTEND DEVELOPER';
+            const descripcion = 'WE ARE LOOKING FOR A DEVELOPER. REQUIREMENTS: experience with React. JOIN OUR TEAM.';
+
+            expect(detectarIdioma(titulo, descripcion)).toBe('en');
+        });
+
+        test('devuelve español con solo 1 frase en inglés (no supera umbral)', () => {
+            const titulo = 'Frontend Developer';
+            const descripcion = 'Buscamos desarrollador con experiencia en React y Angular. Sueldo a convenir.';
+
+            expect(detectarIdioma(titulo, descripcion)).toBe('es');
         });
     });
 });

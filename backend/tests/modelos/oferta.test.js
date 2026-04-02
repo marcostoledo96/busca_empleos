@@ -3,10 +3,21 @@
 // ¿Por qué? Porque lo que quiero verificar es que mis queries SQL funcionan
 // de verdad contra PostgreSQL, no que JavaScript sabe hacer un mock.
 //
-// Cada suite limpia la tabla antes de correr para arrancar de un estado conocido.
+// ⚠️  IMPORTANTE: estos tests hacen TRUNCATE sobre la tabla ofertas.
+// Para proteger los datos de producción, solo corren si la variable
+// de entorno ALLOW_DB_TESTS=true está activa.
+//
+// Cómo correrlos en PowerShell:
+//   $env:ALLOW_DB_TESTS="true"; npx jest tests/modelos --runInBand
+// En Linux/Mac:
+//   ALLOW_DB_TESTS=true npx jest tests/modelos --runInBand
 
 const pool = require('../../src/config/base-datos');
 const modeloOferta = require('../../src/modelos/oferta');
+
+// Si no está el flag, todos los tests de este archivo se marcan como 'skipped'.
+// Esto protege la BD de producción cuando se corre el test suite normal.
+const contexto = process.env.ALLOW_DB_TESTS === 'true' ? describe : describe.skip;
 
 // Datos de ejemplo que reutilizo en varios tests.
 // Los defino acá para no repetirlos en cada test (principio DRY).
@@ -36,7 +47,7 @@ const segundaOferta = {
     nivel_requerido: 'trainee'
 };
 
-describe('Modelo de ofertas — CRUD', () => {
+contexto('Modelo de ofertas — CRUD', () => {
     // Antes de cada test, limpio la tabla para arrancar de cero.
     // TRUNCATE es como DELETE pero más rápido, y RESTART IDENTITY
     // resetea el contador del SERIAL (id vuelve a 1).

@@ -12,5 +12,9 @@ router.post('/linkedin', controlador.scrapearLinkedin);
 router.post('/computrabajo', controlador.scrapearComputrabajo);
 router.post('/indeed', controlador.scrapearIndeed);
 router.post('/bumeran', controlador.scrapearBumeran);
+router.post('/glassdoor', controlador.scrapearGlassdoor);
+router.post('/getonbrd', controlador.scrapearGetonbrd);
+router.post('/jooble', controlador.scrapearJooble);
+router.post('/google-jobs', controlador.scrapearGoogleJobs);
 
 module.exports = router;

@@ -87,6 +87,22 @@
                     <i class="pi pi-briefcase"></i>
                     {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
                 </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor()" (click)="scrapearGlassdoor()">
+                    <i class="pi pi-star"></i>
+                    {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd()" (click)="scrapearGetonbrd()">
+                    <i class="pi pi-globe"></i>
+                    {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble()" (click)="scrapearJooble()">
+                    <i class="pi pi-search"></i>
+                    {{ scrapeandoJooble() ? '...' : 'Jooble' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs()" (click)="scrapearGoogleJobs()">
+                    <i class="pi pi-google"></i>
+                    {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
+                </button>
                 <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo()" (click)="ejecutarCicloCompleto()">
                     <span class="material-symbols-outlined">play_circle</span>
                     {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
@@ -94,30 +110,29 @@
             </div>
         </div>
 
-        <div class="panel-separador"></div>
-
-        <!-- Evaluación IA -->
-        <div class="panel-grupo">
-            <span class="grupo-label">Evaluación IA</span>
-            <div class="grupo-acciones">
-                <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando()" (click)="ejecutarEvaluacion()">
-                    {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
-                </button>
+        <!-- Evaluación IA + Automatización en la misma fila -->
+        <div class="panel-fila-secundaria">
+            <div class="panel-grupo">
+                <span class="grupo-label">Evaluación IA</span>
+                <div class="grupo-acciones">
+                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando()" (click)="ejecutarEvaluacion()">
+                        {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
+                    </button>
+                </div>
             </div>
-        </div>
 
-        <div class="panel-separador"></div>
+            <div class="panel-separador-v"></div>
 
-        <!-- Automatización -->
-        <div class="panel-grupo">
-            <span class="grupo-label">Automatización</span>
-            <div class="grupo-acciones grupo-cron">
-                <p-toggleswitch
-                    [ngModel]="cronActivo()"
-                    (ngModelChange)="toggleCron($event)" />
-                <span class="cron-texto" [class.cron-activo]="cronActivo()">
-                    {{ cronActivo() ? 'Cada 48 hs' : 'Inactivo' }}
-                </span>
+            <div class="panel-grupo">
+                <span class="grupo-label">Automatización</span>
+                <div class="grupo-acciones grupo-cron">
+                    <p-toggleswitch
+                        [ngModel]="cronActivo()"
+                        (ngModelChange)="toggleCron($event)" />
+                    <span class="cron-texto" [class.cron-activo]="cronActivo()">
+                        {{ cronActivo() ? 'Cada 48 hs' : 'Inactivo' }}
+                    </span>
+                </div>
             </div>
         </div>
     </div>

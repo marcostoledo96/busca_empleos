@@ -25,15 +25,23 @@
 
 .panel-cuerpo {
     display: flex;
-    align-items: center;
-    padding: 1rem 1.5rem;
-    gap: 1.5rem;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
 }
 
 .panel-grupo {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.panel-grupo:last-child {
+    border-bottom: none;
 }
 
 .grupo-label {
@@ -43,11 +51,14 @@
     letter-spacing: 0.08em;
     color: var(--on-surface-variant);
     white-space: nowrap;
+    min-width: 7.5rem;
+    flex-shrink: 0;
 }
 
 .grupo-acciones {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 0.375rem;
 }
 
@@ -56,10 +67,31 @@
 }
 
 .panel-separador {
+    display: none;
+}
+
+/* Fila compartida: Evaluación IA + Automatización */
+.panel-fila-secundaria {
+    display: flex;
+    align-items: stretch;
+    border-bottom: none;
+}
+
+.panel-fila-secundaria .panel-grupo {
+    flex: 1;
+    border-bottom: none;
+}
+
+.panel-fila-secundaria .panel-grupo:first-child {
+    border-right: none;
+}
+
+/* Separador vertical dentro de la fila secundaria */
+.panel-separador-v {
     width: 1px;
-    height: 32px;
     background: var(--outline-variant);
     flex-shrink: 0;
+    align-self: stretch;
 }
 
 /* === Botones personalizados (sin PrimeNG para más fidelidad) === */
@@ -352,34 +384,23 @@
 }
 
 /* === Responsive === */
-@media (max-width: 900px) {
-    .panel-cuerpo {
-        flex-direction: column;
-        align-items: flex-start;
-    }
 
-    .panel-separador {
-        width: 100%;
-        height: 1px;
-    }
-}
+/* Layout apilado por defecto (definido en los estilos base).
+ * Solo se ajustan paddings en mobile pequeño. */
 
 @media (max-width: 640px) {
-    .panel-cuerpo {
-        padding: 0.875rem 1rem;
-        gap: 0.75rem;
-    }
-
     .panel-cabecera {
         padding: 0.75rem 1rem;
     }
 
     .panel-grupo {
-        flex-wrap: wrap;
+        padding: 0.625rem 1rem;
+        gap: 0.375rem;
     }
 
-    .grupo-acciones {
-        flex-wrap: wrap;
+    .grupo-label {
+        min-width: 6rem;
+        font-size: 9px;
     }
 
     .btn-accion,

@@ -46,6 +46,7 @@ export class TablaOfertas {
         { label: 'Computrabajo', value: 'computrabajo' },
         { label: 'Indeed', value: 'indeed' },
         { label: 'Bumeran', value: 'bumeran' },
+            { label: 'Glassdoor', value: 'glassdoor' },
     ];
 
     readonly opcionesPostulacion = [

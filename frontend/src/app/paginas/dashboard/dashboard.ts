@@ -50,6 +50,7 @@ export class Dashboard implements OnInit {
         { label: 'Computrabajo', value: 'computrabajo' },
         { label: 'Indeed', value: 'indeed' },
         { label: 'Bumeran', value: 'bumeran' },
+            { label: 'Glassdoor', value: 'glassdoor' },
     ];
 
     // Computed: aplica el filtro de plataforma al array completo base.

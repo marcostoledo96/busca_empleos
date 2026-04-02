@@ -15,6 +15,78 @@ Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) e
 | Computrabajo | shahidirfan/Computrabajo-Jobs-Scraper | `270QqNecZlrnDMveb` | GRATIS | — |
 | Indeed | valig/indeed-jobs-scraper | `TrtlecxAsNRbKl1na` | ~$0.08/1000 resultados | 5.0 (3.1K usuarios) |
 | Bumeran | apify/web-scraper (genérico + Puppeteer) | `apify/web-scraper` | GRATIS (actor genérico) | — |
+| Glassdoor | cheap_scraper/glassdoor-jobs-scraper-remove-duplicate-jobs | `bYSAbQqxwImLaf2nb` | ~$0.001/resultado + $0.05 fijo | 5.0 (187 usuarios) |
+
+## GetOnBrd — API pública gratuita (sin Apify)
+
+GetOnBrd es un portal de empleos tech de América Latina que expone una API REST pública y sin autenticación.
+
+**URL base:** `https://www.getonbrd.com/api/v0`
+**Endpoint:** `GET /search/jobs?query={termino}&page={n}`
+**Costo:** Gratuito, sin API key, sin Apify.
+**Paginación:** `meta.total_pages` indica el total de páginas; 120 items por página.
+
+### Estructura de la respuesta
+
+Cada item de búsqueda devuelve objetos con esta estructura:
+
+```json
+{
+  "id": "node-developer-40900",
+  "type": "job",
+  "attributes": {
+    "title": "Node.js Developer",
+    "description": "...",
+    "remote_modality": "fully_remote",
+    "salary_min": 2000,
+    "salary_max": 3000,
+    "published_at": 1700000000
+  },
+  "relationships": {
+    "seniority": {
+      "data": { "id": "2" }
+    }
+  },
+  "links": {
+    "public_url": "https://www.getonbrd.com/jobs/programming/node-developer-40900"
+  }
+}
+```
+
+**Nota:** El endpoint de búsqueda NO devuelve el nombre de la empresa. El campo `empresa` siempre queda en `null` para GetOnBrd.
+
+### Mapeo de modalidades GetOnBrd
+
+| `remote_modality` | Nuestro valor |
+|-------------------|---------------|
+| `fully_remote` / `remote_local` | `'remoto'` |
+| `hybrid` | `'hibrido'` |
+| `no_remote` | `'presencial'` |
+| Otro / null | `null` |
+
+### Mapeo de seniority GetOnBrd
+
+| ID | Nuestro valor |
+|----|---------------|
+| `"1"` | `'trainee'` |
+| `"2"` | `'junior'` |
+| `"3"` | `'semi-senior'` |
+| `"4"` / `"5"` | `'senior'` |
+| Otro | `null` |
+
+### Flujo del scraping (`ejecutarScrapingGetonbrd`)
+
+```
+1. Por cada término de búsqueda:
+   a. Página 1: GET /search/jobs?query={termino}&page=1
+   b. Leer meta.total_pages para saber cuántas páginas hay
+   c. Paginar mientras haya más páginas Y no se llegue a maxResultados
+2. Acumular todos los items crudos
+3. Normalizar con normalizarLote(items, 'getonbrd')
+4. Retornar ofertas normalizadas
+```
+
+**Diferencia clave con los otros scrapers:** No usa Apify ni `apify-client`. Usa `fetch()` nativo de Node.js 22.
 
 ## Archivos involucrados
 
@@ -154,6 +226,29 @@ Opciones configurables: `terminos`.
 
 El scraping se hace en un solo paso desde las tarjetas de la página de resultados, sin visitar cada oferta individual. Las tarjetas tienen toda la info necesaria (título, empresa, ubicación, modalidad, descripción).
 
+### Glassdoor (`ejecutarScrapingGlassdoor`)
+
+```
+1. Llamar al actor de Apify con .call()
+   - Parámetros: keywords (array), location: 'Buenos Aires', country: 'Argentina',
+     maxItems, saveOnlyUniqueItems: true, includeNoSalaryJob: true, datePosted: '14'
+   - El actor maneja la deduplicación nativa (saveOnlyUniqueItems)
+   - datePosted: '14' = últimos 14 días
+2. Obtener items del dataset de la ejecución
+3. Normalizar al formato de nuestra tabla
+4. Retornar ofertas normalizadas
+```
+
+Opciones configurables: `maxResultados` (default: 50), `terminos`.
+
+**Nota sobre Glassdoor:** Los resultados son muy ricos en datos: salarios percentilados
+(baseSalary_min/max, baseSalary_pctSalary10/50/90), reviews de empleados, ratings
+de CEO y empresa, descripción de beneficios. Todo eso queda en `datos_crudos` para
+uso futuro. Solo se mapean los campos del schema de `ofertas`.
+
+El campo `remoteWorkTypes` trae un array como `["Remote"]`, `["Hybrid"]` o `null`
+(cuando la oferta es presencial pero no lo declara).
+
 ## Normalización de datos
 
 Archivo: `backend/src/servicios/servicio-normalizacion.js`
@@ -162,20 +257,20 @@ Cada plataforma devuelve datos en un formato distinto. El servicio de normalizac
 
 ### Mapeo de campos
 
-| Campo destino | LinkedIn | Computrabajo | Indeed | Bumeran |
-|--------------|----------|-------------|--------|--------|
-| `titulo` | `item.title` | `item.title` | `item.title` | `item.titulo` |
-| `empresa` | `item.companyName` | `item.company` | `item.employer?.name` | `item.empresa` |
-| `ubicacion` | `item.location` | `item.location` | `item.location` (city + countryName) | `item.ubicacion` |
-| `modalidad` | Detectada por `detectarModalidad()` | `null` | `detectarModalidadIndeed(item)` | `mapearModalidadBumeran(item.modalidad)` |
-| `descripcion` | `item.descriptionText` | `item.descriptionText` | `item.description?.text` | `item.detalle` |
-| `url` | `item.link` | `item.url` | `item.url` | `item.url` |
-| `plataforma` | `'linkedin'` | `'computrabajo'` | `'indeed'` | `'bumeran'` |
-| `nivel_requerido` | `mapearNivelLinkedin(item.seniorityLevel)` | `null` | `detectarNivelIndeed(item)` | `null` |
-| `salario_min/max` | `parsearSalario(item.salary)` | `null` | `item.baseSalary?.min/max` | `null` |
-| `moneda` | Detectada en `parsearSalario()` | `null` | `item.baseSalary?.currencyCode` | `null` |
-| `fecha_publicacion` | `item.postedAt` | `item.postedDate` | `item.datePublished` | `item.fechaPublicacion` |
-| `datos_crudos` | `item` completo | `item` completo | `item` completo | `item` completo |
+| Campo destino | LinkedIn | Computrabajo | Indeed | Bumeran | Glassdoor | GetOnBrd |
+|--------------|----------|-------------|--------|--------|----------|----------|
+| `titulo` | `item.title` | `item.title` | `item.title` | `item.titulo` | `item.title` | `item.attributes.title` |
+| `empresa` | `item.companyName` | `item.company` | `item.employer?.name` | `item.empresa` | `item.company?.companyName` | `null` (no disponible) |
+| `ubicacion` | `item.location` | `item.location` | `item.location` (city + countryName) | `item.ubicacion` | `item.location_city + item.location_state` | `item.attributes.country + item.attributes.city` |
+| `modalidad` | Detectada por `detectarModalidad()` | `null` | `detectarModalidadIndeed(item)` | `mapearModalidadBumeran(item.modalidad)` | `detectarModalidadGlassdoor(item.remoteWorkTypes)` | `detectarModalidadGetonbrd(item.attributes.remote_modality)` |
+| `descripcion` | `item.descriptionText` | `item.descriptionText` | `item.description?.text` | `item.detalle` | `item.description_text` | `item.attributes.description` |
+| `url` | `item.link` | `item.url` | `item.url` | `item.url` | `item.jobUrl` | `item.links.public_url` |
+| `plataforma` | `'linkedin'` | `'computrabajo'` | `'indeed'` | `'bumeran'` | `'glassdoor'` | `'getonbrd'` |
+| `nivel_requerido` | `mapearNivelLinkedin(item.seniorityLevel)` | `null` | `detectarNivelIndeed(item)` | `null` | `null` | `mapearNivelGetonbrd(item.relationships.seniority.data.id)` |
+| `salario_min/max` | `parsearSalario(item.salary)` | `null` | `item.baseSalary?.min/max` | `null` | `item.baseSalary_min/max` | `item.attributes.salary_min/max` |
+| `moneda` | Detectada en `parsearSalario()` | `null` | `item.baseSalary?.currencyCode` | `null` | `item.salary_currency` | `'USD'` si hay salario, `null` si no |
+| `fecha_publicacion` | `item.postedAt` | `item.postedDate` | `item.datePublished` | `item.fechaPublicacion` | `item.datePublished` | `new Date(item.attributes.published_at * 1000)` |
+| `datos_crudos` | `item` completo | `item` completo | `item` completo | `item` completo | `item` completo | `item` completo |
 
 #### `mapearModalidadBumeran(modalidad)`
 
@@ -224,7 +319,7 @@ Parsea strings de salario como `"$50,000.00/yr - $70,000.00/yr"`:
 - Cada item se normaliza individualmente.
 - Si un item falla (ej: sin URL), se loguea un warning y se salta.
 - **Diseño resiliente:** es mejor tener 99 ofertas que 0 por un item roto.
-- Soporta 4 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`.
+- Soporta 6 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`.
 
 ## Guardado en BD (en el controlador)
 

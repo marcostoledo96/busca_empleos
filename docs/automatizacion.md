@@ -29,7 +29,7 @@ El servicio de automatización ejecuta un ciclo completo de scraping + evaluaci�
 * * * * *
 ```
 
-**Expresión por defecto:** `0 0 */2 * *` → "Al minuto 0, hora 0, cada 2 días" (cada 48 horas, a medianoche).
+**Expresión por defecto:** `0 0 */3 * *` → "Al minuto 0, hora 0, cada 3 días" (cada 72 horas, a medianoche).
 
 ## Estado del servicio (singleton)
 
@@ -38,7 +38,7 @@ Un único objeto en memoria que mantiene el estado del cron:
 ```javascript
 {
     cronActivo: null,       // Referencia al cron task (o null si no hay)
-    expresionCron: null,    // Expresión cron actual (ej: "0 0 */2 * *")
+    expresionCron: null,    // Expresión cron actual (ej: "0 0 */3 * *")
     ultimaEjecucion: null,  // ISO string de cuándo se ejecutó por última vez
     ultimoResultado: null   // Objeto con el resultado del último ciclo
 }
@@ -67,15 +67,23 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
    ├─ Éxito → guardar ofertas normalizadas
    └─ Error → loguear, seguir con paso 5
 
-5. Guardar todas las ofertas en BD
+5. Scraping de Glassdoor
+   ├─ Éxito → guardar ofertas normalizadas
+   └─ Error → loguear, seguir con paso 6
+
+6. Scraping de GetOnBrd (API pública gratuita, sin Apify)
+   ├─ Éxito → guardar ofertas normalizadas
+   └─ Error → loguear, seguir con paso 7
+
+7. Guardar todas las ofertas en BD
    ├─ Por cada oferta: crearOferta() → null si duplicada
    └─ Contar nuevas vs. duplicadas
 
-6. Evaluar ofertas pendientes con DeepSeek
+8. Evaluar ofertas pendientes con DeepSeek
    ├─ Éxito → resumen de aprobadas/rechazadas
    └─ Error → loguear
 
-7. Registrar resultado en estado del servicio
+9. Registrar resultado en estado del servicio
 ```
 
 ### Diseño resiliente
@@ -83,7 +91,9 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
 - Si LinkedIn falla, sigue con Computrabajo.
 - Si Computrabajo falla, sigue con Indeed.
 - Si Indeed falla, sigue con Bumeran.
-- Si Bumeran falla, sigue con el guardado.
+- Si Bumeran falla, sigue con Glassdoor.
+- Si Glassdoor falla, sigue con GetOnBrd.
+- Si GetOnBrd falla, sigue con el guardado.
 - Si la evaluación falla, el scraping ya se guardó.
 - **Un error parcial nunca tira abajo todo el ciclo.**
 
@@ -97,8 +107,10 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
         computrabajo: 15,      // Ofertas extraídas de Computrabajo
         indeed: 12,            // Ofertas extraídas de Indeed
         bumeran: 8,            // Ofertas extraídas de Bumeran
-        totalExtraidas: 55,    // Total extraído
-        guardadas: 40          // Nuevas (sin duplicadas)
+        glassdoor: 11,         // Ofertas extraídas de Glassdoor
+        getonbrd: 9,           // Ofertas extraídas de GetOnBrd
+        totalExtraidas: 75,    // Total extraído
+        guardadas: 55          // Nuevas (sin duplicadas)
     },
     evaluacion: {
         total: 25,
@@ -134,7 +146,7 @@ Retorna el estado actual para la API y el frontend:
 ```javascript
 {
     activo: true/false,
-    expresionCron: "0 0 */2 * *" | null,
+    expresionCron: "0 0 */3 * *" | null,
     ultimaEjecucion: "2026-03-31T12:00:00.000Z" | null,
     ultimoResultado: { ... } | null
 }

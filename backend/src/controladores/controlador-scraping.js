@@ -162,4 +162,163 @@ async function scrapearBumeran(req, res) {
     });
 }
 
-module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran };
+/**
+ * POST /api/scraping/glassdoor
+ * Ejecuto el scraping de Glassdoor y guardo las ofertas en la BD.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de resultados (defecto: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearGlassdoor(req, res) {
+    const opciones = {
+        maxResultados: req.body.maxResultados || 50,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGlassdoor(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de Glassdoor completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'glassdoor',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+/**
+ * POST /api/scraping/getonbrd
+ * Ejecuto el scraping de GetOnBrd usando su API pública y guardo las ofertas en la BD.
+ *
+ * A diferencia de los otros endpoints, este no usa Apify: llama directo a la API
+ * REST de GetOnBrd (gratuita, sin autenticación).
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearGetonbrd(req, res) {
+    const opciones = {
+        maxResultados: req.body.maxResultados || 50,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGetonbrd(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de GetOnBrd completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'getonbrd',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+/**
+ * POST /api/scraping/jooble
+ * Ejecuto el scraping de Jooble usando su API REST oficial (gratuita) y guardo las ofertas en la BD.
+ *
+ * Jooble es un agregador mundial de empleo. Su API gratuita requiere una API key
+ * que se registra en https://jooble.org/api/about y se guarda en .env como JOOBLE_API_KEY.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearJooble(req, res) {
+    const opciones = {
+        maxResultados: req.body.maxResultados || 50,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingJooble(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de Jooble completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'jooble',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+/**
+ * POST /api/scraping/google-jobs
+ * Ejecuto el scraping de Google Jobs usando un actor de Apify y guardo las ofertas en la BD.
+ *
+ * Google Jobs es un agregador que indexa ofertas de múltiples portales (Computrabajo,
+ * Bumeran, Indeed, etc.). Las ofertas duplicadas se descartan automáticamente por URL
+ * (ON CONFLICT en la BD). El campo jobPublisher del resultado crudo indica de qué
+ * portal original proviene cada oferta.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 100)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearGoogleJobs(req, res) {
+    const opciones = {
+        maxResultados: req.body.maxResultados || 100,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGoogleJobs(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de Google Jobs completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'google_jobs',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs };
