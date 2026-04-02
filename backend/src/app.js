@@ -131,7 +131,7 @@ app.use('/api/ofertas', rutasOfertas);
 // Scraping, evaluación y automatización consumen APIs pagas → rate limit.
 app.use('/api/scraping', limitadorCostoso, rutasScraping);
 app.use('/api/evaluacion', limitadorCostoso, rutasEvaluacion);
-app.use('/api/automatizacion', rutasAutomatizacion);
+app.use('/api/automatizacion', limitadorCostoso, rutasAutomatizacion);
 app.use('/api/preferencias', rutasPreferencias);
 
 // === Manejo de errores ===

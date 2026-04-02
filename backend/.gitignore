@@ -17,3 +17,6 @@ Thumbs.db
 # IDE
 .vscode/
 .idea/
+
+# Salidas de scripts de desarrollo (pueden contener datos reales)
+tests/scripts/ofertas-exportadas.json

@@ -23,8 +23,9 @@ const modeloOferta = require('../modelos/oferta');
  * - ubicacion: ubicación personalizada (default: "Argentina")
  */
 async function scrapearLinkedin(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 100, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 100,
+        maxResultados,
         terminos: req.body.terminos,
         ubicacion: req.body.ubicacion,
     };
@@ -62,8 +63,9 @@ async function scrapearLinkedin(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearComputrabajo(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 50,
+        maxResultados,
         terminos: req.body.terminos,
     };
 
@@ -99,8 +101,9 @@ async function scrapearComputrabajo(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearIndeed(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 100, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 100,
+        maxResultados,
         terminos: req.body.terminos,
     };
 
@@ -171,8 +174,9 @@ async function scrapearBumeran(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGlassdoor(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 50,
+        maxResultados,
         terminos: req.body.terminos,
     };
 
@@ -211,8 +215,9 @@ async function scrapearGlassdoor(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGetonbrd(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 50,
+        maxResultados,
         terminos: req.body.terminos,
     };
 
@@ -251,8 +256,9 @@ async function scrapearGetonbrd(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearJooble(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 50,
+        maxResultados,
         terminos: req.body.terminos,
     };
 
@@ -293,8 +299,9 @@ async function scrapearJooble(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGoogleJobs(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 100, 500);
     const opciones = {
-        maxResultados: req.body.maxResultados || 100,
+        maxResultados,
         terminos: req.body.terminos,
     };
 

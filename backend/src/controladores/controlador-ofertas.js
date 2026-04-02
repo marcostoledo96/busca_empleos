@@ -64,6 +64,12 @@ async function obtenerEstadisticas(req, res) {
  * la base correcta y cuántas ofertas persistidas ve en este momento.
  */
 async function obtenerDiagnosticoPersistencia(req, res) {
+    // Este endpoint expone metadatos internos de la base de datos (host, usuario, puerto).
+    // En producción no tiene utilidad y representa un riesgo innecesario.
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(404).json({ exito: false, error: 'No encontrado' });
+    }
+
     const diagnostico = await baseDatos.obtenerDiagnosticoPersistencia();
 
     res.json({
