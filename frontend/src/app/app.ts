@@ -4,6 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from './servicios/auth.service';
+import { environment } from '../environments/environment';
 
 const CLAVE_TEMA = 'busca-empleos.tema';
 
@@ -18,6 +19,7 @@ export class App {
     private readonly documento = inject(DOCUMENT);
     readonly authService = inject(AuthService);
 
+    readonly entorno = environment;
     readonly sidebarAbierta = signal(false);
     readonly modoOscuro = signal(false);
 
