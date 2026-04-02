@@ -51,7 +51,16 @@ export const environment = {
 };
 `;
 
-const rutaDestino = path.join(__dirname, '../src/environments/environment.prod.ts');
-fs.writeFileSync(rutaDestino, contenido, 'utf8');
+const environmentsDir = path.join(__dirname, '../src/environments');
+const targetFileProd = path.join(environmentsDir, 'environment.prod.ts');
+const targetFileBase = path.join(environmentsDir, 'environment.ts');
 
-console.log('✓ environment.prod.ts generado correctamente desde variables de entorno de Vercel.');
+if (!fs.existsSync(environmentsDir)) {
+    fs.mkdirSync(environmentsDir, { recursive: true });
+}
+
+// Generamos ambos archivos con el mismo contenido para que las importaciones no fallen
+fs.writeFileSync(targetFileProd, contenido, 'utf8');
+fs.writeFileSync(targetFileBase, contenido, 'utf8');
+
+console.log('✓ environment.prod.ts y environment.ts generados correctamente desde variables de entorno de Vercel.');
