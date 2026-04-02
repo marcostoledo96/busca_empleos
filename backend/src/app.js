@@ -49,10 +49,34 @@ app.use(helmet());
 // las peticiones por la "Same-Origin Policy" (política de seguridad del navegador).
 //
 // Restrinjo el origin al frontend para que no cualquier sitio pueda llamar a la API.
-const origenesPermitidos = process.env.CORS_ORIGEN || 'http://localhost:4200';
+const origenesConfigurados = (process.env.CORS_ORIGEN || '')
+    .split(',')
+    .map((origen) => origen.trim())
+    .filter(Boolean);
+
+const origenesPermitidos = origenesConfigurados.length > 0
+    ? origenesConfigurados
+    : [
+        'http://localhost:4200',
+        'https://busca-empleos.vercel.app',
+    ];
+
 app.use(cors({
-    origin: origenesPermitidos.split(','),
-    methods: ['GET', 'POST', 'PUT', 'PATCH'],
+    origin: (origin, callback) => {
+        // Requests server-to-server o health checks pueden no traer Origin.
+        if (!origin) {
+            return callback(null, true);
+        }
+
+        if (origenesPermitidos.includes(origin)) {
+            return callback(null, true);
+        }
+
+        return callback(new Error(`Origen no permitido por CORS: ${origin}`));
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    optionsSuccessStatus: 204,
 }));
 
 // express.json() parsea el body de las requests que vienen en formato JSON.

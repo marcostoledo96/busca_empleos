@@ -25,6 +25,30 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 // Railway y la mayoría de PaaS PostgreSQL exigen SSL. Sin él, la conexión se rechaza.
 // rejectUnauthorized: false es necesario porque Railway usa certificados internos
 // que no están en la cadena de confianza pública — es el estándar para PaaS.
+function obtenerDatabaseUrlValida() {
+    const databaseUrl = (process.env.DATABASE_URL || '').trim();
+
+    if (!databaseUrl) {
+        return null;
+    }
+
+    try {
+        const url = new URL(databaseUrl);
+
+        if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
+            throw new Error('protocolo no soportado');
+        }
+
+        return databaseUrl;
+    } catch {
+        console.error(
+            'Base de datos: DATABASE_URL está mal formada. ' +
+            'La voy a ignorar y voy a intentar conectar usando las variables PG*.'
+        );
+        return null;
+    }
+}
+
 function esHostLocal(host) {
     if (!host) {
         return true;
@@ -40,10 +64,12 @@ function esHostLocal(host) {
     ].includes(hostNormalizado);
 }
 
+const databaseUrlValida = obtenerDatabaseUrlValida();
+
 function deboUsarSsl() {
     const modoSsl = (process.env.PGSSLMODE || '').trim().toLowerCase();
 
-    if (process.env.DATABASE_URL) {
+    if (databaseUrlValida) {
         return true;
     }
 
@@ -65,8 +91,8 @@ function deboUsarSsl() {
 const usaSsl = deboUsarSsl();
 const configuracionPool = {};
 
-if (process.env.DATABASE_URL) {
-    configuracionPool.connectionString = process.env.DATABASE_URL;
+if (databaseUrlValida) {
+    configuracionPool.connectionString = databaseUrlValida;
 }
 
 if (usaSsl) {
@@ -77,8 +103,8 @@ if (usaSsl) {
 
 const pool = new Pool(configuracionPool);
 
-const configuracionConexion = process.env.DATABASE_URL
-    ? { connectionString: process.env.DATABASE_URL }
+const configuracionConexion = databaseUrlValida
+    ? { connectionString: databaseUrlValida }
     : {
         host: process.env.PGHOST || null,
         puerto: process.env.PGPORT ? Number(process.env.PGPORT) : null,
@@ -87,7 +113,8 @@ const configuracionConexion = process.env.DATABASE_URL
     };
 
 const resumenConfiguracionConexion = {
-    estrategia: process.env.DATABASE_URL ? 'DATABASE_URL' : 'variables PG*',
+    estrategia: databaseUrlValida ? 'DATABASE_URL' : 'variables PG*',
+    databaseUrlValida: Boolean(databaseUrlValida),
     usaSsl,
     entorno: process.env.NODE_ENV || 'development',
     host: process.env.PGHOST || null,

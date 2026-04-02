@@ -22,6 +22,12 @@ const firebaseAuth = require('../config/firebase-admin');
  * @param {import('express').NextFunction} next
  */
 async function verificarAuth(req, res, next) {
+    // El preflight CORS (OPTIONS) no lleva token. Si lo bloqueo acá,
+    // el navegador ni siquiera llega a enviar el request real.
+    if (req.method === 'OPTIONS') {
+        return next();
+    }
+
     // Extraemos el token del header Authorization: "Bearer <token>"
     const authHeader = req.headers['authorization'];
 

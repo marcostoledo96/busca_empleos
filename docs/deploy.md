@@ -168,6 +168,8 @@ En el servicio del backend → pestaña **Variables** → agregar con **New Vari
 | `NODE_ENV` | `production` |
 | `PUERTO` | `3000` |
 | `PGSSLMODE` | `require` |
+| `POSTGRES_MAX_INTENTOS_CONEXION` | `10` |
+| `POSTGRES_ESPERA_REINTENTO_MS` | `3000` |
 | `EMAIL_AUTORIZADO` | Tu email de Firebase |
 | `CORS_ORIGEN` | `https://REEMPLAZAR-CON-URL-VERCEL.vercel.app` (actualizar en paso 8) |
 | `APIFY_TOKEN` | `apify_api_...` |
@@ -177,8 +179,18 @@ En el servicio del backend → pestaña **Variables** → agregar con **New Vari
 > **`DATABASE_URL` no la agregues manualmente** — Railway la inyecta automáticamente
 > desde el servicio PostgreSQL del mismo proyecto (ver paso 3.2).
 
+> **Ojo:** `DATABASE_URL` no es solo el host. Tiene que ser una URL completa del estilo
+> `postgresql://usuario:password@host:5432/base_de_datos`. Si ponés algo como
+> `postgres-production-261f.up.railway.app`, el backend la considera inválida y hace fallback
+> a las variables `PG*`.
+
 > **`PGSSLMODE=require` es una red de seguridad**: si Railway no expone bien `NODE_ENV`
 > o si en algún redeploy cambia el entorno, el backend igual va a forzar SSL para PostgreSQL.
+
+> **Usá referencia de Railway para `DATABASE_URL` siempre que puedas.**
+> Copiar `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` y `PGDATABASE` a mano funciona,
+> pero te deja más expuesto a drift entre servicios. Si el backend tiene `DATABASE_URL`,
+> esa estrategia pasa a ser la fuente de verdad.
 
 ### 6.2 Configurar el root directory y los comandos
 
@@ -320,6 +332,8 @@ Firebase Authentication rechaza logins desde dominios no autorizados.
 | `DATABASE_URL` | *(inyectada automáticamente por Railway)* | URL de la BD PostgreSQL del mismo proyecto |
 | `NODE_ENV` | `production` | Marca el backend como entorno productivo |
 | `PGSSLMODE` | `require` | Fuerza SSL aunque `NODE_ENV` no llegue correctamente |
+| `POSTGRES_MAX_INTENTOS_CONEXION` | `10` | Reintentos de conexión al arrancar el backend |
+| `POSTGRES_ESPERA_REINTENTO_MS` | `3000` | Espera entre reintentos al arrancar |
 | `PUERTO` | `3000` | Puerto del servidor Express |
 | `EMAIL_AUTORIZADO` | `marcos@gmail.com` | Solo este email puede usar la app |
 | `CORS_ORIGEN` | `https://app.vercel.app` | URL del frontend en Vercel |
@@ -354,6 +368,8 @@ Los logs se ven en: Railway → tu proyecto → servicio backend → pestaña **
    1. que el servicio PostgreSQL esté realmente levantado;
    2. que `DATABASE_URL` esté referenciada en el backend;
    3. que el backend tenga `PGSSLMODE=require` o, como mínimo, `NODE_ENV=production`.
+- `getaddrinfo ENOTFOUND base` → `DATABASE_URL` suele estar mal formada. En Railway no pegues un host a mano: agregá una **Reference** a `DATABASE_URL` del servicio PostgreSQL, o eliminá la variable inválida para que el backend use `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` y `PGDATABASE`.
+- Si PostgreSQL tarda unos segundos en recuperarse después del deploy, el backend ahora reintenta la conexión varias veces antes de abortar. Si aun así cae, el problema ya no es timing sino configuración real de acceso.
 - `"PGDATA variable does not start with the expected volume mount path"` en el servicio PostgreSQL → el problema está en la configuración de Railway del servicio de base, no en el código del backend. Corregir `PGDATA` como en el paso 3.2.1 y redesplegar PostgreSQL primero.
 - `"FIREBASE_SERVICE_ACCOUNT_JSON tiene un formato JSON inválido"` → el JSON pegado en la variable de entorno tiene escapes incorrectos. Copiar el contenido del archivo `.json` directamente, sin modificarlo.
 - `"El servidor no puede arrancar sin la configuración de Firebase Admin"` → falta `FIREBASE_SERVICE_ACCOUNT_JSON` en las variables de entorno del backend.
@@ -371,6 +387,7 @@ El script `generar-env.js` no pudo crear el archivo porque falta una variable de
 **Síntoma:** en la consola del navegador aparece `Access-Control-Allow-Origin`.
 
 - Verificar que `CORS_ORIGEN` en Railway tiene exactamente la URL de Vercel (sin barra al final, con `https://`).
+- El backend deja pasar el preflight `OPTIONS` sin token, pero el origin igual tiene que estar autorizado.
 - Después de cambiar la variable, esperar que Railway termine de reiniciar el servicio.
 
 ### El login no funciona (Firebase error)
