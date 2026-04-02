@@ -70,6 +70,31 @@ están en el mismo proyecto. Para asegurarse:
 > Railway detecta los servicios del mismo proyecto y comparte las variables entre ellos.
 > El backend ya lee `DATABASE_URL` automáticamente (ver `backend/src/config/base-datos.js`).
 
+### 3.2.1 Revisar `PGDATA` antes del primer deploy
+
+Si en los logs del servicio PostgreSQL aparece este error:
+
+```text
+PGDATA variable does not start with the expected volume mount path, expected to start with /var/lib/postgresql/data
+```
+
+el problema no está en Node.js: el contenedor de PostgreSQL no puede arrancar porque
+`PGDATA` quedó apuntando fuera del volumen que Railway monta para persistencia.
+
+Para corregirlo:
+
+1. Entrar al servicio **PostgreSQL** → pestaña **Variables**.
+2. Buscar `PGDATA`.
+3. Si tiene un valor personalizado, hacer una de estas dos cosas:
+    - borrar la variable para que Railway use el valor por defecto, o
+    - setearla a una ruta válida que empiece con `/var/lib/postgresql/data`, por ejemplo:
+       ```text
+       /var/lib/postgresql/data/pgdata
+       ```
+4. Guardar y redesplegar el servicio PostgreSQL.
+
+Hasta que PostgreSQL no arranque bien, el backend siempre va a fallar al conectar.
+
 ### 3.3 Obtener la DATABASE_URL (para las migraciones)
 
 1. En el proyecto de Railway → hacer clic en el servicio **PostgreSQL**
@@ -142,6 +167,7 @@ En el servicio del backend → pestaña **Variables** → agregar con **New Vari
 |----------|-------|
 | `NODE_ENV` | `production` |
 | `PUERTO` | `3000` |
+| `PGSSLMODE` | `require` |
 | `EMAIL_AUTORIZADO` | Tu email de Firebase |
 | `CORS_ORIGEN` | `https://REEMPLAZAR-CON-URL-VERCEL.vercel.app` (actualizar en paso 8) |
 | `APIFY_TOKEN` | `apify_api_...` |
@@ -150,6 +176,9 @@ En el servicio del backend → pestaña **Variables** → agregar con **New Vari
 
 > **`DATABASE_URL` no la agregues manualmente** — Railway la inyecta automáticamente
 > desde el servicio PostgreSQL del mismo proyecto (ver paso 3.2).
+
+> **`PGSSLMODE=require` es una red de seguridad**: si Railway no expone bien `NODE_ENV`
+> o si en algún redeploy cambia el entorno, el backend igual va a forzar SSL para PostgreSQL.
 
 ### 6.2 Configurar el root directory y los comandos
 
@@ -289,7 +318,8 @@ Firebase Authentication rechaza logins desde dominios no autorizados.
 | Variable | Ejemplo | Descripción |
 |----------|---------|-------------|
 | `DATABASE_URL` | *(inyectada automáticamente por Railway)* | URL de la BD PostgreSQL del mismo proyecto |
-| `NODE_ENV` | `production` | Activa SSL en la conexión a PostgreSQL |
+| `NODE_ENV` | `production` | Marca el backend como entorno productivo |
+| `PGSSLMODE` | `require` | Fuerza SSL aunque `NODE_ENV` no llegue correctamente |
 | `PUERTO` | `3000` | Puerto del servidor Express |
 | `EMAIL_AUTORIZADO` | `marcos@gmail.com` | Solo este email puede usar la app |
 | `CORS_ORIGEN` | `https://app.vercel.app` | URL del frontend en Vercel |
@@ -320,7 +350,11 @@ Estas variables las lee `frontend/scripts/generar-env.js` durante el build.
 
 Los logs se ven en: Railway → tu proyecto → servicio backend → pestaña **Deployments** → clic en el deployment activo.
 
-- `"No se pudo conectar a PostgreSQL"` → `DATABASE_URL` no está inyectada. Verificar que el servicio PostgreSQL está en el mismo proyecto y que la variable está referenciada en el backend (paso 3.2).
+- `"No pude iniciar el backend porque falló la conexión a PostgreSQL"` → revisar en este orden:
+   1. que el servicio PostgreSQL esté realmente levantado;
+   2. que `DATABASE_URL` esté referenciada en el backend;
+   3. que el backend tenga `PGSSLMODE=require` o, como mínimo, `NODE_ENV=production`.
+- `"PGDATA variable does not start with the expected volume mount path"` en el servicio PostgreSQL → el problema está en la configuración de Railway del servicio de base, no en el código del backend. Corregir `PGDATA` como en el paso 3.2.1 y redesplegar PostgreSQL primero.
 - `"FIREBASE_SERVICE_ACCOUNT_JSON tiene un formato JSON inválido"` → el JSON pegado en la variable de entorno tiene escapes incorrectos. Copiar el contenido del archivo `.json` directamente, sin modificarlo.
 - `"El servidor no puede arrancar sin la configuración de Firebase Admin"` → falta `FIREBASE_SERVICE_ACCOUNT_JSON` en las variables de entorno del backend.
 

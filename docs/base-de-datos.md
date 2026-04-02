@@ -7,6 +7,7 @@
 - **Archivo de configuración:** `backend/src/config/base-datos.js`.
 - **Pool de conexiones:** Se usa `Pool` de `pg` que mantiene varias conexiones abiertas y las reutiliza. Cada `pool.query()` toma una conexión libre, ejecuta y la devuelve.
 - **Credenciales:** Se cargan desde `.env` con las variables `PG*` (PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE). El driver `pg` las lee automáticamente.
+- **SSL en entornos remotos:** Si existe `DATABASE_URL`, si `PGSSLMODE=require` o si `PGHOST` apunta a un host no local, el backend fuerza SSL con `rejectUnauthorized: false` para ser compatible con Railway y otros PaaS.
 
 ### Eventos del pool
 

@@ -30,6 +30,13 @@ async function iniciarServidor() {
         });
     } catch (error) {
         console.error('No pude iniciar el backend porque falló la conexión a PostgreSQL.');
+        console.error('Configuración detectada:', {
+            entorno: process.env.NODE_ENV || 'development',
+            usaDatabaseUrl: Boolean(process.env.DATABASE_URL),
+            host: process.env.PGHOST || null,
+            puerto: process.env.PGPORT || null,
+            modoSsl: process.env.PGSSLMODE || null,
+        });
         console.error(error.message);
         process.exit(1);
     }

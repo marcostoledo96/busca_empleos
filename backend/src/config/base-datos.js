@@ -7,7 +7,8 @@
 //
 // En producción (Railway) se usa DATABASE_URL que el PaaS inyecta automáticamente.
 // En desarrollo se usan las variables PG* del .env (PGHOST, PGPORT, etc.).
-// Railway exige SSL en todas las conexiones — se activa cuando NODE_ENV=production.
+// Si el host es remoto o el PaaS expone DATABASE_URL, activo SSL aunque NODE_ENV
+// no esté seteada. Eso evita que el backend se caiga por una configuración incompleta.
 
 const { Pool } = require('pg');
 const path = require('path');
@@ -24,12 +25,51 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 // Railway y la mayoría de PaaS PostgreSQL exigen SSL. Sin él, la conexión se rechaza.
 // rejectUnauthorized: false es necesario porque Railway usa certificados internos
 // que no están en la cadena de confianza pública — es el estándar para PaaS.
+function esHostLocal(host) {
+    if (!host) {
+        return true;
+    }
+
+    const hostNormalizado = host.trim().toLowerCase();
+
+    return [
+        'localhost',
+        '127.0.0.1',
+        '::1',
+        'host.docker.internal',
+    ].includes(hostNormalizado);
+}
+
+function deboUsarSsl() {
+    const modoSsl = (process.env.PGSSLMODE || '').trim().toLowerCase();
+
+    if (process.env.DATABASE_URL) {
+        return true;
+    }
+
+    if (modoSsl === 'disable') {
+        return false;
+    }
+
+    if (modoSsl) {
+        return true;
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+        return true;
+    }
+
+    return !esHostLocal(process.env.PGHOST);
+}
+
+const usaSsl = deboUsarSsl();
 const configuracionPool = {};
+
 if (process.env.DATABASE_URL) {
     configuracionPool.connectionString = process.env.DATABASE_URL;
-    configuracionPool.ssl = { rejectUnauthorized: false };
-} else if (process.env.NODE_ENV === 'production') {
-    // Sin DATABASE_URL pero en producción: forzamos SSL sobre las vars PG* individuales.
+}
+
+if (usaSsl) {
     configuracionPool.ssl = { rejectUnauthorized: false };
 }
 // En desarrollo (sin DATABASE_URL y sin NODE_ENV=production), pg lee las variables
@@ -46,10 +86,18 @@ const configuracionConexion = process.env.DATABASE_URL
         usuario: process.env.PGUSER || null,
     };
 
+const resumenConfiguracionConexion = {
+    estrategia: process.env.DATABASE_URL ? 'DATABASE_URL' : 'variables PG*',
+    usaSsl,
+    entorno: process.env.NODE_ENV || 'development',
+    host: process.env.PGHOST || null,
+};
+
 // Evento que se dispara cuando una conexión nueva se abre.
 // Útil para debugging: si veo este log, sé que el pool está funcionando.
 pool.on('connect', () => {
     console.log('Base de datos: nueva conexión establecida con PostgreSQL.');
+    console.log('Base de datos: configuración detectada:', resumenConfiguracionConexion);
 });
 
 // Evento que se dispara si hay un error inesperado en una conexión idle.
@@ -74,6 +122,7 @@ async function obtenerDiagnosticoPersistencia() {
 
     return {
         configuracion: configuracionConexion,
+        resumen: resumenConfiguracionConexion,
         conexion: resultado.rows[0],
     };
 }
