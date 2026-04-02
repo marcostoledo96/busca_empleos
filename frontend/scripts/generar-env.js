@@ -39,6 +39,7 @@ const contenido = `// Archivo generado automáticamente por scripts/generar-env.
 // No editar manualmente. No commitear a git.
 export const environment = {
     produccion: true,
+    nodo: 'VERCEL',
     urlApi: '${process.env.API_URL}',
     firebaseConfig: {
         apiKey: '${process.env.FIREBASE_API_KEY}',
