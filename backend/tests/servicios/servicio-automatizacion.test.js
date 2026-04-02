@@ -40,7 +40,7 @@ describe('Servicio de automatización', () => {
         // Reseteo el estado interno del servicio para que cada test arranque limpio.
         servicioAutomatizacion._resetearEstado();
 
-        // Mocks por defecto: los 4 scrapers retornan vacío.
+        // Mocks por defecto: todos los scrapers retornan vacío.
         // Cada test sobreescribe solo los que necesita con datos específicos.
         servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([]);
@@ -49,6 +49,7 @@ describe('Servicio de automatización', () => {
         servicioScraping.ejecutarScrapingGlassdoor.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingJooble.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingGoogleJobs.mockResolvedValue([]);
         servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
             total: 0, aprobadas: 0, rechazadas: 0, errores: 0,
         });
@@ -102,7 +103,7 @@ describe('Servicio de automatización', () => {
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // Verifico que se llamó al scraping de las 7 plataformas.
+            // Verifico que se llamó al scraping de las 8 plataformas.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
@@ -110,6 +111,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledTimes(1);
 
             // Verifico que se guardaron las 8 ofertas (2+1+1+1+1+1+1).
             expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(8);
@@ -128,6 +130,7 @@ describe('Servicio de automatización', () => {
                     glassdoor: 1,
                     getonbrd: 1,
                     jooble: 1,
+                    google_jobs: 0,
                     totalExtraidas: 8,
                     guardadas: 8,
                 },
@@ -278,12 +281,15 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
                 new Error('Jooble error')
             );
+            servicioScraping.ejecutarScrapingGoogleJobs.mockRejectedValue(
+                new Error('Google Jobs error')
+            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            expect(resultado.errores).toHaveLength(7);
+            expect(resultado.errores).toHaveLength(8);
         });
 
         test('si la evaluación falla, reporta el error pero no crashea', async () => {
@@ -334,6 +340,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledWith(opcionesEsperadas);
         });
 
         test('usa defaults si las preferencias no tienen términos de búsqueda', async () => {
@@ -348,6 +355,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({});
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledWith({});
         });
 
         test('si obtenerPreferencias falla, continúa con defaults sin crashear', async () => {
@@ -364,12 +372,12 @@ describe('Servicio de automatización', () => {
     });
 
     describe('programarCron()', () => {
-        test('programa un cron job con la expresión por defecto (cada 72 horas)', () => {
+        test('programa un cron job con la expresión por defecto (todos los miércoles a las 8:00 AM)', () => {
             servicioAutomatizacion.programarCron();
 
             expect(cron.schedule).toHaveBeenCalledTimes(1);
             const expresionCron = cron.schedule.mock.calls[0][0];
-            expect(expresionCron).toBe('0 0 */3 * *');
+            expect(expresionCron).toBe('0 8 * * 3');
         });
 
         test('acepta una expresión cron personalizada', () => {
@@ -427,7 +435,7 @@ describe('Servicio de automatización', () => {
             const estado = servicioAutomatizacion.obtenerEstado();
 
             expect(estado.activo).toBe(true);
-            expect(estado.expresionCron).toBe('0 0 */3 * *');
+            expect(estado.expresionCron).toBe('0 8 * * 3');
         });
     });
 });

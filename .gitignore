@@ -6,8 +6,15 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Variables de entorno (contiene credenciales)
+# Variables de entorno (contienen credenciales)
 **/.env
+
+# Archivos de entorno del frontend (contienen Firebase API Key)
+# Los valores reales nunca deben quedar en el historial de git.
+# Para desarrollo local: copiar el .example correspondiente y completar los valores.
+# Para Vercel: el script scripts/generar-env.js genera environment.prod.ts desde las variables de Vercel.
+frontend/src/environments/environment.ts
+frontend/src/environments/environment.prod.ts
 
 # CV y datos personales
 docs/cv.md
