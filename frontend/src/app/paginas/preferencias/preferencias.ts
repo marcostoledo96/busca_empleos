@@ -51,8 +51,10 @@ export class Preferencias implements OnInit {
     usarPromptPersonalizado = false;
     modeloIa: PreferenciasModel['modelo_ia'] = 'deepseek-chat';
 
-    // Sugerencias vacías para el AutoComplete en modo libre.
-    sugerenciasVacias: string[] = [];
+    // Sugerencias para los AutoComplete en modo entrada libre.
+    // filtrarLibre() devuelve el texto escrito como única sugerencia,
+    // así el usuario lo ve en el dropdown y lo confirma con Enter o clic.
+    sugerencias: string[] = [];
 
     // Opciones para los selects.
     opcionesNivel = [
@@ -85,10 +87,12 @@ export class Preferencias implements OnInit {
         this.cargarPreferencias();
     }
 
-    // Buscador vacío: el AutoComplete necesita un handler de búsqueda,
-    // pero como es entrada libre (no hay sugerencias), retorno vacío.
-    buscarVacio(): void {
-        this.sugerenciasVacias = [];
+    // En modo entrada libre, devuelvo el texto escrito como sugerencia
+    // para que el usuario lo confirme con Enter o clic.
+    // Si el campo está vacío, no muestro nada.
+    filtrarLibre(event: { query: string }): void {
+        const texto = event.query.trim();
+        this.sugerencias = texto ? [texto] : [];
     }
 
     cargarPreferencias(): void {

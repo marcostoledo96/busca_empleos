@@ -62,7 +62,7 @@ async function crearPreferenciasPorDefecto() {
             ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'C#', 'SQL', 'Angular', 'React', 'React Native', 'Node.js', 'Express', 'ASP.NET', 'PostgreSQL', 'SQL Server', 'Git', 'API REST', 'Figma'],
             'cualquiera',
             ['CABA', 'GBA Oeste'],
-            ['qa tester', 'soporte tecnico it', 'desarrollador junior c#', 'frontend developer angular', 'full stack node'],
+            ['qa tester', 'soporte tecnico it', 'programador', 'desarrollador junior c#', 'frontend developer angular', 'full stack node'],
             ['Java'],
             'deepseek-chat',
         ]

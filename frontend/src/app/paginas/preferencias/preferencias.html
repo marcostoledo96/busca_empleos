@@ -58,17 +58,17 @@
             <div class="campo">
                 <label class="campo-etiqueta" for="stack">Tecnologías que manejás</label>
                 <p-autocomplete id="stack" [(ngModel)]="stackTecnologico"
-                               [multiple]="true" [suggestions]="sugerenciasVacias"
-                               (completeMethod)="buscarVacio()"
-                               placeholder="Escribí y presioná Enter" />
+                               [multiple]="true" [suggestions]="sugerencias"
+                               (completeMethod)="filtrarLibre($event)"
+                               placeholder="Escribi y presíona Enter" />
                 <small class="campo-ayuda">Agregá cada tecnología y presioná Enter.</small>
             </div>
 
             <div class="campo">
                 <label class="campo-etiqueta" for="exclusiones">Reglas de exclusión</label>
                 <p-autocomplete id="exclusiones" [(ngModel)]="reglasExclusion"
-                               [multiple]="true" [suggestions]="sugerenciasVacias"
-                               (completeMethod)="buscarVacio()"
+                               [multiple]="true" [suggestions]="sugerencias"
+                               (completeMethod)="filtrarLibre($event)"
                                placeholder="Ej: Java, SAP" />
                 <small class="campo-ayuda">Ofertas que requieran estas tecnologías serán rechazadas automáticamente.</small>
             </div>
@@ -103,8 +103,8 @@
             <div class="campo">
                 <label class="campo-etiqueta" for="terminos">Keywords para los scrapers</label>
                 <p-autocomplete id="terminos" [(ngModel)]="terminosBusqueda"
-                               [multiple]="true" [suggestions]="sugerenciasVacias"
-                               (completeMethod)="buscarVacio()"
+                               [multiple]="true" [suggestions]="sugerencias"
+                               (completeMethod)="filtrarLibre($event)"
                                placeholder="Ej: Angular developer, Frontend junior" />
                 <small class="campo-ayuda">Estas palabras se usan para buscar ofertas en LinkedIn, Computrabajo, Indeed y Bumeran.</small>
             </div>

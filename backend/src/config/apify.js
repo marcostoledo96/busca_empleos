@@ -66,6 +66,7 @@ const ACTORES = {
 const TERMINOS_BUSQUEDA_DEFECTO = [
     'qa tester',
     'soporte it',
+    'programador',
     'desarrollador junior c#',
     'frontend developer angular',
     'full stack node',
@@ -116,8 +117,14 @@ function construirUrlsComputrabajo(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     return terminos.map(termino => {
+        // Elimino caracteres especiales (ej: "#" de "c#") que rompen la URL.
+        // El "#" es un fragment identifier en HTTP: el servidor recibe la URL
+        // cortada antes del "#", lo que genera una búsqueda inválida y Computrabajo
+        // devuelve resultados genéricos (no IT). Solo dejo letras, números,
+        // espacios y caracteres del español.
+        const terminoLimpio = termino.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/g, '').trim();
         // Computrabajo usa guiones en vez de espacios en la URL.
-        const terminoFormateado = termino.toLowerCase().replace(/\s+/g, '-');
+        const terminoFormateado = terminoLimpio.replace(/\s+/g, '-');
         return `https://www.computrabajo.com.ar/trabajo-de-${terminoFormateado}`;
     });
 }
