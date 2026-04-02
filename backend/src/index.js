@@ -7,7 +7,9 @@
 const app = require('./app');
 const baseDatos = require('./config/base-datos');
 
-const PUERTO = process.env.PUERTO || 3000;
+// Railway (y la mayoría de PaaS) inyectan PORT automáticamente.
+// Respeto PORT primero, luego PUERTO como fallback para desarrollo local.
+const PUERTO = process.env.PORT || process.env.PUERTO || 3000;
 const MAXIMO_INTENTOS_POSTGRES = Number(process.env.POSTGRES_MAX_INTENTOS_CONEXION || 10);
 const ESPERA_POSTGRES_MS = Number(process.env.POSTGRES_ESPERA_REINTENTO_MS || 3000);
 

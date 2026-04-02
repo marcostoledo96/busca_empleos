@@ -166,7 +166,6 @@ En el servicio del backend → pestaña **Variables** → agregar con **New Vari
 | Variable | Valor |
 |----------|-------|
 | `NODE_ENV` | `production` |
-| `PUERTO` | `3000` |
 | `PGSSLMODE` | `require` |
 | `POSTGRES_MAX_INTENTOS_CONEXION` | `10` |
 | `POSTGRES_ESPERA_REINTENTO_MS` | `3000` |
@@ -178,6 +177,11 @@ En el servicio del backend → pestaña **Variables** → agregar con **New Vari
 
 > **`DATABASE_URL` no la agregues manualmente** — Railway la inyecta automáticamente
 > desde el servicio PostgreSQL del mismo proyecto (ver paso 3.2).
+
+> **No setear `PUERTO` ni `PORT` manualmente.** Railway inyecta `PORT` automáticamente
+> y el backend lo lee como primera opción (ver `index.js`). Si agregás `PUERTO=3000`
+> pero Railway asigna otro valor a `PORT`, el proxy de Railway no puede alcanzar la app
+> y devuelve 502.
 
 > **Ojo:** `DATABASE_URL` no es solo el host. Tiene que ser una URL completa del estilo
 > `postgresql://usuario:password@host:5432/base_de_datos`. Si ponés algo como
