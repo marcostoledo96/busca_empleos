@@ -51,6 +51,10 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/computrabajo` | Ejecutar scraping de Computrabajo | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/glassdoor` | Ejecutar scraping de Glassdoor | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/getonbrd` | Ejecutar scraping de GetOnBrd | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Sí** (5/min) |
 | POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
@@ -75,7 +79,7 @@ Lista todas las ofertas, con filtros opcionales por query params.
 | Param | Tipo | Valores posibles |
 |-------|------|-----------------|
 | `estado` | string | `pendiente`, `aprobada`, `rechazada` |
-| `plataforma` | string | `linkedin`, `computrabajo`, `indeed`, `bumeran` |
+| `plataforma` | string | `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`, `jooble`, `google-jobs` |
 | `estado_postulacion` | string | `no_postulado`, `cv_enviado`, `en_proceso`, `descartada` |
 | `ordenar_por` | string | `fecha_extraccion`, `fecha_publicacion`, `porcentaje_match` |
 | `direccion` | string | `ASC`, `DESC` (default: `DESC`) |

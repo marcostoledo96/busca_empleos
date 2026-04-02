@@ -50,7 +50,10 @@ export class Dashboard implements OnInit {
         { label: 'Computrabajo', value: 'computrabajo' },
         { label: 'Indeed', value: 'indeed' },
         { label: 'Bumeran', value: 'bumeran' },
-            { label: 'Glassdoor', value: 'glassdoor' },
+        { label: 'Glassdoor', value: 'glassdoor' },
+        { label: 'GetOnBrd', value: 'getonbrd' },
+        { label: 'Jooble', value: 'jooble' },
+        { label: 'Google Jobs', value: 'google-jobs' },
     ];
 
     // Computed: aplica el filtro de plataforma al array completo base.

@@ -2,15 +2,15 @@
 
 ## Descripción general
 
-Sistema automatizado de uso personal que extrae ofertas de empleo de LinkedIn y Computrabajo (vía API de Apify), las evalúa con IA (DeepSeek) para determinar si hacen match con mi perfil, y muestra los resultados en un dashboard web.
+Sistema automatizado de uso personal que extrae ofertas de empleo de múltiples plataformas (LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor, GetOnBrd, Jooble y Google Jobs), las evalúa con IA (DeepSeek) para determinar si hacen match con mi perfil, y muestra los resultados en un dashboard web.
 
 ## Diagrama de flujo general
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Apify      │────▶│  Scraping    │────▶│ Normalización│────▶│ PostgreSQL  │
-│ (LinkedIn +  │     │  Service     │     │  Service     │     │   (ofertas) │
-│ Computrabajo)│     └─────────────┘     └─────────────┘     └──────┬──────┘
+│ 8 Plataformas│────▶│  Scraping    │────▶│ Normalización│────▶│ PostgreSQL  │
+│ (Apify + APIs│     │  Service     │     │  Service     │     │   (ofertas) │
+│  libres)     │     └─────────────┘     └─────────────┘     └──────┬──────┘
 └─────────────┘                                                     │
                                                                     ▼
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
@@ -92,7 +92,7 @@ Request HTTP → Rutas → Controlador → Servicio → Modelo → PostgreSQL
 ### Patrón container-presentational (frontend)
 
 - **Container** (`Dashboard`): Orquesta, inyecta servicios, maneja estado con signals.
-- **Presentational** (`TarjetasEstadisticas`, `PanelControl`, `TablaOfertas`, `DetalleOferta`): Reciben datos por `input()`, emiten eventos por `output()`. Sin lógica de negocio.
+- **Presentational** (`PanelControl`, `TablaOfertas`, `DetalleOferta`): Reciben datos por `input()`, emiten eventos por `output()`. Sin lógica de negocio.
 
 ## Middlewares globales (app.js)
 

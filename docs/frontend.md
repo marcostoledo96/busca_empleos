@@ -176,7 +176,7 @@ mostrar búsquedas previas aunque el backend no pueda responder en ese momento.
 
 El frontend sigue el patrón container-presentational:
 - **Container** (`Dashboard`): Inyecta servicios, maneja estado reactivo con signals, pasa datos a los hijos.
-- **Presentational** (`TarjetasEstadisticas`, `PanelControl`, `TablaOfertas`, `DetalleOferta`): Reciben datos por `input()`, emiten eventos por `output()`. Sin lógica de negocio ni inyección de servicios HTTP.
+- **Presentational** (`PanelControl`, `TablaOfertas`, `DetalleOferta`): Reciben datos por `input()`, emiten eventos por `output()`. Sin lógica de negocio ni inyección de servicios HTTP.
 
 Excepción: `PanelControl` inyecta servicios directamente porque tiene interacción compleja (scraping, evaluación, toggle cron).
 
@@ -199,18 +199,6 @@ Archivo: `frontend/src/app/paginas/dashboard/`
 - Si la API falla, conserva o restaura la última carga exitosa y muestra un mensaje visible para evitar el falso "no hay registros".
 - `mostrarDetalle(oferta)`: setea la oferta seleccionada y abre el diálogo.
 - `onAccionCompletada()`: recarga datos cuando el panel de control ejecuta una acción.
-
-### TarjetasEstadisticas (presentational)
-
-Archivo: `frontend/src/app/componentes/tarjetas-estadisticas/`
-
-| Característica | Detalle |
-|---------------|---------|
-| Selector | `app-tarjetas-estadisticas` |
-| Inputs | `estadisticas: Estadisticas | null`, `cargando: boolean` |
-| Outputs | Ninguno |
-
-Muestra los contadores (total, pendientes, aprobadas, rechazadas) en tarjetas visuales.
 
 ### PanelControl (presentational con lógica)
 
@@ -272,8 +260,6 @@ Archivo: `frontend/src/app/componentes/detalle-oferta/`
 ```
 Dashboard (container)
 ├── cargarDatos() → OfertasService → API → signals
-│
-├── TarjetasEstadisticas ← [estadisticas], [cargando]
 │
 ├── PanelControl → (accionCompletada) → Dashboard.cargarDatos()
 │   ├── ScrapingService → API scraping

@@ -319,7 +319,7 @@ Parsea strings de salario como `"$50,000.00/yr - $70,000.00/yr"`:
 - Cada item se normaliza individualmente.
 - Si un item falla (ej: sin URL), se loguea un warning y se salta.
 - **Diseño resiliente:** es mejor tener 99 ofertas que 0 por un item roto.
-- Soporta 6 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`.
+- Soporta 8 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`, `jooble`, `google-jobs`.
 
 ## Guardado en BD (en el controlador)
 
