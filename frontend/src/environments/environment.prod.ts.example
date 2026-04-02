@@ -1,0 +1,19 @@
+// Configuración del entorno de producción.
+// Este archivo es generado automáticamente por scripts/generar-env.js durante el build de Vercel.
+// Para desarrollo local, copiar a environment.prod.ts y completar los valores.
+//
+// IMPORTANTE: environment.prod.ts está en .gitignore — nunca commitear el archivo real.
+// Los valores reales se configuran como variables de entorno en Vercel:
+// Vercel → tu proyecto → Settings → Environment Variables
+export const environment = {
+    produccion: true,
+    urlApi: 'REEMPLAZAR-CON-URL-RAILWAY/api',
+    firebaseConfig: {
+        apiKey: 'REEMPLAZAR-CON-FIREBASE-API-KEY',
+        authDomain: 'REEMPLAZAR-CON-AUTH-DOMAIN',
+        projectId: 'REEMPLAZAR-CON-PROJECT-ID',
+        storageBucket: 'REEMPLAZAR-CON-STORAGE-BUCKET',
+        messagingSenderId: 'REEMPLAZAR-CON-MESSAGING-SENDER-ID',
+        appId: 'REEMPLAZAR-CON-APP-ID'
+    }
+};

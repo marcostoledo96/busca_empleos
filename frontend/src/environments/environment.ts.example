@@ -1,0 +1,18 @@
+// Configuración del entorno de desarrollo.
+// Copiar este archivo a environment.ts y completar los valores reales.
+//
+// IMPORTANTE: environment.ts está en .gitignore — nunca commitear el archivo real.
+// Los valores se obtienen en https://console.firebase.google.com
+// Project Settings → General → "Your apps" → Web app → firebaseConfig
+export const environment = {
+    produccion: false,
+    urlApi: 'http://localhost:3000/api',
+    firebaseConfig: {
+        apiKey: 'REEMPLAZAR-CON-FIREBASE-API-KEY',
+        authDomain: 'REEMPLAZAR-CON-AUTH-DOMAIN',
+        projectId: 'REEMPLAZAR-CON-PROJECT-ID',
+        storageBucket: 'REEMPLAZAR-CON-STORAGE-BUCKET',
+        messagingSenderId: 'REEMPLAZAR-CON-MESSAGING-SENDER-ID',
+        appId: 'REEMPLAZAR-CON-APP-ID'
+    }
+};
