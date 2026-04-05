@@ -35,6 +35,12 @@ const { verificarAuth } = require('./utils/middleware-auth');
 
 const app = express();
 
+// Railway (y cualquier plataforma PaaS) pone un proxy delante del servidor.
+// Sin esto, Express no confía en el header X-Forwarded-For y el rate limiter
+// no puede identificar la IP real del usuario — arroja un ValidationError.
+// El valor 1 indica "confiar en un nivel de proxy".
+app.set('trust proxy', 1);
+
 // === Middlewares globales ===
 
 // helmet() agrega headers de seguridad HTTP automáticamente:
@@ -105,6 +111,7 @@ const limitadorCostoso = esTest
         },
         standardHeaders: true,
         legacyHeaders: false,
+        validate: { xForwardedForHeader: false },
     });
 
 // === Rutas ===

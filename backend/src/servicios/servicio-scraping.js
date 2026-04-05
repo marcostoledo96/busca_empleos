@@ -603,7 +603,7 @@ async function ejecutarScrapingGoogleJobs(opciones = {}) {
             const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
                 query: termino,
                 location: 'Argentina',
-                country: 'ar',
+                country: 'None',
                 language: 'es',
                 num_results: maxResultados,
             });
