@@ -64,6 +64,26 @@
                     AUTHENTICATE_WITH_GOOGLE
                 }
             </button>
+
+            <!-- Separador visual -->
+            <div class="login-separador" aria-hidden="true">
+                <span class="login-separador-linea"></span>
+                <span class="login-separador-texto">o</span>
+                <span class="login-separador-linea"></span>
+            </div>
+
+            <!-- Botón de acceso como invitado (modo demo) -->
+            <button
+                class="login-btn-invitado"
+                [disabled]="cargando()"
+                (click)="entrarComoInvitado()">
+                <span class="login-demo-badge">DEMO</span>
+                <span class="material-symbols-outlined login-btn-invitado-icono">visibility</span>
+                VER_SISTEMA
+            </button>
+            <p class="login-nota-demo">
+                Modo demo — Datos de ejemplo. No se accede a información real del sistema.
+            </p>
         </div>
 
         <!-- Metadata técnica decorativa -->

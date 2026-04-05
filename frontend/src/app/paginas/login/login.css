@@ -232,8 +232,95 @@
 }
 
 /* ------------------------------------------------------------------
-   METADATA DECORATIVA
+   SEPARADOR "o"
    ------------------------------------------------------------------ */
+.login-separador {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.login-separador-linea {
+    flex: 1;
+    height: 1px;
+    background-color: var(--outline-variant);
+    opacity: 0.4;
+}
+
+.login-separador-texto {
+    font-family: var(--font-mono);
+    font-size: 0.5625rem;
+    letter-spacing: 0.2em;
+    color: var(--outline);
+    text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------
+   BOTÓN INVITADO (modo demo)
+   ------------------------------------------------------------------ */
+.login-btn-invitado {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 1rem 1.5rem;
+    background-color: transparent;
+    color: var(--color-primario);
+    border: 2px solid var(--color-primario);
+    cursor: pointer;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
+    border-radius: var(--radius-sm);
+}
+
+.login-btn-invitado:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--color-primario) 10%, transparent);
+    border-color: var(--color-primario);
+    color: var(--color-primario);
+}
+
+.login-btn-invitado:active:not(:disabled) {
+    opacity: 0.7;
+}
+
+.login-btn-invitado:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.login-btn-invitado-icono {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.login-demo-badge {
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    padding: 0.15rem 0.4rem;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+    opacity: 0.85;
+    flex-shrink: 0;
+}
+
+/* Nota de privacidad bajo el botón invitado */
+.login-nota-demo {
+    font-family: var(--font-mono);
+    font-size: 0.5rem;
+    letter-spacing: 0.1em;
+    color: var(--outline);
+    text-align: center;
+    line-height: 1.6;
+}
+
+
 .login-metadata {
     display: flex;
     flex-direction: column;

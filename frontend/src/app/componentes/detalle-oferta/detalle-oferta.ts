@@ -22,6 +22,9 @@ export class DetalleOferta {
     // model() es un signal bidireccional — el padre puede abrirlo/cerrarlo.
     readonly visible = model(false);
 
+    // Cuando es true, el dropdown de postulación queda deshabilitado.
+    readonly modoDemo = input(false);
+
     // Evento que emite cuando se actualiza la postulación.
     readonly postulacionActualizada = output<void>();
 
@@ -59,6 +62,7 @@ export class DetalleOferta {
     cambiarPostulacion(nuevoEstado: string): void {
         const o = this.oferta();
         if (!o) return;
+        if (this.modoDemo()) return;
 
         this.ofertasService.actualizarPostulacion(o.id, nuevoEstado).subscribe({
             next: (respuesta) => {

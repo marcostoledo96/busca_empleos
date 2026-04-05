@@ -31,6 +31,7 @@
 
     <!-- Panel de control (scraping + evaluación) -->
     <app-panel-control
+        [modoDemo]="modoDemo()"
         (accionCompletada)="onAccionCompletada()" />
 
     <!-- Sección de resultados: filtro global + 4 tabs -->
@@ -90,6 +91,7 @@
                 <!-- Panel: Aprobadas -->
                 <p-tabpanel [value]="0">
                     <app-tabla-ofertas
+                        [modoDemo]="modoDemo()"
                         [ofertas]="ofertasAprobadas()"
                         [cargando]="cargando()"
                         [sortField]="'porcentaje_match'"
@@ -102,6 +104,7 @@
                 <!-- Panel: Postuladas -->
                 <p-tabpanel [value]="1">
                     <app-tabla-ofertas
+                        [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPostuladas()"
                         [cargando]="cargando()"
                         [sortField]="'porcentaje_match'"
@@ -114,6 +117,7 @@
                 <!-- Panel: Rechazadas -->
                 <p-tabpanel [value]="2">
                     <app-tabla-ofertas
+                        [modoDemo]="modoDemo()"
                         [ofertas]="ofertasRechazadas()"
                         [cargando]="cargando()"
                         [sortField]="'porcentaje_match'"
@@ -126,6 +130,7 @@
                 <!-- Panel: Pendientes -->
                 <p-tabpanel [value]="3">
                     <app-tabla-ofertas
+                        [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPendientes()"
                         [cargando]="cargando()"
                         [sortField]="'fecha_extraccion'"
@@ -142,5 +147,6 @@
     <app-detalle-oferta
         [oferta]="ofertaSeleccionada()"
         [(visible)]="dialogoVisible"
+        [modoDemo]="modoDemo()"
         (postulacionActualizada)="onAccionCompletada()" />
 </section>

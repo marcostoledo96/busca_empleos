@@ -1,8 +1,9 @@
-import { Component, inject, OnDestroy, OnInit, output, signal } from '@angular/core';
+import { Component, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { ProgressBarModule } from 'primeng/progressbar';
+import { TooltipModule } from 'primeng/tooltip';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
@@ -12,7 +13,7 @@ import { ProgresoAutomatizacion, ProgresoEvaluacion } from '../../modelos/respue
 
 @Component({
     selector: 'app-panel-control',
-    imports: [ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule],
+    imports: [ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule],
     providers: [MessageService],
     templateUrl: './panel-control.html',
     styleUrl: './panel-control.css'
@@ -57,6 +58,9 @@ export class PanelControl implements OnInit, OnDestroy {
 
     // Evento que emite cuando una acción completó para que el padre recargue datos.
     readonly accionCompletada = output<void>();
+
+    // Input que bloquea todas las acciones en modo demo.
+    readonly modoDemo = input(false);
 
     ngOnInit(): void {
         this.consultarEstadoCron();

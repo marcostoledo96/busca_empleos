@@ -3,7 +3,44 @@
    Diseño "The Silent Processor" — refs: diseño_header_footer.md
    ============================================ */
 
-/* === Sidebar === */
+/* === Banner Modo Demo === */
+
+.banner-demo {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.625rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1.5rem;
+    background-color: color-mix(in srgb, var(--primary) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+    border-left: 3px solid var(--primary);
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+    color: var(--on-surface-variant);
+}
+
+.banner-demo strong {
+    color: var(--primary);
+    font-weight: 700;
+    letter-spacing: 0.1em;
+}
+
+.banner-demo__icono {
+    font-size: 1rem;
+    color: var(--primary);
+    flex-shrink: 0;
+    margin-top: 0.1rem;
+}
+
+/* Punto del topbar en modo demo (color diferente al verde de sistema activo) */
+.topbar-meta-punto--demo {
+    background: var(--primary) !important;
+    animation: none !important;
+}
+
+
 
 .sidebar {
     position: fixed;

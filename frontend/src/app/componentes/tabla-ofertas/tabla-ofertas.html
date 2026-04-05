@@ -13,7 +13,7 @@
     </div>
 
     <!-- Barra de acciones masivas: visible solo cuando hay selección -->
-    @if (algunaSeleccionada()) {
+    @if (algunaSeleccionada() && !modoDemo()) {
         <div class="barra-bulk">
             <span class="barra-bulk__conteo">
                 <span class="material-symbols-outlined">check_box</span>
@@ -57,13 +57,15 @@
         <ng-template #header>
             <tr>
                 <th style="width: 40px; padding: 0.5rem 0.75rem;">
-                    <input
-                        type="checkbox"
-                        class="checkbox-tabla"
-                        [checked]="todasSeleccionadas()"
-                        [indeterminate]="algunaSeleccionada() && !todasSeleccionadas()"
-                        (change)="toggleSeleccionarTodas()"
-                        title="Seleccionar todas" />
+                    @if (!modoDemo()) {
+                        <input
+                            type="checkbox"
+                            class="checkbox-tabla"
+                            [checked]="todasSeleccionadas()"
+                            [indeterminate]="algunaSeleccionada() && !todasSeleccionadas()"
+                            (change)="toggleSeleccionarTodas()"
+                            title="Seleccionar todas" />
+                    }
                 </th>
                 <th pSortableColumn="titulo" style="min-width: 250px">
                     TÍTULO <p-sortIcon field="titulo" />
@@ -90,11 +92,13 @@
         <ng-template #body let-oferta>
             <tr [class.fila-seleccionada]="seleccionadas().has(oferta.id)">
                 <td style="padding: 0.5rem 0.75rem;">
-                    <input
-                        type="checkbox"
-                        class="checkbox-tabla"
-                        [checked]="seleccionadas().has(oferta.id)"
-                        (change)="toggleSeleccion(oferta.id)" />
+                    @if (!modoDemo()) {
+                        <input
+                            type="checkbox"
+                            class="checkbox-tabla"
+                            [checked]="seleccionadas().has(oferta.id)"
+                            (change)="toggleSeleccion(oferta.id)" />
+                    }
                 </td>
                 <td>
                     <div class="celda-titulo">

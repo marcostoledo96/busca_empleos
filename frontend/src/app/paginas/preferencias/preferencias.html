@@ -11,6 +11,13 @@
         </p>
     </div>
 
+    @if (modoDemo()) {
+        <div class="preferencias-aviso-demo">
+            <span class="material-symbols-outlined">visibility</span>
+            <span><strong>MODO_DEMO</strong> — Estos son datos de ejemplo. La configuración real no está disponible en modo invitado. Los cambios no se guardan.</span>
+        </div>
+    }
+
     <!-- === Sección 1: Perfil profesional === -->
     <section class="seccion">
         <div class="seccion-cabecera">
@@ -152,7 +159,7 @@
 
     <!-- === Botón guardar === -->
     <div class="acciones">
-        <button class="btn-guardar" [disabled]="guardando()" (click)="guardar()">
+        <button class="btn-guardar" [disabled]="guardando() || modoDemo()" (click)="guardar()">
             @if (guardando()) {
                 <span class="material-symbols-outlined btn-spin">progress_activity</span>
             } @else {
@@ -189,7 +196,7 @@
                 <div class="reset-boton-wrapper">
                     <button
                         class="btn-reset"
-                        [disabled]="!diasReset() || reseteando()"
+                        [disabled]="!diasReset() || reseteando() || modoDemo()"
                         (click)="resetearEvaluaciones()">
                         @if (reseteando()) {
                             <span class="material-symbols-outlined btn-spin">progress_activity</span>

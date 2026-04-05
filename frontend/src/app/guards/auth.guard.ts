@@ -12,8 +12,14 @@ import { CanActivateFn, Router } from '@angular/router';
 import { Auth } from '@angular/fire/auth';
 import { map, take } from 'rxjs';
 import { user } from '@angular/fire/auth';
+import { DemoService } from '../servicios/demo.service';
 
 export const authGuard: CanActivateFn = () => {
+    // En modo demo no se requiere sesión de Firebase: el invitado pasa directamente.
+    if (inject(DemoService).esModoDemo()) {
+        return true;
+    }
+
     const auth = inject(Auth);
     const router = inject(Router);
 

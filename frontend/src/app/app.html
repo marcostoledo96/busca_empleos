@@ -41,8 +41,8 @@
             <div class="topbar-izquierda">
                 <span class="topbar-seccion">{{ nombreSeccion() }}</span>
                 <div class="topbar-meta">
-                    <span class="topbar-meta-punto"></span>
-                    <span>SISTEMA_ACTIVO</span>
+                    <span class="topbar-meta-punto" [class.topbar-meta-punto--demo]="esModoDemo()"></span>
+                    <span>{{ esModoDemo() ? 'MODO_DEMO' : 'SISTEMA_ACTIVO' }}</span>
                     <span class="topbar-meta-sep">|</span>
                     <span>AR-2026</span>
                 </div>
@@ -56,8 +56,10 @@
                 <a routerLink="/preferencias" class="topbar-btn" aria-label="Configuración">
                     <span class="material-symbols-outlined">settings</span>
                 </a>
-                <button class="topbar-btn" (click)="cerrarSesion()" aria-label="Cerrar sesión">
-                    <span class="material-symbols-outlined">logout</span>
+                <button class="topbar-btn" (click)="cerrarSesion()" [attr.aria-label]="esModoDemo() ? 'Salir del modo demo' : 'Cerrar sesión'">
+                    <span class="material-symbols-outlined">
+                        {{ esModoDemo() ? 'exit_to_app' : 'logout' }}
+                    </span>
                 </button>
             </div>
         </div>
@@ -65,6 +67,17 @@
 
     <!-- Contenido principal -->
     <main class="contenido-principal">
+        @if (esModoDemo()) {
+            <!-- Banner de modo demo: siempre visible cuando el reclutador navega como invitado -->
+            <div class="banner-demo" role="status">
+                <span class="material-symbols-outlined banner-demo__icono">info</span>
+                <span>
+                    <strong>MODO_DEMO</strong> &mdash; Estos son datos de ejemplo generados para ilustrar el sistema.
+                    Por razones de privacidad y seguridad, no se muestran ofertas reales ni datos personales.
+                    Las acciones están deshabilitadas.
+                </span>
+            </div>
+        }
         <router-outlet />
     </main>
 

@@ -12,6 +12,7 @@ import {
     type CacheDashboard,
 } from '../../servicios/persistencia-dashboard.service';
 import { Oferta, Estadisticas } from '../../modelos/oferta.model';
+import { DemoService } from '../../servicios/demo.service';
 
 @Component({
     selector: 'app-dashboard',
@@ -30,6 +31,10 @@ export class Dashboard implements OnInit {
 
     private readonly ofertasService = inject(OfertasService);
     private readonly persistenciaDashboard = inject(PersistenciaDashboardService);
+    private readonly demoService = inject(DemoService);
+
+    // Expone el estado del modo demo al template para pasarlo a los hijos.
+    readonly modoDemo = this.demoService.esModoDemo;
 
     // Estado reactivo de la página.
     readonly ofertas = signal<Oferta[]>([]);
@@ -107,6 +112,12 @@ export class Dashboard implements OnInit {
     );
 
     ngOnInit(): void {
+        // En modo demo no hacemos ninguna petición al backend.
+        if (this.demoService.esModoDemo()) {
+            this.ofertas.set(this.demoService.obtenerOfertasDemo());
+            this.estadisticas.set(this.demoService.obtenerEstadisticasDemo());
+            return;
+        }
         this.restaurarUltimaCargaGuardada();
         this.cargarDatos();
     }

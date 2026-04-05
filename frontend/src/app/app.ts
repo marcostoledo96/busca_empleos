@@ -4,6 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
 import { filter, map, startWith } from 'rxjs';
 import { AuthService } from './servicios/auth.service';
+import { DemoService } from './servicios/demo.service';
 import { environment } from '../environments/environment';
 
 const CLAVE_TEMA = 'busca-empleos.tema';
@@ -18,10 +19,13 @@ export class App {
     private readonly router = inject(Router);
     private readonly documento = inject(DOCUMENT);
     readonly authService = inject(AuthService);
+    readonly demoService = inject(DemoService);
 
     readonly entorno = environment;
     readonly sidebarAbierta = signal(false);
     readonly modoOscuro = signal(false);
+    // Expone el estado del modo demo al template.
+    readonly esModoDemo = this.demoService.esModoDemo;
 
     constructor() {
         const temaGuardado = localStorage.getItem(CLAVE_TEMA);
@@ -72,6 +76,11 @@ export class App {
     }
 
     cerrarSesion(): void {
+        // En modo demo, salir del modo en lugar de cerrar sesión de Firebase.
+        if (this.demoService.esModoDemo()) {
+            this.demoService.desactivarDemo();
+            return;
+        }
         this.authService.logout().subscribe();
     }
 }

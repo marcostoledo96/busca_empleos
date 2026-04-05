@@ -1,6 +1,7 @@
 import { Component, inject, signal, DOCUMENT } from '@angular/core';
 import { Auth, GoogleAuthProvider, signInWithPopup } from '@angular/fire/auth';
 import { Router } from '@angular/router';
+import { DemoService } from '../../servicios/demo.service';
 
 @Component({
     selector: 'app-login',
@@ -12,6 +13,7 @@ export class Login {
     private readonly auth = inject(Auth);
     private readonly router = inject(Router);
     private readonly documento = inject(DOCUMENT);
+    private readonly demoService = inject(DemoService);
 
     readonly cargando = signal(false);
     readonly error = signal<string | null>(null);
@@ -53,5 +55,10 @@ export class Login {
         } finally {
             this.cargando.set(false);
         }
+    }
+
+    // Activa el modo demo y navega al dashboard sin autenticación con Firebase.
+    entrarComoInvitado(): void {
+        this.demoService.activarDemo();
     }
 }

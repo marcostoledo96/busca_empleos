@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { PreferenciasService } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { Preferencias as PreferenciasModel, PreferenciasActualizar } from '../../modelos/preferencia.model';
+import { DemoService } from '../../servicios/demo.service';
 
 // PrimeNG
 import { InputText } from 'primeng/inputtext';
@@ -35,6 +36,9 @@ export class Preferencias implements OnInit {
     private readonly servicio = inject(PreferenciasService);
     private readonly evaluacionService = inject(EvaluacionService);
     private readonly mensajes = inject(MessageService);
+    private readonly demoService = inject(DemoService);
+
+    readonly modoDemo = this.demoService.esModoDemo;
 
     // Estado de carga y guardado.
     cargando = signal(true);
@@ -91,6 +95,10 @@ export class Preferencias implements OnInit {
     ];
 
     ngOnInit(): void {
+        if (this.demoService.esModoDemo()) {
+            this.cargarPreferenciasMockup();
+            return;
+        }
         this.cargarPreferencias();
     }
 
@@ -100,6 +108,24 @@ export class Preferencias implements OnInit {
     filtrarLibre(event: { query: string }): void {
         const texto = event.query.trim();
         this.sugerencias = texto ? [texto] : [];
+    }
+
+    // Carga un perfil de ejemplo para el modo demo.
+    // Los datos son ficticios y representan un perfil típico de dev junior argentino.
+    private cargarPreferenciasMockup(): void {
+        this.nombre = 'Dev Jr. Argentina';
+        this.nivelExperiencia = 'junior';
+        this.perfilProfesional = 'Desarrollador junior con experiencia en frontend (Angular, React), backend (Node.js, Express, C#/.NET) y QA testing manual y automatizado. Busco primera experiencia formal o una oportunidad de crecimiento en equipo tech.';
+        this.idiomaCandidato = 'Español nativo, Inglés básico oral / intermedio escrito';
+        this.stackTecnologico = ['TypeScript', 'Angular', 'React', 'Node.js', 'Express', 'C#', 'ASP.NET', 'PostgreSQL', 'SQL Server', 'HTML5', 'CSS3', 'React Native'];
+        this.modalidadAceptada = 'cualquiera';
+        this.zonasPreferidas = ['CABA', 'GBA Oeste', 'GBA Norte'];
+        this.terminosBusqueda = ['Angular developer junior', 'Frontend developer', 'QA Tester Jr', 'Node.js junior', '.NET junior', 'Soporte IT', 'Help Desk Jr'];
+        this.reglasExclusion = ['Java', 'Spring Boot', 'PHP', 'Ruby', 'COBOL', 'Kotlin'];
+        this.promptPersonalizado = '';
+        this.usarPromptPersonalizado = false;
+        this.modeloIa = 'deepseek-chat';
+        this.cargando.set(false);
     }
 
     cargarPreferencias(): void {

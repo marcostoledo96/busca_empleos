@@ -71,39 +71,39 @@
         <div class="panel-grupo">
             <span class="grupo-label">Scraping</span>
             <div class="grupo-acciones">
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin()" (click)="scrapearLinkedin()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin() || modoDemo()" (click)="scrapearLinkedin()" pTooltip="Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos." tooltipPosition="top">
                     <i class="pi pi-linkedin"></i>
                     {{ scrapeandoLinkedin() ? '...' : 'LinkedIn' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo()" (click)="scrapearComputrabajo()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo() || modoDemo()" (click)="scrapearComputrabajo()" pTooltip="Extrae ofertas de Computrabajo con la API de Apify." tooltipPosition="top">
                     <i class="pi pi-globe"></i>
                     {{ scrapeandoComputrabajo() ? '...' : 'Computrabajo' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed()" (click)="scrapearIndeed()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed() || modoDemo()" (click)="scrapearIndeed()" pTooltip="Extrae ofertas de Indeed con la API de Apify." tooltipPosition="top">
                     <i class="pi pi-search"></i>
                     {{ scrapeandoIndeed() ? '...' : 'Indeed' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran()" (click)="scrapearBumeran()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran() || modoDemo()" (click)="scrapearBumeran()" pTooltip="Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web." tooltipPosition="top">
                     <i class="pi pi-briefcase"></i>
                     {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor()" (click)="scrapearGlassdoor()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor() || modoDemo()" (click)="scrapearGlassdoor()" pTooltip="Extrae ofertas de Glassdoor con la API de Apify." tooltipPosition="top">
                     <i class="pi pi-star"></i>
                     {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd()" (click)="scrapearGetonbrd()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd() || modoDemo()" (click)="scrapearGetonbrd()" pTooltip="Extrae ofertas de GetOnBrd usando su API REST p&#xFA;blica oficial (sin Apify)." tooltipPosition="top">
                     <i class="pi pi-globe"></i>
                     {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble()" (click)="scrapearJooble()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble() || modoDemo()" (click)="scrapearJooble()" pTooltip="Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro)." tooltipPosition="top">
                     <i class="pi pi-search"></i>
                     {{ scrapeandoJooble() ? '...' : 'Jooble' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs()" (click)="scrapearGoogleJobs()">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs() || modoDemo()" (click)="scrapearGoogleJobs()" pTooltip="Extrae ofertas de Google Jobs con la API de Apify." tooltipPosition="top">
                     <i class="pi pi-google"></i>
                     {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
                 </button>
-                <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo()" (click)="ejecutarCicloCompleto()">
+                <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo() || modoDemo()" (click)="ejecutarCicloCompleto()" pTooltip="Ciclo completo: extrae de todas las plataformas y evalúa con IA en una sola operación." tooltipPosition="top">
                     <span class="material-symbols-outlined">play_circle</span>
                     {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
                 </button>
@@ -115,7 +115,7 @@
             <div class="panel-grupo">
                 <span class="grupo-label">Evaluación IA</span>
                 <div class="grupo-acciones eval-acciones">
-                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando()" (click)="ejecutarEvaluacion()">
+                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando() || modoDemo()" (click)="ejecutarEvaluacion()" pTooltip="Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado." tooltipPosition="top">
                         {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
                     </button>
                     @if (evaluando()) {
@@ -142,7 +142,10 @@
                 <div class="grupo-acciones grupo-cron">
                     <p-toggleswitch
                         [ngModel]="cronActivo()"
-                        (ngModelChange)="toggleCron($event)" />
+                        (ngModelChange)="toggleCron($event)"
+                        [disabled]="modoDemo()"
+                        pTooltip="Activa un ciclo automático que se ejecuta cada 48 horas sin intervención manual."
+                        tooltipPosition="top" />
                     <span class="cron-texto" [class.cron-activo]="cronActivo()">
                         {{ cronActivo() ? 'Cada 48 hs' : 'Inactivo' }}
                     </span>

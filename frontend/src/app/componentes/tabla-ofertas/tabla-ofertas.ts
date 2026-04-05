@@ -26,6 +26,9 @@ export class TablaOfertas {
     readonly sortField = input('porcentaje_match');
     readonly sortOrder = input(-1);
 
+    // Cuando es true, bloquea checkboxes, dropdowns de postulación y acciones masivas.
+    readonly modoDemo = input(false);
+
     // Evento que emite cuando el usuario hace clic en una oferta.
     readonly ofertaSeleccionada = output<Oferta>();
 
@@ -139,6 +142,7 @@ export class TablaOfertas {
 
     // Cambia el estado de postulación de una oferta vía API.
     cambiarPostulacion(oferta: Oferta, nuevoEstado: string): void {
+        if (this.modoDemo()) return;
         this.ofertasService.actualizarPostulacion(oferta.id, nuevoEstado).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito) {
