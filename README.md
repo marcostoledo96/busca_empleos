@@ -1,35 +1,38 @@
-# Busca Empleos
+# Busca Empleos — AI Job Scraper
 
-Sistema automatizado de búsqueda y evaluación de ofertas de trabajo. Extrae ofertas de múltiples plataformas usando la API de Apify, las evalúa con IA (DeepSeek) y muestra los resultados aprobados en un dashboard web.
+Plataforma full-stack personal para automatizar la búsqueda activa de empleo IT. El sistema extrae periódicamente cientos de ofertas laborales de múltiples portales, las filtra mediante Inteligencia Artificial (DeepSeek) comparándolas con un perfil técnico configurado, y centraliza los resultados en un dashboard interactivo.
 
-## ¿Qué hace?
+## 🚀 Características principales
 
-1. **Scraping** — Extrae ofertas de LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor y GetOnBrd a través de la API de Apify.
-2. **Evaluación con IA** — Envía cada oferta a DeepSeek, que la compara contra un perfil profesional configurado y decide si hace match o no.
-3. **Dashboard** — Interfaz web en Angular para visualizar, filtrar y gestionar las ofertas aprobadas.
+1. **Scraping automatizado** — Extrae ofertas de LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor y GetOnBrd sin riesgo de bloqueo IP, utilizando la API de Apify.
+2. **Evaluación semántica con IA** — Cada oferta es analizada por DeepSeek, que compara los requisitos técnicos y la experiencia solicitada con el perfil del candidato. Descarta falsos positivos (ej. QA de laboratorio vs. QA de software) y roles fuera del sector IT.
+3. **Dashboard de gestión** — Interfaz web en Angular para visualizar, filtrar, buscar y hacer seguimiento a las postulaciones aprobadas.
 
-## Stack
+## 💻 Tech Stack
 
 | Capa | Tecnología |
 |------|-----------|
-| Backend | Node.js + Express 5 |
-| Base de datos | PostgreSQL (queries directas con `pg`) |
-| Scraping | API de Apify (`apify-client`) |
-| Evaluación IA | API de DeepSeek |
-| Autenticación | Firebase Auth (JWT) |
-| Frontend | Angular 20 + PrimeNG |
-| Testing | Jest + Supertest (backend) / Jasmine + Karma (frontend) |
+| **Backend** | Node.js + Express 5 |
+| **Base de datos** | PostgreSQL (driver `pg`, consultas parametrizadas) |
+| **Scraping** | Apify API (`apify-client`) |
+| **Inteligencia Artificial** | DeepSeek API |
+| **Autenticación** | Firebase Auth (JWT) |
+| **Frontend** | Angular 20 + PrimeNG |
+| **Testing** | Jest + Supertest (Backend) / Jasmine + Karma (Frontend) |
 
-## Estructura del proyecto
+## 📁 Estructura del proyecto
 
-```
+```text
 Busca_empleos/
-├── backend/       ← API REST en Node.js + Express
-├── frontend/      ← SPA en Angular
+├── backend/       ← API REST en Node.js + Express (Scraping, IA, Auth, DB)
+│   ├── src/       ← Controladores, Servicios, Modelos y Rutas
+│   ├── sql/       ← Scripts de migración y definición de tablas
+│   └── tests/     ← Suite de pruebas unitarias e integración (Jest)
+├── frontend/      ← SPA en Angular (Dashboard Interactivo)
 └── docs/          ← Documentación técnica del proyecto
 ```
 
-## Requisitos previos
+## ⚙️ Requisitos previos
 
 - Node.js v22+
 - PostgreSQL instalado y corriendo localmente
@@ -37,7 +40,7 @@ Busca_empleos/
 - Cuenta en [DeepSeek](https://platform.deepseek.com/) con API key
 - Proyecto en Firebase (para autenticación)
 
-## Instalación
+## 📦 Instalación
 
 ### 1. Clonar el repositorio
 
@@ -90,7 +93,7 @@ El frontend espera el backend en `http://localhost:3000`. Si usás otro puerto, 
 ng serve          # Inicia en http://localhost:4200
 ```
 
-## Documentación técnica
+## 📚 Documentación técnica
 
 | Documento | Contenido |
 |-----------|-----------|
@@ -101,7 +104,7 @@ ng serve          # Inicia en http://localhost:4200
 | [docs/evaluacion-ia.md](docs/evaluacion-ia.md) | Lógica de evaluación con DeepSeek |
 | [docs/frontend.md](docs/frontend.md) | Componentes y páginas del dashboard |
 
-## Tests
+## 🧪 Tests
 
 ```bash
 # Backend (desde backend/)
@@ -111,9 +114,10 @@ npm test
 npm run test:modelos
 ```
 
-## Autor
+## 👤 Autor
 
-**Marcos Ezequiel Toledo** — Desarrollador de software junior, QA Tester y soporte IT.
+**Marcos Ezequiel Toledo** — Desarrollador de software Junior, QA Tester y Soporte IT.
 
+- 🌐 Portfolio: [marcostoledo.cv](https://www.marcostoledo.cv)
 - GitHub: [github.com/marcostoledo96](https://github.com/marcostoledo96)
 - LinkedIn: [linkedin.com/in/marcos-ezequiel-toledo](https://linkedin.com/in/marcos-ezequiel-toledo)
