@@ -64,7 +64,7 @@
                             [checked]="todasSeleccionadas()"
                             [indeterminate]="algunaSeleccionada() && !todasSeleccionadas()"
                             (change)="toggleSeleccionarTodas()"
-                            title="Seleccionar todas" />
+                            [attr.title]="modoDemo() ? 'Seleccionar todas' : null" />
                     }
                 </th>
                 <th pSortableColumn="titulo" style="min-width: 250px">
@@ -140,7 +140,7 @@
                     {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
                 </td>
                 <td>
-                    <button class="btn-ver" (click)="verDetalle(oferta)" title="Ver detalle">
+                    <button class="btn-ver" (click)="verDetalle(oferta)" [attr.title]="modoDemo() ? 'Ver detalle' : null">
                         <span class="material-symbols-outlined">open_in_new</span>
                     </button>
                 </td>
