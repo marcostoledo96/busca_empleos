@@ -1,5 +1,5 @@
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
-<div class="tabla-contenedor">
+<div class="tabla-contenedor vista-desktop">
     <!-- Encabezado externo a PrimeNG -->
     <div class="tabla-encabezado">
         <span class="tabla-label">OFERTAS_EMPLEO</span>
@@ -158,4 +158,121 @@
             </tr>
         </ng-template>
     </p-table>
+</div>
+
+<!-- ============================================
+     Vista Cards (mobile) — se muestra en ≤768px
+     ============================================ -->
+<div class="cards-contenedor vista-mobile">
+    <!-- Encabezado -->
+    <div class="cards-encabezado">
+        <span class="tabla-label">OFERTAS_EMPLEO</span>
+        <input
+            type="text"
+            class="filtro-busqueda"
+            placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
+            (input)="filtrarCards($event)" />
+    </div>
+
+    <!-- Indicador de cantidad y paginación -->
+    <div class="cards-info">
+        <span class="cards-conteo">
+            {{ ofertasFiltradasCards().length }} oferta{{ ofertasFiltradasCards().length !== 1 ? 's' : '' }}
+        </span>
+        @if (totalPaginasCards() > 1) {
+            <span class="cards-pagina">
+                PÁG {{ paginaActualCards() + 1 }}/{{ totalPaginasCards() }}
+            </span>
+        }
+    </div>
+
+    <!-- Lista de cards -->
+    @if (ofertasPaginadasCards().length > 0) {
+        <div class="cards-lista">
+            @for (oferta of ofertasPaginadasCards(); track oferta.id) {
+                <article class="card-oferta" (click)="verDetalle(oferta)">
+                    <!-- Encabezado de la card: título + match -->
+                    <div class="card-oferta__encabezado">
+                        <div class="card-oferta__titulo-grupo">
+                            <h3 class="card-oferta__titulo">{{ oferta.titulo }}</h3>
+                            @if (oferta.empresa) {
+                                <span class="card-oferta__empresa">{{ oferta.empresa }}</span>
+                            }
+                        </div>
+                        @if (oferta.porcentaje_match !== null) {
+                            <span class="card-oferta__match" [attr.data-nivel]="nivelMatch(oferta.porcentaje_match)">
+                                {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Metadata: ubicación, plataforma, fecha -->
+                    <div class="card-oferta__meta">
+                        @if (oferta.ubicacion) {
+                            <span class="card-oferta__ubicacion">
+                                <span class="material-symbols-outlined">location_on</span>
+                                {{ oferta.ubicacion }}
+                            </span>
+                        }
+                        <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
+                        <span class="card-oferta__fecha">{{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                    </div>
+
+                    <!-- Footer: estado + postulación -->
+                    <div class="card-oferta__footer">
+                        <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
+                            {{ oferta.estado_evaluacion | uppercase }}
+                        </span>
+                        @if (!modoDemo()) {
+                            <p-select
+                                [options]="opcionesPostulacion"
+                                [ngModel]="oferta.estado_postulacion"
+                                (ngModelChange)="cambiarPostulacion(oferta, $event)"
+                                optionLabel="label"
+                                optionValue="value"
+                                [style]="{ minWidth: '130px' }"
+                                size="small"
+                                (click)="$event.stopPropagation()" />
+                        } @else {
+                            <span class="tag-plataforma">{{ textoPostulacion(oferta.estado_postulacion) | uppercase }}</span>
+                        }
+                    </div>
+                </article>
+            }
+        </div>
+    } @else {
+        <div class="cards-vacio">
+            <span class="material-symbols-outlined">inbox</span>
+            <p>NO_HAY_OFERTAS</p>
+            <span>Ejecutá un scraping desde el panel de control.</span>
+        </div>
+    }
+
+    <!-- Paginador de cards -->
+    @if (totalPaginasCards() > 1) {
+        <div class="cards-paginador">
+            <button
+                class="cards-paginador__btn"
+                [disabled]="paginaActualCards() === 0"
+                (click)="irAPaginaCards(paginaActualCards() - 1)">
+                <span class="material-symbols-outlined">chevron_left</span>
+            </button>
+
+            @for (pagina of [].constructor(totalPaginasCards()); track $index) {
+                <button
+                    class="cards-paginador__num"
+                    [class.cards-paginador__num--activa]="$index === paginaActualCards()"
+                    (click)="irAPaginaCards($index)">
+                    {{ $index + 1 }}
+                </button>
+            }
+
+            <button
+                class="cards-paginador__btn"
+                [disabled]="paginaActualCards() === totalPaginasCards() - 1"
+                (click)="irAPaginaCards(paginaActualCards() + 1)">
+                <span class="material-symbols-outlined">chevron_right</span>
+            </button>
+        </div>
+    }
 </div>

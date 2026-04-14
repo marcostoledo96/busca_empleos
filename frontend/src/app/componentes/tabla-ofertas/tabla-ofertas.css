@@ -2,31 +2,26 @@
    Tabla de ofertas — Estilo terminal editorial
    ============================================ */
 
+/* === Toggle desktop ↔ mobile === */
+.vista-mobile {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .vista-desktop {
+        display: none;
+    }
+
+    .vista-mobile {
+        display: block;
+    }
+}
+
 .tabla-contenedor {
     border: 1px solid var(--outline-variant);
     background: var(--surface);
     margin-bottom: var(--espaciado-seccion);
     overflow: hidden;
-}
-
-@media (max-width: 768px) {
-    .tabla-contenedor {
-        overflow-x: auto;
-    }
-
-    .tabla-encabezado {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
-    .tabla-filtros {
-        width: 100%;
-    }
-
-    .filtro-busqueda {
-        width: 100%;
-        max-width: 100%;
-    }
 }
 
 /* === Encabezado propio (fuera del p-table) === */
@@ -354,4 +349,261 @@ tr.fila-seleccionada td {
 
 .btn-bulk-cancelar .material-symbols-outlined {
     font-size: 1rem;
+}
+
+/* ============================================
+   Vista Cards (mobile) — Terminal editorial
+   ============================================ */
+.cards-contenedor {
+    margin-bottom: var(--espaciado-seccion);
+}
+
+/* --- Encabezado cards --- */
+.cards-encabezado {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--outline-variant);
+    border-bottom: none;
+    background: var(--surface-container-low);
+}
+
+.cards-encabezado .filtro-busqueda {
+    width: 100%;
+    max-width: 100%;
+}
+
+/* --- Info de resultados y paginación --- */
+.cards-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--outline-variant);
+    border-bottom: none;
+    background: var(--surface);
+}
+
+.cards-conteo {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    color: var(--on-surface-variant);
+}
+
+.cards-pagina {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--on-surface);
+}
+
+/* --- Lista de cards --- */
+.cards-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* --- Card individual --- */
+.card-oferta {
+    padding: 0.875rem 1rem;
+    border: 1px solid var(--outline-variant);
+    border-bottom: none;
+    background: var(--surface);
+    cursor: pointer;
+    transition: background-color 150ms;
+}
+
+.card-oferta:last-child {
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.card-oferta:active {
+    background: var(--surface-container-low);
+}
+
+/* Encabezado de la card: título + match */
+.card-oferta__encabezado {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-oferta__titulo-grupo {
+    flex: 1;
+    min-width: 0;
+}
+
+.card-oferta__titulo {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--on-surface);
+    line-height: 1.3;
+    margin: 0;
+}
+
+.card-oferta__empresa {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--on-surface-variant);
+    margin-top: 0.15rem;
+}
+
+.card-oferta__match {
+    font-family: var(--font-mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--on-surface);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.card-oferta__match[data-nivel="alto"] { color: var(--color-exito); }
+.card-oferta__match[data-nivel="bajo"]  { color: var(--color-peligro); }
+
+/* Metadata: ubicación, plataforma, fecha */
+.card-oferta__meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-oferta__ubicacion {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.15rem;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--on-surface-variant);
+}
+
+.card-oferta__ubicacion .material-symbols-outlined {
+    font-size: 12px;
+}
+
+.card-oferta__fecha {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--on-surface-variant);
+    letter-spacing: 0.02em;
+}
+
+/* Footer de la card: estado + postulación */
+.card-oferta__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+/* --- Estado vacío de cards --- */
+.cards-vacio {
+    text-align: center;
+    padding: 3rem 1rem;
+    border: 1px solid var(--outline-variant);
+    color: var(--on-surface-variant);
+    background: var(--surface);
+}
+
+.cards-vacio .material-symbols-outlined {
+    font-size: 2.5rem;
+    margin-bottom: 0.75rem;
+    display: block;
+    opacity: 0.4;
+}
+
+.cards-vacio p {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 0.25rem;
+}
+
+.cards-vacio span {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    opacity: 0.6;
+}
+
+/* --- Paginador de cards --- */
+.cards-paginador {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--outline-variant);
+    border-top: none;
+    background: var(--surface);
+}
+
+.cards-paginador__btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2rem;
+    height: 2rem;
+    background: transparent;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-sm);
+    color: var(--on-surface);
+    cursor: pointer;
+    transition: all 150ms;
+}
+
+.cards-paginador__btn:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.cards-paginador__btn:not(:disabled):hover {
+    background: var(--surface-container-low);
+    border-color: var(--on-surface);
+}
+
+.cards-paginador__btn .material-symbols-outlined {
+    font-size: 16px;
+}
+
+.cards-paginador__num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2rem;
+    height: 2rem;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--on-surface);
+    cursor: pointer;
+    transition: all 150ms;
+}
+
+.cards-paginador__num:hover {
+    background: var(--surface-container-low);
+}
+
+.cards-paginador__num--activa {
+    background: var(--primary);
+    color: var(--on-primary);
+    border-color: var(--primary);
+}
+
+.cards-paginador__num--activa:hover {
+    background: var(--primary);
 }

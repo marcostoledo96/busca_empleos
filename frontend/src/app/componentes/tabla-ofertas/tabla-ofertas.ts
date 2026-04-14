@@ -44,6 +44,47 @@ export class TablaOfertas {
     // Estado del dropdown de selección masiva.
     estadoBulkSeleccionado: string | null = null;
 
+    // === Vista cards (mobile) — paginación y filtro propio ===
+    readonly paginaActualCards = signal(0);
+    readonly filasPorPaginaCards = 10;
+    readonly filtroTextoCards = signal('');
+
+    // Ofertas filtradas por el buscador de la vista cards.
+    readonly ofertasFiltradasCards = computed(() => {
+        const texto = this.filtroTextoCards().toLowerCase().trim();
+        if (!texto) return this.ofertas();
+        return this.ofertas().filter(o =>
+            o.titulo?.toLowerCase().includes(texto) ||
+            o.empresa?.toLowerCase().includes(texto) ||
+            o.ubicacion?.toLowerCase().includes(texto)
+        );
+    });
+
+    // Ofertas de la página actual en la vista cards.
+    readonly ofertasPaginadasCards = computed(() => {
+        const inicio = this.paginaActualCards() * this.filasPorPaginaCards;
+        return this.ofertasFiltradasCards().slice(inicio, inicio + this.filasPorPaginaCards);
+    });
+
+    // Total de páginas en la vista cards.
+    readonly totalPaginasCards = computed(() =>
+        Math.ceil(this.ofertasFiltradasCards().length / this.filasPorPaginaCards)
+    );
+
+    // Cambia de página en la vista cards.
+    irAPaginaCards(pagina: number): void {
+        if (pagina >= 0 && pagina < this.totalPaginasCards()) {
+            this.paginaActualCards.set(pagina);
+        }
+    }
+
+    // Actualiza el filtro de texto de la vista cards y resetea la página.
+    filtrarCards(evento: Event): void {
+        const valor = (evento.target as HTMLInputElement).value;
+        this.filtroTextoCards.set(valor);
+        this.paginaActualCards.set(0);
+    }
+
     // Opciones de estado para la acción masiva (mismo set que el individual).
     readonly opcionesAccionMasiva = [
         { label: 'No postulado', value: 'no_postulado' },
