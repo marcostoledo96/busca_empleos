@@ -701,8 +701,9 @@ describe('Servicio de scraping', () => {
 
             const resultado = await ejecutarScrapingJooble({ terminos: ['frontend'] });
 
+            // 1 término × 2 países (Argentina + España) = 2 resultados
             expect(resultado).toBeInstanceOf(Array);
-            expect(resultado.length).toBe(1);
+            expect(resultado.length).toBe(2);
             expect(resultado[0].plataforma).toBe('jooble');
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
             expect(resultado[0].empresa).toBe('TestCorp Argentina');
@@ -720,20 +721,21 @@ describe('Servicio de scraping', () => {
             expect(resultado.length).toBe(0);
         });
 
-        test('continua con el siguiente término si la API devuelve error HTTP', async () => {
+        test('continua con el siguiente país/término si la API devuelve error HTTP', async () => {
             global.fetch
-                .mockResolvedValueOnce({ ok: false, status: 403 }) // primer término falla
+                .mockResolvedValueOnce({ ok: false, status: 403 }) // termino-que-falla/Argentina falla
                 .mockResolvedValue({
                     ok: true,
                     json: jest.fn().mockResolvedValue(respuestaJoobleFalsa),
-                }); // segundo término OK
+                }); // resto OK
 
             const resultado = await ejecutarScrapingJooble({
                 terminos: ['termino-que-falla', 'frontend'],
             });
 
-            // El primer término falló, el segundo dio 1 oferta.
-            expect(resultado.length).toBe(1);
+            // termino-que-falla/Argentina falla (0), termino-que-falla/España OK (1),
+            // frontend/Argentina OK (1), frontend/España OK (1) = 3 ofertas
+            expect(resultado.length).toBe(3);
         });
 
         test('tira error descriptivo si fetch lanza excepción', async () => {

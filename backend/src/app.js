@@ -135,7 +135,21 @@ app.use('/api', verificarAuth);
 // Ej: rutasOfertas tiene GET '/' → se convierte en GET '/api/ofertas/'.
 app.use('/api/ofertas', rutasOfertas);
 
+// Los endpoints de progreso/estado son GETs livianos que el frontend pollea
+// cada 2 segundos. No consumen APIs pagas, así que los monto SIN rate limit.
+// Si los incluyo en el limitador, 5 requests de polling (10 segundos) agotan
+// la cuota y bloquean los endpoints que SÍ importa proteger (ejecutar, resetear).
+app.get('/api/evaluacion/progreso', rutasEvaluacion);
+app.get('/api/automatizacion/progreso', rutasAutomatizacion);
+app.get('/api/automatizacion/estado', rutasAutomatizacion);
+// Cancelar tampoco consume APIs pagas — es solo setear una bandera en memoria.
+// Si está rate-limited, el usuario no puede frenar una evaluación en curso:
+// al quemarse el cupo con el polling, el botón cancelar también cae en 429.
+app.post('/api/evaluacion/cancelar', rutasEvaluacion);
+
 // Scraping, evaluación y automatización consumen APIs pagas → rate limit.
+// Los GETs de polling ya fueron capturados arriba, así que acá solo llegan
+// las operaciones costosas (ejecutar, resetear, cancelar, iniciar, etc.).
 app.use('/api/scraping', limitadorCostoso, rutasScraping);
 app.use('/api/evaluacion', limitadorCostoso, rutasEvaluacion);
 app.use('/api/automatizacion', limitadorCostoso, rutasAutomatizacion);

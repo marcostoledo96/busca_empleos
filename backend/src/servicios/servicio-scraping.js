@@ -460,20 +460,20 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
 /**
  * Ejecuto el scraping de Jooble usando su API REST oficial (gratuita, requiere API key).
  *
- * Jooble es un agregador mundial de ofertas de empleo. Para Argentina
- * devuelve resultados de LinkedIn, Computrabajo, ZonaJobs, Bumeran y otros.
- * Por eso puede traer ofertas que los actores individuales se pierdan.
+ * Jooble es un agregador mundial de ofertas de empleo. La API acepta un único
+ * país por llamada, por lo que itero sobre Argentina y España para cubrir tanto
+ * el mercado local como empresas españolas que contratan remoto desde Latam.
  *
  * La API es POST en vez de GET (a diferencia de GetOnBrd):
  * POST https://jooble.org/api/{API_KEY}
- * Body: { "keywords": "término", "location": "Buenos Aires", "page": N }
+ * Body: { "keywords": "término", "location": "Argentina", "page": N }
  *
  * Respuesta: { totalCount: N, jobs: [{ title, location, snippet, salary,
  *              source, type, link, company, updated }] }
  *
  * La paginación no tiene un campo "total_pages" — se calcula dividiendo
  * `totalCount` / 20 (20 resultados por página, límite de la API gratuita).
- * Limitamos a 5 páginas por término para no agotar la cuota.
+ * Limitamos a 2 páginas por combinación término+país para no inflar las llamadas.
  *
  * @param {Object} opciones - Opciones de ejecución.
  * @param {number} [opciones.maxResultados=50] - Máximo total de ofertas a extraer.
@@ -483,71 +483,79 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
 async function ejecutarScrapingJooble(opciones = {}) {
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    // Máximo de páginas por término para no agotar la cuota gratuita.
-    const MAX_PAGINAS_POR_TERMINO = 5;
+    // La API solo acepta un país por llamada — itero sobre Argentina y España.
+    // Chile, México y Colombia ya están cubiertos por GetOnBrd (portal Latam nativo).
+    const PAISES_JOOBLE = ['Argentina', 'España'];
+    // Dos páginas por combinación término+país: suficiente cobertura sin inflar llamadas.
+    // (7 términos × 2 países × 2 páginas = 28 llamadas máximo)
+    const MAX_PAGINAS_POR_TERMINO = 2;
 
     try {
-        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) con la API oficial...`);
+        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) en ${PAISES_JOOBLE.join(', ')}...`);
         let itemsCrudos = [];
 
         for (const termino of terminos) {
             if (itemsCrudos.length >= maxResultados) break;
 
-            console.log(`Scraping Jooble: buscando "${termino}"...`);
-
-            // Pido la primera página para obtener totalCount y los primeros resultados.
-            const urlApi = `${JOOBLE_API_URL}${JOOBLE_API_KEY}`;
-            const respuestaPrimeraPagina = await fetch(urlApi, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    keywords: termino,
-                    // Jooble no indexa Argentina. Sin location trae trabajos remotos
-                    // globales que el evaluador de DeepSeek filtra por relevancia.
-                    page: 1,
-                }),
-            });
-
-            if (!respuestaPrimeraPagina.ok) {
-                console.warn(`Scraping Jooble: error HTTP ${respuestaPrimeraPagina.status} para "${termino}". Saltando.`);
-                continue;
-            }
-
-            const jsonPrimeraPagina = await respuestaPrimeraPagina.json();
-            const totalCount = jsonPrimeraPagina.totalCount || 0;
-            // La API gratuita devuelve 20 resultados por página.
-            const totalPaginas = Math.min(
-                Math.ceil(totalCount / 20),
-                MAX_PAGINAS_POR_TERMINO
-            );
-
-            // Acumulo los ítems de la primera página.
-            const jobsPrimeraPagina = jsonPrimeraPagina.jobs || [];
-            itemsCrudos = itemsCrudos.concat(jobsPrimeraPagina);
-            console.log(`Scraping Jooble: página 1/${totalPaginas} → ${jobsPrimeraPagina.length} ítem(s) para "${termino}".`);
-
-            // Si hay más páginas y no llegué al máximo, las pido.
-            for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+            for (const pais of PAISES_JOOBLE) {
                 if (itemsCrudos.length >= maxResultados) break;
 
-                const respuestaPagina = await fetch(urlApi, {
+                console.log(`Scraping Jooble: buscando "${termino}" en ${pais}...`);
+
+                // Pido la primera página para obtener totalCount y los primeros resultados.
+                const urlApi = `${JOOBLE_API_URL}${JOOBLE_API_KEY}`;
+                const respuestaPrimeraPagina = await fetch(urlApi, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         keywords: termino,
-                        page: pagina,
+                        location: pais,
+                        page: 1,
                     }),
                 });
 
-                if (!respuestaPagina.ok) {
-                    console.warn(`Scraping Jooble: error HTTP ${respuestaPagina.status} en página ${pagina} para "${termino}". Deteniendo paginación.`);
-                    break;
+                if (!respuestaPrimeraPagina.ok) {
+                    console.warn(`Scraping Jooble: error HTTP ${respuestaPrimeraPagina.status} para "${termino}" en ${pais}. Saltando.`);
+                    continue;
                 }
 
-                const jsonPagina = await respuestaPagina.json();
-                const jobsPagina = jsonPagina.jobs || [];
-                itemsCrudos = itemsCrudos.concat(jobsPagina);
-                console.log(`Scraping Jooble: página ${pagina}/${totalPaginas} → ${jobsPagina.length} ítem(s) para "${termino}".`);
+                const jsonPrimeraPagina = await respuestaPrimeraPagina.json();
+                const totalCount = jsonPrimeraPagina.totalCount || 0;
+                // La API gratuita devuelve 20 resultados por página.
+                const totalPaginas = Math.min(
+                    Math.ceil(totalCount / 20),
+                    MAX_PAGINAS_POR_TERMINO
+                );
+
+                // Acumulo los ítems de la primera página.
+                const jobsPrimeraPagina = jsonPrimeraPagina.jobs || [];
+                itemsCrudos = itemsCrudos.concat(jobsPrimeraPagina);
+                console.log(`Scraping Jooble: página 1/${totalPaginas} → ${jobsPrimeraPagina.length} ítem(s) para "${termino}" (${pais}).`);
+
+                // Si hay más páginas y no llegué al máximo, las pido.
+                for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+                    if (itemsCrudos.length >= maxResultados) break;
+
+                    const respuestaPagina = await fetch(urlApi, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            keywords: termino,
+                            location: pais,
+                            page: pagina,
+                        }),
+                    });
+
+                    if (!respuestaPagina.ok) {
+                        console.warn(`Scraping Jooble: error HTTP ${respuestaPagina.status} en página ${pagina} para "${termino}" en ${pais}. Deteniendo paginación.`);
+                        break;
+                    }
+
+                    const jsonPagina = await respuestaPagina.json();
+                    const jobsPagina = jsonPagina.jobs || [];
+                    itemsCrudos = itemsCrudos.concat(jobsPagina);
+                    console.log(`Scraping Jooble: página ${pagina}/${totalPaginas} → ${jobsPagina.length} ítem(s) para "${termino}" (${pais}).`);
+                }
             }
         }
 

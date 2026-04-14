@@ -219,7 +219,7 @@ function construirInstruccionesDesdePreferencias(prefs) {
     partes.push('');
     partes.push('CRITERIOS DE IDIOMA (REGLA ESTRICTA):');
     partes.push('Nivel real del candidato en inglés: Listening A1 (básico) | Reading A2 (lectura técnica elemental — entiende documentación, código, APIs, mensajes de error, pero NO textos complejos ni artículos largos en inglés).');
-    partes.push('- Si la oferta está escrita íntegramente en inglés, RECHAZAR con match: false y porcentaje ≤15.');
+    partes.push('- REGLA PRINCIPAL: Si la publicación está escrita principalmente en inglés (más del 50% del texto en inglés), RECHAZAR con match: false y porcentaje ≤15. Una oferta escrita en inglés implica que el trabajo se desarrolla en inglés: las reuniones, el equipo, la comunicación diaria y los entregables serán en inglés. El idioma de la publicación ES una señal directa del idioma de trabajo.');
     partes.push('- Si la oferta requiere inglés fluido/avanzado/bilingüe/conversacional/upper-intermediate como condición excluyente, RECHAZAR con match: false y porcentaje ≤15. El candidato NO puede sostener reuniones, calls ni trabajo diario hablado en inglés (nivel A1 oral).');
     partes.push('- Si la oferta requiere inglés intermedio oral (B1+) para comunicarse con equipos o clientes, RECHAZAR. El candidato tiene nivel A1 en listening/speaking.');
     partes.push('- Si la oferta es en español pero menciona inglés como "deseable", "plus", "nice to have" o "es un plus", NO penalizar. No es excluyente.');
