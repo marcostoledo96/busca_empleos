@@ -16,7 +16,7 @@ UPDATE preferencias
 SET
     perfil_profesional = 'QA Tester, Desarrollador Full Stack y Soporte IT. Estudiante en el último cuatrimestre de la Tecnicatura Superior en Desarrollo de Software (IFTS 16, promedio 9.19). Perfil híbrido con experiencia real en HealthTech (AeroTest): documenté +80 bugs críticos, desarrollé app de historias clínicas (Angular 20, Node.js, PostgreSQL) y automaticé flujos con chatbots reduciendo tiempos de atención un 80%. Dirigente Scout +15 años. Busco roles técnicos de Desarrollo, Testing o Soporte IT en Buenos Aires, Argentina.',
 
-    idioma_candidato = 'Español nativo, Inglés lectura técnica intermedia / comunicación oral en desarrollo',
+    idioma_candidato = 'Español nativo. Inglés: Reading A2 (lectura técnica elemental — documentación, código, APIs), Listening/Speaking A1 (básico, no conversacional)',
 
     stack_tecnologico = ARRAY[
         'HTML', 'CSS', 'JavaScript', 'TypeScript', 'C#', 'SQL',

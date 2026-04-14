@@ -85,7 +85,7 @@ function construirPerfilDesdePreferencias(prefs) {
     partes.push('MIS ROLES OBJETIVO (Aceptar ofertas si se trata de alguno de estos perfiles):');
     partes.push('1. QA Tester / Analista QA / Tester Funcional (experiencia en pruebas E2E, reporte de bugs, metodologías ágiles).');
     partes.push('2. Desarrollador Frontend / Full-Stack / Backend (Angular, React, Node.js, Express, PostgreSQL, C#).');
-    partes.push('3. Soporte Técnico IT / Help Desk / Analista de Soporte (Mantenimiento de hardware/software, Google Workspace, tickets).');
+    partes.push('3. Soporte Técnico IT / Help Desk / Analista de Soporte: SOLO aceptar si el foco es soporte de SOFTWARE, aplicaciones, sistemas, Google Workspace, tickets, accesos o herramientas digitales. El candidato tiene poca experiencia en hardware físico (reparación de equipos, redes físicas, cableado, impresoras). Si la oferta pide principalmente soporte de hardware o infraestructura física, asignar porcentaje bajo (≤30) y rechazar si es excluyente.');
 
     if (perfil.trim()) {
         partes.push('');
@@ -98,6 +98,22 @@ function construirPerfilDesdePreferencias(prefs) {
         partes.push('Mi stack tecnológico:');
         partes.push(stack.join(', '));
     }
+
+    partes.push('');
+    partes.push('Herramientas que manejo:');
+    partes.push('Jira, Postman, Git, GitHub Actions (CI/CD), Figma, AnyDesk, Google Workspace (administración), phpMyAdmin, VSCode.');
+
+    partes.push('');
+    partes.push('Metodologías:');
+    partes.push('Scrum, Kanban, metodologías ágiles, MoSCoW. Diagramas UML (casos de uso, clases, secuencia, flujo) con PlantUML.');
+
+    partes.push('');
+    partes.push('Proyectos propios en producción con usuarios reales (equivalen a experiencia práctica):');
+    partes.push('- AeroTest (HealthTech, activo): QA Tester, Desarrollador Full-Stack y Soporte IT en consultorio médico (+80 bugs documentados, app de historias clínicas, chatbot con -80% tiempos de atención).');
+    partes.push('- Scout San Patricio: plataforma web institucional con +170 usuarios activos (Blazor, C#, ASP.NET, SQL Server).');
+    partes.push('- IFTS N°26: sitio web oficial institucional en producción (Angular, CI/CD con GitHub/Netlify).');
+    partes.push('- Busca Empleos AI: sistema automatizado con scraping + IA en producción (Angular 20, Node.js, PostgreSQL, Firebase Auth).');
+    partes.push('- SanpaHolmes: e-commerce con +60 transacciones reales simultáneas (React, Node.js, PostgreSQL).');
 
     partes.push('');
     const modalidadTexto = modalidad === 'cualquiera'
@@ -130,6 +146,7 @@ function construirPerfilDesdePreferencias(prefs) {
     partes.push('- Cuidado con los roles de CALIDAD (Aseguramiento de Calidad / QA): Solo aceptar si son de QA de Software (testing). Rechazar los que sean QA industrial, farmacéutico o de manufactura.');
     partes.push('- Aunque tenga experiencia en salud, busco EXCLUSIVAMENTE roles tecnológicos (Desarrollo, Testing, Soporte IT). Rechazar cualquier rol de atención al paciente o administración pura.');
     partes.push('- Si la oferta pide "sistemas" refiriéndose a data entry o cajero, RECHAZAR. Solo aceptar si es para CONSTRUIR, TESTEAR o DAR SOPORTE a software/hardware.');
+    partes.push('- SOPORTE IT: Si la oferta de Soporte Técnico menciona principalmente reparación de hardware físico, armado de PCs, redes físicas, cableado o mantenimiento de impresoras/periféricos SIN componente de soporte de software, asignar porcentaje ≤30 y rechazar (match: false). Aceptar SOLO si el soporte es de software, aplicaciones, sistemas operativos, herramientas digitales o atención online a usuarios.');
 
     return partes.join('\n');
 }
@@ -177,7 +194,8 @@ function construirInstruccionesDesdePreferencias(prefs) {
         partes.push('- match: false si requiere nivel junior con experiencia comprobable, semi-senior, o senior.');
     } else if (nivel === 'junior') {
         partes.push('- match: true si el nivel pedido es trainee, junior, o no se especifica nivel.');
-        partes.push('- match: false si requiere nivel Senior o más de 3 años de experiencia comprobable.');
+        partes.push('- Si la oferta pide 1 o 2 años de experiencia: ACEPTAR. El candidato tiene múltiples proyectos en producción con usuarios reales que equivalen a experiencia práctica comprobable.');
+        partes.push('- match: false SOLO si requiere explícitamente más de 3 años de experiencia laboral formal, o nivel Semi-Senior/Senior como condición excluyente.');
     } else if (nivel === 'semi-senior') {
         partes.push('- match: true si el nivel pedido es junior, semi-senior, o no se especifica nivel.');
         partes.push('- match: false si requiere nivel Senior o más de 5 años de experiencia comprobable.');
@@ -192,13 +210,22 @@ function construirInstruccionesDesdePreferencias(prefs) {
     }
 
     partes.push('- match: false si requiere tecnologías completamente fuera del stack del candidato como requisito principal.');
+    partes.push('- Las ofertas que pidan .NET, C#, ASP.NET o Blazor son válidas: el candidato tiene experiencia real con esas tecnologías en proyectos en producción. No rechazar por ser "stack Microsoft".');
+    partes.push('- Las ofertas de Desarrollador Mobile con React Native son match parcial válido (porcentaje 60-75): el candidato tiene proyectos en React Native pero sin experiencia laboral específica en mobile.');
+    partes.push('- BONUS HealthTech: Si la empresa opera en el sector salud o medicina y busca un perfil tecnológico (QA, Dev, Soporte IT), sumar hasta +5 al porcentaje: el candidato tiene experiencia real en ese contexto.');
+    partes.push('- Las ofertas que mencionen Jira, Scrum, Agile, CI/CD, Figma o Postman como requisito son favorables: el candidato maneja todas esas herramientas.');
 
     // Criterio de idioma: basado en el nivel declarado del candidato.
     partes.push('');
     partes.push('CRITERIOS DE IDIOMA (REGLA ESTRICTA):');
-    partes.push('- Si la oferta está escrita íntegramente en inglés O requiere inglés fluido/avanzado/bilingüe como requisito excluyente, RECHAZAR automáticamente con match: false y porcentaje igual o menor a 20. Justificar mencionando el idioma como causa del rechazo.');
-    partes.push('- Si la oferta es en español pero menciona inglés como "deseable", "plus" o "nice to have", NO penalizar. No es un requisito excluyente.');
-    partes.push('- Si la oferta es en español y requiere inglés intermedio, evaluar según el nivel declarado del candidato. Si el candidato declara nivel intermedio o superior para ese idioma, aceptar.');
+    partes.push('Nivel real del candidato en inglés: Listening A1 (básico) | Reading A2 (lectura técnica elemental — entiende documentación, código, APIs, mensajes de error, pero NO textos complejos ni artículos largos en inglés).');
+    partes.push('- Si la oferta está escrita íntegramente en inglés, RECHAZAR con match: false y porcentaje ≤15.');
+    partes.push('- Si la oferta requiere inglés fluido/avanzado/bilingüe/conversacional/upper-intermediate como condición excluyente, RECHAZAR con match: false y porcentaje ≤15. El candidato NO puede sostener reuniones, calls ni trabajo diario hablado en inglés (nivel A1 oral).');
+    partes.push('- Si la oferta requiere inglés intermedio oral (B1+) para comunicarse con equipos o clientes, RECHAZAR. El candidato tiene nivel A1 en listening/speaking.');
+    partes.push('- Si la oferta es en español pero menciona inglés como "deseable", "plus", "nice to have" o "es un plus", NO penalizar. No es excluyente.');
+    partes.push('- Si la oferta requiere inglés SOLO para lectura de documentación técnica, código fuente, APIs o mensajes de error, ACEPTAR: el candidato tiene nivel A2 de lectura que cubre ese caso.');
+    partes.push('- Si la oferta dice "inglés básico" o "inglés técnico" sin especificar oral, ACEPTAR con precaución (porcentaje sin penalización).');
+    partes.push('- Ante la duda sobre el nivel de inglés requerido: si la oferta menciona "daily standups in English", "English-speaking team", "communicate in English", RECHAZAR.');
 
     // Criterios de ubicación/zona si hay zonas preferidas.
     if (zonas.length > 0) {
