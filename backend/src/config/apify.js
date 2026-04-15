@@ -159,6 +159,14 @@ function construirUrlsBumeran(opciones = {}) {
 // No requiere autenticación ni actor de Apify — usamos fetch() nativo de Node 22.
 const GETONBRD_API_BASE = 'https://www.getonbrd.com/api/v0';
 
+// URL base de la API pública y gratuita de Remotive (sin auth).
+// Documentación: https://remotive.com/api/remote-jobs
+const REMOTIVE_API_BASE = 'https://remotive.com/api';
+
+// URL base de la API pública y gratuita de RemoteOK (sin auth).
+// Documentación: https://remoteok.com/api
+const REMOTEOK_API_BASE = 'https://remoteok.com/api';
+
 // URL base de la API oficial de Jooble (gratuita, requiere API key de registro).
 // Documentación: https://jooble.org/api/about
 // Uso: POST https://jooble.org/api/{API_KEY} con body { keywords, location, page }.
@@ -194,6 +202,8 @@ module.exports = {
     ACTORES,
     TERMINOS_BUSQUEDA_DEFECTO,
     GETONBRD_API_BASE,
+    REMOTIVE_API_BASE,
+    REMOTEOK_API_BASE,
     JOOBLE_API_URL,
     JOOBLE_API_KEY,
     construirUrlsLinkedin,

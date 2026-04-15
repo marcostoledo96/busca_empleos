@@ -49,4 +49,14 @@ export class ScrapingService {
     scrapearGoogleJobs(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/google-jobs`, {});
     }
+
+    // Ejecuta el scraping de Remotive usando su API pública gratuita y guarda en BD.
+    scrapearRemotive(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/remotive`, {});
+    }
+
+    // Ejecuta el scraping de RemoteOK usando su API pública gratuita y guarda en BD.
+    scrapearRemoteOK(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/remoteok`, {});
+    }
 }

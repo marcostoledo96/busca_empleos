@@ -19,6 +19,8 @@ const {
     ACTORES,
     TERMINOS_BUSQUEDA_DEFECTO,
     GETONBRD_API_BASE,
+    REMOTIVE_API_BASE,
+    REMOTEOK_API_BASE,
     JOOBLE_API_URL,
     JOOBLE_API_KEY,
     construirUrlsLinkedin,
@@ -28,6 +30,15 @@ const {
 } = require('../config/apify');
 
 const { normalizarLote } = require('./servicio-normalizacion');
+const cheerio = require('cheerio');
+
+// Headers comunes para las requests de scraping directo (sin Apify).
+// Simulan un navegador real para evitar bloqueos por User-Agent genérico.
+const HEADERS_SCRAPING = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+    'Accept-Language': 'es-AR,es;q=0.9',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+};
 
 /**
  * Ejecuto el scraping de LinkedIn Jobs.
@@ -93,10 +104,18 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
 }
 
 /**
- * Ejecuto el scraping de Computrabajo Argentina.
+ * Ejecuto el scraping de Computrabajo Argentina usando fetch() + cheerio.
  *
- * Similar a LinkedIn pero con el actor de Computrabajo.
- * Este actor es GRATIS, así que no hay costo por ejecución.
+ * A diferencia del resto de los scrapers basados en Apify, este usa scraping
+ * directo porque Computrabajo sirve sus listados como HTML server-side (SSR).
+ * No necesita JavaScript para renderizar — los datos están en el HTML crudo.
+ *
+ * Flujo:
+ * 1. Para cada término, busco en ar.computrabajo.com/empleos-de-{termino} y
+ *    extraigo los cards de oferta del listado (título, empresa, ubicación, URL).
+ * 2. Para cada oferta del listado, hago un fetch de la página de detalle para
+ *    obtener la descripción completa y la modalidad de trabajo.
+ *    Las requests de detalle van en lotes de 5 con 300ms de pausa entre lotes.
  *
  * @param {Object} opciones - Opciones de ejecución.
  * @param {number} [opciones.maxResultados=50] - Máximo de ofertas a extraer.
@@ -105,32 +124,115 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
  */
 async function ejecutarScrapingComputrabajo(opciones = {}) {
     const maxResultados = opciones.maxResultados || 50;
+    // Lotes de 5 requests simultáneas al obtener detalles, con pausa entre lotes.
+    const CONCURRENCIA_DETALLE = 5;
+    const PAUSA_ENTRE_LOTES_MS = 300;
 
     try {
-        console.log('Scraping Computrabajo: construyendo URLs de búsqueda...');
-        const urls = construirUrlsComputrabajo({
-            terminos: opciones.terminos,
-        });
+        const urls = construirUrlsComputrabajo({ terminos: opciones.terminos });
         console.log(`Scraping Computrabajo: ${urls.length} URL(s) de búsqueda generadas.`);
 
-        // El actor de Computrabajo espera el input en formato startUrls.
-        // Cada URL es un objeto con la propiedad `url`.
-        const startUrls = urls.map(url => ({ url }));
+        // === Paso 1: Extraer cards básicos del listado ===
+        // Cada article.box_offer tiene: título, URL, empresa, ubicación, fecha.
+        const ofertasParciales = [];
 
-        console.log('Scraping Computrabajo: ejecutando actor de Apify...');
-        const ejecucion = await clienteApify.actor(ACTORES.COMPUTRABAJO).call({
-            startUrls,
-            maxItems: maxResultados,
-        });
+        for (const urlBusqueda of urls) {
+            if (ofertasParciales.length >= maxResultados) break;
 
-        console.log('Scraping Computrabajo: obteniendo resultados del dataset...');
-        const { items } = await clienteApify
-            .dataset(ejecucion.defaultDatasetId)
-            .listItems();
+            console.log(`Scraping Computrabajo: extrayendo listado de ${urlBusqueda}...`);
 
-        console.log(`Scraping Computrabajo: ${items.length} ofertas crudas obtenidas.`);
+            const respListado = await fetch(urlBusqueda, { headers: HEADERS_SCRAPING });
 
-        const ofertasNormalizadas = normalizarLote(items, 'computrabajo');
+            if (!respListado.ok) {
+                console.warn(`Scraping Computrabajo: HTTP ${respListado.status} en ${urlBusqueda}. Saltando.`);
+                continue;
+            }
+
+            const htmlListado = await respListado.text();
+            const $listado = cheerio.load(htmlListado);
+
+            $listado('article.box_offer').each((_, el) => {
+                if (ofertasParciales.length >= maxResultados) return false;
+
+                const link = $listado(el).find('h2 a.js-o-link');
+                const href = link.attr('href');
+                const titulo = link.text().trim();
+
+                if (!href || !titulo) return;
+
+                // Elimino el fragment #lc=... que Computrabajo usa para tracking.
+                const urlRelativa = href.split('#')[0];
+                const urlAbsoluta = `https://ar.computrabajo.com${urlRelativa}`;
+
+                // Empresa: primer párrafo con las clases fs16 fc_base mt5.
+                const empresa = $listado(el).find('p.fs16.fc_base.mt5').first().text().trim() || null;
+
+                // Ubicación: span.mr10 dentro del segundo párrafo de ese estilo.
+                const ubicacion = $listado(el).find('p.fs16.fc_base.mt5 span.mr10').text().trim() || null;
+
+                // Fecha en texto plano: "Hace 2 horas", "Hace 6 días", etc.
+                const fechaTexto = $listado(el).find('p.fs13.fc_aux.mt15').text().trim() || null;
+
+                ofertasParciales.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
+            });
+
+            console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas en listado hasta ahora.`);
+        }
+
+        console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas en listado. Obteniendo descripciones...`);
+
+        // === Paso 2: Fetch de cada página de detalle para obtener descripción y modalidad ===
+        // Proceso en lotes para no sobrecargar el servidor con requests simultáneas.
+        const itemsCrudos = [];
+
+        for (let i = 0; i < ofertasParciales.length; i += CONCURRENCIA_DETALLE) {
+            const lote = ofertasParciales.slice(i, i + CONCURRENCIA_DETALLE);
+
+            const resultadosLote = await Promise.all(lote.map(async (oferta) => {
+                try {
+                    const respDetalle = await fetch(oferta.url, { headers: HEADERS_SCRAPING });
+
+                    if (!respDetalle.ok) {
+                        console.warn(`Scraping Computrabajo: HTTP ${respDetalle.status} en detalle. Usando datos del listado.`);
+                        return _construirItemComputrabajo(oferta, null, null);
+                    }
+
+                    const htmlDetalle = await respDetalle.text();
+                    const $det = cheerio.load(htmlDetalle);
+
+                    // Descripción completa: primer párrafo con clase mbB.
+                    const descripcion = $det('p.mbB').first().text().trim() || null;
+
+                    // Modalidad: busco entre los tags de condición el que dice
+                    // "Presencial", "Remoto", "Híbrido" o combinaciones.
+                    let modalidad = null;
+                    $det('div.mbB span.tag.base.mb10').each((_, tag) => {
+                        const texto = $det(tag).text().trim();
+                        if (/presencial|remoto|r.moto|h.brido/i.test(texto)) {
+                            modalidad = texto;
+                            return false; // Tomo solo el primero que matchea.
+                        }
+                    });
+
+                    return _construirItemComputrabajo(oferta, descripcion, modalidad);
+
+                } catch (errDetalle) {
+                    console.warn(`Scraping Computrabajo: error al obtener detalle: ${errDetalle.message}. Usando datos del listado.`);
+                    return _construirItemComputrabajo(oferta, null, null);
+                }
+            }));
+
+            itemsCrudos.push(...resultadosLote);
+
+            // Pausa entre lotes para no martillar el servidor.
+            if (i + CONCURRENCIA_DETALLE < ofertasParciales.length) {
+                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
+            }
+        }
+
+        console.log(`Scraping Computrabajo: ${itemsCrudos.length} ofertas crudas obtenidas.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'computrabajo');
         console.log(`Scraping Computrabajo: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
         return ofertasNormalizadas;
@@ -144,52 +246,64 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 }
 
 /**
+ * Armo el objeto "item crudo" de Computrabajo con los campos que espera
+ * el normalizador. Los nombres de campos respetan el contrato de
+ * normalizarOfertaComputrabajo: url, title, company, location, descriptionText, postedDate.
+ *
+ * @param {Object} ofertaListado - Datos básicos extraídos del listado.
+ * @param {string|null} descripcion - Texto completo del detalle.
+ * @param {string|null} modalidad - "Presencial", "Remoto", "Híbrido", etc.
+ * @returns {Object} Item crudo listo para normalizar.
+ */
+function _construirItemComputrabajo(ofertaListado, descripcion, modalidad) {
+    return {
+        url: ofertaListado.url,
+        title: ofertaListado.titulo,
+        company: ofertaListado.empresa || null,
+        location: ofertaListado.ubicacion || null,
+        descriptionText: descripcion,
+        postedDate: null,           // No hay fecha ISO en el HTML, solo texto relativo.
+        fechaTexto: ofertaListado.fechaTexto || null,
+        modalidadDetalle: modalidad, // Campo nuevo: disponible gracias al scraping directo.
+    };
+}
+
+/**
  * Ejecuto el scraping de Indeed Argentina.
  *
- * A diferencia de LinkedIn y Computrabajo (que reciben URLs de búsqueda),
- * el actor de Indeed recibe keywords directamente. Por eso iteramos sobre
- * los términos de búsqueda y hacemos una llamada al actor por cada uno.
- *
- * El flujo por cada término es:
- * 1. Llamo al actor con el término y "Argentina" como país.
- * 2. Espero a que termine.
- * 3. Obtengo los datos crudos del dataset.
- * 4. Acumulo los resultados de todos los términos.
- * 5. Normalizo todo junto al formato de nuestra tabla.
+ * El actor de Indeed recibe keywords directamente como string.
+ * En vez de hacer un actor.call() por cada término (que genera N runs
+ * separados con costo de compute por cada uno), combinamos todos los
+ * términos en UNA sola query OR y ejecutamos 1 único run.
+ * Ejemplo: "qa tester OR programador OR frontend developer angular"
  *
  * @param {Object} opciones - Opciones de ejecución.
- * @param {number} [opciones.maxResultados=15] - Máximo de ofertas POR TÉRMINO.
+ * @param {number} [opciones.maxResultados=50] - Máximo total de ofertas a extraer.
  * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingIndeed(opciones = {}) {
-    const maxResultadosPorTermino = opciones.maxResultados || 15;
+    const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     try {
-        console.log(`Scraping Indeed: buscando ${terminos.length} término(s)...`);
-        let itemsCrudos = [];
+        // Combino todos los términos en una sola query OR para ejecutar UN solo
+        // run del actor. Antes se hacía un actor.call() por cada término.
+        const queryUnificada = terminos.join(' OR ');
+        console.log(`Scraping Indeed: ejecutando 1 run con query: "${queryUnificada}"...`);
 
-        for (const termino of terminos) {
-            console.log(`Scraping Indeed: buscando "${termino}"...`);
+        // El actor de Indeed recibe keywords y país directamente.
+        const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
+            title: queryUnificada,
+            country: 'ar',
+            limit: maxResultados,
+        });
 
-            // El actor de Indeed recibe keywords y país directamente.
-            // No necesita URLs como LinkedIn o Computrabajo.
-            const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
-                title: termino,
-                country: 'ar',
-                limit: maxResultadosPorTermino,
-            });
+        const { items: itemsCrudos } = await clienteApify
+            .dataset(ejecucion.defaultDatasetId)
+            .listItems();
 
-            const { items } = await clienteApify
-                .dataset(ejecucion.defaultDatasetId)
-                .listItems();
-
-            console.log(`Scraping Indeed: ${items.length} resultados para "${termino}".`);
-            itemsCrudos = itemsCrudos.concat(items);
-        }
-
-        console.log(`Scraping Indeed: ${itemsCrudos.length} ofertas crudas en total.`);
+        console.log(`Scraping Indeed: ${itemsCrudos.length} ofertas crudas obtenidas.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'indeed');
         console.log(`Scraping Indeed: ${ofertasNormalizadas.length} ofertas normalizadas.`);
@@ -197,6 +311,8 @@ async function ejecutarScrapingIndeed(opciones = {}) {
         return ofertasNormalizadas;
 
     } catch (error) {
+        // Envuelvo el error con un mensaje descriptivo para facilitar el debugging.
+        // El error original queda en .cause (para no perder información).
         throw new Error(
             `Error al ejecutar scraping de Indeed: ${error.message}`,
             { cause: error }
@@ -483,21 +599,22 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
 async function ejecutarScrapingJooble(opciones = {}) {
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    // La API solo acepta un país por llamada — itero sobre Argentina y España.
-    // Chile, México y Colombia ya están cubiertos por GetOnBrd (portal Latam nativo).
-    const PAISES_JOOBLE = ['Argentina', 'España'];
+    // La API de Jooble no tiene cobertura para 'Argentina' ni 'España' (devuelve 0
+    // resultados). 'Remote' sí funciona y trae ofertas remotas relevantes.
+    // La evaluación IA después descarta las que no aplican al perfil.
+    const UBICACIONES_JOOBLE = ['Remote'];
     // Dos páginas por combinación término+país: suficiente cobertura sin inflar llamadas.
     // (7 términos × 2 países × 2 páginas = 28 llamadas máximo)
     const MAX_PAGINAS_POR_TERMINO = 2;
 
     try {
-        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) en ${PAISES_JOOBLE.join(', ')}...`);
+        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) en ${UBICACIONES_JOOBLE.join(', ')}...`);
         let itemsCrudos = [];
 
         for (const termino of terminos) {
             if (itemsCrudos.length >= maxResultados) break;
 
-            for (const pais of PAISES_JOOBLE) {
+            for (const pais of UBICACIONES_JOOBLE) {
                 if (itemsCrudos.length >= maxResultados) break;
 
                 console.log(`Scraping Jooble: buscando "${termino}" en ${pais}...`);
@@ -582,8 +699,14 @@ async function ejecutarScrapingJooble(opciones = {}) {
  * ZonaJobs, Bumeran y muchos otros portales. Esto nos permite capturar ofertas
  * de portales que no tenemos integrados individualmente.
  *
- * El actor recibe query + country + filtros directamente (como Indeed y Glassdoor).
- * Iteramos por cada término de búsqueda y acumulamos resultados.
+ * El actor recibe query + country + filtros directamente.
+ *
+ * IMPORTANTE: En vez de hacer UNA llamada por cada término (que generaba un
+ * run separado de Apify por término y multiplicaba el costo de compute),
+ * combinamos todos los términos en UNA sola query con OR.
+ * Ejemplo: "qa tester OR programador OR frontend developer angular"
+ * Google Jobs interpreta el OR y devuelve resultados de todos los términos
+ * en una sola ejecución del actor. Esto redujo el costo de ~$1.80/ciclo a ~$0.30.
  *
  * IMPORTANTE: Google Jobs agrega ofertas de portales que YA scrapeamos
  * (LinkedIn, Indeed, etc.). La deduplicación por URL en la BD se encarga
@@ -600,46 +723,42 @@ async function ejecutarScrapingGoogleJobs(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     try {
-        console.log(`Scraping Google Jobs: buscando ${terminos.length} término(s) en Argentina...`);
+        // Combino todos los términos en una sola query OR para ejecutar UN solo
+        // run del actor. Antes se hacía un actor.call() por cada término,
+        // lo que generaba N runs en Apify con costo de compute por cada uno.
+        const queryUnificada = terminos.join(' OR ');
+        console.log(`Scraping Google Jobs: ejecutando 1 run con query: "${queryUnificada}"...`);
+
+        const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
+            query: queryUnificada,
+            location: 'Argentina',
+            country: 'None',
+            language: 'es',
+            num_results: maxResultados,
+        });
+
+        const { items } = await clienteApify
+            .dataset(ejecucion.defaultDatasetId)
+            .listItems();
+
+        // johnvc/google-jobs-scraper devuelve un objeto por run con `jobs: [...]`.
+        // Extraigo los trabajos del array interno; si viniera en otro formato
+        // (items individuales), lo manejo también.
         let itemsCrudos = [];
-
-        for (const termino of terminos) {
-            if (itemsCrudos.length >= maxResultados) break;
-
-            console.log(`Scraping Google Jobs: buscando "${termino}" en Argentina...`);
-
-            const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
-                query: termino,
-                location: 'Argentina',
-                country: 'None',
-                language: 'es',
-                num_results: maxResultados,
-            });
-
-            const { items } = await clienteApify
-                .dataset(ejecucion.defaultDatasetId)
-                .listItems();
-
-            // johnvc/google-jobs-scraper devuelve un objeto por run con `jobs: [...]`.
-            // Extraigo los trabajos del array interno; si viniera en otro formato
-            // (items individuales), lo manejo también.
-            for (const item of items) {
-                if (item.jobs && Array.isArray(item.jobs)) {
-                    itemsCrudos = itemsCrudos.concat(item.jobs);
-                } else if (item.title) {
-                    itemsCrudos.push(item);
-                }
+        for (const item of items) {
+            if (item.jobs && Array.isArray(item.jobs)) {
+                itemsCrudos = itemsCrudos.concat(item.jobs);
+            } else if (item.title) {
+                itemsCrudos.push(item);
             }
-
-            console.log(`Scraping Google Jobs: ${itemsCrudos.length} resultados acumulados para "${termino}".`);
         }
 
-        // Recorto si pasamos del máximo acumulando entre términos.
+        // Recorto si el actor devolvió más resultados que el máximo pedido.
         if (itemsCrudos.length > maxResultados) {
             itemsCrudos = itemsCrudos.slice(0, maxResultados);
         }
 
-        console.log(`Scraping Google Jobs: ${itemsCrudos.length} ofertas crudas en total.`);
+        console.log(`Scraping Google Jobs: ${itemsCrudos.length} ofertas crudas obtenidas.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'google_jobs');
         console.log(`Scraping Google Jobs: ${ofertasNormalizadas.length} ofertas normalizadas.`);
@@ -654,6 +773,148 @@ async function ejecutarScrapingGoogleJobs(opciones = {}) {
     }
 }
 
+/**
+ * Ejecuto el scraping de Remotive usando su API pública (gratuita, sin auth).
+ *
+ * Remotive es un portal de empleo exclusivamente remoto. Su API REST devuelve
+ * los resultados directamente en JSON:
+ * GET https://remotive.com/api/remote-jobs?search={termino}&limit={max}
+ *
+ * La respuesta tiene la forma: { job-count: N, jobs: [...] }
+ *
+ * Como Remotive es 100% remoto, la modalidad siempre será 'remoto'.
+ * El campo candidate_required_location indica la ubicación requerida del candidato
+ * (ej: 'Worldwide', 'Latin America', 'LATAM').
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo de ofertas a extraer.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingRemotive(opciones = {}) {
+    const maxResultados = opciones.maxResultados || 50;
+    // Remotive tiene muy pocas ofertas activas (< 30 en software-dev).
+    // En vez de buscar término por término (que da pocos hits), traigo TODA
+    // la categoría 'software-dev' de una sola llamada. Es más eficiente y
+    // captura todo lo relevante. La evaluación IA filtra después.
+    const CATEGORIA_REMOTIVE = 'software-dev';
+
+    try {
+        console.log(`Scraping Remotive: buscando ofertas en categoría "${CATEGORIA_REMOTIVE}"...`);
+
+        const url = `${REMOTIVE_API_BASE}/remote-jobs?category=${CATEGORIA_REMOTIVE}&limit=${maxResultados}`;
+        const respuesta = await fetch(url);
+
+        if (!respuesta.ok) {
+            throw new Error(`Error HTTP ${respuesta.status} al consultar Remotive.`);
+        }
+
+        const json = await respuesta.json();
+        const itemsCrudos = json.jobs || [];
+        console.log(`Scraping Remotive: ${itemsCrudos.length} ítem(s) en categoría "${CATEGORIA_REMOTIVE}".`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remotive');
+        console.log(`Scraping Remotive: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Remotive: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
+/**
+ * Ejecuto el scraping de RemoteOK usando su API pública (gratuita, sin auth).
+ *
+ * RemoteOK es un portal de empleo exclusivamente remoto. Su API REST devuelve
+ * un array donde el primer elemento ES SIEMPRE un aviso legal (no una oferta)
+ * y el resto son los trabajos:
+ * GET https://remoteok.com/api?tags={tag}
+ *
+ * Los términos de búsqueda se pasan como "tags": los espacios se convierten
+ * en guiones (ej: 'full stack node' → 'full-stack-node').
+ * Los caracteres especiales no alfanuméricos se eliminan.
+ *
+ * El campo posición es 'position' (no 'title' como en el resto de las APIs).
+ * El salario viene estructurado en salary_min y salary_max (en USD).
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo de ofertas a extraer.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingRemoteOK(opciones = {}) {
+    const maxResultados = opciones.maxResultados || 50;
+    // RemoteOK es un portal 100% en inglés — los términos en español no devuelven
+    // resultados. Uso términos en inglés que cubren el mismo stack del perfil.
+    const TERMINOS_REMOTEOK = [
+        'frontend',
+        'react',
+        'angular',
+        'node',
+        'fullstack',
+        'javascript',
+        'qa',
+    ];
+    const terminos = TERMINOS_REMOTEOK;
+
+    try {
+        console.log(`Scraping RemoteOK: buscando ${terminos.length} término(s) con la API pública...`);
+        let itemsCrudos = [];
+
+        for (const termino of terminos) {
+            if (itemsCrudos.length >= maxResultados) break;
+
+            console.log(`Scraping RemoteOK: buscando "${termino}"...`);
+
+            // RemoteOK filtra por etiquetas (tags). Convierto el término al formato
+            // que espera la API: minúsculas, espacios a guiones, sin caracteres especiales.
+            const tag = termino
+                .toLowerCase()
+                .replace(/[^a-z0-9\s]/g, '')
+                .trim()
+                .replace(/\s+/g, '-');
+
+            const url = `${REMOTEOK_API_BASE}?tags=${encodeURIComponent(tag)}`;
+            const respuesta = await fetch(url, {
+                headers: {
+                    // RemoteOK requiere un User-Agent válido para no bloquear la request.
+                    'User-Agent': 'Mozilla/5.0 BuscaEmpleos/1.0',
+                },
+            });
+
+            if (!respuesta.ok) {
+                console.warn(`Scraping RemoteOK: error HTTP ${respuesta.status} para "${termino}". Saltando.`);
+                continue;
+            }
+
+            const json = await respuesta.json();
+
+            // El primer elemento del array es SIEMPRE el aviso legal de RemoteOK.
+            // Lo saltamos con slice(1) para no intentar normalizarlo como oferta.
+            const trabajos = Array.isArray(json) ? json.slice(1) : [];
+            itemsCrudos = itemsCrudos.concat(trabajos);
+            console.log(`Scraping RemoteOK: ${trabajos.length} ítem(s) para "${termino}".`);
+        }
+
+        console.log(`Scraping RemoteOK: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remoteok');
+        console.log(`Scraping RemoteOK: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de RemoteOK: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
 module.exports = {
     ejecutarScrapingLinkedin,
     ejecutarScrapingComputrabajo,
@@ -663,4 +924,6 @@ module.exports = {
     ejecutarScrapingGetonbrd,
     ejecutarScrapingJooble,
     ejecutarScrapingGoogleJobs,
+    ejecutarScrapingRemotive,
+    ejecutarScrapingRemoteOK,
 };

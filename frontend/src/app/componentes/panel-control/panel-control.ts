@@ -34,6 +34,8 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoGetonbrd = signal(false);
     readonly scrapeandoJooble = signal(false);
     readonly scrapeandoGoogleJobs = signal(false);
+    readonly scrapeandoRemotive = signal(false);
+    readonly scrapeandoRemoteOK = signal(false);
     readonly evaluando = signal(false);
     readonly progresoEvaluacion = signal<ProgresoEvaluacion | null>(null);
 
@@ -476,6 +478,66 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Google Jobs',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearRemotive(): void {
+        this.scrapeandoRemotive.set(true);
+        this.plataformaEnProceso.set('Remotive');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearRemotive().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoRemotive.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Remotive completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoRemotive.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Remotive',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearRemoteOK(): void {
+        this.scrapeandoRemoteOK.set(true);
+        this.plataformaEnProceso.set('RemoteOK');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearRemoteOK().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoRemoteOK.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'RemoteOK completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoRemoteOK.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en RemoteOK',
                     detail: error.error?.error || 'Error al conectar con el servidor',
                     life: 5000
                 });

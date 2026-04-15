@@ -60,7 +60,9 @@ function normalizarOfertaComputrabajo(item) {
         titulo: item.title || null,
         empresa: item.company || null,
         ubicacion: item.location || null,
-        modalidad: null, // Computrabajo no trae este dato de forma confiable.
+        // Con el scraping directo (cheerio) extraemos la modalidad del detalle.
+        // Con el actor de Apify (legacy) este campo no estaba disponible.
+        modalidad: item.modalidadDetalle || null,
         descripcion: item.descriptionText || null,
         url,
         plataforma: 'computrabajo',
@@ -150,6 +152,8 @@ function normalizarLote(items, plataforma) {
         getonbrd: normalizarOfertaGetonbrd,
         jooble: normalizarOfertaJooble,
         google_jobs: normalizarOfertaGoogleJobs,
+        remotive: normalizarOfertaRemotive,
+        remoteok: normalizarOfertaRemoteOK,
     };
 
     const normalizador = normalizadores[plataforma];
@@ -772,6 +776,112 @@ function detectarIdioma(titulo, descripcion) {
     return 'es';
 }
 
+/**
+ * Normalizo una oferta de la API pública de Remotive al esquema de nuestra tabla `ofertas`.
+ *
+ * Remotive es un portal 100% remoto, por lo que la modalidad siempre es 'remoto'.
+ * La descripción viene en HTML (igual que GetOnBrd y otros portales).
+ *
+ * Estructura del objeto crudo de Remotive:
+ * {
+ *   id: 123,
+ *   url: "https://remotive.com/remote-jobs/...",
+ *   title: "Frontend Developer",
+ *   company_name: "Company Inc",
+ *   category: "Software Development",
+ *   tags: ["javascript", "react"],
+ *   job_type: "full_time",
+ *   publication_date: "2026-04-01T00:00:00",
+ *   candidate_required_location: "Worldwide" | "Latin America" | "LATAM",
+ *   salary: "$80,000 - $100,000",
+ *   description: "<p>...</p>"
+ * }
+ *
+ * @param {Object} item - Objeto crudo de la API de Remotive.
+ * @returns {Object} Oferta en el formato de nuestra tabla.
+ * @throws {Error} Si el item no tiene URL.
+ */
+function normalizarOfertaRemotive(item) {
+    const url = item.url;
+    if (!url) {
+        throw new Error('El item de Remotive no tiene URL.');
+    }
+
+    const salario = parsearSalario(item.salary || '');
+
+    return {
+        titulo: item.title || null,
+        empresa: item.company_name || null,
+        // candidate_required_location indica desde dónde puede postularse el candidato.
+        // Ej: "Worldwide", "Latin America", "LATAM", "Americas".
+        ubicacion: item.candidate_required_location || null,
+        // Remotive es un portal de empleo exclusivamente remoto.
+        modalidad: 'remoto',
+        descripcion: item.description || null,
+        url,
+        plataforma: 'remotive',
+        // Remotive no expone nivel de experiencia de forma estructurada.
+        nivel_requerido: null,
+        salario_min: salario.min,
+        salario_max: salario.max,
+        moneda: salario.moneda,
+        fecha_publicacion: item.publication_date ? new Date(item.publication_date) : null,
+        datos_crudos: item,
+    };
+}
+
+/**
+ * Normalizo una oferta de la API pública de RemoteOK al esquema de nuestra tabla `ofertas`.
+ *
+ * RemoteOK es un portal 100% remoto, por lo que la modalidad siempre es 'remoto'.
+ * La descripción viene en HTML.
+ *
+ * Estructura del objeto crudo de RemoteOK:
+ * {
+ *   id: "...",
+ *   epoch: 1234567890,             ← timestamp Unix
+ *   date: "2026-04-01T00:00:00Z",
+ *   company: "Company Inc",
+ *   position: "Frontend Developer", ← OJO: es 'position', no 'title'
+ *   tags: ["javascript", "react"],
+ *   description: "<p>...</p>",
+ *   location: "Worldwide",
+ *   url: "https://remoteok.com/remote-jobs/...",
+ *   apply_url: "https://...",
+ *   salary_min: 80000,
+ *   salary_max: 100000
+ * }
+ *
+ * @param {Object} item - Objeto crudo de la API de RemoteOK.
+ * @returns {Object} Oferta en el formato de nuestra tabla.
+ * @throws {Error} Si el item no tiene URL.
+ */
+function normalizarOfertaRemoteOK(item) {
+    const url = item.url;
+    if (!url) {
+        throw new Error('El item de RemoteOK no tiene URL.');
+    }
+
+    return {
+        titulo: item.position || null,
+        empresa: item.company || null,
+        ubicacion: item.location || null,
+        // RemoteOK es un portal de empleo exclusivamente remoto.
+        modalidad: 'remoto',
+        descripcion: item.description || null,
+        url,
+        plataforma: 'remoteok',
+        // RemoteOK no expone nivel de experiencia de forma estructurada.
+        nivel_requerido: null,
+        salario_min: item.salary_min || null,
+        salario_max: item.salary_max || null,
+        // RemoteOK publica salarios exclusivamente en dólares.
+        moneda: (item.salary_min || item.salary_max) ? 'USD' : null,
+        fecha_publicacion: item.date ? new Date(item.date) : null,
+        datos_crudos: item,
+    };
+}
+
 module.exports = {
     normalizarOfertaLinkedin,
     normalizarOfertaComputrabajo,
@@ -781,6 +891,8 @@ module.exports = {
     normalizarOfertaGetonbrd,
     normalizarOfertaJooble,
     normalizarOfertaGoogleJobs,
+    normalizarOfertaRemotive,
+    normalizarOfertaRemoteOK,
     normalizarLote,
     // Exporto las auxiliares para poder testearlas si hace falta.
     _parsearSalario: parsearSalario,

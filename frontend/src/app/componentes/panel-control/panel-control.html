@@ -103,6 +103,14 @@
                     <i class="pi pi-google"></i>
                     {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
                 </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="scrapeandoRemotive() || modoDemo()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top">
+                    <i class="pi pi-globe"></i>
+                    {{ scrapeandoRemotive() ? '...' : 'Remotive' }}
+                </button>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="scrapeandoRemoteOK() || modoDemo()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top">
+                    <i class="pi pi-globe"></i>
+                    {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
+                </button>
                 <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo() || modoDemo()" (click)="ejecutarCicloCompleto()" [pTooltip]="modoDemo() ? 'Ciclo completo: extrae de todas las plataformas y eval\u00FAa con IA en una sola operaci\u00F3n.' : undefined" tooltipPosition="top">
                     <span class="material-symbols-outlined">play_circle</span>
                     {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}

@@ -78,8 +78,8 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     paso.estado = nuevoEstado;
     if (extraidas !== undefined) paso.extraidas = extraidas;
 
-    // Porcentaje: 8 plataformas × 7% = 56%, evaluación 15%, guardado 29%.
-    const pesos = { linkedin: 7, computrabajo: 7, indeed: 7, bumeran: 7, glassdoor: 7, getonbrd: 7, jooble: 7, google_jobs: 7, evaluacion: 15, guardado: 29 };
+    // Porcentaje: 10 plataformas × 5.6% = 56%, evaluación 15%, guardado 29%.
+    const pesos = { linkedin: 5.6, computrabajo: 5.6, indeed: 5.6, bumeran: 5.6, glassdoor: 5.6, getonbrd: 5.6, jooble: 5.6, google_jobs: 5.6, remotive: 5.6, remoteok: 5.6, evaluacion: 15, guardado: 29 };
     const completadas = progreso.pasos
         .filter(p => p.estado === 'completada' || p.estado === 'error')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
@@ -114,6 +114,8 @@ async function ejecutarCicloCompleto() {
             { nombre: 'getonbrd', label: 'GetOnBrd', estado: 'pendiente', extraidas: 0 },
             { nombre: 'jooble', label: 'Jooble', estado: 'pendiente', extraidas: 0 },
             { nombre: 'google_jobs', label: 'Google Jobs', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'remotive', label: 'Remotive', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'remoteok', label: 'RemoteOK', estado: 'pendiente', extraidas: 0 },
             { nombre: 'guardado', label: 'Guardando en BD', estado: 'pendiente', extraidas: 0 },
             { nombre: 'evaluacion', label: 'Evaluación IA', estado: 'pendiente', extraidas: 0 },
         ],
@@ -148,6 +150,8 @@ async function ejecutarCicloCompleto() {
             getonbrd: 0,
             jooble: 0,
             google_jobs: 0,
+            remotive: 0,
+            remoteok: 0,
             totalExtraidas: 0,
             guardadas: 0,
         },
@@ -267,8 +271,36 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en Google Jobs: ${error.message}`);
     }
 
-    // --- Paso 9: Guardar ofertas en la BD ---
-    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs];
+    // --- Paso 9: Scraping de Remotive (API REST pública gratuita, solo remoto) ---
+    let ofertasRemotive = [];
+    actualizarPasoPorgreso('remotive', 'procesando');
+    try {
+        ofertasRemotive = await servicioScraping.ejecutarScrapingRemotive(opcionesScraping);
+        resultado.scraping.remotive = ofertasRemotive.length;
+        actualizarPasoPorgreso('remotive', 'completada', ofertasRemotive.length);
+        console.log(`[Automatización] Remotive: ${ofertasRemotive.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('remotive', 'error', 0);
+        resultado.errores.push(`Error en scraping de Remotive: ${error.message}`);
+        console.error(`[Automatización] Error en Remotive: ${error.message}`);
+    }
+
+    // --- Paso 10: Scraping de RemoteOK (API REST pública gratuita, solo remoto) ---
+    let ofertasRemoteOK = [];
+    actualizarPasoPorgreso('remoteok', 'procesando');
+    try {
+        ofertasRemoteOK = await servicioScraping.ejecutarScrapingRemoteOK(opcionesScraping);
+        resultado.scraping.remoteok = ofertasRemoteOK.length;
+        actualizarPasoPorgreso('remoteok', 'completada', ofertasRemoteOK.length);
+        console.log(`[Automatización] RemoteOK: ${ofertasRemoteOK.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('remoteok', 'error', 0);
+        resultado.errores.push(`Error en scraping de RemoteOK: ${error.message}`);
+        console.error(`[Automatización] Error en RemoteOK: ${error.message}`);
+    }
+
+    // --- Paso 11: Guardar ofertas en la BD ---
+    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs, ...ofertasRemotive, ...ofertasRemoteOK];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
 
     // Filtro de idioma: descarto ofertas claramente en inglés antes de guardar.

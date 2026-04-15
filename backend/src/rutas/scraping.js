@@ -16,5 +16,7 @@ router.post('/glassdoor', controlador.scrapearGlassdoor);
 router.post('/getonbrd', controlador.scrapearGetonbrd);
 router.post('/jooble', controlador.scrapearJooble);
 router.post('/google-jobs', controlador.scrapearGoogleJobs);
+router.post('/remotive', controlador.scrapearRemotive);
+router.post('/remoteok', controlador.scrapearRemoteOK);
 
 module.exports = router;

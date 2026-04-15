@@ -50,6 +50,8 @@ describe('Servicio de automatización', () => {
         servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingJooble.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingGoogleJobs.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingRemotive.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingRemoteOK.mockResolvedValue([]);
         servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
             total: 0, aprobadas: 0, rechazadas: 0, errores: 0,
         });
@@ -113,7 +115,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledTimes(1);
 
-            // Verifico que se guardaron las 8 ofertas (2+1+1+1+1+1+1).
+            // Verifico que se guardaron las 8 ofertas (2+1+1+1+1+1+1+0).
             expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(8);
 
             // Verifico que se evaluaron las pendientes.
@@ -131,6 +133,8 @@ describe('Servicio de automatización', () => {
                     getonbrd: 1,
                     jooble: 1,
                     google_jobs: 0,
+                    remotive: 0,
+                    remoteok: 0,
                     totalExtraidas: 8,
                     guardadas: 8,
                 },

@@ -224,26 +224,62 @@ describe('Servicio de scraping', () => {
 
     describe('ejecutarScrapingComputrabajo()', () => {
 
-        test('llama al actor correcto', async () => {
-            const mockCall = clienteApify.actor().call;
-            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-ct-123' });
+        // HTML mínimo que simula una página de listado de Computrabajo.
+        const htmlListadoFalso = `
+            <html><body>
+                <article class="box_offer">
+                    <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-de-trabajo-de-desarrollador-web-junior-ABCDEF12345678">Desarrollador Web Junior</a></h2>
+                    <p class="fs16 fc_base mt5">EmpresaTest <span class="mr10">CABA</span></p>
+                    <p class="fs13 fc_aux mt15">Hace 3 días</p>
+                </article>
+            </body></html>
+        `;
 
-            const mockListItems = clienteApify.dataset().listItems;
-            mockListItems.mockResolvedValue({ items: itemsComputrabajoFalsos });
+        // HTML mínimo que simula una página de detalle de una oferta en Computrabajo.
+        const htmlDetalleFalso = `
+            <html><body>
+                <h1 class="fwB">Desarrollador Web Junior</h1>
+                <p class="mbB">Se busca desarrollador web con conocimientos en HTML, CSS y JavaScript.</p>
+                <div class="mbB">
+                    <span class="tag base mb10">Jornada completa</span>
+                    <span class="tag base mb10">Presencial y remoto</span>
+                </div>
+                <p class="fc_aux fs13">Hace 3 días</p>
+            </body></html>
+        `;
 
-            await ejecutarScrapingComputrabajo();
+        beforeEach(() => {
+            global.fetch = jest.fn();
+        });
 
-            expect(clienteApify.actor).toHaveBeenCalledWith('actor-computrabajo-test');
+        afterEach(() => {
+            delete global.fetch;
+        });
+
+        test('fetchea la URL de búsqueda correcta', async () => {
+            // Todas las llamadas (listado + detalles) devuelven HTML válido.
+            global.fetch.mockResolvedValue({
+                ok: true,
+                text: jest.fn().mockResolvedValue(htmlListadoFalso),
+            });
+
+            await ejecutarScrapingComputrabajo({ terminos: ['frontend developer junior'] });
+
+            // La primera llamada debe ser a la URL construida por construirUrlsComputrabajo().
+            expect(global.fetch).toHaveBeenNthCalledWith(
+                1,
+                'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
+                expect.any(Object)
+            );
         });
 
         test('retorna ofertas normalizadas de Computrabajo', async () => {
-            const mockCall = clienteApify.actor().call;
-            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-ct-123' });
+            // Primera llamada: listado. Siguientes: detalle de cada oferta.
+            global.fetch
+                .mockResolvedValueOnce({ ok: true, text: jest.fn().mockResolvedValue(htmlListadoFalso) })
+                .mockResolvedValue({ ok: true, text: jest.fn().mockResolvedValue(htmlDetalleFalso) });
 
-            const mockListItems = clienteApify.dataset().listItems;
-            mockListItems.mockResolvedValue({ items: itemsComputrabajoFalsos });
-
-            const resultado = await ejecutarScrapingComputrabajo();
+            const resultado = await ejecutarScrapingComputrabajo({ terminos: ['frontend developer junior'] });
 
             expect(resultado).toBeInstanceOf(Array);
             expect(resultado.length).toBeGreaterThan(0);
@@ -251,9 +287,8 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].titulo).toBe('Desarrollador Web Junior');
         });
 
-        test('tira error descriptivo si falla la API de Apify', async () => {
-            const mockCall = clienteApify.actor().call;
-            mockCall.mockRejectedValue(new Error('Token inválido'));
+        test('tira error descriptivo si fetch lanza excepción', async () => {
+            global.fetch.mockRejectedValue(new Error('Network error'));
 
             await expect(ejecutarScrapingComputrabajo()).rejects.toThrow(
                 'Error al ejecutar scraping de Computrabajo'
@@ -311,7 +346,7 @@ describe('Servicio de scraping', () => {
             );
         });
 
-        test('ejecuta el actor una vez por cada término de búsqueda', async () => {
+        test('combina todos los términos en una sola query OR y ejecuta 1 único run', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-123' });
 
@@ -322,8 +357,14 @@ describe('Servicio de scraping', () => {
                 terminos: ['react developer', 'angular developer'],
             });
 
-            // Debería llamar al actor 2 veces (una por cada término).
-            expect(mockCall).toHaveBeenCalledTimes(2);
+            // Ahora se ejecuta 1 solo run con query unificada (evita cobro de
+            // compute por cada término).
+            expect(mockCall).toHaveBeenCalledTimes(1);
+            expect(mockCall).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    title: 'react developer OR angular developer',
+                })
+            );
         });
 
         test('tira error descriptivo si falla la API de Apify', async () => {
@@ -701,9 +742,9 @@ describe('Servicio de scraping', () => {
 
             const resultado = await ejecutarScrapingJooble({ terminos: ['frontend'] });
 
-            // 1 término × 2 países (Argentina + España) = 2 resultados
+            // 1 término × 1 ubicación (Remote) = 1 resultado
             expect(resultado).toBeInstanceOf(Array);
-            expect(resultado.length).toBe(2);
+            expect(resultado.length).toBe(1);
             expect(resultado[0].plataforma).toBe('jooble');
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
             expect(resultado[0].empresa).toBe('TestCorp Argentina');
@@ -733,9 +774,8 @@ describe('Servicio de scraping', () => {
                 terminos: ['termino-que-falla', 'frontend'],
             });
 
-            // termino-que-falla/Argentina falla (0), termino-que-falla/España OK (1),
-            // frontend/Argentina OK (1), frontend/España OK (1) = 3 ofertas
-            expect(resultado.length).toBe(3);
+            // termino-que-falla/Remote falla (0), frontend/Remote OK (1) = 1 oferta
+            expect(resultado.length).toBe(1);
         });
 
         test('tira error descriptivo si fetch lanza excepción', async () => {

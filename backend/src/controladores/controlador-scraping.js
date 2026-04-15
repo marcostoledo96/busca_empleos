@@ -328,4 +328,88 @@ async function scrapearGoogleJobs(req, res) {
     });
 }
 
-module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs };
+/**
+ * POST /api/scraping/remotive
+ * Ejecuto el scraping de Remotive usando su API pública (gratuita, sin auth)
+ * y guardo las ofertas en la BD.
+ *
+ * Remotive es un portal de empleo exclusivamente remoto. Las ofertas devueltas
+ * siempre tendrán modalidad 'remoto'.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearRemotive(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
+    const opciones = {
+        maxResultados,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemotive(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de Remotive completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'remotive',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+/**
+ * POST /api/scraping/remoteok
+ * Ejecuto el scraping de RemoteOK usando su API pública (gratuita, sin auth)
+ * y guardo las ofertas en la BD.
+ *
+ * RemoteOK es un portal de empleo exclusivamente remoto. Las ofertas devueltas
+ * siempre tendrán modalidad 'remoto'.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearRemoteOK(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
+    const opciones = {
+        maxResultados,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemoteOK(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de RemoteOK completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'remoteok',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK };
