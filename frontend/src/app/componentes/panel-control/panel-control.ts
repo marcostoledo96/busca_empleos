@@ -1,9 +1,10 @@
-import { Component, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
+import { Component, computed, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
 import { ProgressBarModule } from 'primeng/progressbar';
 import { TooltipModule } from 'primeng/tooltip';
+import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
@@ -13,7 +14,7 @@ import { ProgresoAutomatizacion, ProgresoEvaluacion } from '../../modelos/respue
 
 @Component({
     selector: 'app-panel-control',
-    imports: [ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule],
+    imports: [ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule, SelectModule],
     providers: [MessageService],
     templateUrl: './panel-control.html',
     styleUrl: './panel-control.css'
@@ -37,6 +38,20 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoRemotive = signal(false);
     readonly scrapeandoRemoteOK = signal(false);
     readonly evaluando = signal(false);
+
+    // Computed: hay algún scraping individual en curso (para deshabilitar selector mobile).
+    readonly scrapeandoAlguno = computed(() =>
+        this.scrapeandoLinkedin() ||
+        this.scrapeandoComputrabajo() ||
+        this.scrapeandoIndeed() ||
+        this.scrapeandoBumeran() ||
+        this.scrapeandoGlassdoor() ||
+        this.scrapeandoGetonbrd() ||
+        this.scrapeandoJooble() ||
+        this.scrapeandoGoogleJobs() ||
+        this.scrapeandoRemotive() ||
+        this.scrapeandoRemoteOK()
+    );
     readonly progresoEvaluacion = signal<ProgresoEvaluacion | null>(null);
 
     // ID del intervalo de polling para la evaluación.
@@ -57,6 +72,45 @@ export class PanelControl implements OnInit, OnDestroy {
 
     // ID del intervalo de polling — para poder limpiarlo al destruir.
     private intervalIdPolling: ReturnType<typeof setInterval> | null = null;
+
+    // Plataforma seleccionada en el selector mobile de scraping.
+    readonly plataformaSeleccionada = signal<string>('linkedin');
+
+    // Modelo two-way para p-select: sincroniza con la signal plataformaSeleccionada.
+    get plataformaSeleccionadaModel(): string {
+        return this.plataformaSeleccionada();
+    }
+    set plataformaSeleccionadaModel(valor: string) {
+        this.plataformaSeleccionada.set(valor);
+    }
+
+    // Opciones para el p-select mobile de plataformas de scraping.
+    readonly opcionesPlataforma = [
+        { value: 'linkedin',      label: 'LinkedIn'     },
+        { value: 'computrabajo',  label: 'Computrabajo' },
+        { value: 'indeed',        label: 'Indeed'       },
+        { value: 'bumeran',       label: 'Bumeran'      },
+        { value: 'glassdoor',     label: 'Glassdoor'    },
+        { value: 'getonbrd',      label: 'GetOnBrd'     },
+        { value: 'jooble',        label: 'Jooble'       },
+        { value: 'googlejobs',    label: 'Google Jobs'  },
+        { value: 'remotive',      label: 'Remotive'     },
+        { value: 'remoteok',      label: 'RemoteOK'     },
+    ];
+
+    // Mapeo de valores del selector a etiquetas para mostrar en el overlay.
+    readonly etiquetasPorPlataforma: Record<string, string> = {
+        linkedin: 'LinkedIn',
+        computrabajo: 'Computrabajo',
+        indeed: 'Indeed',
+        bumeran: 'Bumeran',
+        glassdoor: 'Glassdoor',
+        getonbrd: 'GetOnBrd',
+        jooble: 'Jooble',
+        googlejobs: 'Google Jobs',
+        remotive: 'Remotive',
+        remoteok: 'RemoteOK',
+    };
 
     // Evento que emite cuando una acción completó para que el padre recargue datos.
     readonly accionCompletada = output<void>();
@@ -248,6 +302,24 @@ export class PanelControl implements OnInit, OnDestroy {
                     });
                 }
             });
+        }
+    }
+
+    // Ejecuta el scraping de la plataforma seleccionada en el selector mobile.
+    scrapearPlataformaSeleccionada(): void {
+        const plataforma = this.plataformaSeleccionada();
+        switch (plataforma) {
+            case 'linkedin':      this.scrapearLinkedin();      break;
+            case 'computrabajo':  this.scrapearComputrabajo();  break;
+            case 'indeed':        this.scrapearIndeed();        break;
+            case 'bumeran':       this.scrapearBumeran();       break;
+            case 'glassdoor':     this.scrapearGlassdoor();     break;
+            case 'getonbrd':      this.scrapearGetonbrd();      break;
+            case 'jooble':        this.scrapearJooble();        break;
+            case 'googlejobs':    this.scrapearGoogleJobs();    break;
+            case 'remotive':      this.scrapearRemotive();      break;
+            case 'remoteok':      this.scrapearRemoteOK();      break;
+            default: break;
         }
     }
 

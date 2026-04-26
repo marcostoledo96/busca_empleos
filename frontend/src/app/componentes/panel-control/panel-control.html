@@ -71,46 +71,75 @@
         <div class="panel-grupo" role="group" aria-label="Acciones de scraping">
             <span class="grupo-label" id="label-scraping">Scraping</span>
             <div class="grupo-acciones" role="group" aria-labelledby="label-scraping">
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin() || modoDemo()" (click)="scrapearLinkedin()" [pTooltip]="modoDemo() ? 'Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos.' : undefined" tooltipPosition="top" aria-label="Scrapear LinkedIn">
+                <!-- ── Botones individuales: sólo visibles en desktop (>768px) ── -->
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin() || modoDemo()" (click)="scrapearLinkedin()" [pTooltip]="modoDemo() ? 'Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos.' : undefined" tooltipPosition="top" aria-label="Scrapear LinkedIn">
                     <i class="pi pi-linkedin" aria-hidden="true"></i>
                     {{ scrapeandoLinkedin() ? '...' : 'LinkedIn' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo() || modoDemo()" (click)="scrapearComputrabajo()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Computrabajo con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Computrabajo">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo() || modoDemo()" (click)="scrapearComputrabajo()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Computrabajo con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Computrabajo">
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoComputrabajo() ? '...' : 'Computrabajo' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed() || modoDemo()" (click)="scrapearIndeed()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Indeed con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Indeed">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed() || modoDemo()" (click)="scrapearIndeed()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Indeed con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Indeed">
                     <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoIndeed() ? '...' : 'Indeed' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran() || modoDemo()" (click)="scrapearBumeran()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web.' : undefined" tooltipPosition="top" aria-label="Scrapear Bumeran">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran() || modoDemo()" (click)="scrapearBumeran()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web.' : undefined" tooltipPosition="top" aria-label="Scrapear Bumeran">
                     <i class="pi pi-briefcase" aria-hidden="true"></i>
                     {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor() || modoDemo()" (click)="scrapearGlassdoor()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Glassdoor con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Glassdoor">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor() || modoDemo()" (click)="scrapearGlassdoor()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Glassdoor con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Glassdoor">
                     <i class="pi pi-star" aria-hidden="true"></i>
                     {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd() || modoDemo()" (click)="scrapearGetonbrd()" [pTooltip]="modoDemo() ? 'Extrae ofertas de GetOnBrd usando su API REST pública oficial (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear GetOnBrd">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd() || modoDemo()" (click)="scrapearGetonbrd()" [pTooltip]="modoDemo() ? 'Extrae ofertas de GetOnBrd usando su API REST pública oficial (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear GetOnBrd">
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble() || modoDemo()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top" aria-label="Scrapear Jooble">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble() || modoDemo()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top" aria-label="Scrapear Jooble">
                     <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoJooble() ? '...' : 'Jooble' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs() || modoDemo()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs() || modoDemo()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
                     <i class="pi pi-google" aria-hidden="true"></i>
                     {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="scrapeandoRemotive() || modoDemo()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear Remotive">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="scrapeandoRemotive() || modoDemo()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear Remotive">
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemotive() ? '...' : 'Remotive' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="scrapeandoRemoteOK() || modoDemo()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear RemoteOK">
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="scrapeandoRemoteOK() || modoDemo()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear RemoteOK">
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
                 </button>
+
+                <!-- ── Selector mobile: sólo visible en ≤768px ── -->
+                <div class="scraping-selector-mobile" role="group" aria-label="Seleccionar plataforma de scraping">
+                    <label class="scraping-selector-mobile__label" for="selector-plataforma-mobile">Plataforma</label>
+                    <div class="scraping-selector-mobile__fila">
+                        <p-select
+                            inputId="selector-plataforma-mobile"
+                            [(ngModel)]="plataformaSeleccionadaModel"
+                            [options]="opcionesPlataforma"
+                            optionLabel="label"
+                            optionValue="value"
+                            [disabled]="scrapeandoAlguno() || ejecutandoCiclo() || modoDemo()"
+                            placeholder="Seleccioná plataforma"
+                            aria-label="Seleccioná la plataforma de scraping"
+                            styleClass="scraping-selector-mobile__select"
+                            appendTo="body" />
+                        <button
+                            class="btn-accion scraping-selector-mobile__btn-extraer"
+                            [class.btn-cargando]="scrapeandoAlguno()"
+                            [disabled]="scrapeandoAlguno() || ejecutandoCiclo() || modoDemo()"
+                            (click)="scrapearPlataformaSeleccionada()"
+                            [attr.aria-label]="'Extraer ofertas de ' + (etiquetasPorPlataforma[plataformaSeleccionada()] || plataformaSeleccionada())">
+                            <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                            {{ scrapeandoAlguno() ? '...' : 'Extraer' }}
+                        </button>
+                    </div>
+                </div>
+
                 <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo() || modoDemo()" (click)="ejecutarCicloCompleto()" [pTooltip]="modoDemo() ? 'Ciclo completo: extrae de todas las plataformas y evalúa con IA en una sola operación.' : undefined" tooltipPosition="top" aria-label="Ejecutar ciclo completo de scraping y evaluación">
                     <span class="material-symbols-outlined" aria-hidden="true">play_circle</span>
                     {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
