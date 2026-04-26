@@ -1,4 +1,4 @@
-<p-toast />
+<p-toast aria-live="polite" />
 
 @if (!cargando()) {
 <div class="preferencias-contenedor">
@@ -12,16 +12,16 @@
     </div>
 
     @if (modoDemo()) {
-        <div class="preferencias-aviso-demo">
-            <span class="material-symbols-outlined">visibility</span>
+        <div class="preferencias-aviso-demo" role="alert">
+            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
             <span><strong>MODO_DEMO</strong> — Estos son datos de ejemplo. La configuración real no está disponible en modo invitado. Los cambios no se guardan.</span>
         </div>
     }
 
     <!-- === Sección 1: Perfil profesional === -->
-    <section class="seccion">
+    <section class="seccion" aria-labelledby="label-perfil">
         <div class="seccion-cabecera">
-            <span class="seccion-label">PERFIL_PROFESIONAL</span>
+            <span class="seccion-label" id="label-perfil">PERFIL_PROFESIONAL</span>
         </div>
 
         <div class="seccion-cuerpo">
@@ -36,13 +36,15 @@
                     <label class="campo-etiqueta" for="nivel">Nivel de experiencia</label>
                     <p-select id="nivel" [(ngModel)]="nivelExperiencia"
                               [options]="opcionesNivel"
-                              placeholder="Seleccionar nivel" />
+                              placeholder="Seleccionar nivel"
+                              aria-label="Nivel de experiencia" />
                 </div>
                 <div class="campo">
                     <label class="campo-etiqueta" for="modalidad">Modalidad aceptada</label>
                     <p-select id="modalidad" [(ngModel)]="modalidadAceptada"
                               [options]="opcionesModalidad"
-                              placeholder="Seleccionar modalidad" />
+                              placeholder="Seleccionar modalidad"
+                              aria-label="Modalidad aceptada" />
                 </div>
             </div>
 
@@ -64,9 +66,9 @@
     </section>
 
     <!-- === Sección 2: Stack tecnológico === -->
-    <section class="seccion">
+    <section class="seccion" aria-labelledby="label-stack">
         <div class="seccion-cabecera">
-            <span class="seccion-label">STACK_TECNOLÓGICO</span>
+            <span class="seccion-label" id="label-stack">STACK_TECNOLÓGICO</span>
         </div>
 
         <div class="seccion-cuerpo">
@@ -75,7 +77,8 @@
                 <p-autocomplete id="stack" [(ngModel)]="stackTecnologico"
                                [multiple]="true" [suggestions]="sugerencias"
                                (completeMethod)="filtrarLibre($event)"
-                               placeholder="Escribi y presíona Enter" />
+                               placeholder="Escribí y presioná Enter"
+                               aria-label="Tecnologías que manejás" />
                 <small class="campo-ayuda">Agregá cada tecnología y presioná Enter.</small>
             </div>
 
@@ -84,16 +87,17 @@
                 <p-autocomplete id="exclusiones" [(ngModel)]="reglasExclusion"
                                [multiple]="true" [suggestions]="sugerencias"
                                (completeMethod)="filtrarLibre($event)"
-                               placeholder="Ej: Java, SAP" />
+                               placeholder="Ej: Java, SAP"
+                               aria-label="Reglas de exclusión" />
                 <small class="campo-ayuda">Ofertas que requieran estas tecnologías serán rechazadas automáticamente.</small>
             </div>
         </div>
     </section>
 
     <!-- === Sección 3: Ubicación === -->
-    <section class="seccion">
+    <section class="seccion" aria-labelledby="label-ubicacion">
         <div class="seccion-cabecera">
-            <span class="seccion-label">UBICACIÓN</span>
+            <span class="seccion-label" id="label-ubicacion">UBICACIÓN</span>
         </div>
 
         <div class="seccion-cuerpo">
@@ -102,16 +106,17 @@
                 <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas"
                                [options]="opcionesZonas"
                                placeholder="Seleccioná las zonas"
-                               display="chip" />
+                               display="chip"
+                               aria-label="Zonas preferidas" />
                 <small class="campo-ayuda">Dejalo vacío si solo buscás remoto o no tenés preferencia.</small>
             </div>
         </div>
     </section>
 
     <!-- === Sección 4: Búsqueda === -->
-    <section class="seccion">
+    <section class="seccion" aria-labelledby="label-terminos">
         <div class="seccion-cabecera">
-            <span class="seccion-label">TÉRMINOS_DE_BÚSQUEDA</span>
+            <span class="seccion-label" id="label-terminos">TÉRMINOS_DE_BÚSQUEDA</span>
         </div>
 
         <div class="seccion-cuerpo">
@@ -120,16 +125,17 @@
                 <p-autocomplete id="terminos" [(ngModel)]="terminosBusqueda"
                                [multiple]="true" [suggestions]="sugerencias"
                                (completeMethod)="filtrarLibre($event)"
-                               placeholder="Ej: Angular developer, Frontend junior" />
+                               placeholder="Ej: Angular developer, Frontend junior"
+                               aria-label="Términos de búsqueda" />
                 <small class="campo-ayuda">Estas palabras se usan para buscar ofertas en LinkedIn, Computrabajo, Indeed y Bumeran.</small>
             </div>
         </div>
     </section>
 
     <!-- === Sección 5: Configuración de IA === -->
-    <section class="seccion">
+    <section class="seccion" aria-labelledby="label-ia">
         <div class="seccion-cabecera">
-            <span class="seccion-label">CONFIGURACIÓN_IA</span>
+            <span class="seccion-label" id="label-ia">CONFIGURACIÓN_IA</span>
         </div>
 
         <div class="seccion-cuerpo">
@@ -137,12 +143,14 @@
                 <label class="campo-etiqueta" for="modelo">Modelo de DeepSeek</label>
                 <p-select id="modelo" [(ngModel)]="modeloIa"
                           [options]="opcionesModelo"
-                          placeholder="Seleccionar modelo" />
+                          placeholder="Seleccionar modelo"
+                          aria-label="Modelo de DeepSeek" />
             </div>
 
             <div class="campo campo-toggle">
-                <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
-                <label class="campo-etiqueta campo-etiqueta--inline">Usar prompt personalizado</label>
+                <p-toggleswitch [(ngModel)]="usarPromptPersonalizado"
+                                aria-label="Usar prompt personalizado" />
+                <label class="campo-etiqueta campo-etiqueta--inline" for="usarPromptPersonalizado">Usar prompt personalizado</label>
             </div>
 
             @if (usarPromptPersonalizado) {
@@ -159,20 +167,22 @@
 
     <!-- === Botón guardar === -->
     <div class="acciones">
-        <button class="btn-guardar" [disabled]="guardando() || modoDemo()" (click)="guardar()">
+        <!-- Región viva para anunciar resultado del guardado a lectores de pantalla -->
+        <span class="sr-only" aria-live="polite" role="status">{{ mensajeAccesible() }}</span>
+        <button class="btn-guardar" [disabled]="guardando() || modoDemo()" (click)="guardar()" aria-label="Guardar preferencias">
             @if (guardando()) {
-                <span class="material-symbols-outlined btn-spin">progress_activity</span>
+                <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
             } @else {
-                <span class="material-symbols-outlined">save</span>
+                <span class="material-symbols-outlined" aria-hidden="true">save</span>
             }
             GUARDAR PREFERENCIAS
         </button>
     </div>
 
     <!-- === Sección: Gestión de evaluaciones === -->
-    <section class="seccion seccion--peligro">
+    <section class="seccion seccion--peligro" aria-labelledby="label-evaluaciones">
         <div class="seccion-cabecera">
-            <span class="seccion-label">GESTIÓN_EVALUACIONES</span>
+            <span class="seccion-label" id="label-evaluaciones">GESTIÓN_EVALUACIONES</span>
         </div>
         <div class="seccion-cuerpo">
             <p class="campo-ayuda reset-descripcion">
@@ -191,17 +201,19 @@
                         (ngModelChange)="diasReset.set(+$event || null)"
                         min="1"
                         max="365"
-                        placeholder="Ej: 7" />
+                        placeholder="Ej: 7"
+                        aria-label="Días atrás a resetear" />
                 </div>
                 <div class="reset-boton-wrapper">
                     <button
                         class="btn-reset"
                         [disabled]="!diasReset() || reseteando() || modoDemo()"
-                        (click)="resetearEvaluaciones()">
+                        (click)="resetearEvaluaciones()"
+                        aria-label="Resetear evaluaciones">
                         @if (reseteando()) {
-                            <span class="material-symbols-outlined btn-spin">progress_activity</span>
+                            <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
                         } @else {
-                            <span class="material-symbols-outlined">restart_alt</span>
+                            <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
                         }
                         RESETEAR EVALUACIONES
                     </button>

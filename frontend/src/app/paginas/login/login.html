@@ -1,14 +1,14 @@
 <!-- Página de login completa — layout standalone, sin shell de la app -->
 
 <!-- Header fijo: marca + toggle de tema -->
-<header class="login-header">
+<header class="login-header" role="banner">
     <div class="login-header-marca">BUSCA_EMPLEOS</div>
-    <nav class="login-header-nav">
+    <nav class="login-header-nav" aria-label="Acciones del encabezado">
         <button
             class="login-header-tema"
             (click)="toggleTema()"
             [attr.aria-label]="esModoOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
-            <span class="material-symbols-outlined">
+            <span class="material-symbols-outlined" aria-hidden="true">
                 {{ esModoOscuro ? 'light_mode' : 'dark_mode' }}
             </span>
         </button>
@@ -17,7 +17,7 @@
 </header>
 
 <!-- Canvas principal: espacio negativo extremo -->
-<main class="login-main">
+<main class="login-main" role="main">
     <div class="login-card">
 
         <!-- Identidad técnica -->
@@ -27,7 +27,7 @@
         </div>
 
         <!-- Separador -->
-        <div class="login-divisor"></div>
+        <div class="login-divisor" aria-hidden="true"></div>
 
         <!-- Bloque de acción -->
         <div class="login-accion">
@@ -38,8 +38,8 @@
 
             <!-- Mensaje de error -->
             @if (error()) {
-                <div class="login-error" role="alert">
-                    <span class="material-symbols-outlined login-error-icono">error</span>
+                <div class="login-error" role="alert" aria-live="assertive">
+                    <span class="material-symbols-outlined login-error-icono" aria-hidden="true">error</span>
                     <span>{{ error() }}</span>
                 </div>
             }
@@ -49,9 +49,10 @@
                 class="login-btn-google"
                 [class.login-btn-google--cargando]="cargando()"
                 [disabled]="cargando()"
-                (click)="autenticarConGoogle()">
+                (click)="autenticarConGoogle()"
+                aria-label="Autenticar con Google">
                 @if (cargando()) {
-                    <span class="login-spinner"></span>
+                    <span class="login-spinner" aria-hidden="true"></span>
                     <span>INITIALIZING_SESSION...</span>
                 } @else {
                     <!-- SVG del logo de Google -->
@@ -76,9 +77,10 @@
             <button
                 class="login-btn-invitado"
                 [disabled]="cargando()"
-                (click)="entrarComoInvitado()">
+                (click)="entrarComoInvitado()"
+                aria-label="Ver sistema en modo demostración">
                 <span class="login-demo-badge">DEMO</span>
-                <span class="material-symbols-outlined login-btn-invitado-icono">visibility</span>
+                <span class="material-symbols-outlined login-btn-invitado-icono" aria-hidden="true">visibility</span>
                 VER_SISTEMA
             </button>
             <p class="login-nota-demo">
@@ -87,7 +89,7 @@
         </div>
 
         <!-- Metadata técnica decorativa -->
-        <div class="login-metadata">
+        <div class="login-metadata" aria-hidden="true">
             <div class="login-metadata-sep"></div>
             <div class="login-metadata-coords">
                 <span>Lat: -34.6037</span>
@@ -100,10 +102,10 @@
 </main>
 
 <!-- Footer fijo -->
-<footer class="login-footer">
+<footer class="login-footer" role="contentinfo">
     <span class="login-footer-copy">© 2026 BUSCA_EMPLEOS</span>
     <div class="login-footer-estado">
-        <span class="login-footer-punto"></span>
+        <span class="login-footer-punto" aria-hidden="true"></span>
         <span>SYSTEM: OPERATIONAL</span>
     </div>
 </footer>

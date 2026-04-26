@@ -48,6 +48,9 @@ export class Preferencias implements OnInit {
     diasReset = signal<number | null>(null);
     reseteando = signal(false);
 
+    // Mensaje accesible para lectores de pantalla (aria-live).
+    readonly mensajeAccesible = signal('');
+
     // Datos del formulario — inicializo con valores por defecto.
     nombre = '';
     nivelExperiencia: PreferenciasModel['nivel_experiencia'] = 'junior';
@@ -138,6 +141,7 @@ export class Preferencias implements OnInit {
                 this.cargando.set(false);
             },
             error: () => {
+                this.mensajeAccesible.set('No se pudieron cargar las preferencias.');
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error',
@@ -169,6 +173,7 @@ export class Preferencias implements OnInit {
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos) {
                     this.mapearDesdeApi(respuesta.datos);
+                    this.mensajeAccesible.set('Preferencias actualizadas correctamente.');
                     this.mensajes.add({
                         severity: 'success',
                         summary: 'Guardado',
@@ -178,6 +183,7 @@ export class Preferencias implements OnInit {
                 this.guardando.set(false);
             },
             error: () => {
+                this.mensajeAccesible.set('No se pudieron guardar las preferencias.');
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error',
@@ -215,6 +221,10 @@ export class Preferencias implements OnInit {
                 this.reseteando.set(false);
                 if (respuesta.exito) {
                     const n = respuesta.datos?.reseteadas ?? 0;
+                    const mensaje = n > 0
+                        ? `Se resetearon ${n} oferta${n !== 1 ? 's' : ''} a pendiente.`
+                        : `No había evaluaciones en los últimos ${dias} día${dias !== 1 ? 's' : ''}.`;
+                    this.mensajeAccesible.set(mensaje);
                     this.mensajes.add({
                         severity: n > 0 ? 'success' : 'info',
                         summary: n > 0 ? 'Listo' : 'Sin cambios',
@@ -227,6 +237,7 @@ export class Preferencias implements OnInit {
             },
             error: () => {
                 this.reseteando.set(false);
+                this.mensajeAccesible.set('No se pudo ejecutar el reseteo. Verificá que el backend esté corriendo.');
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error',

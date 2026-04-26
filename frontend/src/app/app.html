@@ -1,27 +1,32 @@
 ﻿@if (!esPaginaLogin()) {
     <!-- Overlay de sidebar en mobile (cierra al hacer click) -->
     @if (sidebarAbierta()) {
-        <div class="sidebar-overlay" (click)="cerrarSidebar()"></div>
+        <div class="sidebar-overlay" (click)="cerrarSidebar()" role="presentation"></div>
     }
 
     <!-- Barra lateral de navegación -->
-    <nav class="sidebar" [class.sidebar--abierta]="sidebarAbierta()">
+    <nav class="sidebar" [class.sidebar--abierta]="sidebarAbierta()"
+         [attr.role]="esMobile() ? 'dialog' : 'navigation'"
+         [attr.aria-modal]="esMobile() && sidebarAbierta() ? 'true' : null"
+         [attr.aria-label]="esMobile() ? 'Menú de navegación' : 'Navegación principal'"
+         tabindex="-1"
+         (keydown)="onSidebarKeydown($event)">
         <div class="sidebar-marca">
             <span class="sidebar-titulo">BUSCA_EMPLEOS</span>
             <span class="sidebar-version">v1.0.0 // AR-2026</span>
         </div>
-        <ul class="sidebar-nav">
+        <ul class="sidebar-nav" role="list">
             <li>
                 <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}"
-                   class="sidebar-enlace" (click)="cerrarSidebar()">
-                    <span class="material-symbols-outlined">dashboard</span>
+                   class="sidebar-enlace" (click)="cerrarSidebar()" sidebarEnlace>
+                    <span class="material-symbols-outlined" aria-hidden="true">dashboard</span>
                     DASHBOARD
                 </a>
             </li>
             <li>
                 <a routerLink="/preferencias" routerLinkActive="nav-activo"
-                   class="sidebar-enlace" (click)="cerrarSidebar()">
-                    <span class="material-symbols-outlined">settings</span>
+                   class="sidebar-enlace" (click)="cerrarSidebar()" sidebarEnlace>
+                    <span class="material-symbols-outlined" aria-hidden="true">settings</span>
                     PREFERENCIAS
                 </a>
             </li>
@@ -29,10 +34,10 @@
     </nav>
 
     <!-- Barra superior -->
-    <header class="topbar">
+    <header class="topbar" role="banner">
         <!-- Botón hamburger (solo mobile) -->
-        <button class="topbar-hamburger" (click)="toggleSidebar()" aria-label="Abrir menú">
-            <span class="material-symbols-outlined">
+        <button class="topbar-hamburger" id="btn-hamburger" (click)="toggleSidebar()" aria-label="Abrir menú de navegación" [attr.aria-expanded]="sidebarAbierta()">
+            <span class="material-symbols-outlined" aria-hidden="true">
                 {{ sidebarAbierta() ? 'close' : 'menu' }}
             </span>
         </button>
@@ -43,21 +48,21 @@
                 <div class="topbar-meta">
                     <span class="topbar-meta-punto" [class.topbar-meta-punto--demo]="esModoDemo()"></span>
                     <span>{{ esModoDemo() ? 'MODO_DEMO' : 'SISTEMA_ACTIVO' }}</span>
-                    <span class="topbar-meta-sep">|</span>
+                    <span class="topbar-meta-sep" aria-hidden="true">|</span>
                     <span>AR-2026</span>
                 </div>
             </div>
             <div class="topbar-derecha">
-                <button class="topbar-btn" (click)="toggleTema()" aria-label="Cambiar tema">
-                    <span class="material-symbols-outlined">
+                <button class="topbar-btn" (click)="toggleTema()" aria-label="Cambiar tema visual">
+                    <span class="material-symbols-outlined" aria-hidden="true">
                         {{ modoOscuro() ? 'light_mode' : 'dark_mode' }}
                     </span>
                 </button>
-                <a routerLink="/preferencias" class="topbar-btn" aria-label="Configuración">
-                    <span class="material-symbols-outlined">settings</span>
+                <a routerLink="/preferencias" class="topbar-btn" aria-label="Configuración de preferencias">
+                    <span class="material-symbols-outlined" aria-hidden="true">settings</span>
                 </a>
                 <button class="topbar-btn" (click)="cerrarSesion()" [attr.aria-label]="esModoDemo() ? 'Salir del modo demo' : 'Cerrar sesión'">
-                    <span class="material-symbols-outlined">
+                    <span class="material-symbols-outlined" aria-hidden="true">
                         {{ esModoDemo() ? 'exit_to_app' : 'logout' }}
                     </span>
                 </button>
@@ -66,11 +71,11 @@
     </header>
 
     <!-- Contenido principal -->
-    <main class="contenido-principal">
+    <main class="contenido-principal" role="main">
         @if (esModoDemo()) {
             <!-- Banner de modo demo: siempre visible cuando el reclutador navega como invitado -->
-            <div class="banner-demo" role="status">
-                <span class="material-symbols-outlined banner-demo__icono">info</span>
+            <div class="banner-demo" role="status" aria-live="polite">
+                <span class="material-symbols-outlined banner-demo__icono" aria-hidden="true">info</span>
                 <span>
                     <strong>MODO_DEMO</strong> &mdash; Estos son datos de ejemplo generados para ilustrar el sistema.
                     Por razones de privacidad y seguridad, no se muestran ofertas reales ni datos personales.
@@ -82,17 +87,17 @@
     </main>
 
     <!-- Pie de página fijo -->
-    <footer class="footer">
+    <footer class="footer" role="contentinfo">
         <div class="footer-izquierda">
             <span class="footer-build">v1.0.0 // BUSCA_EMPLEOS</span>
-            <span class="footer-sep">|</span>
+            <span class="footer-sep" aria-hidden="true">|</span>
             <span class="footer-estado">SISTEMA_ESTABLE</span>
         </div>
         <div class="footer-derecha">
             <span>REGIÓN: AR</span>
-            <span class="footer-sep">|</span>
+            <span class="footer-sep" aria-hidden="true">|</span>
             <span>NODO: {{ entorno.nodo }}</span>
-            <span class="footer-sep">|</span>
+            <span class="footer-sep" aria-hidden="true">|</span>
             <span>EPOCH: 2026-A</span>
         </div>
     </footer>

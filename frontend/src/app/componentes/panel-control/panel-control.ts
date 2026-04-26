@@ -61,6 +61,10 @@ export class PanelControl implements OnInit, OnDestroy {
     // Evento que emite cuando una acción completó para que el padre recargue datos.
     readonly accionCompletada = output<void>();
 
+    // Evento que emite en cada tick de polling de evaluación,
+    // para que el dashboard refresque ofertas en segundo plano.
+    readonly evaluacionEnProgreso = output<void>();
+
     // Input que bloquea todas las acciones en modo demo.
     readonly modoDemo = input(false);
 
@@ -121,6 +125,8 @@ export class PanelControl implements OnInit, OnDestroy {
                 next: (respuesta) => {
                     if (respuesta.exito) {
                         this.progresoEvaluacion.set(respuesta.datos);
+                        // Emito evento para que el dashboard refresque ofertas en segundo plano.
+                        this.evaluacionEnProgreso.emit();
                         // Si el backend terminó, detengo el polling y notifico.
                         if (!respuesta.datos.activo) {
                             this.detenerPollingEvaluacion();

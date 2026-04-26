@@ -2,17 +2,19 @@
 <p-dialog
     [(visible)]="visible"
     [modal]="true"
-    [style]="{ width: '680px', maxHeight: '90vh' }"
+    [style]="{ width: 'min(680px, calc(100vw - 32px))', maxHeight: '90vh' }"
     [draggable]="false"
     [resizable]="false"
-    styleClass="dialogo-detalle">
+    [breakpoints]="{ '768px': { width: '100vw', maxHeight: '100vh' } }"
+    styleClass="dialogo-detalle"
+    aria-labelledby="detalle-titulo">
 
     @if (oferta(); as o) {
         <!-- Header propio dentro del dialog -->
         <ng-template #header>
             <div class="dialogo-cabecera">
                 <span class="dialogo-label">DETALLE_OFERTA</span>
-                <span class="dialogo-titulo">{{ o.titulo }}</span>
+                <span class="dialogo-titulo" id="detalle-titulo">{{ o.titulo }}</span>
             </div>
         </ng-template>
 
@@ -117,11 +119,11 @@
 
         <!-- Footer del diálogo -->
         <ng-template #footer>
-            <button class="btn-detalle-secundario" (click)="visible.set(false)">
+            <button class="btn-detalle-secundario" (click)="visible.set(false)" aria-label="Cerrar detalle de oferta">
                 CERRAR
             </button>
-            <button class="btn-detalle-primario" (click)="abrirEnPagina()">
-                <span class="material-symbols-outlined">open_in_new</span>
+            <button class="btn-detalle-primario" (click)="abrirEnPagina()" aria-label="Abrir oferta en página original">
+                <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
                 VER ORIGINAL
             </button>
         </ng-template>

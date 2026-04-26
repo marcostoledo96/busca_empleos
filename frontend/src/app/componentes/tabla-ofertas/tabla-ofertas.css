@@ -17,11 +17,25 @@
     }
 }
 
+/* === Screen-reader only utility === */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
 .tabla-contenedor {
     border: 1px solid var(--outline-variant);
     background: var(--surface);
     margin-bottom: var(--espaciado-seccion);
-    overflow: hidden;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 /* === Encabezado propio (fuera del p-table) === */
@@ -52,7 +66,7 @@
 }
 
 .filtro-busqueda {
-    padding: 0.375rem 0.75rem;
+    padding: 0.5rem 0.75rem;
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
     font-family: var(--font-mono);
@@ -63,6 +77,8 @@
     background: var(--surface);
     width: 280px;
     transition: border-color 150ms;
+    /* Touch target mínimo */
+    min-height: 44px;
 }
 
 .filtro-busqueda::placeholder {
@@ -73,6 +89,18 @@
 .filtro-busqueda:focus {
     outline: none;
     border-color: var(--on-surface);
+}
+
+.filtro-busqueda:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* === Focus visible global para la tabla === */
+.tabla-contenedor :focus-visible,
+.cards-contenedor :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 /* === Celdas === */
@@ -163,13 +191,13 @@
     font-size: 0.75rem;
 }
 
-/* === Botón ver detalle === */
+/* === Botón ver detalle — touch target ≥44×44px === */
 .btn-ver {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     background: transparent;
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
@@ -182,6 +210,11 @@
     background: var(--surface-container-low);
     color: var(--on-surface);
     border-color: var(--secondary);
+}
+
+.btn-ver:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .btn-ver .material-symbols-outlined {
@@ -216,12 +249,14 @@
     opacity: 0.6;
 }
 
-/* ── Checkbox de selección ────────────────────────────── */
+/* ── Checkbox de selección — touch target ≥44×44px ── */
 .checkbox-tabla {
     appearance: none;
     -webkit-appearance: none;
-    width: 15px;
-    height: 15px;
+    width: 18px;
+    height: 18px;
+    /* Expandir touch target a 44×44 sin aumentar tamaño visual */
+    margin: 13px;
     border: 1.5px solid var(--outline);
     border-radius: 3px;
     background: transparent;
@@ -239,8 +274,8 @@
 .checkbox-tabla:checked::after {
     content: '';
     position: absolute;
-    left: 3px;
-    top: 0px;
+    left: 5px;
+    top: 1px;
     width: 5px;
     height: 9px;
     border: 2px solid var(--on-primary);
@@ -257,15 +292,20 @@
 .checkbox-tabla:indeterminate::after {
     content: '';
     position: absolute;
-    left: 2px;
-    top: 5px;
-    width: 7px;
+    left: 4px;
+    top: 6px;
+    width: 8px;
     height: 1.5px;
     background: var(--on-primary);
 }
 
 .checkbox-tabla:hover {
     border-color: var(--primary);
+}
+
+.checkbox-tabla:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 /* Fila seleccionada */
@@ -284,6 +324,7 @@ tr.fila-seleccionada td {
     border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
     border-radius: 4px;
     margin-bottom: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .barra-bulk__conteo {
@@ -305,6 +346,7 @@ tr.fila-seleccionada td {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    flex-wrap: wrap;
 }
 
 .btn-bulk-aplicar {
@@ -312,7 +354,8 @@ tr.fila-seleccionada td {
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.08em;
-    padding: 0.35rem 0.9rem;
+    padding: 0.5rem 0.9rem;
+    min-height: 44px;
     background: var(--primary);
     color: var(--on-primary);
     border: none;
@@ -330,10 +373,18 @@ tr.fila-seleccionada td {
     opacity: 0.85;
 }
 
+.btn-bulk-aplicar:focus-visible {
+    outline: 2px solid var(--on-primary);
+    outline-offset: 2px;
+}
+
 .btn-bulk-cancelar {
     display: flex;
     align-items: center;
-    padding: 0.3rem;
+    justify-content: center;
+    padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
     background: transparent;
     border: 1px solid var(--outline-variant);
     border-radius: 3px;
@@ -345,6 +396,11 @@ tr.fila-seleccionada td {
 .btn-bulk-cancelar:hover {
     color: var(--on-surface);
     border-color: var(--outline);
+}
+
+.btn-bulk-cancelar:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .btn-bulk-cancelar .material-symbols-outlined {
@@ -416,6 +472,7 @@ tr.fila-seleccionada td {
     background: var(--surface);
     cursor: pointer;
     transition: background-color 150ms;
+    /* Touch target mínimo para toda la card */
 }
 
 .card-oferta:last-child {
@@ -424,6 +481,11 @@ tr.fila-seleccionada td {
 
 .card-oferta:active {
     background: var(--surface-container-low);
+}
+
+.card-oferta:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: -2px;
 }
 
 /* Encabezado de la card: título + match */
@@ -553,8 +615,8 @@ tr.fila-seleccionada td {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 2rem;
-    height: 2rem;
+    width: 44px;
+    height: 44px;
     background: transparent;
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
@@ -573,6 +635,11 @@ tr.fila-seleccionada td {
     border-color: var(--on-surface);
 }
 
+.cards-paginador__btn:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .cards-paginador__btn .material-symbols-outlined {
     font-size: 16px;
 }
@@ -581,8 +648,8 @@ tr.fila-seleccionada td {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 2rem;
-    height: 2rem;
+    min-width: 44px;
+    height: 44px;
     background: transparent;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
@@ -598,6 +665,11 @@ tr.fila-seleccionada td {
     background: var(--surface-container-low);
 }
 
+.cards-paginador__num:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .cards-paginador__num--activa {
     background: var(--primary);
     color: var(--on-primary);
@@ -606,4 +678,56 @@ tr.fila-seleccionada td {
 
 .cards-paginador__num--activa:hover {
     background: var(--primary);
+}
+
+/* ============================================
+   Responsive — Tabla desktop
+   ============================================ */
+
+/* Tablet: hacer la tabla scrolleable sin romper layout */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .tabla-encabezado {
+        padding: 0.75rem 1rem;
+    }
+
+    .filtro-busqueda {
+        width: 200px;
+    }
+
+    /* Asegurar que la tabla scrolle dentro de su contenedor */
+    .tabla-contenedor :deep(.p-datatable-wrapper) {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .barra-bulk {
+        padding: 0.5rem 0.75rem;
+    }
+}
+
+/* ============================================
+   Responsive — Cards mobile (refuerzos)
+   ============================================ */
+@media (max-width: 768px) {
+    .cards-encabezado {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .cards-info {
+        padding: 0.5rem 0.75rem;
+    }
+
+    .card-oferta {
+        padding: 0.75rem;
+    }
+
+    .card-oferta__footer {
+        flex-wrap: wrap;
+        gap: 0.375rem;
+    }
+
+    .cards-paginador {
+        padding: 0.5rem;
+        gap: 0.125rem;
+    }
 }

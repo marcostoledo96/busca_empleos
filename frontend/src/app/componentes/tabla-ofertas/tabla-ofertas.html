@@ -1,22 +1,25 @@
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
-<div class="tabla-contenedor vista-desktop">
+<div class="tabla-contenedor vista-desktop" role="region" aria-label="Tabla de ofertas de empleo">
     <!-- Encabezado externo a PrimeNG -->
     <div class="tabla-encabezado">
-        <span class="tabla-label">OFERTAS_EMPLEO</span>
+        <span class="tabla-label" id="tabla-busqueda-label">OFERTAS_EMPLEO</span>
         <div class="tabla-filtros">
+            <label for="filtro-busqueda-input" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
             <input
+                id="filtro-busqueda-input"
                 type="text"
                 class="filtro-busqueda"
                 placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
+                aria-labelledby="tabla-busqueda-label"
                 (input)="tablaOfertas.filterGlobal($any($event.target).value, 'contains')" />
         </div>
     </div>
 
     <!-- Barra de acciones masivas: visible solo cuando hay selección -->
     @if (algunaSeleccionada() && !modoDemo()) {
-        <div class="barra-bulk">
+        <div class="barra-bulk" role="toolbar" aria-label="Acciones masivas sobre ofertas seleccionadas">
             <span class="barra-bulk__conteo">
-                <span class="material-symbols-outlined">check_box</span>
+                <span class="material-symbols-outlined" aria-hidden="true">check_box</span>
                 {{ seleccionadas().size }} oferta{{ seleccionadas().size !== 1 ? 's' : '' }} seleccionada{{ seleccionadas().size !== 1 ? 's' : '' }}
             </span>
             <div class="barra-bulk__acciones">
@@ -27,15 +30,20 @@
                     optionValue="value"
                     placeholder="Cambiar estado a..."
                     size="small"
+                    ariaLabel="Seleccionar estado para acción masiva"
                     [style]="{ minWidth: '170px' }" />
                 <button
                     class="btn-bulk-aplicar"
                     [disabled]="!estadoBulkSeleccionado"
-                    (click)="aplicarAccionMasiva()">
+                    (click)="aplicarAccionMasiva()"
+                    aria-label="Aplicar acción masiva">
                     APLICAR
                 </button>
-                <button class="btn-bulk-cancelar" (click)="limpiarSeleccion()">
-                    <span class="material-symbols-outlined">close</span>
+                <button
+                    class="btn-bulk-cancelar"
+                    (click)="limpiarSeleccion()"
+                    aria-label="Cancelar selección masiva">
+                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
             </div>
         </div>
@@ -56,7 +64,7 @@
         <!-- Definición de columnas -->
         <ng-template #header>
             <tr>
-                <th style="width: 40px; padding: 0.5rem 0.75rem;">
+                <th style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar todas">
                     @if (!modoDemo()) {
                         <input
                             type="checkbox"
@@ -64,7 +72,7 @@
                             [checked]="todasSeleccionadas()"
                             [indeterminate]="algunaSeleccionada() && !todasSeleccionadas()"
                             (change)="toggleSeleccionarTodas()"
-                            [attr.title]="modoDemo() ? 'Seleccionar todas' : null" />
+                            aria-label="Seleccionar todas las ofertas" />
                     }
                 </th>
                 <th pSortableColumn="titulo" style="min-width: 250px">
@@ -84,20 +92,21 @@
                 <th pSortableColumn="fecha_extraccion" style="min-width: 110px">
                     EXTRAÍDA <p-sortIcon field="fecha_extraccion" />
                 </th>
-                <th style="width: 56px"></th>
+                <th style="width: 44px"></th>
             </tr>
         </ng-template>
 
         <!-- Filas de datos -->
         <ng-template #body let-oferta>
             <tr [class.fila-seleccionada]="seleccionadas().has(oferta.id)">
-                <td style="padding: 0.5rem 0.75rem;">
+                <td style="padding: 0.5rem;">
                     @if (!modoDemo()) {
                         <input
                             type="checkbox"
                             class="checkbox-tabla"
                             [checked]="seleccionadas().has(oferta.id)"
-                            (change)="toggleSeleccion(oferta.id)" />
+                            (change)="toggleSeleccion(oferta.id)"
+                            [attr.aria-label]="'Seleccionar ' + oferta.titulo" />
                     }
                 </td>
                 <td>
@@ -134,14 +143,19 @@
                         optionLabel="label"
                         optionValue="value"
                         [style]="{ width: '100%', minWidth: '130px' }"
-                        size="small" />
+                        size="small"
+                        [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                 </td>
                 <td class="celda-mono celda-fecha">
                     {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
                 </td>
                 <td>
-                    <button class="btn-ver" (click)="verDetalle(oferta)" [attr.title]="modoDemo() ? 'Ver detalle' : null">
-                        <span class="material-symbols-outlined">open_in_new</span>
+                    <button
+                        class="btn-ver"
+                        (click)="verDetalle(oferta)"
+                        [attr.aria-label]="'Ver detalle de ' + oferta.titulo"
+                        title="Ver detalle">
+                        <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
                     </button>
                 </td>
             </tr>
@@ -151,7 +165,7 @@
         <ng-template #emptymessage>
             <tr>
                 <td colspan="9" class="tabla-vacia">
-                    <span class="material-symbols-outlined">inbox</span>
+                    <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
                     <p>NO_HAY_OFERTAS</p>
                     <span>Ejecutá un scraping desde el panel de control.</span>
                 </td>
@@ -163,19 +177,22 @@
 <!-- ============================================
      Vista Cards (mobile) — se muestra en ≤768px
      ============================================ -->
-<div class="cards-contenedor vista-mobile">
+<div class="cards-contenedor vista-mobile" role="region" aria-label="Lista de ofertas de empleo">
     <!-- Encabezado -->
     <div class="cards-encabezado">
-        <span class="tabla-label">OFERTAS_EMPLEO</span>
+        <span class="tabla-label" id="cards-busqueda-label">OFERTAS_EMPLEO</span>
+        <label for="filtro-busqueda-cards" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
         <input
+            id="filtro-busqueda-cards"
             type="text"
             class="filtro-busqueda"
             placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
+            aria-labelledby="cards-busqueda-label"
             (input)="filtrarCards($event)" />
     </div>
 
     <!-- Indicador de cantidad y paginación -->
-    <div class="cards-info">
+    <div class="cards-info" aria-live="polite">
         <span class="cards-conteo">
             {{ ofertasFiltradasCards().length }} oferta{{ ofertasFiltradasCards().length !== 1 ? 's' : '' }}
         </span>
@@ -188,9 +205,9 @@
 
     <!-- Lista de cards -->
     @if (ofertasPaginadasCards().length > 0) {
-        <div class="cards-lista">
+        <div class="cards-lista" role="list">
             @for (oferta of ofertasPaginadasCards(); track oferta.id) {
-                <article class="card-oferta" (click)="verDetalle(oferta)">
+                <article class="card-oferta" role="listitem" (click)="verDetalle(oferta)" (keydown)="activarCardConTeclado($event, oferta)" tabindex="0" [attr.aria-label]="'Oferta: ' + oferta.titulo">
                     <!-- Encabezado de la card: título + match -->
                     <div class="card-oferta__encabezado">
                         <div class="card-oferta__titulo-grupo">
@@ -210,7 +227,7 @@
                     <div class="card-oferta__meta">
                         @if (oferta.ubicacion) {
                             <span class="card-oferta__ubicacion">
-                                <span class="material-symbols-outlined">location_on</span>
+                                <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
                                 {{ oferta.ubicacion }}
                             </span>
                         }
@@ -232,7 +249,8 @@
                                 optionValue="value"
                                 [style]="{ minWidth: '130px' }"
                                 size="small"
-                                (click)="$event.stopPropagation()" />
+                                (click)="$event.stopPropagation()"
+                                [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                         } @else {
                             <span class="tag-plataforma">{{ textoPostulacion(oferta.estado_postulacion) | uppercase }}</span>
                         }
@@ -241,8 +259,8 @@
             }
         </div>
     } @else {
-        <div class="cards-vacio">
-            <span class="material-symbols-outlined">inbox</span>
+        <div class="cards-vacio" role="status">
+            <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
             <p>NO_HAY_OFERTAS</p>
             <span>Ejecutá un scraping desde el panel de control.</span>
         </div>
@@ -250,19 +268,22 @@
 
     <!-- Paginador de cards -->
     @if (totalPaginasCards() > 1) {
-        <div class="cards-paginador">
+        <nav class="cards-paginador" aria-label="Paginación de ofertas">
             <button
                 class="cards-paginador__btn"
                 [disabled]="paginaActualCards() === 0"
-                (click)="irAPaginaCards(paginaActualCards() - 1)">
-                <span class="material-symbols-outlined">chevron_left</span>
+                (click)="irAPaginaCards(paginaActualCards() - 1)"
+                aria-label="Página anterior">
+                <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
             </button>
 
             @for (pagina of [].constructor(totalPaginasCards()); track $index) {
                 <button
                     class="cards-paginador__num"
                     [class.cards-paginador__num--activa]="$index === paginaActualCards()"
-                    (click)="irAPaginaCards($index)">
+                    (click)="irAPaginaCards($index)"
+                    [attr.aria-label]="'Ir a página ' + ($index + 1)"
+                    [attr.aria-current]="$index === paginaActualCards() ? 'page' : null">
                     {{ $index + 1 }}
                 </button>
             }
@@ -270,9 +291,10 @@
             <button
                 class="cards-paginador__btn"
                 [disabled]="paginaActualCards() === totalPaginasCards() - 1"
-                (click)="irAPaginaCards(paginaActualCards() + 1)">
-                <span class="material-symbols-outlined">chevron_right</span>
+                (click)="irAPaginaCards(paginaActualCards() + 1)"
+                aria-label="Página siguiente">
+                <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
             </button>
-        </div>
+        </nav>
     }
 </div>

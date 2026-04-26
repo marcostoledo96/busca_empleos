@@ -1,4 +1,4 @@
-import { Component, inject, input, model, output } from '@angular/core';
+import { Component, ElementRef, inject, input, model, output, ViewChild, effect } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
@@ -34,6 +34,49 @@ export class DetalleOferta {
         { label: 'En proceso', value: 'en_proceso' },
         { label: 'Descartada', value: 'descartada' },
     ];
+
+    // Guarda el elemento que tenía foco antes de abrir el modal.
+    private elementoFocoPrevio: HTMLElement | null = null;
+
+    constructor(private readonly elemento: ElementRef) {
+        // Effect: cuando el modal se abre, mover foco al contenido;
+        // cuando se cierra, restaurar foco al elemento que lo abrió.
+        effect(() => {
+            const abierto = this.visible();
+            if (abierto) {
+                // Guardar foco previo antes de mover.
+                this.elementoFocoPrevio = document.activeElement as HTMLElement;
+                // Timeout para que PrimeNG renderice el dialog.
+                setTimeout(() => this.moverFocoAlModal(), 100);
+            } else {
+                this.restaurarFoco();
+            }
+        });
+    }
+
+    // Mueve el foco al primer elemento interactivo dentro del modal.
+    private moverFocoAlModal(): void {
+        const dialogContent = this.elemento.nativeElement.querySelector('.p-dialog-content') as HTMLElement
+            ?? this.elemento.nativeElement.querySelector('.dialogo-cabecera') as HTMLElement;
+        if (dialogContent) {
+            const primerInteractivo = dialogContent.querySelector(
+                'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            ) as HTMLElement | null;
+            if (primerInteractivo) {
+                primerInteractivo.focus();
+            } else {
+                dialogContent.focus();
+            }
+        }
+    }
+
+    // Restaura el foco al elemento que abrió el modal.
+    private restaurarFoco(): void {
+        if (this.elementoFocoPrevio) {
+            this.elementoFocoPrevio.focus();
+            this.elementoFocoPrevio = null;
+        }
+    }
 
     // Determina el color del tag según el estado.
     severidadEstado(estado: string): 'success' | 'danger' | 'warn' | 'info' {

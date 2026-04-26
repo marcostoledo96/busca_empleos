@@ -41,6 +41,7 @@
     /* Funcionales */
     --color-exito: #16a34a;
     --color-peligro: #dc2626;
+    --color-error: #dc2626;
     --color-advertencia: #d97706;
     --color-info: #2563eb;
 
@@ -63,6 +64,18 @@
     /* Layout */
     --sidebar-ancho: 256px;
     --topbar-alto: 64px;
+
+    /* Breakpoints (solo referencia — usar en media queries) */
+    --bp-mobile: 768px;
+    --bp-tablet: 1024px;
+
+    /* Focus ring */
+    --focus-ring-color: var(--primary);
+    --focus-ring-width: 2px;
+    --focus-ring-offset: 2px;
+
+    /* Touch targets — accesibilidad */
+    --touch-target: 44px;
 }
 
 /* === Reset global === */
@@ -70,6 +83,50 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+}
+
+/* === Foco visible global — accesibilidad por teclado === */
+*:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* Ensure focus ring visible on dark mode */
+html.dark *:focus-visible {
+    outline-color: var(--primary);
+}
+
+/* PrimeNG: evitar que los overrides de focus oculten el outline global */
+.p-inputtext:focus-visible,
+.p-inputtext:enabled:focus-visible,
+.p-textarea:focus-visible,
+.p-select:focus-visible,
+.p-multiselect:focus-visible,
+.p-button:focus-visible,
+.p-toggleswitch:focus-visible .p-toggleswitch-slider,
+.p-autocomplete:focus-visible,
+.p-tab:focus-visible,
+a:focus-visible,
+button:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+/* === Reduced motion — accesibilidad para usuarios sensible al movimiento === */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .login-spinner,
+    .btn-spin {
+        animation: none !important;
+    }
 }
 
 body {
@@ -353,6 +410,7 @@ html.dark {
     /* Funcionales */
     --color-exito: #72ff70;
     --color-peligro: #f87171;
+    --color-error: #f87171;
     --color-advertencia: #fbbf24;
     --color-info: #60a5fa;
 }

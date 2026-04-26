@@ -1,5 +1,4 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { forkJoin } from 'rxjs';
 import { TabsModule } from 'primeng/tabs';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
@@ -7,11 +6,8 @@ import { PanelControl } from '../../componentes/panel-control/panel-control';
 import { TablaOfertas } from '../../componentes/tabla-ofertas/tabla-ofertas';
 import { DetalleOferta } from '../../componentes/detalle-oferta/detalle-oferta';
 import { OfertasService } from '../../servicios/ofertas.service';
-import {
-    PersistenciaDashboardService,
-    type CacheDashboard,
-} from '../../servicios/persistencia-dashboard.service';
-import { Oferta, Estadisticas } from '../../modelos/oferta.model';
+import { PersistenciaDashboardService } from '../../servicios/persistencia-dashboard.service';
+import { Oferta } from '../../modelos/oferta.model';
 import { DemoService } from '../../servicios/demo.service';
 
 @Component({
@@ -38,12 +34,14 @@ export class Dashboard implements OnInit {
 
     // Estado reactivo de la página.
     readonly ofertas = signal<Oferta[]>([]);
-    readonly estadisticas = signal<Estadisticas | null>(null);
     readonly cargando = signal(false);
     readonly ofertaSeleccionada = signal<Oferta | null>(null);
     readonly dialogoVisible = signal(false);
     readonly mensajeEstado = signal<string | null>(null);
     readonly datosDesdeCache = signal(false);
+
+    // Guarda para evitar requests superpuestos durante el refresh de polling.
+    private refrescandoEnSegundoPlano = false;
 
     // Filtro global de plataforma.
     readonly filtroPlataforma = signal<string | null>(null);
@@ -111,38 +109,42 @@ export class Dashboard implements OnInit {
             .sort((a, b) => new Date(b.fecha_extraccion).getTime() - new Date(a.fecha_extraccion).getTime())
     );
 
+    // Cards superiores: derivadas de los mismos computed que las tabs,
+    // garantizando consistencia total entre lo que muestra el resumen y las tabs.
+    readonly statTotal = computed(() => this.ofertasFiltradas().length);
+    readonly statPendientes = computed(() => this.ofertasPendientes().length);
+    readonly statAprobadas = computed(() => this.ofertasAprobadas().length);
+    readonly statPostuladas = computed(() => this.ofertasPostuladas().length);
+    readonly statRechazadas = computed(() => this.ofertasRechazadas().length);
+
     ngOnInit(): void {
         // En modo demo no hacemos ninguna petición al backend.
         if (this.demoService.esModoDemo()) {
             this.ofertas.set(this.demoService.obtenerOfertasDemo());
-            this.estadisticas.set(this.demoService.obtenerEstadisticasDemo());
             return;
         }
         this.restaurarUltimaCargaGuardada();
         this.cargarDatos();
     }
 
-    // Carga ofertas y estadísticas en paralelo.
+    // Carga ofertas del backend. Las estadísticas se derivan de las ofertas
+    // en computed signals, así que no necesita llamar a /estadisticas.
     cargarDatos(): void {
         this.cargando.set(true);
 
-        forkJoin({
-            estadisticas: this.ofertasService.obtenerEstadisticas(),
-            ofertas: this.ofertasService.obtenerOfertas(),
-        }).subscribe({
-            next: ({ estadisticas, ofertas }) => {
+        this.ofertasService.obtenerOfertas().subscribe({
+            next: (respuesta) => {
                 this.cargando.set(false);
 
-                if (!estadisticas.exito || !ofertas.exito) {
+                if (!respuesta.exito) {
                     this.manejarFalloSincronizacion();
                     return;
                 }
 
-                this.estadisticas.set(estadisticas.datos);
-                this.ofertas.set(ofertas.datos);
+                this.ofertas.set(respuesta.datos);
                 this.persistenciaDashboard.guardarCache({
-                    ofertas: ofertas.datos,
-                    estadisticas: estadisticas.datos,
+                    ofertas: respuesta.datos,
+                    estadisticas: null,
                     fechaGuardado: new Date().toISOString(),
                 });
                 this.datosDesdeCache.set(false);
@@ -152,6 +154,32 @@ export class Dashboard implements OnInit {
                 this.cargando.set(false);
                 console.error('Error al cargar dashboard:', error);
                 this.manejarFalloSincronizacion();
+            }
+        });
+    }
+
+    // Refresh liviano durante el polling de evaluación.
+    // Solo recarga ofertas (sin spinner, sin tocar estado de carga principal).
+    // Evita requests superpuestos con una guarda.
+    onProgresoEvaluacion(): void {
+        if (this.refrescandoEnSegundoPlano) return;
+        this.refrescandoEnSegundoPlano = true;
+
+        this.ofertasService.obtenerOfertas().subscribe({
+            next: (respuesta) => {
+                this.refrescandoEnSegundoPlano = false;
+                if (respuesta.exito) {
+                    this.ofertas.set(respuesta.datos);
+                    this.persistenciaDashboard.guardarCache({
+                        ofertas: respuesta.datos,
+                        estadisticas: null,
+                        fechaGuardado: new Date().toISOString(),
+                    });
+                }
+            },
+            error: () => {
+                this.refrescandoEnSegundoPlano = false;
+                // Silencioso — no interrumpimos la UI por un fallo de polling.
             }
         });
     }
@@ -188,7 +216,8 @@ export class Dashboard implements OnInit {
             return;
         }
 
-        this.aplicarCache(cache);
+        this.ofertas.set(cache.ofertas);
+        this.datosDesdeCache.set(true);
         this.mensajeEstado.set(
             `Recuperé la última carga guardada del ${this.formatearFecha(cache.fechaGuardado)} mientras sincronizo con el backend.`
         );
@@ -198,7 +227,8 @@ export class Dashboard implements OnInit {
         const cache = this.persistenciaDashboard.leerCache();
 
         if (cache) {
-            this.aplicarCache(cache);
+            this.ofertas.set(cache.ofertas);
+            this.datosDesdeCache.set(true);
             this.mensajeEstado.set(
                 `No pude sincronizar con el backend. Estoy mostrando la última carga guardada del ${this.formatearFecha(cache.fechaGuardado)}.`
             );
@@ -209,12 +239,6 @@ export class Dashboard implements OnInit {
         this.mensajeEstado.set(
             'No pude cargar las ofertas guardadas. Verificá que el backend esté corriendo y conectado a PostgreSQL.'
         );
-    }
-
-    private aplicarCache(cache: CacheDashboard): void {
-        this.ofertas.set(cache.ofertas);
-        this.estadisticas.set(cache.estadisticas);
-        this.datosDesdeCache.set(true);
     }
 
     private formatearFecha(fechaIso: string): string {

@@ -59,8 +59,12 @@
     color: var(--on-surface-variant);
     display: flex;
     align-items: center;
-    padding: 0.25rem;
-    transition: color 150ms ease;
+    justify-content: center;
+    padding: 0.5rem;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: var(--radius-sm);
+    transition: color 150ms ease, background 150ms ease;
 }
 
 .login-header-tema:hover {
@@ -179,6 +183,7 @@
     justify-content: center;
     gap: 0.875rem;
     padding: 1.125rem 1.5rem;
+    min-height: 48px;
     background-color: var(--primary);
     color: var(--on-primary);
     border: none;
@@ -266,8 +271,8 @@
     gap: 0.75rem;
     padding: 1rem 1.5rem;
     background-color: transparent;
-    color: var(--color-primario);
-    border: 2px solid var(--color-primario);
+    color: var(--primary);
+    border: 2px solid var(--primary);
     cursor: pointer;
     font-family: var(--font-mono);
     font-size: 0.6875rem;
@@ -276,12 +281,13 @@
     text-transform: uppercase;
     transition: border-color 150ms ease, color 150ms ease, background-color 150ms ease;
     border-radius: var(--radius-sm);
+    min-height: 48px;
 }
 
 .login-btn-invitado:hover:not(:disabled) {
-    background-color: color-mix(in srgb, var(--color-primario) 10%, transparent);
-    border-color: var(--color-primario);
-    color: var(--color-primario);
+    background-color: color-mix(in srgb, var(--primary) 10%, transparent);
+    border-color: var(--primary);
+    color: var(--primary);
 }
 
 .login-btn-invitado:active:not(:disabled) {
@@ -394,6 +400,27 @@
 }
 
 /* ------------------------------------------------------------------
+   RESPONSIVE — tablet (769–1024px)
+   ------------------------------------------------------------------ */
+@media (min-width: 769px) and (max-width: 1024px) {
+    .login-card {
+        max-width: 480px;
+    }
+
+    .login-main {
+        padding: 8rem 2rem 6rem;
+    }
+
+    .login-header {
+        padding: 1.25rem 2rem;
+    }
+
+    .login-footer {
+        padding: 1rem 2rem;
+    }
+}
+
+/* ------------------------------------------------------------------
    RESPONSIVE — mobile
    ------------------------------------------------------------------ */
 @media (max-width: 640px) {
@@ -407,6 +434,10 @@
 
     .login-main {
         padding: 7rem 1.25rem 5rem;
+    }
+
+    .login-card {
+        max-width: 100%;
     }
 
     .login-titulo {

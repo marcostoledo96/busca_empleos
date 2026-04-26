@@ -3,9 +3,9 @@
 
 <!-- Overlay: scraping individual (spinner simple, sin % real) -->
 @if (mostrarOverlayIndividual()) {
-    <div class="overlay-carga">
-        <div class="overlay-carga__cuadro">
-            <div class="overlay-spinner">
+    <div class="overlay-carga" role="dialog" aria-modal="true" aria-label="Carga en progreso">
+        <div class="overlay-carga__cuadro" role="status" aria-live="assertive">
+            <div class="overlay-spinner" aria-hidden="true">
                 <span class="overlay-spinner__anillo"></span>
             </div>
             <p class="overlay-carga__titulo">EXTRAYENDO OFERTAS</p>
@@ -17,8 +17,8 @@
 
 <!-- Overlay: ciclo completo (pasos reales + % via polling) -->
 @if (mostrarOverlayCiclo()) {
-    <div class="overlay-carga">
-        <div class="overlay-carga__cuadro overlay-carga__cuadro--ciclo">
+    <div class="overlay-carga" role="dialog" aria-modal="true" aria-label="Ciclo completo en progreso">
+        <div class="overlay-carga__cuadro overlay-carga__cuadro--ciclo" role="status" aria-live="polite">
             <p class="overlay-carga__titulo">CICLO COMPLETO</p>
             <p class="overlay-carga__subtitulo">SCRAPING + EVALUACIÓN IA</p>
 
@@ -52,10 +52,10 @@
                 </ul>
             } @else {
                 <!-- Estado inicial mientras no llegó el primer polling -->
-                <div class="overlay-spinner">
+                <div class="overlay-spinner" aria-hidden="true">
                     <span class="overlay-spinner__anillo"></span>
                 </div>
-                <p class="overlay-carga__aviso">Iniciando ciclo...</p>
+                <p class="overlay-carga__aviso" aria-live="polite">Iniciando ciclo...</p>
             }
         </div>
     </div>
@@ -68,66 +68,66 @@
 
     <div class="panel-cuerpo">
         <!-- Scraping -->
-        <div class="panel-grupo">
-            <span class="grupo-label">Scraping</span>
-            <div class="grupo-acciones">
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin() || modoDemo()" (click)="scrapearLinkedin()" [pTooltip]="modoDemo() ? 'Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos.' : undefined" tooltipPosition="top">
-                    <i class="pi pi-linkedin"></i>
+        <div class="panel-grupo" role="group" aria-label="Acciones de scraping">
+            <span class="grupo-label" id="label-scraping">Scraping</span>
+            <div class="grupo-acciones" role="group" aria-labelledby="label-scraping">
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="scrapeandoLinkedin() || modoDemo()" (click)="scrapearLinkedin()" [pTooltip]="modoDemo() ? 'Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos.' : undefined" tooltipPosition="top" aria-label="Scrapear LinkedIn">
+                    <i class="pi pi-linkedin" aria-hidden="true"></i>
                     {{ scrapeandoLinkedin() ? '...' : 'LinkedIn' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo() || modoDemo()" (click)="scrapearComputrabajo()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Computrabajo con la API de Apify.' : undefined" tooltipPosition="top">
-                    <i class="pi pi-globe"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="scrapeandoComputrabajo() || modoDemo()" (click)="scrapearComputrabajo()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Computrabajo con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Computrabajo">
+                    <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoComputrabajo() ? '...' : 'Computrabajo' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed() || modoDemo()" (click)="scrapearIndeed()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Indeed con la API de Apify.' : undefined" tooltipPosition="top">
-                    <i class="pi pi-search"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="scrapeandoIndeed() || modoDemo()" (click)="scrapearIndeed()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Indeed con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Indeed">
+                    <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoIndeed() ? '...' : 'Indeed' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran() || modoDemo()" (click)="scrapearBumeran()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web.' : undefined" tooltipPosition="top">
-                    <i class="pi pi-briefcase"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="scrapeandoBumeran() || modoDemo()" (click)="scrapearBumeran()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web.' : undefined" tooltipPosition="top" aria-label="Scrapear Bumeran">
+                    <i class="pi pi-briefcase" aria-hidden="true"></i>
                     {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor() || modoDemo()" (click)="scrapearGlassdoor()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Glassdoor con la API de Apify.' : undefined" tooltipPosition="top">
-                    <i class="pi pi-star"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="scrapeandoGlassdoor() || modoDemo()" (click)="scrapearGlassdoor()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Glassdoor con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Glassdoor">
+                    <i class="pi pi-star" aria-hidden="true"></i>
                     {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd() || modoDemo()" (click)="scrapearGetonbrd()" [pTooltip]="modoDemo() ? 'Extrae ofertas de GetOnBrd usando su API REST p\u00FAblica oficial (sin Apify).' : undefined" tooltipPosition="top">
-                    <i class="pi pi-globe"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd() || modoDemo()" (click)="scrapearGetonbrd()" [pTooltip]="modoDemo() ? 'Extrae ofertas de GetOnBrd usando su API REST pública oficial (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear GetOnBrd">
+                    <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble() || modoDemo()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top">
-                    <i class="pi pi-search"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble() || modoDemo()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top" aria-label="Scrapear Jooble">
+                    <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoJooble() ? '...' : 'Jooble' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs() || modoDemo()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top">
-                    <i class="pi pi-google"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs() || modoDemo()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
+                    <i class="pi pi-google" aria-hidden="true"></i>
                     {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="scrapeandoRemotive() || modoDemo()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top">
-                    <i class="pi pi-globe"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="scrapeandoRemotive() || modoDemo()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear Remotive">
+                    <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemotive() ? '...' : 'Remotive' }}
                 </button>
-                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="scrapeandoRemoteOK() || modoDemo()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top">
-                    <i class="pi pi-globe"></i>
+                <button class="btn-accion" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="scrapeandoRemoteOK() || modoDemo()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear RemoteOK">
+                    <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
                 </button>
-                <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo() || modoDemo()" (click)="ejecutarCicloCompleto()" [pTooltip]="modoDemo() ? 'Ciclo completo: extrae de todas las plataformas y eval\u00FAa con IA en una sola operaci\u00F3n.' : undefined" tooltipPosition="top">
-                    <span class="material-symbols-outlined">play_circle</span>
+                <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="ejecutandoCiclo() || modoDemo()" (click)="ejecutarCicloCompleto()" [pTooltip]="modoDemo() ? 'Ciclo completo: extrae de todas las plataformas y evalúa con IA en una sola operación.' : undefined" tooltipPosition="top" aria-label="Ejecutar ciclo completo de scraping y evaluación">
+                    <span class="material-symbols-outlined" aria-hidden="true">play_circle</span>
                     {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
                 </button>
             </div>
         </div>
 
         <!-- Evaluación IA + Automatización en la misma fila -->
-        <div class="panel-fila-secundaria">
-            <div class="panel-grupo">
-                <span class="grupo-label">Evaluación IA</span>
+        <div class="panel-fila-secundaria" role="group" aria-label="Evaluación IA y automatización">
+            <div class="panel-grupo" role="group" aria-labelledby="label-evaluacion">
+                <span class="grupo-label" id="label-evaluacion">Evaluación IA</span>
                 <div class="grupo-acciones eval-acciones">
-                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando() || modoDemo()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top">
+                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando() || modoDemo()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top" aria-label="Evaluar ofertas pendientes con IA">
                         {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
                     </button>
                     @if (evaluando()) {
-                        <div class="eval-progreso">
+                        <div class="eval-progreso" role="progressbar" [attr.aria-valuenow]="progresoEvaluacion()?.porcentaje ?? 0" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Progreso de evaluación: ' + (progresoEvaluacion()?.porcentaje ?? 0) + '%'">
                             <div class="eval-progreso__barra">
                                 <div class="eval-progreso__relleno" [style.width.%]="progresoEvaluacion()?.porcentaje ?? 0"></div>
                             </div>
@@ -136,25 +136,26 @@
                                 ({{ progresoEvaluacion()?.porcentaje ?? 0 }}%)
                             </span>
                         </div>
-                        <button class="btn-cancelar" [attr.title]="modoDemo() ? 'Cancelar evaluación' : null" (click)="cancelarEvaluacion()">
-                            <span class="material-symbols-outlined">close</span>
+                        <button class="btn-cancelar" [attr.title]="modoDemo() ? 'Cancelar evaluación' : null" (click)="cancelarEvaluacion()" aria-label="Cancelar evaluación en progreso">
+                            <span class="material-symbols-outlined" aria-hidden="true">close</span>
                         </button>
                     }
                 </div>
             </div>
 
-            <div class="panel-separador-v"></div>
+            <div class="panel-separador-v" aria-hidden="true"></div>
 
-            <div class="panel-grupo">
-                <span class="grupo-label">Automatización</span>
+            <div class="panel-grupo" role="group" aria-labelledby="label-automatizacion">
+                <span class="grupo-label" id="label-automatizacion">Automatización</span>
                 <div class="grupo-acciones grupo-cron">
                     <p-toggleswitch
                         [ngModel]="cronActivo()"
                         (ngModelChange)="toggleCron($event)"
                         [disabled]="modoDemo()"
                         [pTooltip]="modoDemo() ? 'Activa un ciclo automático que se ejecuta cada 48 horas sin intervención manual.' : undefined"
-                        tooltipPosition="top" />
-                    <span class="cron-texto" [class.cron-activo]="cronActivo()">
+                        tooltipPosition="top"
+                        aria-label="Activar automatización cada 48 horas" />
+                    <span class="cron-texto" [class.cron-activo]="cronActivo()" aria-live="polite">
                         {{ cronActivo() ? 'Cada 48 hs' : 'Inactivo' }}
                     </span>
                 </div>

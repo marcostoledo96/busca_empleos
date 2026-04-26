@@ -181,6 +181,14 @@ export class TablaOfertas {
         this.ofertaSeleccionada.emit(oferta);
     }
 
+    // Permite activar una card con Enter o Espacio desde el teclado.
+    activarCardConTeclado(evento: KeyboardEvent, oferta: Oferta): void {
+        if (evento.key === 'Enter' || evento.key === ' ') {
+            evento.preventDefault();
+            this.verDetalle(oferta);
+        }
+    }
+
     // Cambia el estado de postulación de una oferta vía API.
     cambiarPostulacion(oferta: Oferta, nuevoEstado: string): void {
         if (this.modoDemo()) return;
