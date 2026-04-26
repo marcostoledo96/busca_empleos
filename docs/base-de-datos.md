@@ -77,7 +77,7 @@ Archivo: `backend/src/modelos/oferta.js`. Funciones CRUD con queries SQL paramet
 | `obtenerOfertasPendientes()` | SELECT WHERE estado='pendiente' | Lista ofertas no evaluadas. Usado por el servicio de evaluación. |
 | `actualizarEvaluacion(id, estado, razon, porcentaje)` | UPDATE SET estado, razon, porcentaje_match | Actualiza el resultado de la evaluación IA (incluye porcentaje 0-100). Retorna la oferta actualizada o `null`. |
 | `actualizarPostulacion(id, estadoPostulacion)` | UPDATE SET estado_postulacion | Cambia el estado de postulación de una oferta. Retorna la oferta actualizada o `null`. |
-| `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado | Retorna `{ total, pendientes, aprobadas, rechazadas }`. Usado por el dashboard. |
+| `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado | Retorna `{ total, pendientes, aprobadas, rechazadas }` por `estado_evaluacion`. Disponible para diagnósticos o consumidores que necesiten ese agregado bruto. |
 
 ### Firma de `crearOferta`
 
