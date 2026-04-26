@@ -377,5 +377,7 @@
     .contenido-principal {
         margin-left: 0;
         padding: 5rem 1rem 3.5rem;
+        /* Previene scroll lateral en mobile originado por hijos desbordantes */
+        overflow-x: hidden;
     }
 }

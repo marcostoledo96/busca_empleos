@@ -277,14 +277,14 @@
                 <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
             </button>
 
-            @for (pagina of [].constructor(totalPaginasCards()); track $index) {
+            @for (pagina of paginasVisiblesCards(); track pagina) {
                 <button
                     class="cards-paginador__num"
-                    [class.cards-paginador__num--activa]="$index === paginaActualCards()"
-                    (click)="irAPaginaCards($index)"
-                    [attr.aria-label]="'Ir a página ' + ($index + 1)"
-                    [attr.aria-current]="$index === paginaActualCards() ? 'page' : null">
-                    {{ $index + 1 }}
+                    [class.cards-paginador__num--activa]="pagina === paginaActualCards()"
+                    (click)="irAPaginaCards(pagina)"
+                    [attr.aria-label]="'Ir a página ' + (pagina + 1)"
+                    [attr.aria-current]="pagina === paginaActualCards() ? 'page' : null">
+                    {{ pagina + 1 }}
                 </button>
             }
 

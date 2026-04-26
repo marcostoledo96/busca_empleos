@@ -71,6 +71,20 @@ export class TablaOfertas {
         Math.ceil(this.ofertasFiltradasCards().length / this.filasPorPaginaCards)
     );
 
+    // Páginas visibles en el paginador de cards (máximo 5, centradas en la página actual).
+    // Evita que el paginador desborde horizontalmente en mobile con muchas páginas.
+    readonly paginasVisiblesCards = computed(() => {
+        const total = this.totalPaginasCards();
+        const actual = this.paginaActualCards();
+        if (total <= 5) {
+            return Array.from({ length: total }, (_, i) => i);
+        }
+        let inicio = Math.max(0, actual - 2);
+        const fin = Math.min(total - 1, inicio + 4);
+        inicio = Math.max(0, fin - 4);
+        return Array.from({ length: fin - inicio + 1 }, (_, i) => inicio + i);
+    });
+
     // Cambia de página en la vista cards.
     irAPaginaCards(pagina: number): void {
         if (pagina >= 0 && pagina < this.totalPaginasCards()) {

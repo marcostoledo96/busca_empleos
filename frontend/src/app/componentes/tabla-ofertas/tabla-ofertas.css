@@ -36,6 +36,9 @@
     margin-bottom: var(--espaciado-seccion);
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
+    /* Evita que el contenedor desborde su padre en cualquier viewport */
+    max-width: 100%;
+    min-width: 0;
 }
 
 /* === Encabezado propio (fuera del p-table) === */
@@ -48,6 +51,8 @@
     background: var(--surface-container-low);
     flex-wrap: wrap;
     gap: 0.75rem;
+    /* Evita que el encabezado empuje el ancho del contenedor */
+    min-width: 0;
 }
 
 .tabla-label {
@@ -412,6 +417,11 @@ tr.fila-seleccionada td {
    ============================================ */
 .cards-contenedor {
     margin-bottom: var(--espaciado-seccion);
+    /* Previene overflow horizontal en cualquier viewport */
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
 }
 
 /* --- Encabezado cards --- */
@@ -567,6 +577,17 @@ tr.fila-seleccionada td {
     justify-content: space-between;
     gap: 0.5rem;
     margin-top: 0.25rem;
+    /* Evita que el select de postulación desborde la card */
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
+/* Asegurar que el p-select de postulación no desborde la card */
+.card-oferta__footer p-select,
+.card-oferta__footer .p-select {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 100%;
 }
 
 /* --- Estado vacío de cards --- */
@@ -609,6 +630,10 @@ tr.fila-seleccionada td {
     border: 1px solid var(--outline-variant);
     border-top: none;
     background: var(--surface);
+    /* Contiene el paginador sin scroll lateral */
+    flex-wrap: nowrap;
+    overflow-x: hidden;
+    min-width: 0;
 }
 
 .cards-paginador__btn {
