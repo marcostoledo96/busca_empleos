@@ -83,6 +83,7 @@ const {
     ejecutarScrapingGlassdoor,
     ejecutarScrapingGetonbrd,
     ejecutarScrapingJooble,
+    ejecutarScrapingInfojobs,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -786,4 +787,268 @@ describe('Servicio de scraping', () => {
             );
         });
     });
-});
+
+    // =========================================================================
+    // InfoJobs (API oficial, remoto puro)
+    // =========================================================================
+    describe('ejecutarScrapingInfojobs', () => {
+        // Oferta de ejemplo con remoto puro. Todos los campos mapeados al contrato.
+        const ofertaInfojobsFalsa = {
+            link: 'https://www.infojobs.net/oferta-trabajo/frontend-developer_123.xhtml',
+            title: 'Frontend Developer Junior',
+            company: { name: 'Empresa Tech SRL' },
+            city: { value: 'Madrid' },
+            province: { value: 'Madrid' },
+            teleworking: 'solo-teletrabajo',
+            description: 'Buscamos desarrollador frontend con experiencia en React.',
+            experienceMin: { key: 'entre_1_2_anios' },
+            minPay: 20000,
+            maxPay: 30000,
+            salaryDescription: '€ Bruto/año',
+            published: '2024-01-15T10:00:00Z',
+        };
+
+        // Respuesta simulada de la API de InfoJobs.
+        const respuestaInfojobsFalsa = {
+            items: [ofertaInfojobsFalsa],
+        };
+
+        beforeEach(() => {
+            // Instalo un mock de fetch e inicializo credenciales por defecto.
+            global.fetch = jest.fn();
+            // Configuro las credenciales por defecto en cada test.
+            process.env.INFOJOBS_CLIENT_ID = 'client-id-test';
+            process.env.INFOJOBS_CLIENT_SECRET = 'client-secret-test';
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue(respuestaInfojobsFalsa),
+            });
+        });
+
+        afterEach(() => {
+            // Limpio las variables de entorno después de cada test para no
+            // contaminar otros tests.
+            delete process.env.INFOJOBS_CLIENT_ID;
+            delete process.env.INFOJOBS_CLIENT_SECRET;
+            delete global.fetch;
+        });
+
+        // --- INFOJOBS-001: Autenticación ---
+
+        test('construye el header Authorization con HTTP Basic correcto', async () => {
+            await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            const llamadas = global.fetch.mock.calls;
+            expect(llamadas.length).toBeGreaterThan(0);
+
+            const [, opciones] = llamadas[0];
+            const tokenEsperado = Buffer.from('client-id-test:client-secret-test').toString('base64');
+            expect(opciones.headers['Authorization']).toBe(`Basic ${tokenEsperado}`);
+        });
+
+        test('retorna array vacío y no tira error si faltan ambas credenciales', async () => {
+            delete process.env.INFOJOBS_CLIENT_ID;
+            delete process.env.INFOJOBS_CLIENT_SECRET;
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toEqual([]);
+            expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('tira error de configuración si solo falta CLIENT_SECRET', async () => {
+            delete process.env.INFOJOBS_CLIENT_SECRET;
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Configuración incompleta de InfoJobs');
+        });
+
+        test('tira error de configuración si solo falta CLIENT_ID', async () => {
+            delete process.env.INFOJOBS_CLIENT_ID;
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Configuración incompleta de InfoJobs');
+        });
+
+        // --- INFOJOBS-002: Filtro remoto puro ---
+
+        test('envía el parámetro teleworking=solo-teletrabajo en la URL', async () => {
+            await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            const [url] = global.fetch.mock.calls[0];
+            expect(url).toContain('teleworking=solo-teletrabajo');
+        });
+
+        test('descarta ofertas que no sean remoto puro aunque la API las devuelva', async () => {
+            // Simulo que la API devuelve una oferta híbrida por error.
+            const ofertaHibridaFalsa = {
+                ...ofertaInfojobsFalsa,
+                teleworking: 'teletrabajo-parcial',
+            };
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ items: [ofertaHibridaFalsa] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            // La oferta híbrida fue descartada por la Capa 2 del normalizador.
+            expect(resultado).toEqual([]);
+        });
+
+        // --- INFOJOBS-003: Normalización ---
+
+        test('normaliza correctamente una oferta de InfoJobs', async () => {
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado.length).toBe(1);
+            const oferta = resultado[0];
+
+            expect(oferta.titulo).toBe('Frontend Developer Junior');
+            expect(oferta.empresa).toBe('Empresa Tech SRL');
+            // Ciudad + provincia se combinan: "Madrid, Madrid" (patrón consistente del proyecto).
+            expect(oferta.ubicacion).toBe('Madrid, Madrid');
+            expect(oferta.modalidad).toBe('remoto');
+            expect(oferta.url).toBe(ofertaInfojobsFalsa.link);
+            expect(oferta.plataforma).toBe('infojobs');
+            expect(oferta.nivel_requerido).toBe('junior');
+            expect(oferta.salario_min).toBe(20000);
+            expect(oferta.salario_max).toBe(30000);
+            expect(oferta.moneda).toBe('EUR');
+            expect(oferta.fecha_publicacion).toBeInstanceOf(Date);
+        });
+
+        // --- INFOJOBS-004: Descarte de oferta sin URL ---
+
+        test('descarta ofertas sin campo link', async () => {
+            const ofertaSinUrl = { ...ofertaInfojobsFalsa };
+            delete ofertaSinUrl.link;
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ items: [ofertaSinUrl] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toEqual([]);
+        });
+
+        // --- INFOJOBS-005: Límite de resultados ---
+
+        test('respeta el límite máximo de 50 resultados', async () => {
+            // Si pido más de 50, debe capear en 50.
+            await ejecutarScrapingInfojobs({ terminos: ['frontend'], maxResultados: 100 });
+
+            const [url] = global.fetch.mock.calls[0];
+            expect(url).toContain('maxResults=50');
+        });
+
+        // --- Manejo de errores HTTP ---
+
+        test('tira error descriptivo si la API devuelve 401', async () => {
+            global.fetch.mockResolvedValue({ ok: false, status: 401 });
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Error al ejecutar scraping de InfoJobs');
+        });
+
+        test('tira error descriptivo si la API devuelve 429', async () => {
+            global.fetch.mockResolvedValue({ ok: false, status: 429 });
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Error al ejecutar scraping de InfoJobs');
+        });
+
+        test('continúa con el siguiente término si la API devuelve error HTTP no crítico', async () => {
+            global.fetch
+                .mockResolvedValueOnce({ ok: false, status: 500 }) // primer término falla
+                .mockResolvedValue({
+                    ok: true,
+                    json: jest.fn().mockResolvedValue(respuestaInfojobsFalsa),
+                }); // segundo término OK
+
+            const resultado = await ejecutarScrapingInfojobs({
+                terminos: ['termino-que-falla', 'frontend'],
+            });
+
+            // El primer término falló, el segundo devolvió 1 oferta.
+            expect(resultado.length).toBe(1);
+        });
+
+        test('tira error descriptivo si fetch lanza excepción de red', async () => {
+            global.fetch.mockRejectedValue(new Error('Network error'));
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Error al ejecutar scraping de InfoJobs');
+        });
+
+        // --- INFOJOBS-009: Escenarios de validación defensiva (Capa 2) ---
+
+        test('retorna array vacío sin error si la API no devuelve resultados', async () => {
+            // La API puede devolver `items: []` cuando no hay avisos para ese término.
+            // El servicio debe retornar [] sin tirar error.
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ items: [] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['termino-sin-resultados'] });
+
+            expect(resultado).toEqual([]);
+            expect(global.fetch).toHaveBeenCalled();
+        });
+
+        test('descarta oferta con teleworking trabajo-solo-presencial (Capa 2)', async () => {
+            // El normalizador rechaza cualquier valor que no sea 'solo-teletrabajo'.
+            // 'trabajo-solo-presencial' es un ejemplo explícito del campo presencial de InfoJobs.
+            const ofertaPresencial = {
+                ...ofertaInfojobsFalsa,
+                teleworking: 'trabajo-solo-presencial',
+            };
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ items: [ofertaPresencial] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            // La Capa 2 del normalizador descartó la oferta presencial.
+            expect(resultado).toEqual([]);
+        });
+
+        test('descarta oferta con teleworking ausente o null (Capa 2)', async () => {
+            // Si la API devuelve una oferta sin campo teleworking, no es remoto puro.
+            // El normalizador debe descartarla silenciosamente.
+            const ofertaSinModalidad = {
+                ...ofertaInfojobsFalsa,
+                teleworking: null,
+            };
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ items: [ofertaSinModalidad] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toEqual([]);
+        });
+
+        test('el error 401 incluye mensaje específico de credenciales inválidas', async () => {
+            // La implementación lanza 'Credenciales de InfoJobs inválidas (401)' que queda
+            // envuelto en el mensaje genérico del catch externo.
+            global.fetch.mockResolvedValue({ ok: false, status: 401 });
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Credenciales de InfoJobs');
+        });
+
+        test('el error 429 incluye mensaje específico de rate limit', async () => {
+            // La implementación lanza 'Rate limit de InfoJobs excedido (429)' que queda
+            // envuelto en el mensaje genérico del catch externo.
+            global.fetch.mockResolvedValue({ ok: false, status: 429 });
+
+            await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
+                .rejects.toThrow('Rate limit de InfoJobs excedido');
+        });
+    }); // fin describe('ejecutarScrapingInfojobs')
+}); // fin describe('Servicio de scraping')

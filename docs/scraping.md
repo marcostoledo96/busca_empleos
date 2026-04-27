@@ -319,7 +319,7 @@ Parsea strings de salario como `"$50,000.00/yr - $70,000.00/yr"`:
 - Cada item se normaliza individualmente.
 - Si un item falla (ej: sin URL), se loguea un warning y se salta.
 - **Diseño resiliente:** es mejor tener 99 ofertas que 0 por un item roto.
-- Soporta 8 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`, `jooble`, `google-jobs`.
+- Soporta 9 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`, `jooble`, `google-jobs`, `infojobs`.
 
 ## Guardado en BD (en el controlador)
 
@@ -330,6 +330,66 @@ El controlador de scraping orquesta el flujo completo:
 4. Responde con resumen JSON.
 
 El guardado está en el controlador (no en el servicio) para mantener la separación de responsabilidades: el servicio solo extrae y normaliza, el controlador orquesta.
+
+## InfoJobs España — API Oficial
+
+InfoJobs es el portal de empleo más grande de España. A diferencia del resto de las plataformas (que usan Apify o APIs públicas sin auth), InfoJobs requiere registro de aplicación y usa autenticación HTTP Basic.
+
+**Endpoint del controlador:** `POST /api/scraping/infojobs`
+**Servicio:** `ejecutarScrapingInfojobs()` en `servicio-scraping.js`
+**Costo:** API gratuita para proyectos personales (sujeta a rate limits).
+**Tipo de fuente:** API REST oficial — no scraping HTML.
+
+### Credenciales requeridas
+
+Registrar una aplicación en el [Portal de desarrolladores de InfoJobs](https://developer.infojobs.net/) y agregar al `.env`:
+
+```
+INFOJOBS_CLIENT_ID=tu_client_id_aqui
+INFOJOBS_CLIENT_SECRET=tu_client_secret_aqui
+```
+
+> Si ambas variables están ausentes, el endpoint retorna `[]` con una advertencia en el log (feature deshabilitada silenciosamente). Si solo una está presente, el servicio lanza error de configuración.
+
+### Filtro estricto de modalidad remota
+
+InfoJobs aplica el filtro en **dos capas** para garantizar remoto puro:
+
+| Capa | Dónde | Cómo |
+|------|-------|------|
+| Capa 1 — en origen | Parámetro de la API | `teleworking=solo-teletrabajo` en la query |
+| Capa 2 — en normalización | `servicio-normalizacion.js` | Descarta cualquier oferta cuyo campo `teleworking` no sea exactamente `'solo-teletrabajo'` |
+
+**Ofertas excluidas:** híbridas (`trabajo-y-teletrabajo`), presenciales y aquellas sin campo `teleworking` definido. Solo pasan las que sean remoto puro confirmado por ambas capas.
+
+### Límite de resultados
+
+El endpoint limita `maxResultados` a **50** (hardcodeado en el controlador y en el servicio), porque la API gratuita de InfoJobs tiene rate limits estrictos por aplicación.
+
+### Estructura de la respuesta de la API
+
+La API devuelve un JSON con la propiedad `items`:
+
+```json
+{
+  "currentPage": 1,
+  "totalResults": 12,
+  "items": [
+    {
+      "id": "a1b2c3d4e5f6",
+      "title": "Frontend Developer Junior",
+      "company": { "name": "Empresa Ejemplo" },
+      "locations": [{ "province": { "value": "Madrid" }, "city": "Madrid" }],
+      "teleworking": { "id": "solo-teletrabajo", "value": "Solo teletrabajo" },
+      "link": "https://www.infojobs.net/offerjob/a1b2c3d4e5f6"
+    }
+  ]
+}
+```
+
+### Normalización de ubicación
+
+La normalización combina ciudad y provincia: `${city}, ${province}` si ambas están presentes. Si solo hay provincia, usa el valor de provincia. Si no hay dato de ubicación, queda como `null`.
 
 ## Documentos relacionados
 

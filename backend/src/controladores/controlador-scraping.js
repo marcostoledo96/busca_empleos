@@ -412,4 +412,56 @@ async function scrapearRemoteOK(req, res) {
     });
 }
 
-module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK };
+/**
+ * POST /api/scraping/infojobs
+ * Ejecuto el scraping de InfoJobs España usando su API REST oficial
+ * y guardo las ofertas en la BD.
+ *
+ * A diferencia de otras plataformas, InfoJobs usa su API oficial con
+ * autenticación HTTP Basic (no usa Apify). Solo extrae ofertas de
+ * remoto puro (teleworking=solo-teletrabajo); híbridas y presenciales
+ * son descartadas en origen por el filtro de la API y en la normalización.
+ *
+ * Las credenciales se configuran en .env:
+ *   INFOJOBS_CLIENT_ID=...
+ *   INFOJOBS_CLIENT_SECRET=...
+ *
+ * Si ambas credenciales están ausentes, el servicio retorna [] con una
+ * advertencia en el log (feature opcional deshabilitada). Si solo una
+ * está presente, el servicio lanza un error de configuración.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 50, máx: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ */
+async function scrapearInfojobs(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 50);
+    const opciones = {
+        maxResultados,
+        terminos: req.body.terminos,
+    };
+
+    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingInfojobs(opciones);
+
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de InfoJobs completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'infojobs',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK, scrapearInfojobs };

@@ -18,5 +18,6 @@ router.post('/jooble', controlador.scrapearJooble);
 router.post('/google-jobs', controlador.scrapearGoogleJobs);
 router.post('/remotive', controlador.scrapearRemotive);
 router.post('/remoteok', controlador.scrapearRemoteOK);
+router.post('/infojobs', controlador.scrapearInfojobs);
 
 module.exports = router;

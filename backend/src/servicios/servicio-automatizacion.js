@@ -2,7 +2,7 @@
 //
 // ¿Qué es un cron job? Pensalo como una alarma programada:
 // "Cada 48 horas, soná y hacé esto". En nuestro caso, la alarma dispara:
-// 1. Scrapear LinkedIn, Computrabajo, Indeed y Bumeran.
+// 1. Scrapear LinkedIn, Computrabajo, Indeed, Bumeran e InfoJobs.
 // 2. Guardar las ofertas nuevas en la BD.
 // 3. Evaluar las pendientes con DeepSeek.
 //
@@ -78,8 +78,8 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     paso.estado = nuevoEstado;
     if (extraidas !== undefined) paso.extraidas = extraidas;
 
-    // Porcentaje: 10 plataformas × 5.6% = 56%, evaluación 15%, guardado 29%.
-    const pesos = { linkedin: 5.6, computrabajo: 5.6, indeed: 5.6, bumeran: 5.6, glassdoor: 5.6, getonbrd: 5.6, jooble: 5.6, google_jobs: 5.6, remotive: 5.6, remoteok: 5.6, evaluacion: 15, guardado: 29 };
+    // Porcentaje: 11 plataformas × 5.09% ≈ 56%, evaluación 15%, guardado 29%.
+    const pesos = { linkedin: 5.09, computrabajo: 5.09, indeed: 5.09, bumeran: 5.09, glassdoor: 5.09, getonbrd: 5.09, jooble: 5.09, google_jobs: 5.09, remotive: 5.09, remoteok: 5.09, infojobs: 5.09, evaluacion: 15, guardado: 29 };
     const completadas = progreso.pasos
         .filter(p => p.estado === 'completada' || p.estado === 'error')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
@@ -116,6 +116,7 @@ async function ejecutarCicloCompleto() {
             { nombre: 'google_jobs', label: 'Google Jobs', estado: 'pendiente', extraidas: 0 },
             { nombre: 'remotive', label: 'Remotive', estado: 'pendiente', extraidas: 0 },
             { nombre: 'remoteok', label: 'RemoteOK', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'infojobs', label: 'InfoJobs', estado: 'pendiente', extraidas: 0 },
             { nombre: 'guardado', label: 'Guardando en BD', estado: 'pendiente', extraidas: 0 },
             { nombre: 'evaluacion', label: 'Evaluación IA', estado: 'pendiente', extraidas: 0 },
         ],
@@ -152,6 +153,7 @@ async function ejecutarCicloCompleto() {
             google_jobs: 0,
             remotive: 0,
             remoteok: 0,
+            infojobs: 0,
             totalExtraidas: 0,
             guardadas: 0,
         },
@@ -299,8 +301,22 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en RemoteOK: ${error.message}`);
     }
 
-    // --- Paso 11: Guardar ofertas en la BD ---
-    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs, ...ofertasRemotive, ...ofertasRemoteOK];
+    // --- Paso 11: Scraping de InfoJobs (API oficial, solo remoto puro, España) ---
+    let ofertasInfojobs = [];
+    actualizarPasoPorgreso('infojobs', 'procesando');
+    try {
+        ofertasInfojobs = await servicioScraping.ejecutarScrapingInfojobs(opcionesScraping);
+        resultado.scraping.infojobs = ofertasInfojobs.length;
+        actualizarPasoPorgreso('infojobs', 'completada', ofertasInfojobs.length);
+        console.log(`[Automatización] InfoJobs: ${ofertasInfojobs.length} ofertas extraídas.`);
+    } catch (error) {
+        actualizarPasoPorgreso('infojobs', 'error', 0);
+        resultado.errores.push(`Error en scraping de InfoJobs: ${error.message}`);
+        console.error(`[Automatización] Error en InfoJobs: ${error.message}`);
+    }
+
+    // --- Paso 12: Guardar ofertas en la BD ---
+    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs, ...ofertasRemotive, ...ofertasRemoteOK, ...ofertasInfojobs];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
 
     // Filtro de idioma: descarto ofertas claramente en inglés antes de guardar.

@@ -267,6 +267,112 @@ describe('Controlador de scraping', () => {
         });
     });
 
+    // === POST /api/scraping/infojobs ===
+
+    describe('POST /api/scraping/infojobs', () => {
+        test('ejecuta el scraping, guarda ofertas, y retorna resumen', async () => {
+            // El servicio devuelve 2 ofertas de remoto puro ya normalizadas.
+            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([
+                { titulo: 'Frontend Developer Junior', url: 'https://www.infojobs.net/offerjob/1', modalidad: 'remoto' },
+                { titulo: 'QA Tester Junior', url: 'https://www.infojobs.net/offerjob/2', modalidad: 'remoto' },
+            ]);
+
+            // Primera se guarda, segunda es duplicada.
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce({ id: 1 })
+                .mockResolvedValueOnce(null);
+
+            const res = await request(app)
+                .post('/api/scraping/infojobs')
+                .send({ maxResultados: 10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.plataforma).toBe('infojobs');
+            expect(res.body.datos.total_extraidas).toBe(2);
+            expect(res.body.datos.ofertas_nuevas).toBe(1);
+            expect(res.body.datos.ofertas_duplicadas).toBe(1);
+            expect(res.body.datos.mensaje).toContain('InfoJobs');
+        });
+
+        test('pasa las opciones correctas al servicio de scraping', async () => {
+            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/infojobs')
+                .send({
+                    maxResultados: 30,
+                    terminos: ['react junior', 'node junior'],
+                });
+
+            expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith({
+                maxResultados: 30,
+                terminos: ['react junior', 'node junior'],
+            });
+        });
+
+        test('usa maxResultados=50 por defecto si no se envía', async () => {
+            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/infojobs')
+                .send({});
+
+            expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith(
+                expect.objectContaining({ maxResultados: 50 })
+            );
+        });
+
+        test('retorna éxito aunque no haya resultados (credenciales ausentes o sin match)', async () => {
+            // Escenario: InfoJobs deshabilitado por falta de credenciales → el servicio retorna [].
+            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/scraping/infojobs')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.total_extraidas).toBe(0);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.ofertas_duplicadas).toBe(0);
+        });
+
+        test('respeta el cap de 50 resultados aunque se pida más', async () => {
+            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/infojobs')
+                .send({ maxResultados: 200 });
+
+            // El controlador limita a 50 antes de llamar al servicio.
+            expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith(
+                expect.objectContaining({ maxResultados: 50 })
+            );
+        });
+
+        test('informa correctamente cuando todas las ofertas son duplicadas', async () => {
+            // 2 ofertas extraídas, ambas ya existentes en BD.
+            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([
+                { titulo: 'Dev React', url: 'https://www.infojobs.net/offerjob/3', modalidad: 'remoto' },
+                { titulo: 'Dev Node', url: 'https://www.infojobs.net/offerjob/4', modalidad: 'remoto' },
+            ]);
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(null);
+
+            const res = await request(app)
+                .post('/api/scraping/infojobs')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.ofertas_duplicadas).toBe(2);
+            expect(res.body.datos.total_extraidas).toBe(2);
+        });
+    });
+
     // === POST /api/scraping/getonbrd ===
 
     describe('POST /api/scraping/getonbrd', () => {

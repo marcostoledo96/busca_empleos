@@ -154,6 +154,7 @@ function normalizarLote(items, plataforma) {
         google_jobs: normalizarOfertaGoogleJobs,
         remotive: normalizarOfertaRemotive,
         remoteok: normalizarOfertaRemoteOK,
+        infojobs: normalizarOfertaInfojobs,
     };
 
     const normalizador = normalizadores[plataforma];
@@ -880,6 +881,122 @@ function normalizarOfertaRemoteOK(item) {
         fecha_publicacion: item.date ? new Date(item.date) : null,
         datos_crudos: item,
     };
+}
+
+/**
+ * Normalizo una oferta de la API oficial de InfoJobs España al esquema de nuestra tabla.
+ *
+ * InfoJobs es el portal de empleo más grande de España. Su API REST devuelve
+ * objetos con estructura propia que hay que mapear a nuestro contrato interno.
+ *
+ * REGLA CRÍTICA: Solo aceptamos ofertas con teleworking === 'solo-teletrabajo'.
+ * Esta es la Capa 2 de defensa. Si la API devolvió por error una oferta híbrida
+ * o presencial (a pesar del parámetro teleworking en el request), la descartamos acá.
+ * Las ofertas rechazadas lanzan un Error que normalizarLote() captura con console.warn.
+ *
+ * Mapeo de campos API InfoJobs → tabla `ofertas`:
+ *   link              → url            (URL pública de la oferta)
+ *   title             → titulo
+ *   company.name      → empresa
+ *   city.value        → ubicacion      (ciudad; si no hay, provincia.value)
+ *   teleworking       → modalidad      ('solo-teletrabajo' → 'remoto')
+ *   description       → descripcion
+ *                     → plataforma     (siempre 'infojobs')
+ *   experienceMin.key → nivel_requerido (mapeado a valores internos)
+ *   minPay + maxPay   → salario_min/max
+ *   salaryDescription → moneda         (inferida del texto)
+ *   published         → fecha_publicacion (ISO 8601)
+ *   (todo el item)    → datos_crudos
+ *
+ * @param {Object} item - Objeto crudo de la API de InfoJobs.
+ * @returns {Object} Oferta en el formato de nuestra tabla.
+ * @throws {Error} Si el item no tiene URL o si la modalidad no es remoto puro.
+ */
+function normalizarOfertaInfojobs(item) {
+    const url = item.link;
+    if (!url) {
+        throw new Error('El item de InfoJobs no tiene URL (campo "link").');
+    }
+
+    // Validación defensiva (Capa 2): descarto cualquier oferta que no sea remoto puro.
+    // Aunque el scraper ya filtra en origen, la API puede devolver datos inconsistentes.
+    const teleworking = item.teleworking;
+    if (teleworking !== 'solo-teletrabajo') {
+        const valorParaLog = teleworking || 'sin especificar';
+        console.warn(`InfoJobs: oferta descartada por modalidad no remota (${valorParaLog}) — url: ${url}`);
+        throw new Error(`InfoJobs: oferta descartada por modalidad no remota (${valorParaLog})`);
+    }
+
+    // Construyo la ubicación combinando ciudad y provincia (mismo patrón que Indeed y Glassdoor).
+    // Si ambas están presentes y son distintas, las combino: "Ciudad, Provincia".
+    // Si son iguales (ej: "Madrid, Madrid"), las combino igual — es el comportamiento estándar
+    // del proyecto para mantener consistencia con los otros normalizadores.
+    const ciudad = item.city?.value || null;
+    const provincia = item.province?.value || null;
+    const ubicacion = [ciudad, provincia].filter(Boolean).join(', ') || null;
+
+    return {
+        titulo: item.title || null,
+        empresa: item.company?.name || null,
+        ubicacion,
+        // teleworking === 'solo-teletrabajo' → modalidad interna 'remoto'.
+        modalidad: 'remoto',
+        descripcion: item.description || null,
+        url,
+        plataforma: 'infojobs',
+        nivel_requerido: mapearNivelInfojobs(item.experienceMin?.key),
+        // InfoJobs puede incluir rango salarial en minPay y maxPay (números).
+        salario_min: item.minPay || null,
+        salario_max: item.maxPay || null,
+        // La moneda se infiere del campo salaryDescription si existe.
+        moneda: inferirMonedaInfojobs(item.salaryDescription),
+        fecha_publicacion: item.published ? new Date(item.published) : null,
+        datos_crudos: item,
+    };
+}
+
+/**
+ * Mapeo el nivel de experiencia de InfoJobs a nuestros valores normalizados.
+ *
+ * InfoJobs usa claves como 'sin_experiencia', 'menos_1_anio',
+ * 'entre_1_2_anios', 'entre_2_3_anios', 'entre_3_5_anios', 'mas_5_anios'.
+ *
+ * @param {string|null} key - La clave de experienceMin de InfoJobs.
+ * @returns {string|null} 'trainee', 'junior', 'semi-senior', 'senior' o null.
+ */
+function mapearNivelInfojobs(key) {
+    if (!key) return null;
+
+    const mapa = {
+        'sin_experiencia': 'trainee',
+        'menos_1_anio': 'trainee',
+        'entre_1_2_anios': 'junior',
+        'entre_2_3_anios': 'junior',
+        'entre_3_5_anios': 'semi-senior',
+        'mas_5_anios': 'senior',
+    };
+
+    return mapa[key] || null;
+}
+
+/**
+ * Infiero la moneda a partir del campo salaryDescription de InfoJobs.
+ *
+ * La API devuelve un texto como "€ Bruto/año" o "USD/mes".
+ * Busco símbolos o códigos conocidos para identificar la moneda.
+ *
+ * @param {string|null} descripcion - El campo salaryDescription.
+ * @returns {string|null} 'EUR', 'USD', 'ARS' o null.
+ */
+function inferirMonedaInfojobs(descripcion) {
+    if (!descripcion) return null;
+    const texto = descripcion.toUpperCase();
+
+    if (texto.includes('EUR') || texto.includes('€')) return 'EUR';
+    if (texto.includes('USD') || texto.includes('$')) return 'USD';
+    if (texto.includes('ARS') || texto.includes('AR$')) return 'ARS';
+
+    return null;
 }
 
 module.exports = {

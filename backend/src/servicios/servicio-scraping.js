@@ -915,6 +915,118 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
     }
 }
 
+/**
+ * Ejecuto el scraping de InfoJobs España usando su API REST oficial.
+ *
+ * InfoJobs es el portal de empleo más grande de España. A diferencia de los
+ * otros scrapers que usan Apify, este consume la API oficial directamente
+ * con autenticación HTTP Basic (no hay actor involucrado).
+ *
+ * Regla crítica: solo se aceptan ofertas de remoto puro. El filtro se aplica
+ * en DOS capas:
+ *   - Capa 1 (en origen): parámetro `teleworking=solo-teletrabajo` en la query.
+ *   - Capa 2 (en normalización): el normalizador descarta cualquier oferta cuyo
+ *     campo `teleworking` no sea exactamente `'solo-teletrabajo'`.
+ *
+ * Autenticación:
+ *   El header Authorization se construye como:
+ *   `Basic ${base64(INFOJOBS_CLIENT_ID:INFOJOBS_CLIENT_SECRET)}`
+ *
+ * Comportamiento ante credenciales faltantes:
+ *   - Ambas ausentes → retorna [] con advertencia en log.
+ *   - Solo una presente → lanza error de configuración incompleta.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {number} [opciones.maxResultados=50] - Máximo de ofertas a extraer (cap: 50).
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Promise<Object[]>} Array de ofertas normalizadas listas para la BD.
+ */
+async function ejecutarScrapingInfojobs(opciones = {}) {
+    // Limito a 50 como máximo porque la API gratuita tiene rate limits estrictos.
+    const maxResultados = Math.min(opciones.maxResultados || 50, 50);
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+
+    const clientId = process.env.INFOJOBS_CLIENT_ID;
+    const clientSecret = process.env.INFOJOBS_CLIENT_SECRET;
+
+    // Valido credenciales antes de hacer cualquier request.
+    const tieneCid = Boolean(clientId);
+    const tieneSecret = Boolean(clientSecret);
+
+    if (!tieneCid && !tieneSecret) {
+        // Ambas ausentes: InfoJobs deshabilitado silenciosamente (feature opcional).
+        console.warn('Scraping InfoJobs: deshabilitado por falta de credenciales (INFOJOBS_CLIENT_ID e INFOJOBS_CLIENT_SECRET no definidas).');
+        return [];
+    }
+
+    if (tieneCid !== tieneSecret) {
+        // Solo una presente: error de configuración explícito.
+        throw new Error('Configuración incompleta de InfoJobs: se requieren CLIENT_ID y CLIENT_SECRET');
+    }
+
+    // Construyo el header de autenticación HTTP Basic.
+    // Buffer.from().toString('base64') codifica en Base64 el par id:secret.
+    const tokenBasico = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
+    const headersAuth = {
+        'Authorization': `Basic ${tokenBasico}`,
+        'Content-Type': 'application/json',
+    };
+
+    const INFOJOBS_API_BASE = 'https://api.infojobs.net/api/9/offer';
+
+    try {
+        console.log(`Scraping InfoJobs: buscando ${terminos.length} término(s) con remoto puro...`);
+        let itemsCrudos = [];
+
+        for (const termino of terminos) {
+            if (itemsCrudos.length >= maxResultados) break;
+
+            console.log(`Scraping InfoJobs: buscando "${termino}"...`);
+
+            // Construyo la URL con los parámetros de búsqueda.
+            // teleworking=solo-teletrabajo es el filtro de remoto puro (Capa 1).
+            const params = new URLSearchParams({
+                q: termino,
+                teleworking: 'solo-teletrabajo',
+                maxResults: String(Math.min(maxResultados - itemsCrudos.length, 50)),
+            });
+
+            const url = `${INFOJOBS_API_BASE}?${params.toString()}`;
+            const respuesta = await fetch(url, { headers: headersAuth });
+
+            if (!respuesta.ok) {
+                if (respuesta.status === 401) {
+                    throw new Error('Credenciales de InfoJobs inválidas (401)');
+                }
+                if (respuesta.status === 429) {
+                    throw new Error('Rate limit de InfoJobs excedido (429) — reintentar más tarde');
+                }
+                console.warn(`Scraping InfoJobs: error HTTP ${respuesta.status} para "${termino}". Saltando.`);
+                continue;
+            }
+
+            const json = await respuesta.json();
+            // La API de InfoJobs devuelve los items en la propiedad `items`.
+            const ofertas = json.items || [];
+            itemsCrudos = itemsCrudos.concat(ofertas);
+            console.log(`Scraping InfoJobs: ${ofertas.length} ítem(s) para "${termino}".`);
+        }
+
+        console.log(`Scraping InfoJobs: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'infojobs');
+        console.log(`Scraping InfoJobs: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+
+        return ofertasNormalizadas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de InfoJobs: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
 module.exports = {
     ejecutarScrapingLinkedin,
     ejecutarScrapingComputrabajo,
@@ -926,4 +1038,5 @@ module.exports = {
     ejecutarScrapingGoogleJobs,
     ejecutarScrapingRemotive,
     ejecutarScrapingRemoteOK,
+    ejecutarScrapingInfojobs,
 };
