@@ -114,6 +114,11 @@ La query se construye dinámicamente. Si vienen filtros, se agregan condiciones 
 |--------|-------------|
 | `backend/sql/crear-tablas.sql` | Creación inicial de la tabla (idempotente). |
 | `backend/sql/migracion-002-postulacion-y-porcentaje.sql` | Agrega columnas `porcentaje_match` y `estado_postulacion` con índices. Idempotente. |
+| `backend/sql/migracion-003-preferencias.sql` | Crea la tabla `preferencias` con valores iniciales. |
+| `backend/sql/migracion-004-idioma.sql` | Agrega la columna `idioma_candidato`. |
+| `backend/sql/migracion-005-fecha-evaluacion.sql` | Agrega `fecha_evaluacion` e índice para reseteos. |
+| `backend/sql/migracion-006-actualizar-perfil.sql` | Actualiza perfil, idioma y stack del candidato. |
+| `backend/sql/migracion-007-modelo-deepseek-v4-flash.sql` | Cambia el modelo por defecto y migra preferencias existentes a `deepseek-v4-flash`. |
 
 ## Documentos relacionados
 

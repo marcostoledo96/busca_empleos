@@ -65,7 +65,7 @@ async function crearPreferenciasPorDefecto() {
             ['CABA', 'GBA Oeste'],
             ['qa tester', 'soporte tecnico it', 'programador', 'desarrollador junior c#', 'frontend developer angular', 'full stack node'],
             ['Java'],
-            'deepseek-chat',
+            'deepseek-v4-flash',
         ]
     );
 

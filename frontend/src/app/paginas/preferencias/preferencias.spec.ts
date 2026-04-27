@@ -23,7 +23,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
             reglas_exclusion: ['Java'],
             prompt_personalizado: '',
             usar_prompt_personalizado: false,
-            modelo_ia: 'deepseek-chat',
+            modelo_ia: 'deepseek-v4-flash',
         }
     };
 

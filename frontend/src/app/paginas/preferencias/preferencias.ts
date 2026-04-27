@@ -63,7 +63,7 @@ export class Preferencias implements OnInit {
     reglasExclusion: string[] = [];
     promptPersonalizado = '';
     usarPromptPersonalizado = false;
-    modeloIa: PreferenciasModel['modelo_ia'] = 'deepseek-chat';
+    modeloIa: PreferenciasModel['modelo_ia'] = 'deepseek-v4-flash';
 
     // Sugerencias para los AutoComplete en modo entrada libre.
     // filtrarLibre() devuelve el texto escrito como única sugerencia,
@@ -93,8 +93,10 @@ export class Preferencias implements OnInit {
     ];
 
     opcionesModelo = [
-        { label: 'DeepSeek Chat (rápido)', value: 'deepseek-chat' },
-        { label: 'DeepSeek Reasoner (potente)', value: 'deepseek-reasoner' },
+        { label: 'DeepSeek V4 Flash (recomendado)', value: 'deepseek-v4-flash' },
+        { label: 'DeepSeek V4 Pro (potente)', value: 'deepseek-v4-pro' },
+        { label: 'DeepSeek Chat (legacy)', value: 'deepseek-chat' },
+        { label: 'DeepSeek Reasoner (legacy)', value: 'deepseek-reasoner' },
     ];
 
     ngOnInit(): void {
@@ -127,7 +129,7 @@ export class Preferencias implements OnInit {
         this.reglasExclusion = ['Java', 'Spring Boot', 'PHP', 'Ruby', 'COBOL', 'Kotlin'];
         this.promptPersonalizado = '';
         this.usarPromptPersonalizado = false;
-        this.modeloIa = 'deepseek-chat';
+        this.modeloIa = 'deepseek-v4-flash';
         this.cargando.set(false);
     }
 
@@ -207,7 +209,7 @@ export class Preferencias implements OnInit {
         this.reglasExclusion = prefs.reglas_exclusion ?? [];
         this.promptPersonalizado = prefs.prompt_personalizado ?? '';
         this.usarPromptPersonalizado = prefs.usar_prompt_personalizado ?? false;
-        this.modeloIa = prefs.modelo_ia ?? 'deepseek-chat';
+        this.modeloIa = prefs.modelo_ia ?? 'deepseek-v4-flash';
     }
 
     // Resetea a "pendiente" las evaluaciones de los últimos N días.

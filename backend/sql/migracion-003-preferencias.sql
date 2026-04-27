@@ -68,9 +68,10 @@ CREATE TABLE IF NOT EXISTS preferencias (
     usar_prompt_personalizado   BOOLEAN         DEFAULT FALSE,
 
     -- Modelo de DeepSeek a usar para la evaluación.
-    -- 'deepseek-chat' = rápido y barato (recomendado).
-    -- 'deepseek-reasoner' = más potente pero más lento y caro.
-    modelo_ia                   VARCHAR(100)    DEFAULT 'deepseek-chat',
+    -- 'deepseek-v4-flash' = rápido y recomendado como default.
+    -- 'deepseek-v4-pro' = variante más potente.
+    -- Se aceptan aliases legacy en la API para no romper datos históricos.
+    modelo_ia                   VARCHAR(100)    DEFAULT 'deepseek-v4-flash',
 
     -- === Timestamps ===
 
@@ -104,5 +105,5 @@ INSERT INTO preferencias (
     ARRAY['CABA', 'GBA Oeste'],
     ARRAY['tester', 'qa', 'it', 'soporte it', 'helpdesk', 'desarrollador', 'developer', 'frontend', 'soporte tecnico'],
     ARRAY['Java'],
-    'deepseek-chat'
+    'deepseek-v4-flash'
 ) ON CONFLICT (id) DO NOTHING;

@@ -38,7 +38,7 @@ const preferenciasEjemplo = {
     reglas_exclusion: ['Java'],
     prompt_personalizado: null,
     usar_prompt_personalizado: false,
-    modelo_ia: 'deepseek-chat',
+    modelo_ia: 'deepseek-v4-flash',
     fecha_creacion: '2025-01-01T00:00:00.000Z',
     fecha_actualizacion: '2025-01-01T00:00:00.000Z',
 };

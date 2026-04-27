@@ -279,7 +279,7 @@ function construirPromptEvaluacion(oferta) {
  *
  * @param {Object} oferta - La oferta de la base de datos.
  * @param {string} instrucciones - Instrucciones de sistema armadas desde preferencias.
- * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-chat').
+ * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-v4-flash').
  * @returns {Object} { match: boolean, razon: string, porcentaje: number, error?: boolean }
  */
 async function evaluarOferta(oferta, instrucciones, modelo) {

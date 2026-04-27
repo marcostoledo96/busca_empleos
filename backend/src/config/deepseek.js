@@ -17,8 +17,8 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 // URL base de la API de DeepSeek.
 const DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
 
-// Modelo a usar. deepseek-chat es el modelo principal (bueno y barato).
-const DEEPSEEK_MODELO = 'deepseek-chat';
+// Modelo a usar por defecto. DeepSeek V4 Flash es el modelo rápido recomendado.
+const DEEPSEEK_MODELO = 'deepseek-v4-flash';
 
 // La API key viene del .env. NUNCA se hardcodea.
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;

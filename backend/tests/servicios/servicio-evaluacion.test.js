@@ -17,7 +17,7 @@
 jest.mock('../../src/config/deepseek', () => ({
     consultarDeepSeek: jest.fn(),
     DEEPSEEK_URL: 'https://api.deepseek.com/chat/completions',
-    DEEPSEEK_MODELO: 'deepseek-chat',
+    DEEPSEEK_MODELO: 'deepseek-v4-flash',
 }));
 
 // Mockeo el modelo de ofertas para no tocar la base de datos.
@@ -81,7 +81,7 @@ const preferenciasEjemplo = {
     reglas_exclusion: ['Java'],
     prompt_personalizado: null,
     usar_prompt_personalizado: false,
-    modelo_ia: 'deepseek-chat',
+    modelo_ia: 'deepseek-v4-flash',
     idioma_candidato: 'Español nativo, Inglés básico oral / intermedio escrito',
 };
 
@@ -256,7 +256,7 @@ describe('Servicio de evaluación con IA', () => {
                 })
             );
 
-            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-chat');
+            const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-v4-flash');
 
             expect(resultado.match).toBe(true);
             expect(resultado.razon).toContain('React');
@@ -285,13 +285,13 @@ describe('Servicio de evaluación con IA', () => {
                 JSON.stringify({ match: true, razon: 'Cumple requisitos.' })
             );
 
-            await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-chat');
+            await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-v4-flash');
 
             // Verifico que el primer argumento (mensaje sistema) contiene el perfil.
             const mensajeSistema = consultarDeepSeek.mock.calls[0][0];
             expect(mensajeSistema).toContain('evaluador de ofertas');
             // Verifico que pasó el modelo como tercer argumento.
-            expect(consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-chat');
+            expect(consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-v4-flash');
         });
 
         test('lee preferencias de BD si no recibe instrucciones', async () => {

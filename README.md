@@ -71,6 +71,7 @@ Crear la base de datos:
 psql -U postgres -f sql/crear-tablas.sql
 psql -U postgres -f sql/migracion-002-postulacion-y-porcentaje.sql
 psql -U postgres -f sql/migracion-003-preferencias.sql
+psql -U postgres -f sql/migracion-007-modelo-deepseek-v4-flash.sql
 ```
 
 Iniciar el servidor:

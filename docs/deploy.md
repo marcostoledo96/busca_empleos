@@ -113,6 +113,10 @@ en este **orden obligatorio**:
 | 1° | `backend/sql/crear-tablas.sql` | Tabla `ofertas` con todos sus índices |
 | 2° | `backend/sql/migracion-002-postulacion-y-porcentaje.sql` | Columnas de postulación y porcentaje match |
 | 3° | `backend/sql/migracion-003-preferencias.sql` | Tabla `preferencias` con datos iniciales |
+| 4° | `backend/sql/migracion-004-idioma.sql` | Campo `idioma_candidato` |
+| 5° | `backend/sql/migracion-005-fecha-evaluacion.sql` | Campo `fecha_evaluacion` + índice |
+| 6° | `backend/sql/migracion-006-actualizar-perfil.sql` | Actualización del perfil guardado |
+| 7° | `backend/sql/migracion-007-modelo-deepseek-v4-flash.sql` | Actualización del modelo IA por defecto |
 
 ### Cómo ejecutar desde el editor web de Railway
 
@@ -121,6 +125,7 @@ en este **orden obligatorio**:
 3. Copiar todo el contenido → pegarlo en el editor de Railway → clic en **Run Query**
 4. Repetir con `migracion-002-postulacion-y-porcentaje.sql`
 5. Repetir con `migracion-003-preferencias.sql`
+6. Repetir con `migracion-004-idioma.sql`, `migracion-005-fecha-evaluacion.sql`, `migracion-006-actualizar-perfil.sql` y `migracion-007-modelo-deepseek-v4-flash.sql`
 
 Para verificar que las tablas existen, ejecutar en el mismo editor:
 

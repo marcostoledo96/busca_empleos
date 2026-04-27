@@ -13,7 +13,7 @@ export interface Preferencias {
     reglas_exclusion: string[];
     prompt_personalizado: string | null;
     usar_prompt_personalizado: boolean;
-    modelo_ia: 'deepseek-chat' | 'deepseek-reasoner';
+    modelo_ia: 'deepseek-v4-flash' | 'deepseek-v4-pro' | 'deepseek-chat' | 'deepseek-reasoner';
     fecha_creacion: string;
     fecha_actualizacion: string;
 }

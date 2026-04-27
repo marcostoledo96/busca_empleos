@@ -4,7 +4,7 @@
 
 DeepSeek es un modelo de lenguaje (como ChatGPT) pero más barato, con una API compatible con el formato de OpenAI. Si algún día se quisiera cambiar a OpenAI u otro proveedor compatible, solo haría falta cambiar la URL y el modelo.
 
-**Modelo:** `deepseek-chat` (modelo principal, bueno y barato).
+**Modelo:** `deepseek-v4-flash` (modelo rápido recomendado).
 **URL:** `https://api.deepseek.com/chat/completions`.
 **API key:** Variable de entorno `DEEPSEEK_API_KEY`.
 **SDK:** Ninguno — usa `fetch()` nativo de Node.js 22 (menos dependencias).
