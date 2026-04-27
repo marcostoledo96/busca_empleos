@@ -113,15 +113,32 @@
     display: flex;
     flex-direction: column;
     gap: 0.1rem;
+    min-width: 0;
 }
 
 .titulo-texto {
     font-size: 0.8rem;
     font-weight: 500;
     color: var(--on-surface);
+    overflow-wrap: anywhere;
 }
 
 .titulo-ubicacion {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--on-surface-variant);
+    overflow-wrap: anywhere;
+}
+
+.titulo-meta-responsive {
+    display: none;
+    align-items: center;
+    gap: 0.45rem;
+    flex-wrap: wrap;
+    margin-top: 0.2rem;
+}
+
+.titulo-fecha-responsive {
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--on-surface-variant);
@@ -711,18 +728,89 @@ tr.fila-seleccionada td {
 
 /* Tablet: hacer la tabla scrolleable sin romper layout */
 @media (min-width: 769px) and (max-width: 1024px) {
+    .tabla-contenedor {
+        overflow-x: hidden;
+    }
+
     .tabla-encabezado {
         padding: 0.75rem 1rem;
     }
 
     .filtro-busqueda {
-        width: 200px;
+        width: min(100%, 200px);
     }
 
-    /* Asegurar que la tabla scrolle dentro de su contenedor */
+    .tabla-contenedor :deep(.p-datatable-table) {
+        table-layout: fixed;
+        width: 100%;
+    }
+
+    .tabla-contenedor :deep(.p-datatable-thead > tr > th),
+    .tabla-contenedor :deep(.p-datatable-tbody > tr > td) {
+        padding-inline: 0.75rem !important;
+    }
+
+    .columna-checkbox {
+        width: 38px !important;
+    }
+
+    .columna-titulo {
+        width: 34%;
+        min-width: 0 !important;
+    }
+
+    .columna-empresa {
+        width: 19%;
+        min-width: 0 !important;
+    }
+
+    .columna-estado {
+        width: 14%;
+        min-width: 0 !important;
+    }
+
+    .columna-postulacion {
+        width: 20%;
+        min-width: 0 !important;
+    }
+
+    .columna-accion {
+        width: 52px !important;
+    }
+
+    .columna-plataforma,
+    .columna-match,
+    .columna-extraida {
+        display: none;
+    }
+
+    .titulo-meta-responsive {
+        display: flex;
+    }
+
+    .tag-estado,
+    .tag-plataforma {
+        white-space: nowrap;
+    }
+
+    .celda-match {
+        font-size: 0.9rem;
+    }
+
+    .celda-mono,
+    .celda-fecha {
+        overflow-wrap: anywhere;
+    }
+
+    .tabla-contenedor :deep(.select-postulacion),
+    .tabla-contenedor :deep(.select-postulacion .p-select) {
+        width: 100%;
+        min-width: 0 !important;
+    }
+
     .tabla-contenedor :deep(.p-datatable-wrapper) {
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow-x: hidden;
+        -webkit-overflow-scrolling: auto;
     }
 
     .barra-bulk {

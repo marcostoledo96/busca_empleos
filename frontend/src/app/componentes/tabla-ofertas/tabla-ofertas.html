@@ -64,7 +64,7 @@
         <!-- Definición de columnas -->
         <ng-template #header>
             <tr>
-                <th style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar todas">
+                <th class="columna-checkbox" style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar todas">
                     @if (!modoDemo()) {
                         <input
                             type="checkbox"
@@ -75,31 +75,31 @@
                             aria-label="Seleccionar todas las ofertas" />
                     }
                 </th>
-                <th pSortableColumn="titulo" style="min-width: 250px">
+                <th class="columna-titulo" pSortableColumn="titulo" style="min-width: 250px">
                     TÍTULO <p-sortIcon field="titulo" />
                 </th>
-                <th pSortableColumn="empresa" style="min-width: 150px">
+                <th class="columna-empresa" pSortableColumn="empresa" style="min-width: 150px">
                     EMPRESA <p-sortIcon field="empresa" />
                 </th>
-                <th style="min-width: 110px">PLATAFORMA</th>
-                <th pSortableColumn="estado_evaluacion" style="min-width: 110px">
+                <th class="columna-plataforma" style="min-width: 110px">PLATAFORMA</th>
+                <th class="columna-estado" pSortableColumn="estado_evaluacion" style="min-width: 110px">
                     ESTADO <p-sortIcon field="estado_evaluacion" />
                 </th>
-                <th pSortableColumn="porcentaje_match" style="min-width: 90px">
+                <th class="columna-match" pSortableColumn="porcentaje_match" style="min-width: 90px">
                     MATCH % <p-sortIcon field="porcentaje_match" />
                 </th>
-                <th style="min-width: 150px">POSTULACIÓN</th>
-                <th pSortableColumn="fecha_extraccion" style="min-width: 110px">
+                <th class="columna-postulacion" style="min-width: 150px">POSTULACIÓN</th>
+                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="min-width: 110px">
                     EXTRAÍDA <p-sortIcon field="fecha_extraccion" />
                 </th>
-                <th style="width: 44px"></th>
+                <th class="columna-accion" style="width: 44px"></th>
             </tr>
         </ng-template>
 
         <!-- Filas de datos -->
         <ng-template #body let-oferta>
             <tr [class.fila-seleccionada]="seleccionadas().has(oferta.id)">
-                <td style="padding: 0.5rem;">
+                <td class="columna-checkbox" style="padding: 0.5rem;">
                     @if (!modoDemo()) {
                         <input
                             type="checkbox"
@@ -109,24 +109,28 @@
                             [attr.aria-label]="'Seleccionar ' + oferta.titulo" />
                     }
                 </td>
-                <td>
+                <td class="columna-titulo">
                     <div class="celda-titulo">
                         <span class="titulo-texto">{{ oferta.titulo }}</span>
                         @if (oferta.ubicacion) {
                             <span class="titulo-ubicacion">{{ oferta.ubicacion }}</span>
                         }
+                        <div class="titulo-meta-responsive">
+                            <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
+                            <span class="titulo-fecha-responsive">{{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                        </div>
                     </div>
                 </td>
-                <td class="celda-mono">{{ oferta.empresa || '—' }}</td>
-                <td>
+                <td class="columna-empresa celda-mono">{{ oferta.empresa || '—' }}</td>
+                <td class="columna-plataforma">
                     <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
                 </td>
-                <td>
+                <td class="columna-estado">
                     <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
                         {{ oferta.estado_evaluacion | uppercase }}
                     </span>
                 </td>
-                <td>
+                <td class="columna-match">
                     @if (oferta.porcentaje_match !== null) {
                         <span class="celda-match" [attr.data-nivel]="nivelMatch(oferta.porcentaje_match)">
                             {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
@@ -135,21 +139,22 @@
                         <span class="texto-sin-dato">—</span>
                     }
                 </td>
-                <td>
+                <td class="columna-postulacion">
                     <p-select
                         [options]="opcionesPostulacion"
                         [ngModel]="oferta.estado_postulacion"
                         (ngModelChange)="cambiarPostulacion(oferta, $event)"
                         optionLabel="label"
                         optionValue="value"
+                        styleClass="select-postulacion"
                         [style]="{ width: '100%', minWidth: '130px' }"
                         size="small"
                         [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                 </td>
-                <td class="celda-mono celda-fecha">
+                <td class="columna-extraida celda-mono celda-fecha">
                     {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
                 </td>
-                <td>
+                <td class="columna-accion">
                     <button
                         class="btn-ver"
                         (click)="verDetalle(oferta)"
