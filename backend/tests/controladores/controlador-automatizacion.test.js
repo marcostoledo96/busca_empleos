@@ -5,6 +5,10 @@
 // - Los endpoints responden con el status code correcto.
 // - El body tiene la estructura esperada.
 // - Se llama a las funciones del servicio con los parámetros correctos.
+//
+// También incluyo tests de regresión profundos con el rate limiter ACTIVO
+// para verificar que /progreso y /estado NO dan 429 aunque se llamen muchas veces,
+// y que /iniciar y /ejecutar SÍ quedan protegidos.
 
 jest.mock('../../src/servicios/servicio-automatizacion');
 jest.mock('../../src/utils/middleware-auth', () => ({
@@ -148,6 +152,79 @@ describe('Controlador de automatización', () => {
         });
     });
 
+    describe('GET /api/automatizacion/progreso', () => {
+        test('retorna el progreso actual del ciclo', async () => {
+            servicioAutomatizacion.obtenerProgreso.mockReturnValue({
+                activo: true,
+                porcentaje: 50,
+                pasoActual: 'Evaluando ofertas',
+                pasos: [],
+            });
+
+            const respuesta = await request(app)
+                .get('/api/automatizacion/progreso')
+                .expect(200);
+
+            expect(respuesta.body.exito).toBe(true);
+            expect(respuesta.body.datos.activo).toBe(true);
+            expect(respuesta.body.datos.porcentaje).toBe(50);
+            expect(servicioAutomatizacion.obtenerProgreso).toHaveBeenCalledTimes(1);
+        });
+
+        test('retorna progreso inactivo cuando no hay ciclo corriendo', async () => {
+            servicioAutomatizacion.obtenerProgreso.mockReturnValue({
+                activo: false,
+                porcentaje: 0,
+                pasoActual: null,
+                pasos: [],
+            });
+
+            const respuesta = await request(app)
+                .get('/api/automatizacion/progreso')
+                .expect(200);
+
+            expect(respuesta.body.datos.activo).toBe(false);
+        });
+    });
+
+    // === Regresión 429 — endpoints de polling sin rate limit ===
+
+    describe('GET /api/automatizacion/progreso y /estado — sin rate limit', () => {
+        test('responde 200 en /progreso aunque se llame muchas veces seguidas', async () => {
+            servicioAutomatizacion.obtenerProgreso.mockReturnValue({
+                activo: true, porcentaje: 25, pasoActual: 'Scrapeando', pasos: [],
+            });
+
+            // 10 requests consecutivas — reproduce el patrón de polling del frontend.
+            // Con el fix (montado sin limiter), todas deben ser 200.
+            const requests = Array.from({ length: 10 }, () =>
+                request(app).get('/api/automatizacion/progreso')
+            );
+            const respuestas = await Promise.all(requests);
+
+            for (const res of respuestas) {
+                expect(res.status).toBe(200);
+                expect(res.body.exito).toBe(true);
+            }
+        });
+
+        test('responde 200 en /estado aunque se llame muchas veces seguidas', async () => {
+            servicioAutomatizacion.obtenerEstado.mockReturnValue({
+                activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null,
+            });
+
+            const requests = Array.from({ length: 10 }, () =>
+                request(app).get('/api/automatizacion/estado')
+            );
+            const respuestas = await Promise.all(requests);
+
+            for (const res of respuestas) {
+                expect(res.status).toBe(200);
+                expect(res.body.exito).toBe(true);
+            }
+        });
+    });
+
     describe('POST /api/automatizacion/ejecutar', () => {
         test('ejecuta un ciclo completo manualmente', async () => {
             servicioAutomatizacion.ejecutarCicloCompleto.mockResolvedValue({
@@ -181,6 +258,129 @@ describe('Controlador de automatización', () => {
 
             expect(respuesta.body.datos.errores).toHaveLength(2);
             expect(respuesta.body.datos.evaluacion).toBeNull();
+        });
+    });
+
+    // ========================================================
+    // Regresión profunda: rate limiter ACTIVO (fuera de test)
+    // ========================================================
+    //
+    // Igual que en el test de evaluación: cargamos la app con NODE_ENV distinto
+    // para activar el rate limiter real (max=5 por minuto).
+    // Verificamos que /progreso y /estado (endpoints de polling liviano) NO
+    // quedan bajo el limitador, mientras que /iniciar y /ejecutar SÍ.
+
+    describe('Rate limit ACTIVO — regresión de routing', () => {
+        let appConLimiter;
+        let servicioAuto;
+
+        beforeAll(() => {
+            jest.resetModules();
+
+            jest.mock('../../src/servicios/servicio-automatizacion');
+            jest.mock('../../src/utils/middleware-auth', () => ({
+                verificarAuth: (req, res, next) => next(),
+            }));
+
+            process.env.NODE_ENV = 'production_test';
+            appConLimiter = require('../../src/app');
+            servicioAuto = require('../../src/servicios/servicio-automatizacion');
+        });
+
+        afterAll(() => {
+            process.env.NODE_ENV = 'test';
+        });
+
+        // --- /progreso NO debe quedar bajo el rate limiter ---
+
+        test('/progreso responde 200 aunque se llame más de 5 veces (limiter activo)', async () => {
+            servicioAuto.obtenerProgreso.mockReturnValue({
+                activo: false, porcentaje: 0, pasoActual: null, pasos: [],
+            });
+
+            for (let i = 0; i < 8; i++) {
+                const res = await request(appConLimiter).get('/api/automatizacion/progreso');
+                expect(res.status).toBe(200);
+                expect(res.body.exito).toBe(true);
+            }
+        });
+
+        // --- /estado NO debe quedar bajo el rate limiter ---
+
+        test('/estado responde 200 aunque se llame más de 5 veces (limiter activo)', async () => {
+            servicioAuto.obtenerEstado.mockReturnValue({
+                activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null,
+            });
+
+            for (let i = 0; i < 8; i++) {
+                const res = await request(appConLimiter).get('/api/automatizacion/estado');
+                expect(res.status).toBe(200);
+                expect(res.body.exito).toBe(true);
+            }
+        });
+
+        // --- /iniciar SÍ debe quedar protegido por el rate limiter ---
+
+        test('/iniciar devuelve 429 al superar la cuota del rate limiter', async () => {
+            servicioAuto.programarCron.mockReturnValue({ detener: jest.fn() });
+            servicioAuto.obtenerEstado.mockReturnValue({
+                activo: true, expresionCron: '0 */12 * * *',
+                ultimaEjecucion: null, ultimoResultado: null,
+            });
+
+            // Las primeras 5 requests deben pasar.
+            for (let i = 0; i < 5; i++) {
+                const res = await request(appConLimiter).post('/api/automatizacion/iniciar');
+                expect(res.status).not.toBe(429);
+            }
+
+            // La 6.ª debe ser rechazada.
+            const resExcedida = await request(appConLimiter).post('/api/automatizacion/iniciar');
+            expect(resExcedida.status).toBe(429);
+            expect(resExcedida.body.exito).toBe(false);
+            expect(resExcedida.body.error).toContain('Demasiadas solicitudes');
+        });
+
+        // --- /progreso y /estado no comparten cuota con los endpoints costosos ---
+        //
+        // Reproduce el escenario real: el frontend pollea /progreso y /estado
+        // mientras el usuario espera que el ciclo termine. Con el fix correcto,
+        // esas calls de polling no deben quemar la cuota de /iniciar ni /ejecutar.
+
+        test('/progreso y /estado no consumen cuota de /iniciar — operan independientes', async () => {
+            // App fresca para que el store del limiter empiece en 0.
+            jest.resetModules();
+            jest.mock('../../src/servicios/servicio-automatizacion');
+            jest.mock('../../src/utils/middleware-auth', () => ({
+                verificarAuth: (req, res, next) => next(),
+            }));
+
+            process.env.NODE_ENV = 'production_test';
+            const appFresca = require('../../src/app');
+            const servicioFresco = require('../../src/servicios/servicio-automatizacion');
+            process.env.NODE_ENV = 'test';
+
+            servicioFresco.obtenerProgreso.mockReturnValue({
+                activo: false, porcentaje: 0, pasoActual: null, pasos: [],
+            });
+            servicioFresco.obtenerEstado.mockReturnValue({
+                activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null,
+            });
+            servicioFresco.programarCron.mockReturnValue({ detener: jest.fn() });
+
+            // 5 calls a /progreso + 5 calls a /estado = 10 calls de polling.
+            // Ninguna de ellas debe consumir cuota del limitador costoso.
+            for (let i = 0; i < 5; i++) {
+                const r1 = await request(appFresca).get('/api/automatizacion/progreso');
+                expect(r1.status).toBe(200);
+                const r2 = await request(appFresca).get('/api/automatizacion/estado');
+                expect(r2.status).toBe(200);
+            }
+
+            // Después del polling, /iniciar debe poder ejecutarse sin dar 429.
+            const resIniciar = await request(appFresca).post('/api/automatizacion/iniciar');
+            expect(resIniciar.status).not.toBe(429);
+            expect([200, 400]).toContain(resIniciar.status);
         });
     });
 });

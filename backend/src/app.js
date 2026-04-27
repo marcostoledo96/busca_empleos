@@ -27,6 +27,16 @@ const rutasEvaluacion = require('./rutas/evaluacion');
 const rutasAutomatizacion = require('./rutas/automatizacion');
 const rutasPreferencias = require('./rutas/preferencias');
 
+// Importo los handlers puntuales que se montan SIN rate limit (endpoints de polling).
+// ¿Por qué importar el controlador directamente y no usar el Router?
+// app.get('/ruta', Router) NO funciona: Express pasa el Router como middleware
+// de un método específico, pero el Router internamente busca la ruta COMPLETA
+// (con prefijo incluido). Como no hay path-stripping, nunca hace match → la request
+// sigue al siguiente middleware, que es app.use('/api/evaluacion', limitadorCostoso, ...).
+// La solución correcta es pasar la función handler del controlador directamente.
+const controladorEvaluacion = require('./controladores/controlador-evaluacion');
+const controladorAutomatizacion = require('./controladores/controlador-automatizacion');
+
 // Importo los middlewares de manejo de errores.
 const { rutaNoEncontrada, manejarErrores } = require('./utils/middleware-errores');
 
@@ -139,13 +149,17 @@ app.use('/api/ofertas', rutasOfertas);
 // cada 2 segundos. No consumen APIs pagas, así que los monto SIN rate limit.
 // Si los incluyo en el limitador, 5 requests de polling (10 segundos) agotan
 // la cuota y bloquean los endpoints que SÍ importa proteger (ejecutar, resetear).
-app.get('/api/evaluacion/progreso', rutasEvaluacion);
-app.get('/api/automatizacion/progreso', rutasAutomatizacion);
-app.get('/api/automatizacion/estado', rutasAutomatizacion);
+//
+// Paso el handler del controlador directamente — NO el Router.
+// Pasar un Router a app.get() no funciona porque Express no hace path-stripping
+// en montajes de método; el Router busca la ruta completa y nunca hace match.
+app.get('/api/evaluacion/progreso', controladorEvaluacion.obtenerProgresoEvaluacion);
+app.get('/api/automatizacion/progreso', controladorAutomatizacion.obtenerProgreso);
+app.get('/api/automatizacion/estado', controladorAutomatizacion.obtenerEstado);
 // Cancelar tampoco consume APIs pagas — es solo setear una bandera en memoria.
 // Si está rate-limited, el usuario no puede frenar una evaluación en curso:
 // al quemarse el cupo con el polling, el botón cancelar también cae en 429.
-app.post('/api/evaluacion/cancelar', rutasEvaluacion);
+app.post('/api/evaluacion/cancelar', controladorEvaluacion.cancelarEvaluacion);
 
 // Scraping, evaluación y automatización consumen APIs pagas → rate limit.
 // Los GETs de polling ya fueron capturados arriba, así que acá solo llegan

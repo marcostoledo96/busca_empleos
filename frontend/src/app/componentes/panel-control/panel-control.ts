@@ -59,6 +59,15 @@ export class PanelControl implements OnInit, OnDestroy {
     // ID del intervalo de polling para la evaluación.
     private intervalIdPollingEval: ReturnType<typeof setInterval> | null = null;
 
+    // Guard para evitar requests solapadas en el polling de evaluación.
+    // Si el tick anterior todavía no terminó, salteo el siguiente.
+    private pollingEvalEnCurso = false;
+
+    // Contador de errores 429 consecutivos en el polling de evaluación.
+    // Si se acumulan demasiados, detengo el polling para no martillar el backend.
+    private errores429Eval = 0;
+    private static readonly MAX_ERRORES_429 = 5;
+
     // Estado de la automatización.
     readonly cronActivo = signal(false);
     readonly ultimaEjecucion = signal<string | null>(null);
@@ -74,6 +83,12 @@ export class PanelControl implements OnInit, OnDestroy {
 
     // ID del intervalo de polling — para poder limpiarlo al destruir.
     private intervalIdPolling: ReturnType<typeof setInterval> | null = null;
+
+    // Guard para evitar requests solapadas en el polling de automatización.
+    private pollingCicloEnCurso = false;
+
+    // Contador de errores 429 consecutivos en el polling de automatización.
+    private errores429Ciclo = 0;
 
     // Plataforma seleccionada en el selector mobile de scraping.
     readonly plataformaSeleccionada = signal<string>('linkedin');
@@ -151,9 +166,17 @@ export class PanelControl implements OnInit, OnDestroy {
     // Inicia el polling al endpoint de progreso (cada 2 segundos).
     private iniciarPolling(): void {
         this.detenerPolling(); // Evito duplicados.
+        this.errores429Ciclo = 0;
         this.intervalIdPolling = setInterval(() => {
+            // Guard: si la request anterior todavía no terminó, salteo este tick.
+            if (this.pollingCicloEnCurso) {
+                return;
+            }
+            this.pollingCicloEnCurso = true;
             this.automatizacionService.obtenerProgreso().subscribe({
                 next: (respuesta) => {
+                    this.pollingCicloEnCurso = false;
+                    this.errores429Ciclo = 0;
                     if (respuesta.exito) {
                         this.progresoCiclo.set(respuesta.datos);
                         // Si el backend terminó, detengo el polling.
@@ -162,7 +185,18 @@ export class PanelControl implements OnInit, OnDestroy {
                         }
                     }
                 },
-                error: () => {} // Silencioso — no corto el polling por un error de red.
+                error: (error) => {
+                    this.pollingCicloEnCurso = false;
+                    if (error?.status === 429) {
+                        this.errores429Ciclo++;
+                        if (this.errores429Ciclo >= PanelControl.MAX_ERRORES_429) {
+                            // Demasiados 429 seguidos: detengo el polling para no agravar la situación.
+                            console.warn('[Polling ciclo] Demasiados errores 429 seguidos, deteniendo polling.');
+                            this.detenerPolling();
+                        }
+                    }
+                    // Para otros errores de red, continúo el polling silenciosamente.
+                }
             });
         }, 2000);
     }
@@ -173,14 +207,24 @@ export class PanelControl implements OnInit, OnDestroy {
             clearInterval(this.intervalIdPolling);
             this.intervalIdPolling = null;
         }
+        this.pollingCicloEnCurso = false;
+        this.errores429Ciclo = 0;
     }
 
     // Inicia el polling al endpoint de progreso de evaluación (cada 2 segundos).
     private iniciarPollingEvaluacion(): void {
         this.detenerPollingEvaluacion();
+        this.errores429Eval = 0;
         this.intervalIdPollingEval = setInterval(() => {
+            // Guard: si la request anterior todavía no terminó, salteo este tick.
+            if (this.pollingEvalEnCurso) {
+                return;
+            }
+            this.pollingEvalEnCurso = true;
             this.evaluacionService.obtenerProgreso().subscribe({
                 next: (respuesta) => {
+                    this.pollingEvalEnCurso = false;
+                    this.errores429Eval = 0;
                     if (respuesta.exito) {
                         this.progresoEvaluacion.set(respuesta.datos);
                         // Emito evento para que el dashboard refresque ofertas en segundo plano.
@@ -202,7 +246,19 @@ export class PanelControl implements OnInit, OnDestroy {
                         }
                     }
                 },
-                error: () => {} // Silencioso — no corto el polling por un error de red.
+                error: (error) => {
+                    this.pollingEvalEnCurso = false;
+                    if (error?.status === 429) {
+                        this.errores429Eval++;
+                        if (this.errores429Eval >= PanelControl.MAX_ERRORES_429) {
+                            // Demasiados 429 seguidos: detengo el polling para no agravar la situación.
+                            console.warn('[Polling evaluación] Demasiados errores 429 seguidos, deteniendo polling.');
+                            this.detenerPollingEvaluacion();
+                            this.evaluando.set(false);
+                        }
+                    }
+                    // Para otros errores de red, continúo el polling silenciosamente.
+                }
             });
         }, 2000);
     }
@@ -213,6 +269,8 @@ export class PanelControl implements OnInit, OnDestroy {
             clearInterval(this.intervalIdPollingEval);
             this.intervalIdPollingEval = null;
         }
+        this.pollingEvalEnCurso = false;
+        this.errores429Eval = 0;
     }
 
     // Ejecuta el ciclo completo (scraping de las 4 plataformas + evaluación IA).
