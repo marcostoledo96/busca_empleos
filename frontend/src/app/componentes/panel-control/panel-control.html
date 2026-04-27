@@ -112,6 +112,10 @@
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
                 </button>
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoInfojobs()" [disabled]="scrapeandoInfojobs() || modoDemo()" (click)="scrapearInfojobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de InfoJobs usando su API oficial REST (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear InfoJobs">
+                    <i class="pi pi-briefcase" aria-hidden="true"></i>
+                    {{ scrapeandoInfojobs() ? '...' : 'InfoJobs' }}
+                </button>
 
                 <!-- ── Selector mobile: sólo visible en ≤768px ── -->
                 <div class="scraping-selector-mobile" role="group" aria-label="Seleccionar plataforma de scraping">

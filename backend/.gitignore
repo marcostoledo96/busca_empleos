@@ -20,3 +20,6 @@ Thumbs.db
 
 # Salidas de scripts de desarrollo (pueden contener datos reales)
 tests/scripts/ofertas-exportadas.json
+
+# Reportes de cobertura generados por Jest/Istanbul
+coverage/

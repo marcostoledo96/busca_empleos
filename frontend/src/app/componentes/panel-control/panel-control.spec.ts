@@ -22,6 +22,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
         scrapearGoogleJobs:   () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearRemotive:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearRemoteOK:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
+        scrapearInfojobs:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
     };
 
     const mockEvaluacionService = {
@@ -78,8 +79,8 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     // --- opciones del p-select ---
 
-    it('opcionesPlataforma debería contener las 10 plataformas', () => {
-        expect(component.opcionesPlataforma.length).toBe(10);
+    it('opcionesPlataforma debería contener las 11 plataformas', () => {
+        expect(component.opcionesPlataforma.length).toBe(11);
     });
 
     it('opcionesPlataforma debería incluir LinkedIn con valor linkedin', () => {
@@ -137,6 +138,28 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(component.etiquetasPorPlataforma['googlejobs']).toBe('Google Jobs');
     });
 
+    it('opcionesPlataforma debería incluir InfoJobs con valor infojobs', () => {
+        const opcion = component.opcionesPlataforma.find(o => o.value === 'infojobs');
+        expect(opcion).toBeTruthy();
+        expect(opcion!.label).toBe('InfoJobs');
+    });
+
+    it('etiquetasPorPlataforma debería tener etiqueta para infojobs', () => {
+        expect(component.etiquetasPorPlataforma['infojobs']).toBe('InfoJobs');
+    });
+
+    it('scrapearPlataformaSeleccionada() con infojobs llama a scrapearInfojobs()', () => {
+        spyOn(component, 'scrapearInfojobs');
+        component.plataformaSeleccionada.set('infojobs');
+        component.scrapearPlataformaSeleccionada();
+        expect(component.scrapearInfojobs).toHaveBeenCalled();
+    });
+
+    it('scrapeandoAlguno() debería ser true cuando scrapeandoInfojobs es true', () => {
+        component.scrapeandoInfojobs.set(true);
+        expect(component.scrapeandoAlguno()).toBeTrue();
+    });
+
     // --- Visibilidad del selector mobile en el DOM ---
 
     it('el bloque .scraping-selector-mobile debería existir en el template', () => {
@@ -146,7 +169,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     it('los botones .scraping-solo-desktop deberían existir en el template', () => {
         const botones = fixture.nativeElement.querySelectorAll('.scraping-solo-desktop');
-        expect(botones.length).toBe(10);
+        expect(botones.length).toBe(11);
     });
 
     it('el p-select del selector mobile debería existir en el template', () => {

@@ -37,6 +37,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoGoogleJobs = signal(false);
     readonly scrapeandoRemotive = signal(false);
     readonly scrapeandoRemoteOK = signal(false);
+    readonly scrapeandoInfojobs = signal(false);
     readonly evaluando = signal(false);
 
     // Computed: hay algún scraping individual en curso (para deshabilitar selector mobile).
@@ -50,7 +51,8 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoJooble() ||
         this.scrapeandoGoogleJobs() ||
         this.scrapeandoRemotive() ||
-        this.scrapeandoRemoteOK()
+        this.scrapeandoRemoteOK() ||
+        this.scrapeandoInfojobs()
     );
     readonly progresoEvaluacion = signal<ProgresoEvaluacion | null>(null);
 
@@ -96,6 +98,7 @@ export class PanelControl implements OnInit, OnDestroy {
         { value: 'googlejobs',    label: 'Google Jobs'  },
         { value: 'remotive',      label: 'Remotive'     },
         { value: 'remoteok',      label: 'RemoteOK'     },
+        { value: 'infojobs',      label: 'InfoJobs'     },
     ];
 
     // Mapeo de valores del selector a etiquetas para mostrar en el overlay.
@@ -110,6 +113,7 @@ export class PanelControl implements OnInit, OnDestroy {
         googlejobs: 'Google Jobs',
         remotive: 'Remotive',
         remoteok: 'RemoteOK',
+        infojobs: 'InfoJobs',
     };
 
     // Evento que emite cuando una acción completó para que el padre recargue datos.
@@ -319,6 +323,7 @@ export class PanelControl implements OnInit, OnDestroy {
             case 'googlejobs':    this.scrapearGoogleJobs();    break;
             case 'remotive':      this.scrapearRemotive();      break;
             case 'remoteok':      this.scrapearRemoteOK();      break;
+            case 'infojobs':      this.scrapearInfojobs();      break;
             default: break;
         }
     }
@@ -616,6 +621,36 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en RemoteOK',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearInfojobs(): void {
+        this.scrapeandoInfojobs.set(true);
+        this.plataformaEnProceso.set('InfoJobs');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearInfojobs().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoInfojobs.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'InfoJobs completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoInfojobs.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en InfoJobs',
                     detail: error.error?.error || 'Error al conectar con el servidor',
                     life: 5000
                 });

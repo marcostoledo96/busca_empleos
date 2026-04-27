@@ -59,4 +59,9 @@ export class ScrapingService {
     scrapearRemoteOK(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/remoteok`, {});
     }
+
+    // Ejecuta el scraping de InfoJobs usando su API oficial REST y guarda en BD.
+    scrapearInfojobs(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/infojobs`, {});
+    }
 }
