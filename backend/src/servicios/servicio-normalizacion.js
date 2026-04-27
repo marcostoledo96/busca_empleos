@@ -921,12 +921,25 @@ function normalizarOfertaInfojobs(item) {
 
     // Validación defensiva (Capa 2): descarto cualquier oferta que no sea remoto puro.
     // Aunque el scraper ya filtra en origen, la API puede devolver datos inconsistentes.
-    // Soporto `teleworking` como objeto PD o string plano, porque encontramos variantes
-    // entre documentación, ejemplos y tests históricos del proyecto.
+    //
+    // La API de InfoJobs devuelve `teleworking` en dos formas observadas:
+    //   a) string plano:      "solo-teletrabajo"
+    //   b) objeto con .value: { id: 2, value: "Solo teletrabajo" }
+    //
+    // El campo `.id` es un número y NO se usa como criterio de aceptación porque
+    // String(2) = "2", que no matchea ningún valor de texto esperado.
+    // Siempre priorizamos `.value` (texto legible) para la comparación.
     const teleworking = item.teleworking;
-    const teleworkingId = typeof teleworking === 'string'
-        ? teleworking
-        : teleworking?.id || teleworking?.value || null;
+    let teleworkingId;
+    if (typeof teleworking === 'string') {
+        // Forma a): string plano directo.
+        teleworkingId = teleworking;
+    } else if (teleworking && typeof teleworking === 'object') {
+        // Forma b) y c): objeto PD. Priorizamos .value (texto) sobre .id (número).
+        teleworkingId = teleworking.value || teleworking.id || null;
+    } else {
+        teleworkingId = null;
+    }
     const teleworkingNormalizado = String(teleworkingId || '')
         .toLowerCase()
         .trim();
@@ -997,16 +1010,27 @@ function normalizarOfertaInfojobs(item) {
 /**
  * Mapeo el nivel de experiencia de InfoJobs a nuestros valores normalizados.
  *
- * InfoJobs usa claves como 'sin_experiencia', 'menos_1_anio',
- * 'entre_1_2_anios', 'entre_2_3_anios', 'entre_3_5_anios', 'mas_5_anios'.
+ * La API puede devolver el nivel en dos formatos según el campo que llegue:
  *
- * @param {string|null} key - La clave de experienceMin de InfoJobs.
+ * a) Clave interna (experienceMin.key): 'sin_experiencia', 'menos_1_anio',
+ *    'entre_1_2_anios', 'entre_2_3_anios', 'entre_3_5_anios', 'mas_5_anios'.
+ *
+ * b) Texto en español (experienceMin.value): 'Sin experiencia', 'Menos de 1 año',
+ *    'Al menos 1 año', 'Al menos 2 años', 'Al menos 3 años', 'Al menos 4 años',
+ *    'Más de 5 años', 'Más de 10 años'.
+ *
+ * Cuando llega el texto libre (forma b), normalizo a minúsculas y busco
+ * en un segundo mapa de textos en español. Así no dependo de que la API
+ * siempre devuelva la clave interna.
+ *
+ * @param {string|null} key - La clave o texto de experienceMin de InfoJobs.
  * @returns {string|null} 'trainee', 'junior', 'semi-senior', 'senior' o null.
  */
 function mapearNivelInfojobs(key) {
     if (!key) return null;
 
-    const mapa = {
+    // Mapa de claves internas (forma a).
+    const mapaClaves = {
         'sin_experiencia': 'trainee',
         'menos_1_anio': 'trainee',
         'entre_1_2_anios': 'junior',
@@ -1015,7 +1039,25 @@ function mapearNivelInfojobs(key) {
         'mas_5_anios': 'senior',
     };
 
-    return mapa[key] || null;
+    if (mapaClaves[key]) return mapaClaves[key];
+
+    // Mapa de textos en español (forma b): normalizo a minúsculas para comparar.
+    const keyLower = String(key).toLowerCase().trim();
+
+    const mapaTextos = {
+        'sin experiencia': 'trainee',
+        'menos de 1 año': 'trainee',
+        'al menos 1 año': 'trainee',
+        'al menos 2 años': 'junior',
+        'al menos 3 años': 'semi-senior',
+        'al menos 4 años': 'semi-senior',
+        'más de 5 años': 'senior',
+        'mas de 5 años': 'senior',
+        'más de 10 años': 'senior',
+        'mas de 10 años': 'senior',
+    };
+
+    return mapaTextos[keyLower] || null;
 }
 
 /**

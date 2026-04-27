@@ -793,19 +793,23 @@ describe('Servicio de scraping', () => {
     // =========================================================================
     describe('ejecutarScrapingInfojobs', () => {
         // Oferta de ejemplo con remoto puro. Todos los campos mapeados al contrato.
-        // Shape según la doc oficial (docs/scraping.md):
-        //   - teleworking: objeto { id, value } (no string)
-        //   - locations: array con { city: string, province: { value: string } }
+        // Shape según la doc oficial actual:
+        //   - teleworking: PD { id: number, value: string }
+        //   - city: string
+        //   - province: PD { value: string }
+        //   - author.name: empresa pública
+        //   - salaryMin / salaryMax: PDs
         const ofertaInfojobsFalsa = {
             link: 'https://www.infojobs.net/oferta-trabajo/frontend-developer_123.xhtml',
             title: 'Frontend Developer Junior',
-            company: { name: 'Empresa Tech SRL' },
-            locations: [{ city: 'Madrid', province: { value: 'Madrid' } }],
-            teleworking: { id: 'solo-teletrabajo', value: 'Solo teletrabajo' },
-            description: 'Buscamos desarrollador frontend con experiencia en React.',
-            experienceMin: { key: 'entre_1_2_anios' },
-            minPay: 20000,
-            maxPay: 30000,
+            author: { name: 'Empresa Tech SRL' },
+            city: 'Madrid',
+            province: { value: 'Madrid' },
+            teleworking: { id: 2, value: 'Solo teletrabajo' },
+            requirementMin: 'Buscamos desarrollador frontend con experiencia en React.',
+            experienceMin: { value: 'Al menos 2 años' },
+            salaryMin: { value: '20000' },
+            salaryMax: { value: '30000' },
             salaryDescription: '€ Bruto/año',
             published: '2024-01-15T10:00:00Z',
         };
@@ -919,6 +923,7 @@ describe('Servicio de scraping', () => {
             expect(oferta.salario_max).toBe(30000);
             expect(oferta.moneda).toBe('EUR');
             expect(oferta.fecha_publicacion).toBeInstanceOf(Date);
+            expect(oferta.descripcion).toContain('desarrollador frontend');
         });
 
         // --- INFOJOBS-004: Descarte de oferta sin URL ---
@@ -1006,7 +1011,7 @@ describe('Servicio de scraping', () => {
             // Soportamos el shape real: teleworking como objeto PD.
             const ofertaPresencial = {
                 ...ofertaInfojobsFalsa,
-                teleworking: { id: 'trabajo-solo-presencial', value: 'Presencial' },
+                teleworking: { id: 1, value: 'Presencial' },
             };
             global.fetch.mockResolvedValue({
                 ok: true,
@@ -1101,6 +1106,25 @@ describe('Servicio de scraping', () => {
 
             expect(resultado).toHaveLength(1);
             expect(resultado[0].ubicacion).toBe('Barcelona, Cataluña');
+        });
+
+        test('tolera shape alternativo con locations[0] cuando city/province no vienen al tope', async () => {
+            const ofertaConLocations = {
+                ...ofertaInfojobsFalsa,
+                city: undefined,
+                province: undefined,
+                locations: [{ city: 'Sevilla', province: { value: 'Andalucía' } }],
+            };
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ offers: [ofertaConLocations] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].ubicacion).toBe('Sevilla, Andalucía');
         });
     }); // fin describe('ejecutarScrapingInfojobs')
 }); // fin describe('Servicio de scraping')

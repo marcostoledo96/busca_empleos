@@ -358,9 +358,9 @@ InfoJobs aplica el filtro en **dos capas** para garantizar remoto puro:
 | Capa | Dónde | Cómo |
 |------|-------|------|
 | Capa 1 — en origen | Parámetro de la API | `teleworking=solo-teletrabajo` en la query |
-| Capa 2 — en normalización | `servicio-normalizacion.js` | Descarta cualquier oferta cuyo campo `teleworking` no sea exactamente `'solo-teletrabajo'` |
+| Capa 2 — en normalización | `servicio-normalizacion.js` | Descarta toda oferta cuyo `teleworking` no resuelva al texto `"Solo teletrabajo"` o `"solo-teletrabajo"`. Soporta string plano y objeto `{ id, value }` (prioriza `.value`). |
 
-**Ofertas excluidas:** híbridas (`trabajo-y-teletrabajo`), presenciales y aquellas sin campo `teleworking` definido. Solo pasan las que sean remoto puro confirmado por ambas capas.
+**Ofertas excluidas:** híbridas, presenciales y aquellas sin campo `teleworking` definido. Solo pasan las que sean remoto puro confirmado por ambas capas.
 
 ### Límite de resultados
 
@@ -380,7 +380,7 @@ La API devuelve un JSON con la colección de ofertas. En la documentación ofici
       "title": "Frontend Developer Junior",
       "author": { "name": "Empresa Ejemplo" },
       "locations": [{ "province": { "value": "Madrid" }, "city": "Madrid" }],
-      "teleworking": { "id": "solo-teletrabajo", "value": "Solo teletrabajo" },
+      "teleworking": { "id": 2, "value": "Solo teletrabajo" },
       "link": "https://www.infojobs.net/offerjob/a1b2c3d4e5f6"
     }
   ]
