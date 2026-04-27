@@ -368,17 +368,17 @@ El endpoint limita `maxResultados` a **50** (hardcodeado en el controlador y en 
 
 ### Estructura de la respuesta de la API
 
-La API devuelve un JSON con la propiedad `items`:
+La API devuelve un JSON con la colección de ofertas. En la documentación oficial suele figurar como `offers`, aunque vimos variantes históricas o ejemplos con otras formas. La integración actual tolera `offers` como contrato principal y `items` como compatibilidad defensiva:
 
 ```json
 {
   "currentPage": 1,
   "totalResults": 12,
-  "items": [
+  "offers": [
     {
       "id": "a1b2c3d4e5f6",
       "title": "Frontend Developer Junior",
-      "company": { "name": "Empresa Ejemplo" },
+      "author": { "name": "Empresa Ejemplo" },
       "locations": [{ "province": { "value": "Madrid" }, "city": "Madrid" }],
       "teleworking": { "id": "solo-teletrabajo", "value": "Solo teletrabajo" },
       "link": "https://www.infojobs.net/offerjob/a1b2c3d4e5f6"
@@ -389,7 +389,7 @@ La API devuelve un JSON con la propiedad `items`:
 
 ### Normalización de ubicación
 
-La normalización combina ciudad y provincia: `${city}, ${province}` si ambas están presentes. Si solo hay provincia, usa el valor de provincia. Si no hay dato de ubicación, queda como `null`.
+La normalización tolera dos shapes de ubicación: `locations[0]` (contrato principal) o `city`/`province` al tope del item. Si hay ciudad y provincia, las combina como `${city}, ${province}`. Si solo hay uno de los dos valores, usa ese. Si no hay dato de ubicación, queda como `null`.
 
 ## Documentos relacionados
 

@@ -793,13 +793,15 @@ describe('Servicio de scraping', () => {
     // =========================================================================
     describe('ejecutarScrapingInfojobs', () => {
         // Oferta de ejemplo con remoto puro. Todos los campos mapeados al contrato.
+        // Shape según la doc oficial (docs/scraping.md):
+        //   - teleworking: objeto { id, value } (no string)
+        //   - locations: array con { city: string, province: { value: string } }
         const ofertaInfojobsFalsa = {
             link: 'https://www.infojobs.net/oferta-trabajo/frontend-developer_123.xhtml',
             title: 'Frontend Developer Junior',
             company: { name: 'Empresa Tech SRL' },
-            city: { value: 'Madrid' },
-            province: { value: 'Madrid' },
-            teleworking: 'solo-teletrabajo',
+            locations: [{ city: 'Madrid', province: { value: 'Madrid' } }],
+            teleworking: { id: 'solo-teletrabajo', value: 'Solo teletrabajo' },
             description: 'Buscamos desarrollador frontend con experiencia en React.',
             experienceMin: { key: 'entre_1_2_anios' },
             minPay: 20000,
@@ -810,7 +812,7 @@ describe('Servicio de scraping', () => {
 
         // Respuesta simulada de la API de InfoJobs.
         const respuestaInfojobsFalsa = {
-            items: [ofertaInfojobsFalsa],
+            offers: [ofertaInfojobsFalsa],
         };
 
         beforeEach(() => {
@@ -881,13 +883,14 @@ describe('Servicio de scraping', () => {
 
         test('descarta ofertas que no sean remoto puro aunque la API las devuelva', async () => {
             // Simulo que la API devuelve una oferta híbrida por error.
+            // teleworking es objeto según el contrato real de la API de InfoJobs.
             const ofertaHibridaFalsa = {
                 ...ofertaInfojobsFalsa,
-                teleworking: 'teletrabajo-parcial',
+                teleworking: { id: 'teletrabajo-parcial', value: 'Teletrabajo parcial' },
             };
             global.fetch.mockResolvedValue({
                 ok: true,
-                json: jest.fn().mockResolvedValue({ items: [ofertaHibridaFalsa] }),
+                json: jest.fn().mockResolvedValue({ offers: [ofertaHibridaFalsa] }),
             });
 
             const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
@@ -925,7 +928,7 @@ describe('Servicio de scraping', () => {
             delete ofertaSinUrl.link;
             global.fetch.mockResolvedValue({
                 ok: true,
-                json: jest.fn().mockResolvedValue({ items: [ofertaSinUrl] }),
+                json: jest.fn().mockResolvedValue({ offers: [ofertaSinUrl] }),
             });
 
             const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
@@ -985,11 +988,11 @@ describe('Servicio de scraping', () => {
         // --- INFOJOBS-009: Escenarios de validación defensiva (Capa 2) ---
 
         test('retorna array vacío sin error si la API no devuelve resultados', async () => {
-            // La API puede devolver `items: []` cuando no hay avisos para ese término.
+            // La API puede devolver `offers: []` cuando no hay avisos para ese término.
             // El servicio debe retornar [] sin tirar error.
             global.fetch.mockResolvedValue({
                 ok: true,
-                json: jest.fn().mockResolvedValue({ items: [] }),
+                json: jest.fn().mockResolvedValue({ offers: [] }),
             });
 
             const resultado = await ejecutarScrapingInfojobs({ terminos: ['termino-sin-resultados'] });
@@ -999,15 +1002,15 @@ describe('Servicio de scraping', () => {
         });
 
         test('descarta oferta con teleworking trabajo-solo-presencial (Capa 2)', async () => {
-            // El normalizador rechaza cualquier valor que no sea 'solo-teletrabajo'.
-            // 'trabajo-solo-presencial' es un ejemplo explícito del campo presencial de InfoJobs.
+            // El normalizador rechaza cualquier valor que no sea remoto puro.
+            // Soportamos el shape real: teleworking como objeto PD.
             const ofertaPresencial = {
                 ...ofertaInfojobsFalsa,
-                teleworking: 'trabajo-solo-presencial',
+                teleworking: { id: 'trabajo-solo-presencial', value: 'Presencial' },
             };
             global.fetch.mockResolvedValue({
                 ok: true,
-                json: jest.fn().mockResolvedValue({ items: [ofertaPresencial] }),
+                json: jest.fn().mockResolvedValue({ offers: [ofertaPresencial] }),
             });
 
             const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
@@ -1025,7 +1028,7 @@ describe('Servicio de scraping', () => {
             };
             global.fetch.mockResolvedValue({
                 ok: true,
-                json: jest.fn().mockResolvedValue({ items: [ofertaSinModalidad] }),
+                json: jest.fn().mockResolvedValue({ offers: [ofertaSinModalidad] }),
             });
 
             const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
@@ -1049,6 +1052,55 @@ describe('Servicio de scraping', () => {
 
             await expect(ejecutarScrapingInfojobs({ terminos: ['frontend'] }))
                 .rejects.toThrow('Rate limit de InfoJobs excedido');
+        });
+
+        test('tolera respuestas legacy con propiedad items', async () => {
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ items: [ofertaInfojobsFalsa] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].plataforma).toBe('infojobs');
+        });
+
+        test('usa author.name como fallback cuando company.name no existe', async () => {
+            const ofertaConAuthor = {
+                ...ofertaInfojobsFalsa,
+                company: undefined,
+                author: { name: 'Empresa desde author' },
+            };
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ offers: [ofertaConAuthor] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].empresa).toBe('Empresa desde author');
+        });
+
+        test('tolera city y province al tope del item además de locations', async () => {
+            const ofertaConUbicacionTope = {
+                ...ofertaInfojobsFalsa,
+                locations: undefined,
+                city: { value: 'Barcelona' },
+                province: { value: 'Cataluña' },
+            };
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ offers: [ofertaConUbicacionTope] }),
+            });
+
+            const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].ubicacion).toBe('Barcelona, Cataluña');
         });
     }); // fin describe('ejecutarScrapingInfojobs')
 }); // fin describe('Servicio de scraping')

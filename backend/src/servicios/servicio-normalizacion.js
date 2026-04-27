@@ -889,21 +889,22 @@ function normalizarOfertaRemoteOK(item) {
  * InfoJobs es el portal de empleo más grande de España. Su API REST devuelve
  * objetos con estructura propia que hay que mapear a nuestro contrato interno.
  *
- * REGLA CRÍTICA: Solo aceptamos ofertas con teleworking === 'solo-teletrabajo'.
+ * REGLA CRÍTICA: Solo aceptamos ofertas con modalidad de remoto puro.
  * Esta es la Capa 2 de defensa. Si la API devolvió por error una oferta híbrida
  * o presencial (a pesar del parámetro teleworking en el request), la descartamos acá.
  * Las ofertas rechazadas lanzan un Error que normalizarLote() captura con console.warn.
  *
  * Mapeo de campos API InfoJobs → tabla `ofertas`:
- *   link              → url            (URL pública de la oferta)
- *   title             → titulo
- *   company.name      → empresa
- *   city.value        → ubicacion      (ciudad; si no hay, provincia.value)
- *   teleworking       → modalidad      ('solo-teletrabajo' → 'remoto')
+ *   link                          → url            (URL pública de la oferta)
+ *   title                         → titulo
+ *   company.name / author.name    → empresa
+ *   city / locations[0].city      → ubicacion
+ *   province / locations[0].province.value → ubicacion
+ *   teleworking.id / teleworking.value / teleworking(string) → modalidad
  *   description       → descripcion
  *                     → plataforma     (siempre 'infojobs')
- *   experienceMin.key → nivel_requerido (mapeado a valores internos)
- *   minPay + maxPay   → salario_min/max
+ *   experienceMin.key / experienceMin.value → nivel_requerido (mapeado a valores internos)
+ *   salaryMin / salaryMax / minPay / maxPay → salario_min/max
  *   salaryDescription → moneda         (inferida del texto)
  *   published         → fecha_publicacion (ISO 8601)
  *   (todo el item)    → datos_crudos
@@ -920,34 +921,72 @@ function normalizarOfertaInfojobs(item) {
 
     // Validación defensiva (Capa 2): descarto cualquier oferta que no sea remoto puro.
     // Aunque el scraper ya filtra en origen, la API puede devolver datos inconsistentes.
+    // Soporto `teleworking` como objeto PD o string plano, porque encontramos variantes
+    // entre documentación, ejemplos y tests históricos del proyecto.
     const teleworking = item.teleworking;
-    if (teleworking !== 'solo-teletrabajo') {
-        const valorParaLog = teleworking || 'sin especificar';
+    const teleworkingId = typeof teleworking === 'string'
+        ? teleworking
+        : teleworking?.id || teleworking?.value || null;
+    const teleworkingNormalizado = String(teleworkingId || '')
+        .toLowerCase()
+        .trim();
+    const esRemotoPuro =
+        teleworkingNormalizado === 'solo-teletrabajo' ||
+        teleworkingNormalizado === 'solo teletrabajo';
+
+    if (!esRemotoPuro) {
+        const valorParaLog = teleworkingId || 'sin especificar';
         console.warn(`InfoJobs: oferta descartada por modalidad no remota (${valorParaLog}) — url: ${url}`);
         throw new Error(`InfoJobs: oferta descartada por modalidad no remota (${valorParaLog})`);
     }
 
-    // Construyo la ubicación combinando ciudad y provincia (mismo patrón que Indeed y Glassdoor).
-    // Si ambas están presentes y son distintas, las combino: "Ciudad, Provincia".
-    // Si son iguales (ej: "Madrid, Madrid"), las combino igual — es el comportamiento estándar
-    // del proyecto para mantener consistencia con los otros normalizadores.
-    const ciudad = item.city?.value || null;
-    const provincia = item.province?.value || null;
+    // Construyo la ubicación soportando dos shapes:
+    // 1) `locations[0]` con city/province (documentación y algunos ejemplos)
+    // 2) `city` y `province` al tope del item (tests históricos e integraciones previas)
+    const primeraUbicacion = item.locations?.[0] || null;
+    const ciudad =
+        item.city?.value ||
+        item.city ||
+        primeraUbicacion?.city?.value ||
+        primeraUbicacion?.city ||
+        null;
+    const provincia =
+        item.province?.value ||
+        item.province ||
+        primeraUbicacion?.province?.value ||
+        primeraUbicacion?.province ||
+        null;
     const ubicacion = [ciudad, provincia].filter(Boolean).join(', ') || null;
+
+    const empresa = item.company?.name || item.author?.name || null;
+
+    const experienciaCruda =
+        item.experienceMin?.key ||
+        item.experienceMin?.value ||
+        item.experienceMin ||
+        null;
+
+    const salarioMin = extraerNumeroInfojobs(item.salaryMin ?? item.minPay);
+    const salarioMax = extraerNumeroInfojobs(item.salaryMax ?? item.maxPay);
+
+    const descripcion =
+        item.description ||
+        item.requirementMin ||
+        null;
 
     return {
         titulo: item.title || null,
-        empresa: item.company?.name || null,
+        empresa,
         ubicacion,
         // teleworking === 'solo-teletrabajo' → modalidad interna 'remoto'.
         modalidad: 'remoto',
-        descripcion: item.description || null,
+        descripcion,
         url,
         plataforma: 'infojobs',
-        nivel_requerido: mapearNivelInfojobs(item.experienceMin?.key),
-        // InfoJobs puede incluir rango salarial en minPay y maxPay (números).
-        salario_min: item.minPay || null,
-        salario_max: item.maxPay || null,
+        nivel_requerido: mapearNivelInfojobs(experienciaCruda),
+        // InfoJobs puede incluir rango salarial como números o PDs con .value.
+        salario_min: salarioMin,
+        salario_max: salarioMax,
         // La moneda se infiere del campo salaryDescription si existe.
         moneda: inferirMonedaInfojobs(item.salaryDescription),
         fecha_publicacion: item.published ? new Date(item.published) : null,
@@ -997,6 +1036,33 @@ function inferirMonedaInfojobs(descripcion) {
     if (texto.includes('ARS') || texto.includes('AR$')) return 'ARS';
 
     return null;
+}
+
+/**
+ * Extraigo un número desde un campo de salario de InfoJobs.
+ * Puede venir como número directo, string o PD con `{ value: '30000' }`.
+ *
+ * @param {number|string|Object|null|undefined} valor - Campo salarial crudo.
+ * @returns {number|null} Valor numérico parseado o null.
+ */
+function extraerNumeroInfojobs(valor) {
+    if (valor === null || valor === undefined) {
+        return null;
+    }
+
+    if (typeof valor === 'number' && Number.isFinite(valor)) {
+        return valor;
+    }
+
+    const valorCrudo = typeof valor === 'object' ? valor.value : valor;
+    if (valorCrudo === null || valorCrudo === undefined) {
+        return null;
+    }
+
+    const textoNormalizado = String(valorCrudo).replace(/[^\d.,-]/g, '').replace(',', '.');
+    const numero = Number.parseFloat(textoNormalizado);
+
+    return Number.isFinite(numero) ? numero : null;
 }
 
 module.exports = {

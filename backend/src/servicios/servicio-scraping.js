@@ -1006,8 +1006,13 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
             }
 
             const json = await respuesta.json();
-            // La API de InfoJobs devuelve los items en la propiedad `items`.
-            const ofertas = json.items || [];
+            // La API de InfoJobs mostró variantes entre documentación y ejemplos públicos.
+            // Priorizo `offers` (contrato oficial) pero tolero `items` por compatibilidad.
+            const ofertas = Array.isArray(json.offers)
+                ? json.offers
+                : Array.isArray(json.items)
+                    ? json.items
+                    : [];
             itemsCrudos = itemsCrudos.concat(ofertas);
             console.log(`Scraping InfoJobs: ${ofertas.length} ítem(s) para "${termino}".`);
         }
