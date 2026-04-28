@@ -143,6 +143,7 @@ export class PanelControl implements OnInit, OnDestroy {
 
     ngOnInit(): void {
         this.consultarEstadoCron();
+        this.rehidratarEvaluacion();
     }
 
     ngOnDestroy(): void {
@@ -160,6 +161,22 @@ export class PanelControl implements OnInit, OnDestroy {
                 }
             },
             error: () => {} // Silencioso — no es crítico si falla al iniciar.
+        });
+    }
+
+    // Rehidrato el estado de una evaluación en curso al montar el componente.
+    // Si el backend reporta activo === true, restauro las signals locales y
+    // reanudo el polling para que la UI refleje el progreso real.
+    private rehidratarEvaluacion(): void {
+        this.evaluacionService.obtenerProgreso().subscribe({
+            next: (respuesta) => {
+                if (respuesta.exito && respuesta.datos.activo) {
+                    this.evaluando.set(true);
+                    this.progresoEvaluacion.set(respuesta.datos);
+                    this.iniciarPollingEvaluacion();
+                }
+            },
+            error: () => {} // Silencioso — si falla, el componente arranca en estado vacío.
         });
     }
 
@@ -730,6 +747,15 @@ export class PanelControl implements OnInit, OnDestroy {
                 // El polling se encarga de detectar cuándo terminó.
             },
             error: (error) => {
+                // 409 Conflict: ya hay una evaluación en curso iniciada antes de este mount.
+                // En lugar de mostrar error, rehidrato el estado desde el backend.
+                if (error?.status === 409) {
+                    this.detenerPollingEvaluacion();
+                    this.evaluando.set(false);
+                    this.progresoEvaluacion.set(null);
+                    this.rehidratarEvaluacion();
+                    return;
+                }
                 this.detenerPollingEvaluacion();
                 this.evaluando.set(false);
                 this.progresoEvaluacion.set(null);

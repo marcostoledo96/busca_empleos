@@ -200,9 +200,10 @@ describe('PanelControl — Polling defensivo', () => {
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
 
-        // Por defecto: evaluación activa (para que el polling no se detenga solo).
+        // Por defecto: sin evaluación activa en el ngOnInit para no activar rehidratación.
+        // Cada test que necesite polling activo configura su propio retorno.
         evalSpy.obtenerProgreso.and.returnValue(
-            of({ exito: true, datos: { activo: true, evaluadas: 1, total: 5, aprobadas: 1, rechazadas: 0, errores: 0, porcentaje: 20 } })
+            of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } })
         );
         autoSpy.obtenerEstado.and.returnValue(
             of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
@@ -224,6 +225,9 @@ describe('PanelControl — Polling defensivo', () => {
         fixture = TestBed.createComponent(PanelControl);
         component = fixture.componentInstance;
         fixture.detectChanges();
+        // Reseteo el contador del spy después del ngOnInit para que los tests que
+        // verifican conteos exactos no sean afectados por la llamada de rehidratación.
+        evalSpy.obtenerProgreso.calls.reset();
     });
 
     afterEach(() => {
@@ -475,6 +479,224 @@ describe('PanelControl — Polling defensivo', () => {
         // Errores 503 no incrementan el contador de 429, el polling sigue.
         expect((component as any).intervalIdPolling).not.toBeNull();
         expect((component as any).errores429Ciclo).toBe(0);
+
+        discardPeriodicTasks();
+    }));
+});
+
+// ============================================================
+// Suite de tests: Rehidratación de evaluación activa al montar
+// ============================================================
+
+describe('PanelControl — Rehidratación de evaluación al remount', () => {
+
+    let component: PanelControl;
+    let fixture: ComponentFixture<PanelControl>;
+    let evalSpy: jasmine.SpyObj<EvaluacionService>;
+    let autoSpy: jasmine.SpyObj<AutomatizacionService>;
+
+    const progresoActivoMock = {
+        activo: true,
+        evaluadas: 3,
+        total: 10,
+        aprobadas: 2,
+        rechazadas: 1,
+        errores: 0,
+        porcentaje: 30
+    };
+
+    beforeEach(async () => {
+        evalSpy = jasmine.createSpyObj('EvaluacionService', [
+            'ejecutarEvaluacion', 'cancelarEvaluacion', 'obtenerProgreso'
+        ]);
+        autoSpy = jasmine.createSpyObj('AutomatizacionService', [
+            'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
+        ]);
+
+        autoSpy.obtenerEstado.and.returnValue(
+            of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
+        );
+        autoSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } })
+        );
+
+        await TestBed.configureTestingModule({
+            imports: [PanelControl],
+            providers: [
+                { provide: ScrapingService, useValue: {} },
+                { provide: EvaluacionService, useValue: evalSpy },
+                { provide: AutomatizacionService, useValue: autoSpy },
+                MessageService,
+            ],
+        }).compileComponents();
+    });
+
+    afterEach(() => {
+        fixture.destroy();
+    });
+
+    it('al remontarse con evaluación activa, evaluando() queda en true', fakeAsync(() => {
+        // El backend reporta evaluación en curso.
+        evalSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: progresoActivoMock })
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges(); // dispara ngOnInit → rehidratarEvaluacion()
+
+        // La señal debe haberse rehidratado.
+        expect(component.evaluando()).toBeTrue();
+
+        discardPeriodicTasks();
+    }));
+
+    it('al remontarse con evaluación activa, progresoEvaluacion() NO queda en null', fakeAsync(() => {
+        evalSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: progresoActivoMock })
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const progreso = component.progresoEvaluacion();
+        expect(progreso).not.toBeNull();
+        expect(progreso!.evaluadas).toBe(3);
+        expect(progreso!.porcentaje).toBe(30);
+
+        discardPeriodicTasks();
+    }));
+
+    it('al remontarse sin evaluación activa, evaluando() queda en false', fakeAsync(() => {
+        evalSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } })
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        expect(component.evaluando()).toBeFalse();
+        expect(component.progresoEvaluacion()).toBeNull();
+
+        discardPeriodicTasks();
+    }));
+
+    it('al remontarse con evaluación activa, se inicia el polling de evaluación', fakeAsync(() => {
+        evalSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: progresoActivoMock })
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        // El polling debe estar activo (intervalId no nulo).
+        expect((component as any).intervalIdPollingEval).not.toBeNull();
+
+        discardPeriodicTasks();
+    }));
+
+    it('si GET /progreso falla al remontarse, el componente arranca en estado inicial sin error', fakeAsync(() => {
+        evalSpy.obtenerProgreso.and.returnValue(
+            throwError(() => ({ status: 500 }))
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        // No debe lanzar excepción.
+        expect(() => fixture.detectChanges()).not.toThrow();
+
+        expect(component.evaluando()).toBeFalse();
+        expect(component.progresoEvaluacion()).toBeNull();
+
+        discardPeriodicTasks();
+    }));
+
+    // --- Manejo de 409 en ejecutarEvaluacion() ---
+
+    it('un 409 en ejecutarEvaluacion() rehidrata el estado en vez de mostrar error', fakeAsync(() => {
+        // Primera llamada a obtenerProgreso: arranca sin evaluación.
+        // Segunda llamada (tras el 409): reporta evaluación activa.
+        let llamadaProgreso = 0;
+        evalSpy.obtenerProgreso.and.callFake(() => {
+            llamadaProgreso++;
+            if (llamadaProgreso === 1) {
+                // ngOnInit → rehidratarEvaluacion: sin evaluación activa.
+                return of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } });
+            }
+            // Llamada desde rehidratarEvaluacion() después del 409.
+            return of({ exito: true, datos: progresoActivoMock });
+        });
+
+        evalSpy.ejecutarEvaluacion.and.returnValue(
+            throwError(() => ({ status: 409, error: { error: 'Ya hay una evaluación en curso' } }))
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges(); // ngOnInit → 1.ª llamada a obtenerProgreso (activo: false)
+
+        // Ahora el usuario intenta iniciar evaluación → backend responde 409.
+        component.ejecutarEvaluacion();
+        tick(500); // Deja pasar el setTimeout del polling interno que luego se limpia.
+
+        // La rehidratación debe haber corrido: evaluando = true.
+        expect(component.evaluando()).toBeTrue();
+        expect(component.progresoEvaluacion()).not.toBeNull();
+        expect(component.progresoEvaluacion()!.porcentaje).toBe(30);
+
+        discardPeriodicTasks();
+    }));
+
+    it('un 409 en ejecutarEvaluacion() NO muestra toast de error', fakeAsync(() => {
+        let llamadaProgreso = 0;
+        evalSpy.obtenerProgreso.and.callFake(() => {
+            llamadaProgreso++;
+            if (llamadaProgreso === 1) {
+                return of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } });
+            }
+            return of({ exito: true, datos: progresoActivoMock });
+        });
+        evalSpy.ejecutarEvaluacion.and.returnValue(
+            throwError(() => ({ status: 409, error: { error: 'Ya hay una evaluación en curso' } }))
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+        component.ejecutarEvaluacion();
+        tick(500);
+
+        // El toast de error NO debe haberse mostrado por el 409.
+        const llamadasError = mensajesSpy.calls.all().filter(c => (c.args[0] as { severity?: string })?.severity === 'error');
+        expect(llamadasError.length).toBe(0);
+
+        discardPeriodicTasks();
+    }));
+
+    it('un error no-409 en ejecutarEvaluacion() sí muestra toast de error', fakeAsync(() => {
+        evalSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } })
+        );
+        evalSpy.ejecutarEvaluacion.and.returnValue(
+            throwError(() => ({ status: 500, error: { error: 'Error interno del servidor' } }))
+        );
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+        component.ejecutarEvaluacion();
+        tick(500);
+
+        const llamadasError = mensajesSpy.calls.all().filter(c => (c.args[0] as { severity?: string })?.severity === 'error');
+        expect(llamadasError.length).toBe(1);
+        expect(component.evaluando()).toBeFalse();
 
         discardPeriodicTasks();
     }));
