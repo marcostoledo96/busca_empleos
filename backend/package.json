@@ -7,7 +7,9 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "jest --verbose",
-    "test:modelos": "jest tests/modelos --verbose --runInBand"
+    "test:modelos": "jest tests/modelos --verbose --runInBand",
+    "test:integracion": "jest tests/integracion --verbose --runInBand",
+    "diagnostico:infojobs": "node scripts/diagnostico-infojobs.js"
   },
   "keywords": [],
   "author": "Marcos Ezequiel Toledo",
