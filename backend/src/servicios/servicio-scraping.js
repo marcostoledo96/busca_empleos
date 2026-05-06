@@ -735,9 +735,10 @@ async function ejecutarScrapingGoogleJobs(opciones = {}) {
         const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
             query: queryUnificada,
             location: 'Argentina',
-            // country: 'ar' en vez de 'None' para que el actor filtre por Argentina
-            // y no dispare búsquedas globales que consumen créditos innecesariamente.
-            country: 'ar',
+            // El actor NO acepta 'ar'. Mantengo 'None' para cumplir su contrato
+            // y dejo que el recorte geográfico lo hagan `location: 'Argentina'`
+            // y `google_domain: 'google.com.ar'`, junto con el límite de páginas.
+            country: 'None',
             // google_domain: 'google.com.ar' para usar el índice local de Google,
             // que tiene más ofertas argentinas y es más barato que el índice global.
             google_domain: 'google.com.ar',

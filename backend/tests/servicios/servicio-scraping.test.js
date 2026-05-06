@@ -1228,15 +1228,15 @@ describe('Servicio de scraping', () => {
             },
         ];
 
-        test('pasa country="ar" en vez de "None"', async () => {
+        test('pasa country="None" porque el actor no acepta "ar"', async () => {
             clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-country' });
             clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
 
             await ejecutarScrapingGoogleJobs({ terminos: ['qa tester'] });
 
             const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
-            expect(inputLlamada.country).toBe('ar');
-            expect(inputLlamada.country).not.toBe('None');
+            expect(inputLlamada.country).toBe('None');
+            expect(inputLlamada.country).not.toBe('ar');
         });
 
         test('pasa google_domain="google.com.ar"', async () => {
