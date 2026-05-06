@@ -24,10 +24,14 @@ const clienteApify = new ApifyClient({
 // IDs de los Actores que vamos a usar.
 // Cada Actor tiene un ID único en la plataforma de Apify.
 const ACTORES = {
-    // curious_coder/linkedin-jobs-scraper — Rating 4.9, 38K usuarios.
-    // Recibe URLs de búsqueda de LinkedIn y devuelve ofertas con detalles.
-    // Costo: $0.001 por resultado (~$1 por 1000 ofertas).
-    LINKEDIN: 'hKByXkMQaC5Qt9UMN',
+    // cheap_scraper/linkedin-job-scraper — actor más barato para LinkedIn.
+    // Recibe startUrls de LinkedIn y opciones de filtro (publishedAt, experienceLevel, etc.).
+    // Costo: desde $0.35/1000 resultados (vs $1/1000 del actor anterior).
+    // Input soporta: startUrls, publishedAt, experienceLevel, workType, maxItems,
+    // saveOnlyUniqueItems, enrichCompanyData.
+    // Output schema: jobTitle, companyName, location, jobDescription, jobUrl,
+    // publishedAt, experienceLevel, contractType, salaryInfo, workType, applyUrl.
+    LINKEDIN: 'hZId54V5z0sWBXFXM',
 
     // shahidirfan/Computrabajo-Jobs-Scraper — GRATIS.
     // Scrapea ofertas de Computrabajo Argentina.

@@ -1,7 +1,21 @@
 // Tests para el módulo de conexión a la base de datos.
 // Verifico que el pool se conecte correctamente y cierre sin errores.
 
+const { URL } = require('node:url');
 const pool = require('../../src/config/base-datos');
+
+function obtenerNombreBaseConfigurada() {
+    if (process.env.DATABASE_URL) {
+        try {
+            const url = new URL(process.env.DATABASE_URL);
+            return url.pathname.replace(/^\/+/, '') || null;
+        } catch {
+            return null;
+        }
+    }
+
+    return process.env.PGDATABASE || null;
+}
 
 describe('Módulo de conexión a PostgreSQL', () => {
     // Después de todos los tests, cierro el pool para que Jest no quede colgado.
@@ -24,9 +38,11 @@ describe('Módulo de conexión a PostgreSQL', () => {
         expect(resultado.rows[0].ahora).toBeInstanceOf(Date);
     });
 
-    test('debería estar conectado a la base de datos "busca_empleos"', async () => {
+    test('debería estar conectado a la base de datos configurada en el entorno', async () => {
         const resultado = await pool.query('SELECT current_database() AS nombre_bd');
+        const nombreBaseConfigurada = obtenerNombreBaseConfigurada();
 
-        expect(resultado.rows[0].nombre_bd).toBe('busca_empleos');
+        expect(nombreBaseConfigurada).toBeTruthy();
+        expect(resultado.rows[0].nombre_bd).toBe(nombreBaseConfigurada);
     });
 });

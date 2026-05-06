@@ -84,6 +84,7 @@ const {
     ejecutarScrapingGetonbrd,
     ejecutarScrapingJooble,
     ejecutarScrapingInfojobs,
+    ejecutarScrapingGoogleJobs,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -195,7 +196,7 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
         });
 
-        test('pasa count y scrapeCompany al actor', async () => {
+        test('pasa startUrls, maxItems, saveOnlyUniqueItems y publishedAt al actor nuevo', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-linkedin-123' });
 
@@ -204,11 +205,13 @@ describe('Servicio de scraping', () => {
 
             await ejecutarScrapingLinkedin({ maxResultados: 50 });
 
-            // Verifico que se pasó el count correcto al actor.
+            // Verifico que se pasó el input correcto al actor nuevo (cheap_scraper).
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    count: 50,
-                    scrapeCompany: false,
+                    startUrls: expect.any(Array),
+                    maxItems: 50,
+                    saveOnlyUniqueItems: true,
+                    publishedAt: 'r1209600',
                 })
             );
         });
@@ -585,7 +588,7 @@ describe('Servicio de scraping', () => {
                         countries: ['AR'],
                         min_salary: 1500,
                         max_salary: 2500,
-                        published_at: 1711929600,
+                        published_at: Math.floor((Date.now() - 5 * 24 * 60 * 60 * 1000) / 1000),
                     },
                     relationships: {
                         seniority: { data: { id: 2 } },
@@ -703,7 +706,7 @@ describe('Servicio de scraping', () => {
                     type: 'Full-time',
                     link: 'https://jooble.org/desc/1234567890',
                     company: 'TestCorp Argentina',
-                    updated: '2026-03-28T12:00:00.0000000',
+                    updated: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().replace('Z', '0000000'),
                 },
             ],
         };
@@ -811,7 +814,7 @@ describe('Servicio de scraping', () => {
             salaryMin: { value: '20000' },
             salaryMax: { value: '30000' },
             salaryDescription: '€ Bruto/año',
-            published: '2024-01-15T10:00:00Z',
+            published: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
         };
 
         // Respuesta simulada de la API de InfoJobs.
@@ -1127,4 +1130,219 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].ubicacion).toBe('Sevilla, Andalucía');
         });
     }); // fin describe('ejecutarScrapingInfojobs')
+
+    // ===========================================================================
+    // CAMBIO A+B: Actor nuevo de LinkedIn (cheap_scraper) + dual-schema
+    // ===========================================================================
+
+    describe('ejecutarScrapingLinkedin() — actor nuevo cheap_scraper', () => {
+
+        // Item con el schema del actor NUEVO (cheap_scraper/linkedin-job-scraper).
+        const itemLinkedinNuevoSchema = {
+            jobUrl: 'https://linkedin.com/jobs/view/nuevo-schema-99999',
+            jobTitle: 'QA Tester Junior',
+            companyName: 'NuevaCorp',
+            location: 'Córdoba, Argentina',
+            publishedAt: '2026-04-28T10:00:00.000Z',
+            jobDescription: 'Buscamos QA Tester con Selenium y Jira...',
+            experienceLevel: 'Entry level',
+            workType: 'Remote',
+            salaryInfo: '',
+        };
+
+        test('normaliza item con schema nuevo (jobUrl, jobTitle, publishedAt)', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-nuevo-schema' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: [itemLinkedinNuevoSchema] });
+
+            const resultado = await ejecutarScrapingLinkedin();
+
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].url).toBe('https://linkedin.com/jobs/view/nuevo-schema-99999');
+            expect(resultado[0].titulo).toBe('QA Tester Junior');
+            expect(resultado[0].plataforma).toBe('linkedin');
+            expect(resultado[0].modalidad).toBe('remoto');
+            expect(resultado[0].fecha_publicacion).toBeInstanceOf(Date);
+        });
+
+        test('normaliza item con schema viejo (link, title, postedAt) sin romper compatibilidad', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-viejo-schema' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsLinkedinFalsos });
+
+            const resultado = await ejecutarScrapingLinkedin();
+
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].url).toBe('https://linkedin.com/jobs/view/test-job-12345');
+            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+            expect(resultado[0].modalidad).toBe('remoto');
+        });
+
+        test('pasa startUrls, maxItems, saveOnlyUniqueItems y publishedAt al actor nuevo', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-input-nuevo' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: [] });
+
+            await ejecutarScrapingLinkedin({ maxResultados: 50 });
+
+            expect(clienteApify.actor().call).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    startUrls: expect.any(Array),
+                    maxItems: 50,
+                    saveOnlyUniqueItems: true,
+                    publishedAt: 'r1209600',
+                })
+            );
+        });
+
+        test('NO pasa los campos del actor viejo (count, scrapeCompany) al actor nuevo', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-no-viejo' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: [] });
+
+            await ejecutarScrapingLinkedin({ maxResultados: 30 });
+
+            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
+            expect(inputLlamada).not.toHaveProperty('count');
+            expect(inputLlamada).not.toHaveProperty('scrapeCompany');
+        });
+    });
+
+    // ===========================================================================
+    // CAMBIO C: Google Jobs — blindaje de créditos (country, google_domain, max_pagination)
+    // ===========================================================================
+
+    describe('ejecutarScrapingGoogleJobs() — blindaje de créditos', () => {
+
+        // Datos de prueba para Google Jobs.
+        const itemsGoogleJobsFalsos = [
+            {
+                jobs: [
+                    {
+                        title: 'QA Tester Junior',
+                        company_name: 'TestCorp',
+                        location: 'Buenos Aires',
+                        description: 'Buscamos QA Tester con Selenium...',
+                        application_link: 'https://linkedin.com/jobs/view/qa-tester-99999',
+                        salary: null,
+                        job_type: 'Full-time',
+                        posted_date: 'hace 3 días',
+                    },
+                ],
+            },
+        ];
+
+        test('pasa country="ar" en vez de "None"', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-country' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
+
+            await ejecutarScrapingGoogleJobs({ terminos: ['qa tester'] });
+
+            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
+            expect(inputLlamada.country).toBe('ar');
+            expect(inputLlamada.country).not.toBe('None');
+        });
+
+        test('pasa google_domain="google.com.ar"', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-domain' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
+
+            await ejecutarScrapingGoogleJobs({ terminos: ['qa tester'] });
+
+            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
+            expect(inputLlamada.google_domain).toBe('google.com.ar');
+        });
+
+        test('pasa max_pagination calculado como ceil(maxResultados / 10)', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-pagination' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
+
+            await ejecutarScrapingGoogleJobs({ maxResultados: 50 });
+
+            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
+            // ceil(50 / 10) = 5
+            expect(inputLlamada.max_pagination).toBe(5);
+        });
+
+        test('max_pagination se ajusta proporcionalmente a maxResultados', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-pag2' });
+            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
+
+            await ejecutarScrapingGoogleJobs({ maxResultados: 25 });
+
+            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
+            // ceil(25 / 10) = 3
+            expect(inputLlamada.max_pagination).toBe(3);
+        });
+    });
+
+    // ===========================================================================
+    // CAMBIO D: filtrarPorUltimasDosemanas — helper de filtrado de 14 días
+    // ===========================================================================
+
+    describe('_filtrarPorUltimasDosemanas()', () => {
+        const { _filtrarPorUltimasDosemanas } = require('../../src/servicios/servicio-scraping');
+
+        const ahora = new Date();
+        const haceDiezDias = new Date(ahora - 10 * 24 * 60 * 60 * 1000);
+        const hace20Dias = new Date(ahora - 20 * 24 * 60 * 60 * 1000);
+
+        test('conserva ofertas con fecha dentro de 14 días', () => {
+            const ofertas = [
+                { titulo: 'Dentro del rango', fecha_publicacion: haceDiezDias },
+            ];
+            const resultado = _filtrarPorUltimasDosemanas(ofertas);
+            expect(resultado.length).toBe(1);
+        });
+
+        test('descarta ofertas con fecha más antigua que 14 días', () => {
+            const ofertas = [
+                { titulo: 'Fuera del rango', fecha_publicacion: hace20Dias },
+            ];
+            const resultado = _filtrarPorUltimasDosemanas(ofertas);
+            expect(resultado.length).toBe(0);
+        });
+
+        test('conserva ofertas sin fecha (fecha_publicacion null)', () => {
+            // Bumeran, Computrabajo y Google Jobs no tienen fecha confiable.
+            // No se deben descartar por falta de fecha.
+            const ofertas = [
+                { titulo: 'Sin fecha', fecha_publicacion: null },
+            ];
+            const resultado = _filtrarPorUltimasDosemanas(ofertas);
+            expect(resultado.length).toBe(1);
+        });
+
+        test('conserva ofertas con fecha inválida (NaN)', () => {
+            const ofertas = [
+                { titulo: 'Fecha inválida', fecha_publicacion: new Date('no-es-fecha') },
+            ];
+            const resultado = _filtrarPorUltimasDosemanas(ofertas);
+            expect(resultado.length).toBe(1);
+        });
+
+        test('filtra correctamente un mix de ofertas dentro y fuera del rango', () => {
+            const ofertas = [
+                { titulo: 'Reciente', fecha_publicacion: haceDiezDias },
+                { titulo: 'Vieja', fecha_publicacion: hace20Dias },
+                { titulo: 'Sin fecha', fecha_publicacion: null },
+            ];
+            const resultado = _filtrarPorUltimasDosemanas(ofertas);
+            // Solo 'Reciente' y 'Sin fecha' pasan el filtro.
+            expect(resultado.length).toBe(2);
+            expect(resultado.map(o => o.titulo)).toEqual(
+                expect.arrayContaining(['Reciente', 'Sin fecha'])
+            );
+        });
+
+        test('retorna array vacío si todas las ofertas están fuera del rango', () => {
+            const ofertas = [
+                { titulo: 'Vieja 1', fecha_publicacion: hace20Dias },
+                { titulo: 'Vieja 2', fecha_publicacion: hace20Dias },
+            ];
+            const resultado = _filtrarPorUltimasDosemanas(ofertas);
+            expect(resultado.length).toBe(0);
+        });
+
+        test('retorna array vacío si el input está vacío', () => {
+            expect(_filtrarPorUltimasDosemanas([])).toEqual([]);
+        });
+    });
+
 }); // fin describe('Servicio de scraping')

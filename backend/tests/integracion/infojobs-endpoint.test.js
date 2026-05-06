@@ -57,7 +57,7 @@ const ofertaRemotaPura = {
     salaryMin: { value: '18000' },
     salaryMax: { value: '25000' },
     salaryDescription: '€ Bruto/año',
-    published: '2026-01-15T10:00:00Z',
+    published: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
 };
 
 // Oferta presencial (no debe pasar el filtro del normalizador).

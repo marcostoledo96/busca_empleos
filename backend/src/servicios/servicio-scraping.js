@@ -61,25 +61,29 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
 
     try {
         console.log('Scraping LinkedIn: construyendo URLs de búsqueda...');
-        const urls = construirUrlsLinkedin({
+        const startUrls = construirUrlsLinkedin({
             terminos: opciones.terminos,
             ubicacion: opciones.ubicacion,
         });
-        console.log(`Scraping LinkedIn: ${urls.length} URL(s) de búsqueda generadas.`);
+        console.log(`Scraping LinkedIn: ${startUrls.length} URL(s) de búsqueda generadas.`);
 
-        // Llamo al actor de LinkedIn.
-        // .call() inicia el actor y ESPERA a que termine (puede tardar).
-        // Le paso scrapeCompany: false porque no necesitamos los detalles
-        // de la empresa, y así va mucho más rápido y más barato.
+        // Actor nuevo: cheap_scraper/linkedin-job-scraper.
+        // Input del actor:
+        //   startUrls → array de strings con las URLs de búsqueda de LinkedIn.
+        //   maxItems  → límite de resultados totales.
+        //   saveOnlyUniqueItems → deduplicación nativa por jobUrl.
+        //   publishedAt → filtro de antigüedad: 'r604800' = 7 días, 'r2592000' = 30 días.
+        //     Usamos 'r1209600' (= 14 días = 60*60*24*14 = 1209600 segundos) para
+        //     traer solo ofertas de las últimas 2 semanas, en línea con el filtro
+        //     que aplicamos al resto de las fuentes.
         console.log('Scraping LinkedIn: ejecutando actor de Apify...');
         const ejecucion = await clienteApify.actor(ACTORES.LINKEDIN).call({
-            urls,
-            count: maxResultados,
-            scrapeCompany: false,
+            startUrls,
+            maxItems: maxResultados,
+            saveOnlyUniqueItems: true,
+            publishedAt: 'r1209600',
         });
 
-        // El actor guarda sus resultados en un "dataset" (como una tabla temporal).
-        // Obtengo los items de ese dataset.
         console.log('Scraping LinkedIn: obteniendo resultados del dataset...');
         const { items } = await clienteApify
             .dataset(ejecucion.defaultDatasetId)
@@ -87,15 +91,12 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
 
         console.log(`Scraping LinkedIn: ${items.length} ofertas crudas obtenidas.`);
 
-        // Normalizo los datos crudos al formato de nuestra tabla.
         const ofertasNormalizadas = normalizarLote(items, 'linkedin');
         console.log(`Scraping LinkedIn: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
         return ofertasNormalizadas;
 
     } catch (error) {
-        // Envuelvo el error con un mensaje descriptivo para facilitar el debugging.
-        // El error original queda en .cause (para no perder información).
         throw new Error(
             `Error al ejecutar scraping de LinkedIn: ${error.message}`,
             { cause: error }
@@ -561,9 +562,10 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
         console.log(`Scraping GetOnBrd: ${itemsCrudos.length} ofertas crudas en total.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'getonbrd');
-        console.log(`Scraping GetOnBrd: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
+        console.log(`Scraping GetOnBrd: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
 
-        return ofertasNormalizadas;
+        return ofertasFiltradas;
 
     } catch (error) {
         throw new Error(
@@ -679,9 +681,10 @@ async function ejecutarScrapingJooble(opciones = {}) {
         console.log(`Scraping Jooble: ${itemsCrudos.length} ofertas crudas en total.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'jooble');
-        console.log(`Scraping Jooble: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
+        console.log(`Scraping Jooble: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
 
-        return ofertasNormalizadas;
+        return ofertasFiltradas;
 
     } catch (error) {
         throw new Error(
@@ -732,9 +735,19 @@ async function ejecutarScrapingGoogleJobs(opciones = {}) {
         const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
             query: queryUnificada,
             location: 'Argentina',
-            country: 'None',
+            // country: 'ar' en vez de 'None' para que el actor filtre por Argentina
+            // y no dispare búsquedas globales que consumen créditos innecesariamente.
+            country: 'ar',
+            // google_domain: 'google.com.ar' para usar el índice local de Google,
+            // que tiene más ofertas argentinas y es más barato que el índice global.
+            google_domain: 'google.com.ar',
             language: 'es',
             num_results: maxResultados,
+            // max_pagination limita la cantidad de páginas de resultados que el actor
+            // va a recorrer. Sin este parámetro, el actor sigue paginando hasta que
+            // Google no devuelva más resultados, lo que puede consumir muchos créditos.
+            // Calculamos cuántas páginas de 10 resultados necesitamos para cubrir maxResultados.
+            max_pagination: Math.ceil(maxResultados / 10),
         });
 
         const { items } = await clienteApify
@@ -814,9 +827,10 @@ async function ejecutarScrapingRemotive(opciones = {}) {
         console.log(`Scraping Remotive: ${itemsCrudos.length} ítem(s) en categoría "${CATEGORIA_REMOTIVE}".`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remotive');
-        console.log(`Scraping Remotive: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
+        console.log(`Scraping Remotive: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
 
-        return ofertasNormalizadas;
+        return ofertasFiltradas;
 
     } catch (error) {
         throw new Error(
@@ -903,9 +917,10 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
         console.log(`Scraping RemoteOK: ${itemsCrudos.length} ofertas crudas en total.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remoteok');
-        console.log(`Scraping RemoteOK: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
+        console.log(`Scraping RemoteOK: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
 
-        return ofertasNormalizadas;
+        return ofertasFiltradas;
 
     } catch (error) {
         throw new Error(
@@ -1020,9 +1035,10 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
         console.log(`Scraping InfoJobs: ${itemsCrudos.length} ofertas crudas en total.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'infojobs');
-        console.log(`Scraping InfoJobs: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
+        console.log(`Scraping InfoJobs: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
 
-        return ofertasNormalizadas;
+        return ofertasFiltradas;
 
     } catch (error) {
         throw new Error(
@@ -1030,6 +1046,38 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
             { cause: error }
         );
     }
+}
+
+/**
+ * Filtro un array de ofertas normalizadas para retener solo las de las últimas
+ * dos semanas (14 días).
+ *
+ * Regla de conservación: si fecha_publicacion es null, la oferta SE CONSERVA.
+ * Esto es intencional — Bumeran, Computrabajo y Google Jobs no tienen fecha ISO
+ * confiable. Descartarlas sería peor que incluirlas; la evaluación IA después
+ * filtra las que no aplican al perfil. Solo descartamos cuando SABEMOS que la
+ * oferta es vieja (fecha presente y fuera del rango de 14 días).
+ *
+ * @param {Object[]} ofertas - Array de ofertas normalizadas.
+ * @returns {Object[]} Ofertas dentro del rango de 14 días + las sin fecha.
+ */
+function filtrarPorUltimasDosemanas(ofertas) {
+    const CATORCE_DIAS_MS = 14 * 24 * 60 * 60 * 1000;
+    const ahora = Date.now();
+    const limite = ahora - CATORCE_DIAS_MS;
+
+    return ofertas.filter(oferta => {
+        // Sin fecha → conservar (no sabemos cuándo fue publicada).
+        if (!oferta.fecha_publicacion) return true;
+
+        const fechaMs = new Date(oferta.fecha_publicacion).getTime();
+
+        // Fecha inválida (NaN) → conservar por precaución.
+        if (isNaN(fechaMs)) return true;
+
+        // Solo descartamos si la fecha está fuera del rango de 14 días.
+        return fechaMs >= limite;
+    });
 }
 
 module.exports = {
@@ -1044,4 +1092,6 @@ module.exports = {
     ejecutarScrapingRemotive,
     ejecutarScrapingRemoteOK,
     ejecutarScrapingInfojobs,
+    // Exporto el helper para poder testearlo directamente.
+    _filtrarPorUltimasDosemanas: filtrarPorUltimasDosemanas,
 };

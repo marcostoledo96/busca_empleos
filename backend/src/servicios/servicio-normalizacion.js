@@ -13,32 +13,59 @@
 /**
  * Normalizo una oferta cruda de LinkedIn al esquema de nuestra tabla `ofertas`.
  *
+ * Soporta dos schemas de actor:
+ *
+ * Actor viejo (curious_coder/linkedin-jobs-scraper):
+ *   url → item.link | título → item.title | nivel → item.seniorityLevel
+ *   descripción → item.descriptionText | fecha → item.postedAt
+ *
+ * Actor nuevo (cheap_scraper/linkedin-job-scraper):
+ *   url → item.jobUrl | título → item.jobTitle | nivel → item.experienceLevel
+ *   descripción → item.jobDescription | fecha → item.publishedAt
+ *   modalidad → item.workType (además de item.workRemoteAllowed)
+ *
+ * El dual-schema permite migrar de actor sin romper datos ya guardados,
+ * y también funciona si por algún motivo Apify devuelve un mix de formatos.
+ *
  * @param {Object} item - Objeto crudo del actor de LinkedIn.
  * @returns {Object} Oferta en el formato de nuestra tabla.
  * @throws {Error} Si el item no tiene URL (campo mínimo obligatorio).
  */
 function normalizarOfertaLinkedin(item) {
-    const url = item.link;
+    // Actor nuevo usa jobUrl; actor viejo usa link. Priorizo el nuevo.
+    const url = item.jobUrl || item.link;
     if (!url) {
-        throw new Error('El item de LinkedIn no tiene URL (campo "link").');
+        throw new Error('El item de LinkedIn no tiene URL (campo "jobUrl" ni "link").');
     }
 
-    // Extraigo el salario si viene con formato "$X/yr - $Y/yr".
-    const salario = parsearSalario(item.salary);
+    // Título: actor nuevo → jobTitle; actor viejo → title.
+    const titulo = item.jobTitle || item.title || null;
+
+    // Descripción: actor nuevo → jobDescription; actor viejo → descriptionText.
+    const descripcion = item.jobDescription || item.descriptionText || null;
+
+    // Nivel: actor nuevo → experienceLevel; actor viejo → seniorityLevel.
+    const nivelCrudo = item.experienceLevel || item.seniorityLevel || null;
+
+    // Fecha: actor nuevo → publishedAt; actor viejo → postedAt.
+    const fechaCruda = item.publishedAt || item.postedAt || null;
+
+    // Salario: ambos actores usan item.salary (string libre).
+    const salario = parsearSalario(item.salary || item.salaryInfo || '');
 
     return {
-        titulo: item.title || null,
+        titulo,
         empresa: item.companyName || null,
         ubicacion: item.location || null,
         modalidad: detectarModalidad(item),
-        descripcion: item.descriptionText || null,
+        descripcion,
         url,
         plataforma: 'linkedin',
-        nivel_requerido: mapearNivelLinkedin(item.seniorityLevel),
+        nivel_requerido: mapearNivelLinkedin(nivelCrudo),
         salario_min: salario.min,
         salario_max: salario.max,
         moneda: salario.moneda,
-        fecha_publicacion: item.postedAt ? new Date(item.postedAt) : null,
+        fecha_publicacion: fechaCruda ? new Date(fechaCruda) : null,
         datos_crudos: item,
     };
 }
@@ -183,11 +210,23 @@ function normalizarLote(items, plataforma) {
 /**
  * Detecto la modalidad de trabajo desde los datos de LinkedIn.
  *
+ * Soporta ambos actores:
+ * - Actor viejo: item.workRemoteAllowed (boolean) y item.workplaceTypes (array).
+ * - Actor nuevo: item.workType (string: "Remote", "Hybrid", "On-site").
+ *
  * @param {Object} item - Objeto crudo de LinkedIn.
  * @returns {string|null} 'remoto', 'hibrido', 'presencial' o null.
  */
 function detectarModalidad(item) {
-    // El campo workRemoteAllowed es el más confiable.
+    // Actor nuevo: workType es un string directo (ej: "Remote", "Hybrid", "On-site").
+    if (item.workType) {
+        const tipo = item.workType.toLowerCase();
+        if (tipo.includes('remote') || tipo.includes('remoto')) return 'remoto';
+        if (tipo.includes('hybrid') || tipo.includes('híbrido')) return 'hibrido';
+        if (tipo.includes('on-site') || tipo.includes('on site') || tipo.includes('presencial')) return 'presencial';
+    }
+
+    // Actor viejo: workRemoteAllowed es el más confiable.
     if (item.workRemoteAllowed === true) {
         return 'remoto';
     }
