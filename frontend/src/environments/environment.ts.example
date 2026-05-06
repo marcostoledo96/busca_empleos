@@ -6,6 +6,7 @@
 // Project Settings → General → "Your apps" → Web app → firebaseConfig
 export const environment = {
     produccion: false,
+    nodo: 'LOCAL',
     urlApi: 'http://localhost:3000/api',
     firebaseConfig: {
         apiKey: 'REEMPLAZAR-CON-FIREBASE-API-KEY',

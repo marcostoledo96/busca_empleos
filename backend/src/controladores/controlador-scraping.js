@@ -299,31 +299,17 @@ async function scrapearJooble(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGoogleJobs(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 100, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
-
-    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGoogleJobs(opciones);
-
-    let guardadas = 0;
-    let duplicadas = 0;
-
-    for (const oferta of ofertasNormalizadas) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
-
-    res.json({
+    // DESACTIVADO PERMANENTEMENTE — ver servicio-scraping.js para contexto.
+    // El endpoint sigue activo para no romper el frontend, pero retorna 0 resultados
+    // sin llamar al servicio ni a la base de datos.
+    return res.json({
         exito: true,
         datos: {
-            mensaje: `Scraping de Google Jobs completado: ${guardadas} ofertas nuevas.`,
+            mensaje: 'Google Jobs está desactivado. No se realizó ninguna extracción.',
             plataforma: 'google_jobs',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
+            ofertas_nuevas: 0,
+            ofertas_duplicadas: 0,
+            total_extraidas: 0,
         },
     });
 }

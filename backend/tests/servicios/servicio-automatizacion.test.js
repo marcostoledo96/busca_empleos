@@ -73,8 +73,8 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
-        test('ejecuta scraping de las 11 plataformas → guarda ofertas → evalúa', async () => {
-            // Preparo datos simulados para las 11 plataformas.
+        test('ejecuta scraping de las 10 plataformas activas → guarda ofertas → evalúa', async () => {
+            // Preparo datos simulados para las plataformas activas.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/jobs/1' },
                 { titulo: 'Dev React', url: 'https://linkedin.com/jobs/2' },
@@ -109,7 +109,8 @@ describe('Servicio de automatización', () => {
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // Verifico que se llamó al scraping de las 11 plataformas.
+            // Verifico que se llamó al scraping de las 10 plataformas activas
+            // (Google Jobs está desactivado y no debe llamarse nunca).
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
@@ -117,10 +118,10 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledTimes(1);
-            expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledTimes(1);
 
-            // Verifico que se guardaron las 9 ofertas (2+1+1+1+1+1+1+0+0+0+1).
+            // Verifico que se guardaron las 9 ofertas (2+1+1+1+1+1+1+1 activas + 0 de Google Jobs desactivado).
             expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(9);
 
             // Verifico la estructura del resultado.
@@ -266,7 +267,7 @@ describe('Servicio de automatización', () => {
             expect(resultado.errores[0]).toContain('Jooble');
         });
 
-        test('si todos los scrapings fallan, no guarda ofertas y reporta todos los errores', async () => {
+        test('si todos los scrapings activos fallan, no guarda ofertas y reporta todos los errores', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(
                 new Error('LinkedIn error')
             );
@@ -288,9 +289,7 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
                 new Error('Jooble error')
             );
-            servicioScraping.ejecutarScrapingGoogleJobs.mockRejectedValue(
-                new Error('Google Jobs error')
-            );
+            // Google Jobs está desactivado — no se incluye en este test.
             servicioScraping.ejecutarScrapingRemotive.mockRejectedValue(
                 new Error('Remotive error')
             );
@@ -305,7 +304,7 @@ describe('Servicio de automatización', () => {
 
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            expect(resultado.errores).toHaveLength(11);
+            expect(resultado.errores).toHaveLength(10);
         });
 
         test('si InfoJobs falla, sigue con las demás plataformas y reporta el error', async () => {
@@ -373,7 +372,8 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledWith(opcionesEsperadas);
-            expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledWith(opcionesEsperadas);
+            // Google Jobs desactivado — no debe recibir opciones ni llamarse.
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith(opcionesEsperadas);
         });
 
@@ -389,7 +389,8 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({});
-            expect(servicioScraping.ejecutarScrapingGoogleJobs).toHaveBeenCalledWith({});
+            // Google Jobs desactivado — no debe llamarse ni con {} ni con nada.
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith({});
         });
 

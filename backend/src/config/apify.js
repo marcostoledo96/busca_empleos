@@ -24,14 +24,14 @@ const clienteApify = new ApifyClient({
 // IDs de los Actores que vamos a usar.
 // Cada Actor tiene un ID único en la plataforma de Apify.
 const ACTORES = {
-    // cheap_scraper/linkedin-job-scraper — actor más barato para LinkedIn.
-    // Recibe startUrls de LinkedIn y opciones de filtro (publishedAt, experienceLevel, etc.).
-    // Costo: desde $0.35/1000 resultados (vs $1/1000 del actor anterior).
-    // Input soporta: startUrls, publishedAt, experienceLevel, workType, maxItems,
-    // saveOnlyUniqueItems, enrichCompanyData.
+    // curious_coder/linkedin-jobs-scraper — actor estable y verificado en producción.
+    // Recibe urls (array de URLs de búsqueda de LinkedIn), count y scrapeCompany.
+    // El actor barato anterior (hZId54V5z0sWBXFXM) fallaba con "Actor was not found"
+    // en producción real, por eso volvemos a este.
+    // Input soporta: urls, count, scrapeCompany.
     // Output schema: jobTitle, companyName, location, jobDescription, jobUrl,
-    // publishedAt, experienceLevel, contractType, salaryInfo, workType, applyUrl.
-    LINKEDIN: 'hZId54V5z0sWBXFXM',
+    // publishedAt, experienceLevel, contractType, salary, workRemoteAllowed.
+    LINKEDIN: 'hKByXkMQaC5Qt9UMN',
 
     // shahidirfan/Computrabajo-Jobs-Scraper — GRATIS.
     // Scrapea ofertas de Computrabajo Argentina.
@@ -81,6 +81,10 @@ const TERMINOS_BUSQUEDA_DEFECTO = [
 // Los combinamos con coma: f_E=1%2C2 (Internship + Entry level).
 const NIVELES_EXPERIENCIA_LINKEDIN = '1%2C2';
 
+// LinkedIn usa f_TPR para filtrar por fecha de publicación.
+// r1209600 = últimos 14 días en segundos (60 * 60 * 24 * 14).
+const FILTRO_FECHA_LINKEDIN = 'r1209600';
+
 /**
  * Construyo las URLs de búsqueda de LinkedIn a partir de los términos.
  *
@@ -103,7 +107,7 @@ function construirUrlsLinkedin(opciones = {}) {
         const terminoEncoded = encodeURIComponent(termino).replace(/%20/g, '+');
         const ubicacionEncoded = encodeURIComponent(ubicacion).replace(/%20/g, '+');
 
-        return `https://www.linkedin.com/jobs/search/?keywords=${terminoEncoded}&location=${ubicacionEncoded}&f_E=${NIVELES_EXPERIENCIA_LINKEDIN}`;
+        return `https://www.linkedin.com/jobs/search/?keywords=${terminoEncoded}&location=${ubicacionEncoded}&f_E=${NIVELES_EXPERIENCIA_LINKEDIN}&f_TPR=${FILTRO_FECHA_LINKEDIN}`;
     });
 }
 

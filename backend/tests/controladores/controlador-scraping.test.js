@@ -373,6 +373,26 @@ describe('Controlador de scraping', () => {
         });
     });
 
+    // === POST /api/scraping/google-jobs ===
+
+    describe('POST /api/scraping/google-jobs', () => {
+        test('responde desactivado sin llamar al servicio ni guardar ofertas', async () => {
+            const res = await request(app)
+                .post('/api/scraping/google-jobs')
+                .send({ maxResultados: 100 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.plataforma).toBe('google_jobs');
+            expect(res.body.datos.total_extraidas).toBe(0);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.ofertas_duplicadas).toBe(0);
+            expect(res.body.datos.mensaje).toContain('desactivado');
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
+            expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
+        });
+    });
+
     // === POST /api/scraping/getonbrd ===
 
     describe('POST /api/scraping/getonbrd', () => {

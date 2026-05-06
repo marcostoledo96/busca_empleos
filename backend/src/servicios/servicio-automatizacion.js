@@ -259,19 +259,14 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en Jooble: ${error.message}`);
     }
 
-    // --- Paso 8: Scraping de Google Jobs (actor de Apify, agregador multi-portal) ---
-    let ofertasGoogleJobs = [];
-    actualizarPasoPorgreso('google_jobs', 'procesando');
-    try {
-        ofertasGoogleJobs = await servicioScraping.ejecutarScrapingGoogleJobs(opcionesScraping);
-        resultado.scraping.google_jobs = ofertasGoogleJobs.length;
-        actualizarPasoPorgreso('google_jobs', 'completada', ofertasGoogleJobs.length);
-        console.log(`[Automatización] Google Jobs: ${ofertasGoogleJobs.length} ofertas extraídas.`);
-    } catch (error) {
-        actualizarPasoPorgreso('google_jobs', 'error', 0);
-        resultado.errores.push(`Error en scraping de Google Jobs: ${error.message}`);
-        console.error(`[Automatización] Error en Google Jobs: ${error.message}`);
-    }
+    // --- Paso 8: Google Jobs — DESACTIVADO ---
+    // Google Jobs consumió USD 1.50 sin devolver resultados útiles.
+    // El servicio ya retorna [] sin llamar a Apify, pero lo excluimos del ciclo
+    // para no inflar los logs ni el contador de pasos de progreso.
+    // Para reactivarlo: descomentar el bloque original y eliminar esta sección.
+    const ofertasGoogleJobs = [];
+    actualizarPasoPorgreso('google_jobs', 'completada', 0);
+    console.log('[Automatización] Google Jobs: desactivado, 0 ofertas.');
 
     // --- Paso 9: Scraping de Remotive (API REST pública gratuita, solo remoto) ---
     let ofertasRemotive = [];

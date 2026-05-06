@@ -4,15 +4,49 @@
  * `environment.prod.ts` antes de que Angular compile.
  *
  * Este script se ejecuta automáticamente con `npm run build` (via "prebuild").
- * Si no estamos en Vercel, el script se cancela sin hacer nada.
+ * Si no estamos en Vercel, verifico que existan archivos locales de entorno
+ * copiándolos desde los `.example` cuando todavía no fueron creados.
  */
 
 const fs = require('fs');
 const path = require('path');
 
-// Solo ejecutar en el entorno de Vercel (detectado por la variable VERCEL=1)
+const environmentsDir = path.join(__dirname, '../src/environments');
+const targetFileProd = path.join(environmentsDir, 'environment.prod.ts');
+const targetFileBase = path.join(environmentsDir, 'environment.ts');
+
+function copiarArchivoSiFalta(origen, destino, nombreArchivo) {
+    if (fs.existsSync(destino)) {
+        return false;
+    }
+
+    if (!fs.existsSync(origen)) {
+        throw new Error(`No encontré ${path.basename(origen)} para generar ${nombreArchivo}.`);
+    }
+
+    fs.copyFileSync(origen, destino);
+    return true;
+}
+
+// En desarrollo local genero archivos ignorados por Git desde los ejemplos seguros.
 if (!process.env.VERCEL) {
-    console.log('ℹ  No estamos en Vercel — se omite la generación de environment.prod.ts.');
+    console.log('ℹ  No estamos en Vercel — verifico archivos de entorno locales.');
+
+    if (!fs.existsSync(environmentsDir)) {
+        fs.mkdirSync(environmentsDir, { recursive: true });
+    }
+
+    const origenBase = path.join(environmentsDir, 'environment.ts.example');
+    const origenProd = path.join(environmentsDir, 'environment.prod.ts.example');
+    const generoBase = copiarArchivoSiFalta(origenBase, targetFileBase, 'environment.ts');
+    const generoProd = copiarArchivoSiFalta(origenProd, targetFileProd, 'environment.prod.ts');
+
+    if (generoBase || generoProd) {
+        console.log('✓ Generé archivos de entorno locales desde .example para permitir el build.');
+    } else {
+        console.log('✓ Los archivos de entorno locales ya existen; no los modifiqué.');
+    }
+
     process.exit(0);
 }
 
@@ -51,10 +85,6 @@ export const environment = {
     }
 };
 `;
-
-const environmentsDir = path.join(__dirname, '../src/environments');
-const targetFileProd = path.join(environmentsDir, 'environment.prod.ts');
-const targetFileBase = path.join(environmentsDir, 'environment.ts');
 
 if (!fs.existsSync(environmentsDir)) {
     fs.mkdirSync(environmentsDir, { recursive: true });

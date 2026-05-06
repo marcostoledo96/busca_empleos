@@ -100,10 +100,13 @@
                     <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoJooble() ? '...' : 'Jooble' }}
                 </button>
+                <!-- Google Jobs desactivado — alto costo sin resultados útiles.
+                     Para reactivar: descomentar el botón y restaurar la signal en panel-control.ts.
                 <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="scrapeandoGoogleJobs() || modoDemo()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
                     <i class="pi pi-google" aria-hidden="true"></i>
                     {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
                 </button>
+                -->
                 <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="scrapeandoRemotive() || modoDemo()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear Remotive">
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemotive() ? '...' : 'Remotive' }}

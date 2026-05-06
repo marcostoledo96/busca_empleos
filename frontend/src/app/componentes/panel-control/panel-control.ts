@@ -49,7 +49,6 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoGlassdoor() ||
         this.scrapeandoGetonbrd() ||
         this.scrapeandoJooble() ||
-        this.scrapeandoGoogleJobs() ||
         this.scrapeandoRemotive() ||
         this.scrapeandoRemoteOK() ||
         this.scrapeandoInfojobs()
@@ -102,6 +101,7 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     // Opciones para el p-select mobile de plataformas de scraping.
+    // Google Jobs está excluido — desactivado por alto costo y 0 resultados útiles.
     readonly opcionesPlataforma = [
         { value: 'linkedin',      label: 'LinkedIn'     },
         { value: 'computrabajo',  label: 'Computrabajo' },
@@ -110,13 +110,13 @@ export class PanelControl implements OnInit, OnDestroy {
         { value: 'glassdoor',     label: 'Glassdoor'    },
         { value: 'getonbrd',      label: 'GetOnBrd'     },
         { value: 'jooble',        label: 'Jooble'       },
-        { value: 'googlejobs',    label: 'Google Jobs'  },
         { value: 'remotive',      label: 'Remotive'     },
         { value: 'remoteok',      label: 'RemoteOK'     },
         { value: 'infojobs',      label: 'InfoJobs'     },
     ];
 
     // Mapeo de valores del selector a etiquetas para mostrar en el overlay.
+    // Google Jobs excluido — ver opcionesPlataforma.
     readonly etiquetasPorPlataforma: Record<string, string> = {
         linkedin: 'LinkedIn',
         computrabajo: 'Computrabajo',
@@ -125,7 +125,6 @@ export class PanelControl implements OnInit, OnDestroy {
         glassdoor: 'Glassdoor',
         getonbrd: 'GetOnBrd',
         jooble: 'Jooble',
-        googlejobs: 'Google Jobs',
         remotive: 'Remotive',
         remoteok: 'RemoteOK',
         infojobs: 'InfoJobs',
@@ -395,7 +394,7 @@ export class PanelControl implements OnInit, OnDestroy {
             case 'glassdoor':     this.scrapearGlassdoor();     break;
             case 'getonbrd':      this.scrapearGetonbrd();      break;
             case 'jooble':        this.scrapearJooble();        break;
-            case 'googlejobs':    this.scrapearGoogleJobs();    break;
+            // googlejobs eliminado del selector — plataforma desactivada.
             case 'remotive':      this.scrapearRemotive();      break;
             case 'remoteok':      this.scrapearRemoteOK();      break;
             case 'infojobs':      this.scrapearInfojobs();      break;

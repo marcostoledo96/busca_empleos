@@ -82,8 +82,8 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     // --- opciones del p-select ---
 
-    it('opcionesPlataforma debería contener las 11 plataformas', () => {
-        expect(component.opcionesPlataforma.length).toBe(11);
+    it('opcionesPlataforma debería contener las 10 plataformas activas', () => {
+        expect(component.opcionesPlataforma.length).toBe(10);
     });
 
     it('opcionesPlataforma debería incluir LinkedIn con valor linkedin', () => {
@@ -137,8 +137,10 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(component.etiquetasPorPlataforma['linkedin']).toBe('LinkedIn');
     });
 
-    it('etiquetasPorPlataforma debería tener etiqueta para googlejobs', () => {
-        expect(component.etiquetasPorPlataforma['googlejobs']).toBe('Google Jobs');
+    it('opcionesPlataforma no debería incluir Google Jobs', () => {
+        const opcion = component.opcionesPlataforma.find(o => o.value === 'googlejobs');
+        expect(opcion).toBeUndefined();
+        expect(component.etiquetasPorPlataforma['googlejobs']).toBeUndefined();
     });
 
     it('opcionesPlataforma debería incluir InfoJobs con valor infojobs', () => {
@@ -172,7 +174,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     it('los botones .scraping-solo-desktop deberían existir en el template', () => {
         const botones = fixture.nativeElement.querySelectorAll('.scraping-solo-desktop');
-        expect(botones.length).toBe(11);
+        expect(botones.length).toBe(10);
     });
 
     it('el p-select del selector mobile debería existir en el template', () => {

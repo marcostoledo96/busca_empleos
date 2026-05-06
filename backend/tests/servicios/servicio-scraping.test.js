@@ -57,7 +57,7 @@ jest.mock('../../src/config/apify', () => {
             'soporte tecnico',
         ],
         construirUrlsLinkedin: jest.fn(() => [
-            'https://www.linkedin.com/jobs/search/?keywords=frontend+developer+junior&location=Argentina&f_E=1%2C2',
+            'https://www.linkedin.com/jobs/search/?keywords=frontend+developer+junior&location=Argentina&f_E=1%2C2&f_TPR=r1209600',
         ]),
         construirUrlsComputrabajo: jest.fn(() => [
             'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
@@ -196,7 +196,7 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
         });
 
-        test('pasa startUrls, maxItems, saveOnlyUniqueItems y publishedAt al actor nuevo', async () => {
+        test('pasa urls, count y scrapeCompany al actor restaurado', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-linkedin-123' });
 
@@ -205,15 +205,18 @@ describe('Servicio de scraping', () => {
 
             await ejecutarScrapingLinkedin({ maxResultados: 50 });
 
-            // Verifico que se pasó el input correcto al actor nuevo (cheap_scraper).
+            // Verifico que se pasó el input correcto al actor restaurado
+            // (curious_coder/linkedin-jobs-scraper — hKByXkMQaC5Qt9UMN).
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    startUrls: expect.any(Array),
-                    maxItems: 50,
-                    saveOnlyUniqueItems: true,
-                    publishedAt: 'r1209600',
+                    urls: expect.any(Array),
+                    count: 50,
+                    scrapeCompany: false,
                 })
             );
+
+            const inputLlamada = mockCall.mock.calls[0][0];
+            expect(inputLlamada.urls[0]).toContain('f_TPR=r1209600');
         });
 
         test('tira error descriptivo si falla la API de Apify', async () => {
@@ -1132,10 +1135,10 @@ describe('Servicio de scraping', () => {
     }); // fin describe('ejecutarScrapingInfojobs')
 
     // ===========================================================================
-    // CAMBIO A+B: Actor nuevo de LinkedIn (cheap_scraper) + dual-schema
+    // LinkedIn — actor restaurado + normalización dual-schema
     // ===========================================================================
 
-    describe('ejecutarScrapingLinkedin() — actor nuevo cheap_scraper', () => {
+    describe('ejecutarScrapingLinkedin() — actor restaurado con compatibilidad dual-schema', () => {
 
         // Item con el schema del actor NUEVO (cheap_scraper/linkedin-job-scraper).
         const itemLinkedinNuevoSchema = {
@@ -1176,7 +1179,7 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].modalidad).toBe('remoto');
         });
 
-        test('pasa startUrls, maxItems, saveOnlyUniqueItems y publishedAt al actor nuevo', async () => {
+        test('pasa urls, count y scrapeCompany al actor restaurado', async () => {
             clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-input-nuevo' });
             clienteApify.dataset().listItems.mockResolvedValue({ items: [] });
 
@@ -1184,91 +1187,51 @@ describe('Servicio de scraping', () => {
 
             expect(clienteApify.actor().call).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    startUrls: expect.any(Array),
-                    maxItems: 50,
-                    saveOnlyUniqueItems: true,
-                    publishedAt: 'r1209600',
+                    urls: expect.any(Array),
+                    count: 50,
+                    scrapeCompany: false,
                 })
             );
+
+            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
+            expect(inputLlamada.urls[0]).toContain('f_TPR=r1209600');
         });
 
-        test('NO pasa los campos del actor viejo (count, scrapeCompany) al actor nuevo', async () => {
+        test('NO pasa los campos del actor barato inaccesible en producción', async () => {
             clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-no-viejo' });
             clienteApify.dataset().listItems.mockResolvedValue({ items: [] });
 
             await ejecutarScrapingLinkedin({ maxResultados: 30 });
 
             const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
-            expect(inputLlamada).not.toHaveProperty('count');
-            expect(inputLlamada).not.toHaveProperty('scrapeCompany');
+            expect(inputLlamada).not.toHaveProperty('startUrls');
+            expect(inputLlamada).not.toHaveProperty('maxItems');
+            expect(inputLlamada).not.toHaveProperty('publishedAt');
         });
     });
 
     // ===========================================================================
-    // CAMBIO C: Google Jobs — blindaje de créditos (country, google_domain, max_pagination)
+    // Google Jobs — DESACTIVADO (retorna [] sin llamar a Apify)
     // ===========================================================================
 
-    describe('ejecutarScrapingGoogleJobs() — blindaje de créditos', () => {
+    describe('ejecutarScrapingGoogleJobs() — desactivado', () => {
 
-        // Datos de prueba para Google Jobs.
-        const itemsGoogleJobsFalsos = [
-            {
-                jobs: [
-                    {
-                        title: 'QA Tester Junior',
-                        company_name: 'TestCorp',
-                        location: 'Buenos Aires',
-                        description: 'Buscamos QA Tester con Selenium...',
-                        application_link: 'https://linkedin.com/jobs/view/qa-tester-99999',
-                        salary: null,
-                        job_type: 'Full-time',
-                        posted_date: 'hace 3 días',
-                    },
-                ],
-            },
-        ];
+        test('retorna array vacío sin llamar al actor de Apify', async () => {
+            const resultado = await ejecutarScrapingGoogleJobs();
 
-        test('pasa country="None" porque el actor no acepta "ar"', async () => {
-            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-country' });
-            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
-
-            await ejecutarScrapingGoogleJobs({ terminos: ['qa tester'] });
-
-            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
-            expect(inputLlamada.country).toBe('None');
-            expect(inputLlamada.country).not.toBe('ar');
+            // No debe llamar al actor bajo ninguna circunstancia.
+            expect(clienteApify.actor).not.toHaveBeenCalled();
+            expect(resultado).toEqual([]);
         });
 
-        test('pasa google_domain="google.com.ar"', async () => {
-            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-domain' });
-            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
+        test('retorna array vacío aunque se pasen opciones', async () => {
+            const resultado = await ejecutarScrapingGoogleJobs({
+                terminos: ['qa tester'],
+                maxResultados: 50,
+            });
 
-            await ejecutarScrapingGoogleJobs({ terminos: ['qa tester'] });
-
-            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
-            expect(inputLlamada.google_domain).toBe('google.com.ar');
-        });
-
-        test('pasa max_pagination calculado como ceil(maxResultados / 10)', async () => {
-            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-pagination' });
-            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
-
-            await ejecutarScrapingGoogleJobs({ maxResultados: 50 });
-
-            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
-            // ceil(50 / 10) = 5
-            expect(inputLlamada.max_pagination).toBe(5);
-        });
-
-        test('max_pagination se ajusta proporcionalmente a maxResultados', async () => {
-            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'ds-google-pag2' });
-            clienteApify.dataset().listItems.mockResolvedValue({ items: itemsGoogleJobsFalsos });
-
-            await ejecutarScrapingGoogleJobs({ maxResultados: 25 });
-
-            const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
-            // ceil(25 / 10) = 3
-            expect(inputLlamada.max_pagination).toBe(3);
+            expect(clienteApify.actor).not.toHaveBeenCalled();
+            expect(resultado).toEqual([]);
         });
     });
 

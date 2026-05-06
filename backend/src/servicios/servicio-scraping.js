@@ -61,27 +61,23 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
 
     try {
         console.log('Scraping LinkedIn: construyendo URLs de búsqueda...');
-        const startUrls = construirUrlsLinkedin({
+        const urls = construirUrlsLinkedin({
             terminos: opciones.terminos,
             ubicacion: opciones.ubicacion,
         });
-        console.log(`Scraping LinkedIn: ${startUrls.length} URL(s) de búsqueda generadas.`);
+        console.log(`Scraping LinkedIn: ${urls.length} URL(s) de búsqueda generadas.`);
 
-        // Actor nuevo: cheap_scraper/linkedin-job-scraper.
+        // Actor restaurado: curious_coder/linkedin-jobs-scraper (hKByXkMQaC5Qt9UMN).
         // Input del actor:
-        //   startUrls → array de strings con las URLs de búsqueda de LinkedIn.
-        //   maxItems  → límite de resultados totales.
-        //   saveOnlyUniqueItems → deduplicación nativa por jobUrl.
-        //   publishedAt → filtro de antigüedad: 'r604800' = 7 días, 'r2592000' = 30 días.
-        //     Usamos 'r1209600' (= 14 días = 60*60*24*14 = 1209600 segundos) para
-        //     traer solo ofertas de las últimas 2 semanas, en línea con el filtro
-        //     que aplicamos al resto de las fuentes.
+        //   urls          → array de strings con las URLs de búsqueda de LinkedIn.
+        //   count         → límite de resultados totales.
+        //   scrapeCompany → si scraped info adicional de la empresa; lo desactivamos
+        //                   para reducir costo y tiempo de ejecución.
         console.log('Scraping LinkedIn: ejecutando actor de Apify...');
         const ejecucion = await clienteApify.actor(ACTORES.LINKEDIN).call({
-            startUrls,
-            maxItems: maxResultados,
-            saveOnlyUniqueItems: true,
-            publishedAt: 'r1209600',
+            urls,
+            count: maxResultados,
+            scrapeCompany: false,
         });
 
         console.log('Scraping LinkedIn: obteniendo resultados del dataset...');
@@ -721,70 +717,13 @@ async function ejecutarScrapingJooble(opciones = {}) {
  * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
-async function ejecutarScrapingGoogleJobs(opciones = {}) {
-    const maxResultados = opciones.maxResultados || 50;
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-
-    try {
-        // Combino todos los términos en una sola query OR para ejecutar UN solo
-        // run del actor. Antes se hacía un actor.call() por cada término,
-        // lo que generaba N runs en Apify con costo de compute por cada uno.
-        const queryUnificada = terminos.join(' OR ');
-        console.log(`Scraping Google Jobs: ejecutando 1 run con query: "${queryUnificada}"...`);
-
-        const ejecucion = await clienteApify.actor(ACTORES.GOOGLE_JOBS).call({
-            query: queryUnificada,
-            location: 'Argentina',
-            // El actor NO acepta 'ar'. Mantengo 'None' para cumplir su contrato
-            // y dejo que el recorte geográfico lo hagan `location: 'Argentina'`
-            // y `google_domain: 'google.com.ar'`, junto con el límite de páginas.
-            country: 'None',
-            // google_domain: 'google.com.ar' para usar el índice local de Google,
-            // que tiene más ofertas argentinas y es más barato que el índice global.
-            google_domain: 'google.com.ar',
-            language: 'es',
-            num_results: maxResultados,
-            // max_pagination limita la cantidad de páginas de resultados que el actor
-            // va a recorrer. Sin este parámetro, el actor sigue paginando hasta que
-            // Google no devuelva más resultados, lo que puede consumir muchos créditos.
-            // Calculamos cuántas páginas de 10 resultados necesitamos para cubrir maxResultados.
-            max_pagination: Math.ceil(maxResultados / 10),
-        });
-
-        const { items } = await clienteApify
-            .dataset(ejecucion.defaultDatasetId)
-            .listItems();
-
-        // johnvc/google-jobs-scraper devuelve un objeto por run con `jobs: [...]`.
-        // Extraigo los trabajos del array interno; si viniera en otro formato
-        // (items individuales), lo manejo también.
-        let itemsCrudos = [];
-        for (const item of items) {
-            if (item.jobs && Array.isArray(item.jobs)) {
-                itemsCrudos = itemsCrudos.concat(item.jobs);
-            } else if (item.title) {
-                itemsCrudos.push(item);
-            }
-        }
-
-        // Recorto si el actor devolvió más resultados que el máximo pedido.
-        if (itemsCrudos.length > maxResultados) {
-            itemsCrudos = itemsCrudos.slice(0, maxResultados);
-        }
-
-        console.log(`Scraping Google Jobs: ${itemsCrudos.length} ofertas crudas obtenidas.`);
-
-        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'google_jobs');
-        console.log(`Scraping Google Jobs: ${ofertasNormalizadas.length} ofertas normalizadas.`);
-
-        return ofertasNormalizadas;
-
-    } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Google Jobs: ${error.message}`,
-            { cause: error }
-        );
-    }
+async function ejecutarScrapingGoogleJobs() {
+    // DESACTIVADO — Google Jobs consumió USD 1.50 sin devolver
+    // resultados útiles. El actor igview-owner/google-jobs-scraper (CkLDY9GAQf6QlP6GP)
+    // tiene costo de $5/1000 resultados y desempeño inconsistente para Argentina.
+    // Mientras no tenga una estrategia 100% segura, esta función NO debe llamar a Apify.
+    console.log('[Google Jobs] Plataforma desactivada. Retornando 0 ofertas sin llamar a Apify.');
+    return [];
 }
 
 /**
