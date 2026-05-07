@@ -23,6 +23,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
         scrapearRemotive:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearRemoteOK:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearInfojobs:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
+        scrapearAdzuna:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
     };
 
     const mockEvaluacionService = {
@@ -143,27 +144,95 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(component.etiquetasPorPlataforma['googlejobs']).toBeUndefined();
     });
 
-    it('opcionesPlataforma debería incluir InfoJobs con valor infojobs', () => {
+    it('opcionesPlataforma no debería incluir InfoJobs (desactivado temporalmente)', () => {
         const opcion = component.opcionesPlataforma.find(o => o.value === 'infojobs');
-        expect(opcion).toBeTruthy();
-        expect(opcion!.label).toBe('InfoJobs');
+        expect(opcion).toBeUndefined();
     });
 
-    it('etiquetasPorPlataforma debería tener etiqueta para infojobs', () => {
-        expect(component.etiquetasPorPlataforma['infojobs']).toBe('InfoJobs');
+    it('etiquetasPorPlataforma no debería tener etiqueta para infojobs (desactivado temporalmente)', () => {
+        expect(component.etiquetasPorPlataforma['infojobs']).toBeUndefined();
     });
 
-    it('scrapearPlataformaSeleccionada() con infojobs llama a scrapearInfojobs()', () => {
+    it('scrapearPlataformaSeleccionada() con infojobs no debería llamar a scrapearInfojobs()', () => {
         spyOn(component, 'scrapearInfojobs');
         component.plataformaSeleccionada.set('infojobs');
         component.scrapearPlataformaSeleccionada();
-        expect(component.scrapearInfojobs).toHaveBeenCalled();
+        expect(component.scrapearInfojobs).not.toHaveBeenCalled();
     });
 
-    it('scrapeandoAlguno() debería ser true cuando scrapeandoInfojobs es true', () => {
+    it('scrapeandoAlguno() debería ser false incluso cuando scrapeandoInfojobs es true (InfoJobs desactivado)', () => {
         component.scrapeandoInfojobs.set(true);
-        expect(component.scrapeandoAlguno()).toBeTrue();
+        expect(component.scrapeandoAlguno()).toBeFalse();
     });
+
+    // --- InfoJobs deshabilitado por falta de credenciales ---
+
+    it('scrapearInfojobs() muestra toast info (no success) cuando InfoJobs está deshabilitado', fakeAsync(() => {
+        // Simulo la respuesta del backend cuando faltan ambas credenciales.
+        const mockScrapingServiceLocal = jasmine.createSpyObj('ScrapingService', ['scrapearInfojobs']);
+        mockScrapingServiceLocal.scrapearInfojobs.and.returnValue(of({
+            exito: true,
+            datos: {
+                mensaje: 'InfoJobs está deshabilitado por falta de credenciales.',
+                plataforma: 'infojobs',
+                ofertas_nuevas: 0,
+                ofertas_duplicadas: 0,
+                total_extraidas: 0,
+                codigo_resultado: 'infojobs_deshabilitado_sin_credenciales',
+                advertencia: 'Configurá INFOJOBS_CLIENT_ID y INFOJOBS_CLIENT_SECRET en el backend para activarlo.',
+            },
+        }));
+
+        // Overrideo el servicio inyectado en el componente ya creado.
+        (component as any).scrapingService = mockScrapingServiceLocal;
+
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+        const accionCompletadaSpy = spyOn(component.accionCompletada, 'emit');
+
+        component.scrapearInfojobs();
+        tick(0);
+
+        // Debe mostrar un toast de tipo 'info', no 'success'.
+        expect(mensajesSpy).toHaveBeenCalledOnceWith(
+            jasmine.objectContaining({ severity: 'info' })
+        );
+        // No debe emitir accionCompletada: no se guardó nada en la BD.
+        expect(accionCompletadaSpy).not.toHaveBeenCalled();
+        // El estado de carga debe haberse limpiado.
+        expect(component.scrapeandoInfojobs()).toBeFalse();
+        expect(component.mostrarOverlayIndividual()).toBeFalse();
+
+        discardPeriodicTasks();
+    }));
+
+    it('scrapearInfojobs() muestra toast success cuando el scraping se ejecutó normalmente', fakeAsync(() => {
+        const mockScrapingServiceLocal = jasmine.createSpyObj('ScrapingService', ['scrapearInfojobs']);
+        mockScrapingServiceLocal.scrapearInfojobs.and.returnValue(of({
+            exito: true,
+            datos: {
+                mensaje: 'Scraping de InfoJobs completado: 3 ofertas nuevas.',
+                plataforma: 'infojobs',
+                ofertas_nuevas: 3,
+                ofertas_duplicadas: 1,
+                total_extraidas: 4,
+            },
+        }));
+
+        (component as any).scrapingService = mockScrapingServiceLocal;
+
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+        const accionCompletadaSpy = spyOn(component.accionCompletada, 'emit');
+
+        component.scrapearInfojobs();
+        tick(0);
+
+        expect(mensajesSpy).toHaveBeenCalledOnceWith(
+            jasmine.objectContaining({ severity: 'success' })
+        );
+        expect(accionCompletadaSpy).toHaveBeenCalledTimes(1);
+
+        discardPeriodicTasks();
+    }));
 
     // --- Visibilidad del selector mobile en el DOM ---
 
@@ -180,6 +249,35 @@ describe('PanelControl — Selector mobile de scraping', () => {
     it('el p-select del selector mobile debería existir en el template', () => {
         const selectEl = fixture.nativeElement.querySelector('p-select');
         expect(selectEl).toBeTruthy();
+    });
+
+    // --- Adzuna: integración en opciones y dispatcher ---
+
+    it('opcionesPlataforma debería incluir Adzuna con valor adzuna', () => {
+        const opcion = component.opcionesPlataforma.find(o => o.value === 'adzuna');
+        expect(opcion).toBeTruthy();
+        expect(opcion!.label).toBe('Adzuna');
+    });
+
+    it('etiquetasPorPlataforma debería tener etiqueta para adzuna', () => {
+        expect(component.etiquetasPorPlataforma['adzuna']).toBe('Adzuna');
+    });
+
+    it('scrapearPlataformaSeleccionada() con adzuna llama a scrapearAdzuna()', () => {
+        spyOn(component, 'scrapearAdzuna');
+        component.plataformaSeleccionada.set('adzuna');
+        component.scrapearPlataformaSeleccionada();
+        expect(component.scrapearAdzuna).toHaveBeenCalled();
+    });
+
+    it('scrapeandoAlguno() debería ser true cuando scrapeandoAdzuna es true', () => {
+        component.scrapeandoAdzuna.set(true);
+        expect(component.scrapeandoAlguno()).toBeTrue();
+    });
+
+    it('el botón de Adzuna debería existir en el template', () => {
+        const boton = fixture.nativeElement.querySelector('[aria-label="Scrapear Adzuna"]');
+        expect(boton).toBeTruthy();
     });
 });
 

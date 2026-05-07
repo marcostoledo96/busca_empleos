@@ -2,7 +2,7 @@
 //
 // ¿Qué es un cron job? Pensalo como una alarma programada:
 // "Cada 48 horas, soná y hacé esto". En nuestro caso, la alarma dispara:
-// 1. Scrapear LinkedIn, Computrabajo, Indeed, Bumeran e InfoJobs.
+// 1. Scrapear LinkedIn, Computrabajo, Indeed, Bumeran y demás plataformas activas.
 // 2. Guardar las ofertas nuevas en la BD.
 // 3. Evaluar las pendientes con DeepSeek.
 //
@@ -78,8 +78,10 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     paso.estado = nuevoEstado;
     if (extraidas !== undefined) paso.extraidas = extraidas;
 
-    // Porcentaje: 11 plataformas × 5.09% ≈ 56%, evaluación 15%, guardado 29%.
-    const pesos = { linkedin: 5.09, computrabajo: 5.09, indeed: 5.09, bumeran: 5.09, glassdoor: 5.09, getonbrd: 5.09, jooble: 5.09, google_jobs: 5.09, remotive: 5.09, remoteok: 5.09, infojobs: 5.09, evaluacion: 15, guardado: 29 };
+    // Porcentaje: 10 plataformas activas × 5.6% ≈ 56%, evaluación 15%, guardado 29%.
+    // InfoJobs desactivado temporalmente (registro de nuevas apps suspendido en el portal de developers).
+    // Para reactivarlo: agregar `infojobs: 5.09` y ajustar el peso de las demás plataformas.
+    const pesos = { linkedin: 5.2, computrabajo: 5.2, indeed: 5.2, bumeran: 5.2, glassdoor: 5.2, getonbrd: 5.2, jooble: 5.2, google_jobs: 5.2, remotive: 5.2, remoteok: 5.2, adzuna: 5.2, evaluacion: 15, guardado: 26 };
     const completadas = progreso.pasos
         .filter(p => p.estado === 'completada' || p.estado === 'error')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
@@ -116,7 +118,10 @@ async function ejecutarCicloCompleto() {
             { nombre: 'google_jobs', label: 'Google Jobs', estado: 'pendiente', extraidas: 0 },
             { nombre: 'remotive', label: 'Remotive', estado: 'pendiente', extraidas: 0 },
             { nombre: 'remoteok', label: 'RemoteOK', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'infojobs', label: 'InfoJobs', estado: 'pendiente', extraidas: 0 },
+            // InfoJobs desactivado temporalmente — registro de nuevas apps suspendido en el portal de developers.
+            // Para reactivarlo: descomentar la línea de abajo, el Paso 11 y la línea de todasLasOfertas.
+            // { nombre: 'infojobs', label: 'InfoJobs', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'adzuna', label: 'Adzuna', estado: 'pendiente', extraidas: 0 },
             { nombre: 'guardado', label: 'Guardando en BD', estado: 'pendiente', extraidas: 0 },
             { nombre: 'evaluacion', label: 'Evaluación IA', estado: 'pendiente', extraidas: 0 },
         ],
@@ -154,6 +159,7 @@ async function ejecutarCicloCompleto() {
             remotive: 0,
             remoteok: 0,
             infojobs: 0,
+            adzuna: 0,
             totalExtraidas: 0,
             guardadas: 0,
         },
@@ -296,22 +302,40 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en RemoteOK: ${error.message}`);
     }
 
-    // --- Paso 11: Scraping de InfoJobs (API oficial, solo remoto puro, España) ---
-    let ofertasInfojobs = [];
-    actualizarPasoPorgreso('infojobs', 'procesando');
+    // --- Paso 11: InfoJobs — DESACTIVADO TEMPORALMENTE ---
+    // El registro de nuevas aplicaciones está suspendido en el portal de developers de InfoJobs.
+    // No es viable para proyectos nuevos hasta que reactiven el alta.
+    // El endpoint /api/scraping/infojobs y ejecutarScrapingInfojobs() se mantienen intactos
+    // para poder reactivar el scraping con un cambio mínimo cuando el portal lo permita.
+    // Para reactivar: descomentar el bloque original y eliminar esta sección.
+    const ofertasInfojobs = [];
+    console.log('[Automatización] InfoJobs: desactivado temporalmente, 0 ofertas.');
+
+    // --- Paso 12: Scraping de Adzuna (API REST oficial, requiere ADZUNA_APP_ID y ADZUNA_APP_KEY) ---
+    let ofertasAdzuna = [];
+    actualizarPasoPorgreso('adzuna', 'procesando');
     try {
-        ofertasInfojobs = await servicioScraping.ejecutarScrapingInfojobs(opcionesScraping);
-        resultado.scraping.infojobs = ofertasInfojobs.length;
-        actualizarPasoPorgreso('infojobs', 'completada', ofertasInfojobs.length);
-        console.log(`[Automatización] InfoJobs: ${ofertasInfojobs.length} ofertas extraídas.`);
+        const resultadoAdzuna = await servicioScraping.ejecutarScrapingAdzuna(opcionesScraping);
+        // Si las credenciales no están configuradas, el servicio retorna { deshabilitado: true }.
+        if (resultadoAdzuna && resultadoAdzuna.deshabilitado === true) {
+            actualizarPasoPorgreso('adzuna', 'completada', 0);
+            console.log(`[Automatización] Adzuna: ${resultadoAdzuna.advertencia}`);
+        } else {
+            ofertasAdzuna = resultadoAdzuna;
+            resultado.scraping.adzuna = ofertasAdzuna.length;
+            actualizarPasoPorgreso('adzuna', 'completada', ofertasAdzuna.length);
+            console.log(`[Automatización] Adzuna: ${ofertasAdzuna.length} ofertas extraídas.`);
+        }
     } catch (error) {
-        actualizarPasoPorgreso('infojobs', 'error', 0);
-        resultado.errores.push(`Error en scraping de InfoJobs: ${error.message}`);
-        console.error(`[Automatización] Error en InfoJobs: ${error.message}`);
+        actualizarPasoPorgreso('adzuna', 'error', 0);
+        resultado.errores.push(`Error en scraping de Adzuna: ${error.message}`);
+        console.error(`[Automatización] Error en Adzuna: ${error.message}`);
     }
 
-    // --- Paso 12: Guardar ofertas en la BD ---
-    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs, ...ofertasRemotive, ...ofertasRemoteOK, ...ofertasInfojobs];
+    // --- Paso 13: Guardar ofertas en la BD ---
+    // ofertasInfojobs siempre es [] mientras InfoJobs esté desactivado (ver Paso 11).
+    // Para reactivar: restaurar el Paso 11 completo; esta línea no requiere cambios.
+    const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs, ...ofertasRemotive, ...ofertasRemoteOK, ...ofertasInfojobs, ...ofertasAdzuna];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
 
     // Filtro de idioma: descarto ofertas claramente en inglés antes de guardar.

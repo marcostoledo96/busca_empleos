@@ -910,8 +910,16 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
 
     if (!tieneCid && !tieneSecret) {
         // Ambas ausentes: InfoJobs deshabilitado silenciosamente (feature opcional).
+        // Retorno un objeto especial para que el controlador pueda distinguir este caso
+        // del caso de "scraping ejecutado pero sin resultados", y así el frontend
+        // pueda mostrar una advertencia útil en lugar de un éxito engañoso de 0 extraídas.
         console.warn('Scraping InfoJobs: deshabilitado por falta de credenciales (INFOJOBS_CLIENT_ID e INFOJOBS_CLIENT_SECRET no definidas).');
-        return [];
+        return {
+            deshabilitado: true,
+            codigo_resultado: 'infojobs_deshabilitado_sin_credenciales',
+            advertencia: 'InfoJobs está deshabilitado. Configurá INFOJOBS_CLIENT_ID y INFOJOBS_CLIENT_SECRET en el backend para activarlo.',
+            ofertas: [],
+        };
     }
 
     if (tieneCid !== tieneSecret) {
@@ -988,6 +996,134 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
     }
 }
 
+// URL base de la API REST de Adzuna.
+const ADZUNA_API_BASE = 'https://api.adzuna.com/v1/api/jobs';
+
+/**
+ * Ejecuto el scraping de Adzuna usando su API REST oficial.
+ *
+ * Adzuna requiere dos credenciales: app_id y app_key.
+ * Si AMBAS están ausentes, retorno un objeto con { deshabilitado: true }
+ * para que el controlador y la automatización puedan manejarlo con gracia
+ * sin lanzar un error que interrumpa el ciclo.
+ * Si solo UNA está presente, lanzo un error de configuración.
+ *
+ * La búsqueda cubre Argentina (ar) y España (es) para ampliar resultados.
+ * Se hace una pausa de 2.5 segundos entre requests para no superar
+ * el límite de 25 req/min de Adzuna.
+ *
+ * Atribución requerida por los términos de uso de Adzuna:
+ * el frontend debe mostrar "Jobs by Adzuna" junto a los resultados.
+ *
+ * @param {Object} opciones - Opciones de ejecución.
+ * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
+ * @returns {Object[]|Object} Array de ofertas normalizadas, o { deshabilitado: true, ... }
+ */
+async function ejecutarScrapingAdzuna(opciones = {}) {
+    const appId = process.env.ADZUNA_APP_ID;
+    const appKey = process.env.ADZUNA_APP_KEY;
+
+    // Soft-disable: si ambas credenciales faltan, avisamos sin romper el ciclo.
+    if (!appId && !appKey) {
+        return {
+            deshabilitado: true,
+            codigo_resultado: 'adzuna_deshabilitado_sin_credenciales',
+            advertencia: 'Adzuna está deshabilitado: faltan ADZUNA_APP_ID y ADZUNA_APP_KEY en el .env.',
+            ofertas: [],
+        };
+    }
+
+    // Error de configuración parcial: solo una de las dos está presente.
+    if (!appId || !appKey) {
+        throw new Error(
+            'Configuración incompleta de Adzuna: se requieren ADZUNA_APP_ID y ADZUNA_APP_KEY. ' +
+            'Verificar el archivo .env.'
+        );
+    }
+
+    // Limito a 50 como máximo porque la API gratuita tiene rate limits estrictos.
+    // El cap lo garantizo acá en el servicio — no dependo del controlador.
+    const maxResultados = Math.min(opciones.maxResultados || 50, 50);
+    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    // Países en los que busco: Argentina y España (buenos resultados de habla hispana).
+    const paises = ['ar', 'es'];
+    let itemsCrudos = [];
+
+    try {
+        for (const pais of paises) {
+            if (itemsCrudos.length >= maxResultados) break;
+
+            for (const termino of terminos) {
+                if (itemsCrudos.length >= maxResultados) break;
+
+                // La API de Adzuna permite pedir hasta 50 resultados por página.
+                // Calculo cuántos necesito aún para no pedir de más.
+                const resultadosPorPagina = Math.min(maxResultados - itemsCrudos.length, 50);
+
+                const params = new URLSearchParams({
+                    app_id: appId,
+                    app_key: appKey,
+                    results_per_page: String(resultadosPorPagina),
+                    what: termino,
+                    content_type: 'application/json',
+                });
+
+                const url = `${ADZUNA_API_BASE}/${pais}/search/1?${params.toString()}`;
+
+                let respuesta;
+                try {
+                    respuesta = await fetch(url, {
+                        headers: { 'Accept': 'application/json' },
+                    });
+                } catch (errorRed) {
+                    console.warn(`Scraping Adzuna: error de red para "${termino}" en ${pais}. ${errorRed.message}`);
+                    continue;
+                }
+
+                if (!respuesta.ok) {
+                    // 401 y 429 son errores graves: credenciales inválidas o rate-limit.
+                    // Lanzamos error explícito para que el caller los maneje, no los ignoramos.
+                    if (respuesta.status === 401) {
+                        throw new Error('Credenciales de Adzuna inválidas (401) — verificar ADZUNA_APP_ID y ADZUNA_APP_KEY.');
+                    }
+                    if (respuesta.status === 429) {
+                        throw new Error('Rate limit de Adzuna excedido (429) — reintentar más tarde.');
+                    }
+                    // Errores 5xx u otros: logueo y continúo con el siguiente par.
+                    console.warn(`Scraping Adzuna: error HTTP ${respuesta.status} para "${termino}" en ${pais}. Saltando.`);
+                    continue;
+                }
+
+                const json = await respuesta.json();
+                // La API de Adzuna devuelve los resultados en el campo `results`.
+                // Agrego `_pais` a cada resultado para que el normalizador pueda
+                // inferir la moneda (ar → ARS, es → EUR) sin cambiar la firma de normalizarLote.
+                const resultados = (Array.isArray(json.results) ? json.results : [])
+                    .map(r => ({ ...r, _pais: pais }));
+                itemsCrudos = itemsCrudos.concat(resultados).slice(0, maxResultados);
+                console.log(`Scraping Adzuna: ${resultados.length} ítem(s) para "${termino}" en ${pais}.`);
+
+                // Pausa para respetar el límite de 25 req/min de la API.
+                await new Promise(resolve => setTimeout(resolve, 2500));
+            }
+        }
+
+        console.log(`Scraping Adzuna: ${itemsCrudos.length} ofertas crudas en total.`);
+
+        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'adzuna');
+        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
+        console.log(`Scraping Adzuna: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
+
+        return ofertasFiltradas;
+
+    } catch (error) {
+        throw new Error(
+            `Error al ejecutar scraping de Adzuna: ${error.message}`,
+            { cause: error }
+        );
+    }
+}
+
 /**
  * Filtro un array de ofertas normalizadas para retener solo las de las últimas
  * dos semanas (14 días).
@@ -1032,6 +1168,7 @@ module.exports = {
     ejecutarScrapingRemotive,
     ejecutarScrapingRemoteOK,
     ejecutarScrapingInfojobs,
+    ejecutarScrapingAdzuna,
     // Exporto el helper para poder testearlo directamente.
     _filtrarPorUltimasDosemanas: filtrarPorUltimasDosemanas,
 };

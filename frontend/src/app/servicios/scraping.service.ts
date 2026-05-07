@@ -64,4 +64,10 @@ export class ScrapingService {
     scrapearInfojobs(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/infojobs`, {});
     }
+
+    // Ejecuta el scraping de Adzuna usando su API REST oficial y guarda en BD.
+    // Requiere ADZUNA_APP_ID y ADZUNA_APP_KEY en el backend.
+    scrapearAdzuna(): Observable<RespuestaApi<RespuestaScraping>> {
+        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/adzuna`, {});
+    }
 }

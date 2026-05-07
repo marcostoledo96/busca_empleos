@@ -47,6 +47,7 @@ export class Dashboard implements OnInit {
     readonly filtroPlataforma = signal<string | null>(null);
 
     // Opciones del dropdown de plataforma.
+    // InfoJobs excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
     readonly opcionesPlataforma = [
         { label: 'Todas', value: null },
         { label: 'LinkedIn', value: 'linkedin' },
@@ -55,9 +56,9 @@ export class Dashboard implements OnInit {
         { label: 'Bumeran', value: 'bumeran' },
         { label: 'Glassdoor', value: 'glassdoor' },
         { label: 'GetOnBrd', value: 'getonbrd' },
-        { label: 'InfoJobs', value: 'infojobs' },
         { label: 'Jooble', value: 'jooble' },
         { label: 'Google Jobs', value: 'google-jobs' },
+        { label: 'Adzuna', value: 'adzuna' },
     ];
 
     // Computed: aplica el filtro de plataforma al array completo base.

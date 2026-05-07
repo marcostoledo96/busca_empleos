@@ -345,6 +345,42 @@
     }
 }
 
+/* ============================================
+   Footer de atribución de Adzuna
+   ============================================ */
+
+.dashboard-footer-atribucion {
+    margin-top: 1.5rem;
+    padding: 0.5rem 0;
+    text-align: right;
+}
+
+.adzuna-atribucion-link {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--on-surface-variant);
+    opacity: 0.6;
+    text-decoration: none;
+    transition: opacity 150ms ease-out;
+}
+
+.adzuna-atribucion-link:hover,
+.adzuna-atribucion-link:focus-visible {
+    opacity: 1;
+    text-decoration: underline;
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+@media (max-width: 768px) {
+    .dashboard-footer-atribucion {
+        text-align: center;
+        margin-top: 1rem;
+    }
+}
+
 @keyframes aparecer {
     from {
         opacity: 0;

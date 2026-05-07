@@ -115,9 +115,17 @@
                     <i class="pi pi-globe" aria-hidden="true"></i>
                     {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
                 </button>
+                <!-- InfoJobs desactivado temporalmente — el portal de developers no acepta nuevas apps.
+                     Para reactivar: descomentar el botón, restaurar 'infojobs' en opcionesPlataforma,
+                     etiquetasPorPlataforma y el case del dispatcher en panel-control.ts.
                 <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoInfojobs()" [disabled]="scrapeandoInfojobs() || modoDemo()" (click)="scrapearInfojobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de InfoJobs usando su API oficial REST (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear InfoJobs">
                     <i class="pi pi-briefcase" aria-hidden="true"></i>
                     {{ scrapeandoInfojobs() ? '...' : 'InfoJobs' }}
+                </button>
+                -->
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoAdzuna()" [disabled]="scrapeandoAdzuna() || modoDemo()" (click)="scrapearAdzuna()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Adzuna usando su API REST oficial (sin Apify). Jobs by Adzuna.' : undefined" tooltipPosition="top" aria-label="Scrapear Adzuna">
+                    <i class="pi pi-search" aria-hidden="true"></i>
+                    {{ scrapeandoAdzuna() ? '...' : 'Adzuna' }}
                 </button>
 
                 <!-- ── Selector mobile: sólo visible en ≤768px ── -->

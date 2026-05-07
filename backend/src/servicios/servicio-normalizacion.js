@@ -182,6 +182,7 @@ function normalizarLote(items, plataforma) {
         remotive: normalizarOfertaRemotive,
         remoteok: normalizarOfertaRemoteOK,
         infojobs: normalizarOfertaInfojobs,
+        adzuna: normalizarOfertaAdzuna,
     };
 
     const normalizador = normalizadores[plataforma];
@@ -1146,6 +1147,74 @@ function extraerNumeroInfojobs(valor) {
     return Number.isFinite(numero) ? numero : null;
 }
 
+/**
+ * Normalizo una oferta cruda de Adzuna al esquema de nuestra tabla `ofertas`.
+ *
+ * Adzuna devuelve cada oferta con estos campos principales:
+ *   - id: ID único de Adzuna (string)
+ *   - title: título del puesto
+ *   - company.display_name: nombre de la empresa
+ *   - location.display_name: ubicación (ciudad, país)
+ *   - description: descripción completa del puesto
+ *   - redirect_url: URL de la oferta en Adzuna (con afiliación)
+ *   - created: fecha de publicación en ISO-8601
+ *   - salary_min / salary_max: salarios numéricos (pueden no estar presentes)
+ *   - contract_time: 'full_time' | 'part_time' (puede no estar)
+ *
+ * Nota de atribución: la API de Adzuna requiere mostrar "Jobs by Adzuna"
+ * en el frontend cuando se muestran los resultados.
+ *
+ * @param {Object} item - Objeto crudo de la API de Adzuna.
+ * @returns {Object} Oferta en el formato de nuestra tabla.
+ * @throws {Error} Si el item no tiene redirect_url (campo mínimo obligatorio).
+ */
+function normalizarOfertaAdzuna(item) {
+    const url = item.redirect_url;
+    if (!url) {
+        throw new Error('El item de Adzuna no tiene redirect_url (campo obligatorio).');
+    }
+
+    const titulo = item.title || null;
+    const empresa = item.company?.display_name || null;
+    const ubicacion = item.location?.display_name || null;
+    const descripcion = item.description || null;
+
+    // Detecto modalidad remota buscando las palabras clave en título y descripción.
+    // Si no hay evidencia clara, dejo null para que la IA evalúe el contexto completo.
+    const textoCompleto = `${titulo || ''} ${descripcion || ''}`;
+    const modalidad = /remot|teletrabajo/i.test(textoCompleto) ? 'remoto' : null;
+
+    // Salario: Adzuna lo da como números flotantes directos.
+    const salarioMin = item.salary_min != null ? String(item.salary_min) : null;
+    const salarioMax = item.salary_max != null ? String(item.salary_max) : null;
+
+    // Moneda: la infiero del país de búsqueda inyectado en el scraper como `_pais`.
+    // ar → ARS (peso argentino), es → EUR (euro). Cualquier otro → null.
+    const MONEDA_POR_PAIS = { ar: 'ARS', es: 'EUR' };
+    const moneda = (item.salary_min != null || item.salary_max != null)
+        ? (MONEDA_POR_PAIS[item._pais] || null)
+        : null;
+
+    // Fecha de publicación: Adzuna la da en ISO-8601, así que la uso directamente.
+    const fechaPublicacion = item.created || null;
+
+    return {
+        titulo,
+        empresa,
+        ubicacion,
+        modalidad,
+        descripcion,
+        url,
+        plataforma: 'adzuna',
+        nivel_requerido: null,
+        salario_min: salarioMin,
+        salario_max: salarioMax,
+        moneda,
+        fecha_publicacion: fechaPublicacion,
+        datos_crudos: item,
+    };
+}
+
 module.exports = {
     normalizarOfertaLinkedin,
     normalizarOfertaComputrabajo,
@@ -1157,6 +1226,7 @@ module.exports = {
     normalizarOfertaGoogleJobs,
     normalizarOfertaRemotive,
     normalizarOfertaRemoteOK,
+    normalizarOfertaAdzuna,
     normalizarLote,
     // Exporto las auxiliares para poder testearlas si hace falta.
     _parsearSalario: parsearSalario,

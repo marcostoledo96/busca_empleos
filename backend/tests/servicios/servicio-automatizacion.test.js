@@ -53,6 +53,7 @@ describe('Servicio de automatización', () => {
         servicioScraping.ejecutarScrapingRemotive.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingRemoteOK.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([]);
+        servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([]);
         servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
             total: 0, aprobadas: 0, rechazadas: 0, errores: 0,
         });
@@ -73,8 +74,9 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
-        test('ejecuta scraping de las 10 plataformas activas → guarda ofertas → evalúa', async () => {
+        test('ejecuta scraping de las 9 plataformas activas → guarda ofertas → evalúa', async () => {
             // Preparo datos simulados para las plataformas activas.
+            // InfoJobs está desactivado temporalmente y NO debe ser invocado por el ciclo.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/jobs/1' },
                 { titulo: 'Dev React', url: 'https://linkedin.com/jobs/2' },
@@ -97,20 +99,17 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingJooble.mockResolvedValue([
                 { titulo: 'Dev TypeScript', url: 'https://jooble.org/desc/1234567890' },
             ]);
-            servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([
-                { titulo: 'Dev Angular Remoto', url: 'https://www.infojobs.net/oferta/1' },
-            ]);
             servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
-                total: 8,
+                total: 7,
                 aprobadas: 4,
-                rechazadas: 4,
+                rechazadas: 3,
                 errores: 0,
             });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // Verifico que se llamó al scraping de las 10 plataformas activas
-            // (Google Jobs está desactivado y no debe llamarse nunca).
+            // Verifico que se llamó al scraping de las 9 plataformas activas
+            // (Google Jobs e InfoJobs están desactivados y no deben llamarse nunca).
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
@@ -119,10 +118,10 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
-            expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
 
-            // Verifico que se guardaron las 9 ofertas (2+1+1+1+1+1+1+1 activas + 0 de Google Jobs desactivado).
-            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(9);
+            // Verifico que se guardaron las 8 ofertas activas (2+1+1+1+1+1+1 + 0 Remotive/RemoteOK vacíos).
+            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(8);
 
             // Verifico la estructura del resultado.
             expect(resultado).toEqual({
@@ -138,14 +137,15 @@ describe('Servicio de automatización', () => {
                     google_jobs: 0,
                     remotive: 0,
                     remoteok: 0,
-                    infojobs: 1,
-                    totalExtraidas: 9,
-                    guardadas: 9,
+                    infojobs: 0,
+                    adzuna: 0,
+                    totalExtraidas: 8,
+                    guardadas: 8,
                 },
                 evaluacion: {
-                    total: 8,
+                    total: 7,
                     aprobadas: 4,
-                    rechazadas: 4,
+                    rechazadas: 3,
                     errores: 0,
                 },
                 errores: [],
@@ -289,39 +289,36 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
                 new Error('Jooble error')
             );
-            // Google Jobs está desactivado — no se incluye en este test.
+            // Google Jobs e InfoJobs están desactivados — no se incluyen en este test.
             servicioScraping.ejecutarScrapingRemotive.mockRejectedValue(
                 new Error('Remotive error')
             );
             servicioScraping.ejecutarScrapingRemoteOK.mockRejectedValue(
                 new Error('RemoteOK error')
             );
-            servicioScraping.ejecutarScrapingInfojobs.mockRejectedValue(
-                new Error('InfoJobs error')
-            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            expect(resultado.errores).toHaveLength(10);
+            // 9 plataformas activas fallan → 9 errores (InfoJobs desactivado, no suma).
+            expect(resultado.errores).toHaveLength(9);
         });
 
-        test('si InfoJobs falla, sigue con las demás plataformas y reporta el error', async () => {
+        test('InfoJobs desactivado temporalmente → ejecutarScrapingInfojobs NO se llama en el ciclo', async () => {
+            // InfoJobs fue desactivado del ciclo automático porque el registro de nuevas apps
+            // está suspendido en el portal de developers.
+            // El endpoint /api/scraping/infojobs sigue disponible para reactivación futura.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
             ]);
-            servicioScraping.ejecutarScrapingInfojobs.mockRejectedValue(
-                new Error('InfoJobs API error')
-            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             expect(resultado.exito).toBe(true);
-            expect(resultado.scraping.linkedin).toBe(1);
+            expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
             expect(resultado.scraping.infojobs).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('InfoJobs');
+            expect(resultado.errores).toHaveLength(0);
         });
 
         test('si la evaluación falla, reporta el error pero no crashea', async () => {
@@ -372,9 +369,10 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledWith(opcionesEsperadas);
-            // Google Jobs desactivado — no debe recibir opciones ni llamarse.
+            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(opcionesEsperadas);
+            // Google Jobs e InfoJobs desactivados — no deben recibir opciones ni llamarse.
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
-            expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
         });
 
         test('usa defaults si las preferencias no tienen términos de búsqueda', async () => {
@@ -389,9 +387,10 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({});
-            // Google Jobs desactivado — no debe llamarse ni con {} ni con nada.
+            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith({});
+            // Google Jobs e InfoJobs desactivados — no deben llamarse ni con {} ni con nada.
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
-            expect(servicioScraping.ejecutarScrapingInfojobs).toHaveBeenCalledWith({});
+            expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
         });
 
         test('si obtenerPreferencias falla, continúa con defaults sin crashear', async () => {

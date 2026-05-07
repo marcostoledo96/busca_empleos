@@ -20,7 +20,7 @@
 // Casos cubiertos:
 //   a) Respuesta realista con teleworking remoto puro → se extraen ofertas.
 //   b) Oferta presencial/híbrida → el normalizador la descarta → 0 extraídas.
-//   c) Sin credenciales → servicio retorna [] sin romper → 0 extraídas.
+//   c) Sin credenciales → servicio retorna objeto deshabilitado → 200 con codigo_resultado y advertencia.
 //   d) Shape legacy con propiedad `items` en lugar de `offers` → sigue funcionando.
 
 // --- Mocks de módulos con efecto secundario externo ---
@@ -170,10 +170,10 @@ describe('Integración: POST /api/scraping/infojobs', () => {
     });
 
     // -----------------------------------------------------------------------
-    // Caso c): Sin credenciales → el servicio retorna [] sin lanzar error.
-    // El endpoint debe devolver 200 con 0 extraídas.
+    // Caso c): Sin credenciales → el servicio retorna objeto deshabilitado.
+    // El endpoint debe devolver 200 con 0 extraídas, codigo_resultado e advertencia.
     // -----------------------------------------------------------------------
-    test('c) sin credenciales → servicio retorna [] silenciosamente → 0 extraídas sin error', async () => {
+    test('c) sin credenciales → respuesta 200 con codigo_resultado e advertencia (sin toast engañoso)', async () => {
         // Borro ambas credenciales para simular un entorno sin configuración.
         delete process.env.INFOJOBS_CLIENT_ID;
         delete process.env.INFOJOBS_CLIENT_SECRET;
@@ -189,6 +189,12 @@ describe('Integración: POST /api/scraping/infojobs', () => {
         expect(res.body.exito).toBe(true);
         expect(res.body.datos.total_extraidas).toBe(0);
         expect(res.body.datos.ofertas_nuevas).toBe(0);
+
+        // El controlador debe incluir el codigo_resultado para que el frontend
+        // distinga este caso de un scraping que terminó con 0 resultados reales.
+        expect(res.body.datos.codigo_resultado).toBe('infojobs_deshabilitado_sin_credenciales');
+        expect(typeof res.body.datos.advertencia).toBe('string');
+        expect(res.body.datos.advertencia.length).toBeGreaterThan(0);
 
         // El servicio debe haber cortado antes de hacer fetch (sin credenciales).
         expect(global.fetch).not.toHaveBeenCalled();

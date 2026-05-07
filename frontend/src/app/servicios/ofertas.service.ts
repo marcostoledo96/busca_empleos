@@ -8,7 +8,7 @@ import { RespuestaApi } from '../modelos/respuesta-api.model';
 // Filtros opcionales para la consulta de ofertas.
 export interface FiltrosOfertas {
     estado?: 'pendiente' | 'aprobada' | 'rechazada';
-    plataforma?: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor' | 'getonbrd' | 'jooble' | 'google_jobs';
+    plataforma?: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor' | 'getonbrd' | 'jooble' | 'google_jobs' | 'adzuna';
     estado_postulacion?: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada';
     ordenar_por?: 'fecha_extraccion' | 'fecha_publicacion' | 'porcentaje_match' | 'titulo' | 'empresa' | 'estado_evaluacion';
     direccion?: 'ASC' | 'DESC';

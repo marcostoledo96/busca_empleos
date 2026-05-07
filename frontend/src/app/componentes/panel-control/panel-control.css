@@ -660,3 +660,23 @@
 .scraping-selector-mobile__btn-extraer .material-symbols-outlined {
     font-size: 14px;
 }
+
+/* Atribución obligatoria de Adzuna (requerimiento de los Términos de Servicio de su API) */
+.adzuna-atribucion {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--on-surface-variant);
+    margin: 0;
+    align-self: center;
+    white-space: nowrap;
+}
+
+.adzuna-atribucion a {
+    color: var(--on-surface-variant);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.adzuna-atribucion a:hover {
+    color: var(--on-surface);
+}

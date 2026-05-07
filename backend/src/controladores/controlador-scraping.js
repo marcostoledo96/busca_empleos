@@ -412,9 +412,11 @@ async function scrapearRemoteOK(req, res) {
  *   INFOJOBS_CLIENT_ID=...
  *   INFOJOBS_CLIENT_SECRET=...
  *
- * Si ambas credenciales están ausentes, el servicio retorna [] con una
- * advertencia en el log (feature opcional deshabilitada). Si solo una
- * está presente, el servicio lanza un error de configuración.
+ * Si ambas credenciales están ausentes, el servicio retorna un objeto
+ * con { deshabilitado: true, codigo_resultado, advertencia, ofertas: [] }
+ * para que el frontend pueda mostrar una advertencia informativa en lugar
+ * de un toast de éxito engañoso con 0 extraídas.
+ * Si solo una está presente, el servicio lanza un error de configuración.
  *
  * Body opcional:
  * - maxResultados: número máximo de ofertas a extraer (default: 50, máx: 50)
@@ -427,8 +429,28 @@ async function scrapearInfojobs(req, res) {
         terminos: req.body.terminos,
     };
 
-    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingInfojobs(opciones);
+    const resultadoServicio = await servicioScraping.ejecutarScrapingInfojobs(opciones);
 
+    // El servicio puede retornar un objeto con metadata cuando InfoJobs está
+    // deshabilitado por falta de credenciales. En ese caso, no hay ofertas que
+    // guardar y el frontend necesita saber el motivo para mostrar una advertencia.
+    if (resultadoServicio && resultadoServicio.deshabilitado === true) {
+        return res.json({
+            exito: true,
+            datos: {
+                mensaje: 'InfoJobs está deshabilitado por falta de credenciales.',
+                plataforma: 'infojobs',
+                ofertas_nuevas: 0,
+                ofertas_duplicadas: 0,
+                total_extraidas: 0,
+                codigo_resultado: resultadoServicio.codigo_resultado,
+                advertencia: resultadoServicio.advertencia,
+            },
+        });
+    }
+
+    // Caso normal: el servicio retornó un array de ofertas normalizadas.
+    const ofertasNormalizadas = resultadoServicio;
     let guardadas = 0;
     let duplicadas = 0;
 
@@ -450,4 +472,67 @@ async function scrapearInfojobs(req, res) {
     });
 }
 
-module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK, scrapearInfojobs };
+/**
+ * Ejecuta el scraping de Adzuna.
+ *
+ * Usa la API REST oficial de Adzuna (app_id + app_key).
+ * Si las credenciales no están configuradas, el servicio retorna
+ * con { deshabilitado: true, codigo_resultado, advertencia, ofertas: [] }
+ * para que el frontend pueda mostrar una advertencia informativa.
+ * Si solo una está presente, el servicio lanza un error de configuración.
+ *
+ * Body opcional:
+ * - maxResultados: número máximo de ofertas a extraer (default: 50, máx: 50)
+ * - terminos: array de términos de búsqueda personalizados
+ *
+ * Atribución: la API de Adzuna requiere mostrar "Jobs by Adzuna" en el frontend.
+ */
+async function scrapearAdzuna(req, res) {
+    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 50);
+    const opciones = {
+        maxResultados,
+        terminos: req.body.terminos,
+    };
+
+    const resultadoServicio = await servicioScraping.ejecutarScrapingAdzuna(opciones);
+
+    // El servicio retorna un objeto con deshabilitado: true cuando faltan credenciales.
+    if (resultadoServicio && resultadoServicio.deshabilitado === true) {
+        return res.json({
+            exito: true,
+            datos: {
+                mensaje: 'Adzuna está deshabilitado por falta de credenciales.',
+                plataforma: 'adzuna',
+                ofertas_nuevas: 0,
+                ofertas_duplicadas: 0,
+                total_extraidas: 0,
+                codigo_resultado: resultadoServicio.codigo_resultado,
+                advertencia: resultadoServicio.advertencia,
+            },
+        });
+    }
+
+    // Caso normal: el servicio retornó un array de ofertas normalizadas.
+    const ofertasNormalizadas = resultadoServicio;
+    let guardadas = 0;
+    let duplicadas = 0;
+
+    for (const oferta of ofertasNormalizadas) {
+        const resultado = await modeloOferta.crearOferta(oferta);
+        if (resultado) guardadas++;
+        else duplicadas++;
+    }
+
+    res.json({
+        exito: true,
+        datos: {
+            mensaje: `Scraping de Adzuna completado: ${guardadas} ofertas nuevas.`,
+            plataforma: 'adzuna',
+            ofertas_nuevas: guardadas,
+            ofertas_duplicadas: duplicadas,
+            total_extraidas: ofertasNormalizadas.length,
+        },
+    });
+}
+
+module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK, scrapearInfojobs, scrapearAdzuna };

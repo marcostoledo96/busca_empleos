@@ -393,6 +393,130 @@ describe('Controlador de scraping', () => {
         });
     });
 
+    // === POST /api/scraping/adzuna ===
+
+    describe('POST /api/scraping/adzuna', () => {
+        test('ejecuta el scraping, guarda ofertas, y retorna resumen', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([
+                { titulo: 'Frontend Developer Junior', url: 'https://www.adzuna.com.ar/jobs/details/1' },
+                { titulo: 'QA Tester Junior', url: 'https://www.adzuna.com.ar/jobs/details/2' },
+            ]);
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce({ id: 1 })
+                .mockResolvedValueOnce(null);
+
+            const res = await request(app)
+                .post('/api/scraping/adzuna')
+                .send({ maxResultados: 10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.plataforma).toBe('adzuna');
+            expect(res.body.datos.total_extraidas).toBe(2);
+            expect(res.body.datos.ofertas_nuevas).toBe(1);
+            expect(res.body.datos.ofertas_duplicadas).toBe(1);
+            expect(res.body.datos.mensaje).toContain('Adzuna');
+        });
+
+        test('pasa las opciones correctas al servicio de scraping', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/adzuna')
+                .send({
+                    maxResultados: 30,
+                    terminos: ['react junior', 'node junior'],
+                });
+
+            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith({
+                maxResultados: 30,
+                terminos: ['react junior', 'node junior'],
+            });
+        });
+
+        test('usa maxResultados=50 por defecto si no se envía', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/adzuna')
+                .send({});
+
+            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(
+                expect.objectContaining({ maxResultados: 50 })
+            );
+        });
+
+        test('respeta el cap de 50 resultados aunque se pida más', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([]);
+
+            await request(app)
+                .post('/api/scraping/adzuna')
+                .send({ maxResultados: 999 });
+
+            // El controlador limita a 50 antes de llamar al servicio.
+            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(
+                expect.objectContaining({ maxResultados: 50 })
+            );
+        });
+
+        test('retorna soft-disable con advertencia si las credenciales están ausentes', async () => {
+            // El servicio retorna { deshabilitado: true, ... } cuando faltan APP_ID/APP_KEY.
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue({
+                deshabilitado: true,
+                codigo_resultado: 'ADZUNA_DESHABILITADO',
+                advertencia: 'Adzuna está deshabilitado: faltan ADZUNA_APP_ID y ADZUNA_APP_KEY.',
+                ofertas: [],
+            });
+
+            const res = await request(app)
+                .post('/api/scraping/adzuna')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.plataforma).toBe('adzuna');
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.total_extraidas).toBe(0);
+            expect(res.body.datos.codigo_resultado).toBe('ADZUNA_DESHABILITADO');
+            expect(res.body.datos.advertencia).toContain('ADZUNA_APP_ID');
+            // No se intentó guardar nada en la BD.
+            expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
+        });
+
+        test('retorna éxito aunque no haya resultados', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/scraping/adzuna')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.datos.total_extraidas).toBe(0);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.ofertas_duplicadas).toBe(0);
+        });
+
+        test('informa correctamente cuando todas las ofertas son duplicadas', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([
+                { titulo: 'Dev React', url: 'https://www.adzuna.com.ar/jobs/details/3' },
+                { titulo: 'Dev Node', url: 'https://www.adzuna.com.ar/jobs/details/4' },
+            ]);
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce(null)
+                .mockResolvedValueOnce(null);
+
+            const res = await request(app)
+                .post('/api/scraping/adzuna')
+                .send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(res.body.datos.ofertas_duplicadas).toBe(2);
+            expect(res.body.datos.total_extraidas).toBe(2);
+        });
+    });
+
     // === POST /api/scraping/getonbrd ===
 
     describe('POST /api/scraping/getonbrd', () => {

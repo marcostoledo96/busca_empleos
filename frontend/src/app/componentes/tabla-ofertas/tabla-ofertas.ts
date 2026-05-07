@@ -131,7 +131,11 @@ export class TablaOfertas {
         { label: 'Computrabajo', value: 'computrabajo' },
         { label: 'Indeed', value: 'indeed' },
         { label: 'Bumeran', value: 'bumeran' },
-            { label: 'Glassdoor', value: 'glassdoor' },
+        { label: 'Glassdoor', value: 'glassdoor' },
+        { label: 'GetOnBrd', value: 'getonbrd' },
+        { label: 'Jooble', value: 'jooble' },
+        { label: 'Google Jobs', value: 'google-jobs' },
+        { label: 'Adzuna', value: 'adzuna' },
     ];
 
     readonly opcionesPostulacion = [

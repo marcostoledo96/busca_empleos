@@ -85,6 +85,7 @@ const {
     ejecutarScrapingJooble,
     ejecutarScrapingInfojobs,
     ejecutarScrapingGoogleJobs,
+    ejecutarScrapingAdzuna,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -858,13 +859,22 @@ describe('Servicio de scraping', () => {
             expect(opciones.headers['Authorization']).toBe(`Basic ${tokenEsperado}`);
         });
 
-        test('retorna array vacío y no tira error si faltan ambas credenciales', async () => {
+        test('retorna objeto deshabilitado (no array vacío) si faltan ambas credenciales', async () => {
+            // Cuando faltan ambas credenciales, el servicio retorna un objeto con
+            // deshabilitado: true, ofertas: [] y codigo_resultado para que el controlador
+            // pueda distinguirlo de un scraping real con 0 resultados.
+            // Esto previene que el frontend muestre un falso éxito vacío.
             delete process.env.INFOJOBS_CLIENT_ID;
             delete process.env.INFOJOBS_CLIENT_SECRET;
 
             const resultado = await ejecutarScrapingInfojobs({ terminos: ['frontend'] });
 
-            expect(resultado).toEqual([]);
+            expect(resultado).toEqual(expect.objectContaining({
+                deshabilitado: true,
+                ofertas: [],
+                codigo_resultado: 'infojobs_deshabilitado_sin_credenciales',
+            }));
+            expect(typeof resultado.advertencia).toBe('string');
             expect(global.fetch).not.toHaveBeenCalled();
         });
 
@@ -1231,9 +1241,182 @@ describe('Servicio de scraping', () => {
             });
 
             expect(clienteApify.actor).not.toHaveBeenCalled();
-            expect(resultado).toEqual([]);
+             expect(resultado).toEqual([]);
         });
     });
+
+    // ===========================================================================
+    // ADZUNA: ejecutarScrapingAdzuna — API REST oficial
+    // ===========================================================================
+
+    describe('ejecutarScrapingAdzuna()', () => {
+
+        // Oferta falsa con el formato real de la API de Adzuna.
+        const ofertaAdzunaFalsa = {
+            id: 'adzuna-test-001',
+            title: 'Frontend Developer Junior',
+            company: { display_name: 'Tech Corp SA' },
+            location: { display_name: 'Buenos Aires, Argentina' },
+            description: 'Buscamos desarrollador frontend junior con React y TypeScript.',
+            redirect_url: 'https://www.adzuna.com.ar/jobs/details/adzuna-test-001',
+            created: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+        };
+
+        const respuestaAdzunaFalsa = {
+            results: [ofertaAdzunaFalsa],
+        };
+
+        beforeEach(() => {
+            process.env.ADZUNA_APP_ID = 'app-id-test';
+            process.env.ADZUNA_APP_KEY = 'app-key-test';
+
+            global.fetch = jest.fn().mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue(respuestaAdzunaFalsa),
+            });
+
+            // Salteo el setTimeout de 2500ms para que los tests no sean lentos.
+            // La pausa es para el rate-limit real de la API — en tests no aplica.
+            jest.spyOn(global, 'setTimeout').mockImplementation((fn) => { fn(); return 0; });
+        });
+
+        afterEach(() => {
+            delete process.env.ADZUNA_APP_ID;
+            delete process.env.ADZUNA_APP_KEY;
+            delete global.fetch;
+            jest.restoreAllMocks();
+        });
+
+        // --- ADZUNA-001: Soft-disable ---
+
+        test('retorna objeto deshabilitado si faltan ambas credenciales', async () => {
+            delete process.env.ADZUNA_APP_ID;
+            delete process.env.ADZUNA_APP_KEY;
+
+            const resultado = await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
+
+            expect(resultado).toEqual(expect.objectContaining({
+                deshabilitado: true,
+                ofertas: [],
+                codigo_resultado: 'adzuna_deshabilitado_sin_credenciales',
+            }));
+            expect(typeof resultado.advertencia).toBe('string');
+            expect(global.fetch).not.toHaveBeenCalled();
+        });
+
+        test('tira error de configuración si solo falta ADZUNA_APP_KEY', async () => {
+            delete process.env.ADZUNA_APP_KEY;
+
+            await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
+                .rejects.toThrow('Configuración incompleta de Adzuna');
+        });
+
+        test('tira error de configuración si solo falta ADZUNA_APP_ID', async () => {
+            delete process.env.ADZUNA_APP_ID;
+
+            await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
+                .rejects.toThrow('Configuración incompleta de Adzuna');
+        });
+
+        // --- ADZUNA-002: Normalización ---
+
+        test('normaliza correctamente una oferta de Adzuna', async () => {
+            const resultado = await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
+
+            // El servicio itera 2 países × 1 término = 2 llamadas; puede haber 2 ofertas.
+            expect(resultado.length).toBeGreaterThan(0);
+            const oferta = resultado[0];
+
+            expect(oferta.titulo).toBe('Frontend Developer Junior');
+            expect(oferta.empresa).toBe('Tech Corp SA');
+            expect(oferta.url).toBe(ofertaAdzunaFalsa.redirect_url);
+            expect(oferta.plataforma).toBe('adzuna');
+        });
+
+        // --- ADZUNA-003: Manejo de errores de red ---
+
+        test('continúa con el siguiente par país-término si hay un error de red', async () => {
+            global.fetch
+                .mockRejectedValueOnce(new Error('Network error'))
+                .mockResolvedValue({
+                    ok: true,
+                    json: jest.fn().mockResolvedValue(respuestaAdzunaFalsa),
+                });
+
+            await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] })).resolves.toBeDefined();
+        });
+
+        test('lanza error si la API devuelve HTTP 401 (credenciales inválidas)', async () => {
+            // 401 es un error grave: significa que las credenciales son inválidas.
+            // El servicio debe lanzar un error explícito para que el caller lo maneje.
+            global.fetch.mockResolvedValue({ ok: false, status: 401 });
+
+            await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
+                .rejects.toThrow('Credenciales de Adzuna inválidas (401)');
+        });
+
+        test('lanza error si la API devuelve HTTP 429 (rate limit)', async () => {
+            // 429 es un error grave: significa que superamos el límite de requests.
+            // El servicio debe lanzar un error explícito para que el caller lo maneje,
+            // no continuar silenciosamente (podría enmascarar un abuso de la API).
+            global.fetch.mockResolvedValue({ ok: false, status: 429 });
+
+            await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
+                .rejects.toThrow('Rate limit de Adzuna excedido (429)');
+        });
+
+        // --- ADZUNA-004: Filtrado por fecha ---
+
+        test('respeta maxResultados y no devuelve más ofertas de las solicitadas', async () => {
+            // Si el caller pide maxResultados: 1, el servicio no debe devolver más
+            // de 1 oferta aunque la API devuelva más resultados.
+            const dosOfertas = [
+                { ...ofertaAdzunaFalsa, id: 'az-001' },
+                { ...ofertaAdzunaFalsa, id: 'az-002', redirect_url: 'https://www.adzuna.com.ar/jobs/details/az-002' },
+            ];
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ results: dosOfertas }),
+            });
+
+            const resultado = await ejecutarScrapingAdzuna({ terminos: ['frontend'], maxResultados: 1 });
+
+            expect(resultado.length).toBeLessThanOrEqual(1);
+        });
+
+        test('capea en 50 aunque el caller pida más (garantía interna del servicio)', async () => {
+            // La spec exige que el cap de 50 lo garantice el SERVICIO internamente,
+            // no solo el controlador. Si pido 100, el servicio nunca debe pedir más
+            // de 50 resultados por página a la API.
+            await ejecutarScrapingAdzuna({ terminos: ['frontend'], maxResultados: 100 });
+
+            // Verifico que results_per_page en la URL nunca supera 50.
+            const llamadas = global.fetch.mock.calls;
+            expect(llamadas.length).toBeGreaterThan(0);
+            llamadas.forEach(([url]) => {
+                const match = url.match(/results_per_page=(\d+)/);
+                if (match) {
+                    expect(Number(match[1])).toBeLessThanOrEqual(50);
+                }
+            });
+        });
+
+        test('descarta ofertas más antiguas que 14 días', async () => {
+            const ofertaVieja = {
+                ...ofertaAdzunaFalsa,
+                created: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+            };
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({ results: [ofertaVieja] }),
+            });
+
+            const resultado = await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
+
+            expect(resultado).toEqual([]);
+        });
+
+    }); // fin describe('ejecutarScrapingAdzuna')
 
     // ===========================================================================
     // CAMBIO D: filtrarPorUltimasDosemanas — helper de filtrado de 14 días

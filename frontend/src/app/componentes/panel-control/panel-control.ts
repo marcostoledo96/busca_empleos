@@ -38,9 +38,11 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoRemotive = signal(false);
     readonly scrapeandoRemoteOK = signal(false);
     readonly scrapeandoInfojobs = signal(false);
+    readonly scrapeandoAdzuna = signal(false);
     readonly evaluando = signal(false);
 
     // Computed: hay algún scraping individual en curso (para deshabilitar selector mobile).
+    // InfoJobs excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
     readonly scrapeandoAlguno = computed(() =>
         this.scrapeandoLinkedin() ||
         this.scrapeandoComputrabajo() ||
@@ -51,7 +53,7 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoJooble() ||
         this.scrapeandoRemotive() ||
         this.scrapeandoRemoteOK() ||
-        this.scrapeandoInfojobs()
+        this.scrapeandoAdzuna()
     );
     readonly progresoEvaluacion = signal<ProgresoEvaluacion | null>(null);
 
@@ -102,6 +104,7 @@ export class PanelControl implements OnInit, OnDestroy {
 
     // Opciones para el p-select mobile de plataformas de scraping.
     // Google Jobs está excluido — desactivado por alto costo y 0 resultados útiles.
+    // InfoJobs está excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
     readonly opcionesPlataforma = [
         { value: 'linkedin',      label: 'LinkedIn'     },
         { value: 'computrabajo',  label: 'Computrabajo' },
@@ -112,11 +115,12 @@ export class PanelControl implements OnInit, OnDestroy {
         { value: 'jooble',        label: 'Jooble'       },
         { value: 'remotive',      label: 'Remotive'     },
         { value: 'remoteok',      label: 'RemoteOK'     },
-        { value: 'infojobs',      label: 'InfoJobs'     },
+        { value: 'adzuna',        label: 'Adzuna'       },
     ];
 
     // Mapeo de valores del selector a etiquetas para mostrar en el overlay.
     // Google Jobs excluido — ver opcionesPlataforma.
+    // InfoJobs excluido — ver opcionesPlataforma.
     readonly etiquetasPorPlataforma: Record<string, string> = {
         linkedin: 'LinkedIn',
         computrabajo: 'Computrabajo',
@@ -127,7 +131,7 @@ export class PanelControl implements OnInit, OnDestroy {
         jooble: 'Jooble',
         remotive: 'Remotive',
         remoteok: 'RemoteOK',
-        infojobs: 'InfoJobs',
+        adzuna: 'Adzuna',
     };
 
     // Evento que emite cuando una acción completó para que el padre recargue datos.
@@ -397,7 +401,8 @@ export class PanelControl implements OnInit, OnDestroy {
             // googlejobs eliminado del selector — plataforma desactivada.
             case 'remotive':      this.scrapearRemotive();      break;
             case 'remoteok':      this.scrapearRemoteOK();      break;
-            case 'infojobs':      this.scrapearInfojobs();      break;
+            // infojobs eliminado del selector — plataforma desactivada temporalmente.
+            case 'adzuna':        this.scrapearAdzuna();        break;
             default: break;
         }
     }
@@ -711,6 +716,20 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.scrapeandoInfojobs.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
+
+                // InfoJobs deshabilitado: el backend lo indica con un codigo_resultado
+                // específico. En ese caso muestro un toast informativo (no de éxito)
+                // para que Marcos sepa que no se ejecutó nada y qué variables configurar.
+                if (datos.codigo_resultado === 'infojobs_deshabilitado_sin_credenciales') {
+                    this.mensajes.add({
+                        severity: 'info',
+                        summary: 'InfoJobs deshabilitado',
+                        detail: datos.advertencia ?? 'Configurá INFOJOBS_CLIENT_ID y INFOJOBS_CLIENT_SECRET para activarlo.',
+                        life: 7000
+                    });
+                    return;
+                }
+
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'InfoJobs completado',
@@ -725,6 +744,49 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en InfoJobs',
+                    detail: error.error?.error || 'Error al conectar con el servidor',
+                    life: 5000
+                });
+            }
+        });
+    }
+
+    scrapearAdzuna(): void {
+        this.scrapeandoAdzuna.set(true);
+        this.plataformaEnProceso.set('Adzuna');
+        this.mostrarOverlayIndividual.set(true);
+        this.scrapingService.scrapearAdzuna().subscribe({
+            next: (respuesta) => {
+                this.scrapeandoAdzuna.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                const datos = respuesta.datos;
+
+                // Adzuna deshabilitado: el backend lo indica con un codigo_resultado específico.
+                // Muestro un toast informativo para que Marcos sepa qué variables configurar.
+                if (datos.codigo_resultado === 'adzuna_deshabilitado_sin_credenciales') {
+                    this.mensajes.add({
+                        severity: 'info',
+                        summary: 'Adzuna deshabilitado',
+                        detail: datos.advertencia ?? 'Configurá ADZUNA_APP_ID y ADZUNA_APP_KEY para activarlo.',
+                        life: 7000
+                    });
+                    return;
+                }
+
+                this.mensajes.add({
+                    severity: 'success',
+                    summary: 'Adzuna completado',
+                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    life: 5000
+                });
+                this.accionCompletada.emit();
+            },
+            error: (error) => {
+                this.scrapeandoAdzuna.set(false);
+                this.mostrarOverlayIndividual.set(false);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error en Adzuna',
                     detail: error.error?.error || 'Error al conectar con el servidor',
                     life: 5000
                 });

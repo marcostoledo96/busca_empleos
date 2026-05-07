@@ -19,5 +19,6 @@ router.post('/google-jobs', controlador.scrapearGoogleJobs);
 router.post('/remotive', controlador.scrapearRemotive);
 router.post('/remoteok', controlador.scrapearRemoteOK);
 router.post('/infojobs', controlador.scrapearInfojobs);
+router.post('/adzuna', controlador.scrapearAdzuna);
 
 module.exports = router;

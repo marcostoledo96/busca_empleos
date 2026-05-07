@@ -14,6 +14,12 @@ export interface RespuestaScraping {
     ofertas_nuevas: number;
     ofertas_duplicadas: number;
     total_extraidas: number;
+    // Campos opcionales presentes solo cuando la plataforma está deshabilitada
+    // por falta de credenciales (ej: InfoJobs sin INFOJOBS_CLIENT_ID/SECRET).
+    // El frontend los usa para mostrar una advertencia informativa en lugar de
+    // un toast de éxito engañoso con 0 extraídas.
+    codigo_resultado?: string;
+    advertencia?: string;
 }
 
 // Respuesta específica del endpoint de evaluación.

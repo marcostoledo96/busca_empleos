@@ -8,7 +8,7 @@ export interface Oferta {
     modalidad: string | null;
     descripcion: string | null;
     url: string;
-    plataforma: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor' | 'getonbrd' | 'jooble' | 'google_jobs' | 'remotive' | 'remoteok';
+    plataforma: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor' | 'getonbrd' | 'jooble' | 'google_jobs' | 'remotive' | 'remoteok' | 'adzuna';
     nivel_requerido: string | null;
     salario_min: string | null;
     salario_max: string | null;
