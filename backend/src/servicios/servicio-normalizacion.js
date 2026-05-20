@@ -1196,12 +1196,17 @@ function extraerNumeroInfojobs(valor) {
  *   - salary_min / salary_max: salarios numéricos (pueden no estar presentes)
  *   - contract_time: 'full_time' | 'part_time' (puede no estar)
  *
+ * REGLA CRÍTICA: Solo aceptamos ofertas de teletrabajo / trabajo a distancia.
+ * Esta es la Capa 2 de defensa. Si el scraper (Capa 1) no pudo excluir una
+ * oferta presencial o híbrida, la descartamos acá.
+ * Las ofertas rechazadas lanzan un Error que normalizarLote() captura con console.warn.
+ *
  * Nota de atribución: la API de Adzuna requiere mostrar "Jobs by Adzuna"
  * en el frontend cuando se muestran los resultados.
  *
  * @param {Object} item - Objeto crudo de la API de Adzuna.
  * @returns {Object} Oferta en el formato de nuestra tabla.
- * @throws {Error} Si el item no tiene redirect_url (campo mínimo obligatorio).
+ * @throws {Error} Si el item no tiene redirect_url o si no es trabajo a distancia.
  */
 function normalizarOfertaAdzuna(item) {
     const url = item.redirect_url;
@@ -1217,15 +1222,25 @@ function normalizarOfertaAdzuna(item) {
     // Detecto modalidad remota buscando las palabras clave en título y descripción.
     // Si no hay evidencia clara, dejo null para que la IA evalúe el contexto completo.
     const textoCompleto = `${titulo || ''} ${descripcion || ''}`;
-    const modalidad = /remot|teletrabajo/i.test(textoCompleto) ? 'remoto' : null;
+    const esRemoto = /remot|teletrabajo|telework|work from home|trabajo a distancia/i.test(textoCompleto);
+    const modalidad = esRemoto ? 'remoto' : null;
+
+    // Capa 2: descarto ofertas que NO sean de teletrabajo / a distancia.
+    // El scraper ya filtra en origen (Capa 1) con el prefijo "remote" en el término,
+    // pero Adzuna puede devolver resultados presencial/híbrido que matchean otros
+    // criterios. Si la oferta no tiene indicadores de remoto, la descarto.
+    if (!esRemoto) {
+        console.warn(`Adzuna: oferta descartada por no ser trabajo a distancia — url: ${url}`);
+        throw new Error('Adzuna: oferta descartada por no ser trabajo a distancia');
+    }
 
     // Salario: Adzuna lo da como números flotantes directos.
     const salarioMin = item.salary_min != null ? String(item.salary_min) : null;
     const salarioMax = item.salary_max != null ? String(item.salary_max) : null;
 
     // Moneda: la infiero del país de búsqueda inyectado en el scraper como `_pais`.
-    // ar → ARS (peso argentino), es → EUR (euro). Cualquier otro → null.
-    const MONEDA_POR_PAIS = { ar: 'ARS', es: 'EUR' };
+    // Solo España (es) → EUR. Si en el futuro se agregan más países, actualizar acá.
+    const MONEDA_POR_PAIS = { es: 'EUR' };
     const moneda = (item.salary_min != null || item.salary_max != null)
         ? (MONEDA_POR_PAIS[item._pais] || null)
         : null;

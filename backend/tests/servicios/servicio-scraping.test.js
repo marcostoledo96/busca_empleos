@@ -1255,13 +1255,14 @@ describe('Servicio de scraping', () => {
     describe('ejecutarScrapingAdzuna()', () => {
 
         // Oferta falsa con el formato real de la API de Adzuna.
+        // Solo incluimos ofertas remotas — Adzuna ahora filtra por teletrabajo.
         const ofertaAdzunaFalsa = {
             id: 'adzuna-test-001',
-            title: 'Frontend Developer Junior',
+            title: 'Frontend Developer Junior Remote',
             company: { display_name: 'Tech Corp SA' },
-            location: { display_name: 'Buenos Aires, Argentina' },
-            description: 'Buscamos desarrollador frontend junior con React y TypeScript.',
-            redirect_url: 'https://www.adzuna.com.ar/jobs/details/adzuna-test-001',
+            location: { display_name: 'Madrid, España' },
+            description: 'Buscamos desarrollador frontend junior para teletrabajo con React y TypeScript. Trabajo 100% remoto.',
+            redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-test-001',
             created: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
         };
 
@@ -1326,14 +1327,15 @@ describe('Servicio de scraping', () => {
         test('normaliza correctamente una oferta de Adzuna', async () => {
             const resultado = await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
 
-            // El servicio itera 2 países × 1 término = 2 llamadas; puede haber 2 ofertas.
+            // El servicio itera 1 país (es) × 1 término = 1 llamada; puede haber 1 oferta.
             expect(resultado.length).toBeGreaterThan(0);
             const oferta = resultado[0];
 
-            expect(oferta.titulo).toBe('Frontend Developer Junior');
+            expect(oferta.titulo).toBe('Frontend Developer Junior Remote');
             expect(oferta.empresa).toBe('Tech Corp SA');
             expect(oferta.url).toBe(ofertaAdzunaFalsa.redirect_url);
             expect(oferta.plataforma).toBe('adzuna');
+            expect(oferta.modalidad).toBe('remoto');
         });
 
         // --- ADZUNA-003: Manejo de errores de red ---
@@ -1375,7 +1377,7 @@ describe('Servicio de scraping', () => {
             // de 1 oferta aunque la API devuelva más resultados.
             const dosOfertas = [
                 { ...ofertaAdzunaFalsa, id: 'az-001' },
-                { ...ofertaAdzunaFalsa, id: 'az-002', redirect_url: 'https://www.adzuna.com.ar/jobs/details/az-002' },
+                { ...ofertaAdzunaFalsa, id: 'az-002', redirect_url: 'https://www.adzuna.com/es/jobs/details/az-002' },
             ];
             global.fetch.mockResolvedValue({
                 ok: true,
@@ -1417,6 +1419,51 @@ describe('Servicio de scraping', () => {
             const resultado = await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
 
             expect(resultado).toEqual([]);
+        });
+
+        // --- ADZUNA-005: Solo España (sin ar) ---
+
+        test('solo busca en España (es), no en Argentina (ar)', async () => {
+            await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
+
+            const llamadas = global.fetch.mock.calls;
+            expect(llamadas.length).toBeGreaterThan(0);
+
+            // Todas las URLs deben ir a /jobs/es/search/1
+            llamadas.forEach(([url]) => {
+                expect(url).toContain('/jobs/es/search/1');
+                expect(url).not.toContain('/jobs/ar/');
+            });
+        });
+
+        // --- ADZUNA-006: Parámetro content-type con guion medio ---
+
+        test('usa content-type con guion medio (no content_type con guion bajo)', async () => {
+            await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
+
+            const llamadas = global.fetch.mock.calls;
+            expect(llamadas.length).toBeGreaterThan(0);
+
+            llamadas.forEach(([url]) => {
+                // Debe contener content-type (guion medio), no content_type (guion bajo).
+                expect(url).toContain('content-type=application%2Fjson');
+                expect(url).not.toContain('content_type=');
+            });
+        });
+
+        // --- ADZUNA-007: Filtro remoto (Capa 1: prefijo "remote" en búsqueda) ---
+
+        test('agrega prefijo "remote" al término de búsqueda para filtrar remotas', async () => {
+            await ejecutarScrapingAdzuna({ terminos: ['frontend'] });
+
+            const llamadas = global.fetch.mock.calls;
+            expect(llamadas.length).toBeGreaterThan(0);
+
+            // El parámetro "what" debe llevar el prefijo "remote ".
+            llamadas.forEach(([url]) => {
+                const urlObj = new URL(url);
+                expect(urlObj.searchParams.get('what')).toBe('remote frontend');
+            });
         });
 
     }); // fin describe('ejecutarScrapingAdzuna')

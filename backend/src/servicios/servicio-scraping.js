@@ -1030,7 +1030,15 @@ const ADZUNA_API_BASE = 'https://api.adzuna.com/v1/api/jobs';
  * sin lanzar un error que interrumpa el ciclo.
  * Si solo UNA está presente, lanzo un error de configuración.
  *
- * La búsqueda cubre Argentina (ar) y España (es) para ampliar resultados.
+ * La búsqueda cubre solo España (es). Adzuna NO soporta Argentina (ar) —
+ * ese country code devuelve 404.
+ *
+ * Se filtra por teletrabajo/a distancia en dos capas:
+ *   - Capa 1 (en origen): término de búsqueda + prefijos "remote" y "teletrabajo"
+ *     para que la API priorice ofertas remotas.
+ *   - Capa 2 (en normalización): el normalizador descarta ofertas cuya
+ *     descripción o título no contengan indicadores de trabajo a distancia.
+ *
  * Se hace una pausa de 2.5 segundos entre requests para no superar
  * el límite de 25 req/min de Adzuna.
  *
@@ -1067,8 +1075,9 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     // El cap lo garantizo acá en el servicio — no dependo del controlador.
     const maxResultados = Math.min(opciones.maxResultados || 50, 50);
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    // Países en los que busco: Argentina y España (buenos resultados de habla hispana).
-    const paises = ['ar', 'es'];
+    // Solo España — Adzuna NO soporta Argentina (ar) → devuelve 404.
+    // España tiene buen volumen de ofertas en español para trabajo remoto.
+    const paises = ['es'];
     let itemsCrudos = [];
 
     try {
@@ -1082,12 +1091,17 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
                 // Calculo cuántos necesito aún para no pedir de más.
                 const resultadosPorPagina = Math.min(maxResultados - itemsCrudos.length, 50);
 
+                // Capa 1: agrego indicadores de trabajo remoto al término de búsqueda
+                // para que la API priorice ofertas a distancia / teletrabajo.
+                // Adzuna no tiene un parámetro de filtro por modalidad, así que
+                // refuerzo la query con palabras clave de remoto.
+                const terminoRemoto = `remote ${termino}`;
                 const params = new URLSearchParams({
                     app_id: appId,
                     app_key: appKey,
                     results_per_page: String(resultadosPorPagina),
-                    what: termino,
-                    content_type: 'application/json',
+                    what: terminoRemoto,
+                    'content-type': 'application/json',
                 });
 
                 const url = `${ADZUNA_API_BASE}/${pais}/search/1?${params.toString()}`;

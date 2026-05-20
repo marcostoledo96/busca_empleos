@@ -14,6 +14,7 @@ const {
     normalizarOfertaGlassdoor,
     normalizarOfertaGetonbrd,
     normalizarOfertaJooble,
+    normalizarOfertaAdzuna,
     normalizarLote,
     detectarIdioma,
     _canonizarUrlLinkedin,
@@ -948,6 +949,134 @@ describe('Servicio de normalización', () => {
 
             expect(resultados).toHaveLength(1);
             expect(resultados[0].plataforma).toBe('jooble');
+        });
+    });
+
+    // ===========================================================================
+    // Adzuna — solo España (es), solo remoto
+    // ===========================================================================
+
+    describe('normalizarOfertaAdzuna()', () => {
+
+        test('normaliza correctamente una oferta remota de Adzuna España', () => {
+            const itemRemoto = {
+                id: 'adzuna-es-001',
+                title: 'Frontend Developer Remote',
+                company: { display_name: 'Tech Corp SA' },
+                location: { display_name: 'Madrid, España' },
+                description: 'Buscamos desarrollador frontend para teletrabajo con React.',
+                redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-es-001',
+                created: '2026-05-15T10:00:00.000Z',
+                _pais: 'es',
+            };
+
+            const resultado = normalizarOfertaAdzuna(itemRemoto);
+
+            expect(resultado.titulo).toBe('Frontend Developer Remote');
+            expect(resultado.empresa).toBe('Tech Corp SA');
+            expect(resultado.ubicacion).toBe('Madrid, España');
+            expect(resultado.modalidad).toBe('remoto');
+            expect(resultado.plataforma).toBe('adzuna');
+            expect(resultado.moneda).toBeNull(); // sin salario → moneda null
+        });
+
+        test('descarta oferta presencial (Capa 2: no contiene indicadores de remoto)', () => {
+            const itemPresencial = {
+                id: 'adzuna-es-002',
+                title: 'Frontend Developer',
+                company: { display_name: 'Empresa Presencial SA' },
+                location: { display_name: 'Barcelona, España' },
+                description: 'Buscamos desarrollador frontend para trabajar en oficina.',
+                redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-es-002',
+                created: '2026-05-15T10:00:00.000Z',
+                _pais: 'es',
+            };
+
+            expect(() => normalizarOfertaAdzuna(itemPresencial))
+                .toThrow('Adzuna: oferta descartada por no ser trabajo a distancia');
+        });
+
+        test('descarta oferta híbrida (Capa 2: sin indicadores de remoto)', () => {
+            const itemHibrido = {
+                id: 'adzuna-es-003',
+                title: 'Full Stack Developer',
+                company: { display_name: 'Hibrid Corp' },
+                location: { display_name: 'Valencia, España' },
+                description: 'Posición híbrida: 3 días en oficina, 2 en casa.',
+                redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-es-003',
+                created: '2026-05-15T10:00:00.000Z',
+                _pais: 'es',
+            };
+
+            // "híbrida" no es indicador de remoto puro → descartada
+            expect(() => normalizarOfertaAdzuna(itemHibrido))
+                .toThrow('Adzuna: oferta descartada por no ser trabajo a distancia');
+        });
+
+        test('acepta oferta con "work from home" en la descripción', () => {
+            const itemWFH = {
+                id: 'adzuna-es-004',
+                title: 'Backend Developer',
+                company: { display_name: 'Remote Corp' },
+                location: { display_name: 'España' },
+                description: 'Work from home position. Node.js and Express required.',
+                redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-es-004',
+                created: '2026-05-15T10:00:00.000Z',
+                _pais: 'es',
+            };
+
+            const resultado = normalizarOfertaAdzuna(itemWFH);
+
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('acepta oferta con "teletrabajo" en el título', () => {
+            const itemTeletrabajo = {
+                id: 'adzuna-es-005',
+                title: 'QA Tester Teletrabajo',
+                company: { display_name: 'Test Corp' },
+                location: { display_name: 'España' },
+                description: 'Posición de QA para trabajar desde casa.',
+                redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-es-005',
+                created: '2026-05-15T10:00:00.000Z',
+                _pais: 'es',
+            };
+
+            const resultado = normalizarOfertaAdzuna(itemTeletrabajo);
+
+            expect(resultado.modalidad).toBe('remoto');
+        });
+
+        test('asigna moneda EUR para ofertas de España con salario', () => {
+            const itemConSalario = {
+                id: 'adzuna-es-006',
+                title: 'DevOps Engineer Remote',
+                company: { display_name: 'Cloud Corp' },
+                location: { display_name: 'Madrid, España' },
+                description: 'Remote DevOps position with Kubernetes.',
+                redirect_url: 'https://www.adzuna.com/es/jobs/details/adzuna-es-006',
+                salary_min: 30000,
+                salary_max: 45000,
+                created: '2026-05-15T10:00:00.000Z',
+                _pais: 'es',
+            };
+
+            const resultado = normalizarOfertaAdzuna(itemConSalario);
+
+            expect(resultado.moneda).toBe('EUR');
+            expect(resultado.salario_min).toBe('30000');
+            expect(resultado.salario_max).toBe('45000');
+        });
+
+        test('tira error si el item no tiene redirect_url', () => {
+            const itemSinUrl = {
+                id: 'adzuna-es-007',
+                title: 'Remote Developer',
+                description: 'Remote work available.',
+            };
+
+            expect(() => normalizarOfertaAdzuna(itemSinUrl))
+                .toThrow('El item de Adzuna no tiene redirect_url');
         });
     });
 
