@@ -42,11 +42,13 @@ const ACTORES = {
     // Costo: $0.08 por 1000 resultados.
     INDEED: 'TrtlecxAsNRbKl1na',
 
-    // apify/web-scraper — Actor genérico GRATIS (solo compute units).
+    // apify/puppeteer-scraper — Actor genérico GRATIS (solo compute units).
     // Lo uso para Bumeran porque no existe un actor dedicado.
     // Usa Puppeteer (Chrome headless) para renderizar SPAs como Bumeran
-    // (que es React) y ejecuta una pageFunction con jQuery sobre el DOM renderizado.
-    BUMERAN_WEB: 'apify/web-scraper',
+    // (que es React). A diferencia de web-scraper, la pageFunction corre en
+    // Node.js (no en el browser) y accede al DOM vía context.page.evaluate().
+    // Se migró desde apify/web-scraper por bloqueos intermitentes del proxy.
+    BUMERAN_WEB: 'apify/puppeteer-scraper',
 
     // cheap_scraper/glassdoor-jobs-scraper-remove-duplicate-jobs — Rating 5.0.
     // Recibe keywords, location y country directamente (no URLs de búsqueda).

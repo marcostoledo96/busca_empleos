@@ -321,14 +321,22 @@ async function ejecutarScrapingIndeed(opciones = {}) {
  * Ejecuto el scraping de Bumeran Argentina (que también cubre ZonaJobs).
  *
  * A diferencia de los otros scrapers que usan actores dedicados,
- * Bumeran usa el web-scraper (actor genérico de Apify con Puppeteer).
+ * Bumeran usa el puppeteer-scraper (actor genérico de Apify con Puppeteer).
  * Le paso las URLs de búsqueda y una función JavaScript (pageFunction)
- * que se ejecuta dentro de un Chrome headless. Esto es necesario porque
- * Bumeran es una SPA React que requiere JavaScript para renderizar.
+ * que se ejecuta en el contexto de Node.js del actor y accede al DOM
+ * mediante context.page.evaluate(). Esto es necesario porque Bumeran
+ * es una SPA React que requiere JavaScript para renderizar.
  *
  * Los selectores CSS se basan en atributos semánticos (aria-label,
  * IDs con patrón fijo, tags HTML) para ser resistentes a cambios
  * en las clases CSS de Bumeran (que son hashes de styled-components).
+ *
+ * NOTA: Se migró desde apify/web-scraper a apify/puppeteer-scraper porque
+ * web-scraper tenía bloqueos intermitentes con useApifyProxy: true.
+ * La diferencia clave es que puppeteer-scraper ejecuta la pageFunction
+ * en Node.js (no en el browser), así que jQuery NO está disponible
+ * directamente. Se usa page.evaluate() para correr código en el browser
+ * Y se inyecta jQuery con context.injectJQuery() si es necesario.
  *
  * @param {Object} opciones - Opciones de ejecución.
  * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
@@ -344,48 +352,60 @@ async function ejecutarScrapingBumeran(opciones = {}) {
 
         const startUrls = urls.map(url => ({ url }));
 
-        // La pageFunction se ejecuta dentro de un Chrome headless (Puppeteer)
-        // en los servidores de Apify, DESPUÉS de que React renderice la página.
-        // Usa jQuery (inyectado por web-scraper como context.jQuery) porque
-        // los selectores CSS de Bumeran son hashes de styled-components
-        // que cambian en cada deploy — usamos selectores semánticos.
+        // La pageFunction se ejecuta en el contexto de Node.js del actor
+        // puppeteer-scraper (NO dentro del browser como en web-scraper).
+        // Usa context.page.evaluate() para correr código dentro del browser
+        // después de que React renderice la página.
         const pageFunction = `
             async function pageFunction(context) {
-                const { jQuery: $, request, log } = context;
-                const resultados = [];
+                const { request, log, page } = context;
 
-                // Cada tarjeta de oferta es un <a> con href que apunta a /empleos/{slug}-{id}.html
-                $('a[href*="/empleos/"]').each(function() {
-                    var $tarjeta = $(this);
-                    var href = $tarjeta.attr('href');
+                // Inyecto jQuery en la página para usar los mismos selectores
+                // que funcionaban con web-scraper.
+                await context.injectJQuery();
 
-                    // Solo ofertas individuales (patrón: /empleos/{slug}-{digits}.html)
-                    if (!href || !/\\/empleos\\/.+-\\d+\\.html$/.test(href)) return;
+                // Extraigo los datos DENTRO del browser usando page.evaluate().
+                // Todo lo que está adentro de page.evaluate() corre en el contexto
+                // del DOM renderizado, igual que la pageFunction de web-scraper.
+                const resultados = await page.evaluate(() => {
+                    const $ = window.$;
+                    const datos = [];
 
-                    var url = href.startsWith('http') ? href : 'https://www.bumeran.com.ar' + href;
-                    var titulo = $tarjeta.find('h2').first().text().trim() || null;
-                    var descripcion = $tarjeta.find('p').first().text().trim() || null;
+                    // Cada tarjeta de oferta es un <a> con href que apunta a /empleos/{slug}-{id}.html
+                    $('a[href*="/empleos/"]').each(function() {
+                        var $tarjeta = $(this);
+                        var href = $tarjeta.attr('href');
 
-                    // Ubicación: busco el icono con aria-label="Ubicación" y tomo el h3 hermano.
-                    var $iconoUbicacion = $tarjeta.find('i[aria-label="Ubicaci\\u00f3n"]');
-                    var ubicacion = $iconoUbicacion.parent().find('h3').text().trim() || null;
+                        // Solo ofertas individuales (patrón: /empleos/{slug}-{digits}.html)
+                        if (!href || !/\\/empleos\\/.+-\\d+\\.html$/.test(href)) return;
 
-                    // Modalidad: busco el icono con aria-label="Modalidad" y tomo el h3 hermano.
-                    var $iconoModalidad = $tarjeta.find('i[aria-label="Modalidad"]');
-                    var modalidad = $iconoModalidad.parent().find('h3').text().trim() || null;
+                        var url = href.startsWith('http') ? href : 'https://www.bumeran.com.ar' + href;
+                        var titulo = $tarjeta.find('h2').first().text().trim() || null;
+                        var descripcion = $tarjeta.find('p').first().text().trim() || null;
 
-                    // Empresa: en el div header-col-job-posting-*, busco h3 que NO sea la fecha.
-                    var $header = $tarjeta.find('[id^="header-col-job-posting"]');
-                    var empresa = null;
-                    $header.find('h3').each(function() {
-                        var text = $(this).text().trim();
-                        if (text && !/(hace|Actualizado|Publicado|d\\u00edas|horas|minutos|Nuevo|ayer|hoy)/i.test(text)) {
-                            empresa = text;
-                            return false;
-                        }
+                        // Ubicación: busco el icono con aria-label="Ubicación" y tomo el h3 hermano.
+                        var $iconoUbicacion = $tarjeta.find('i[aria-label="Ubicaci\\u00f3n"]');
+                        var ubicacion = $iconoUbicacion.parent().find('h3').text().trim() || null;
+
+                        // Modalidad: busco el icono con aria-label="Modalidad" y tomo el h3 hermano.
+                        var $iconoModalidad = $tarjeta.find('i[aria-label="Modalidad"]');
+                        var modalidad = $iconoModalidad.parent().find('h3').text().trim() || null;
+
+                        // Empresa: en el div header-col-job-posting-*, busco h3 que NO sea la fecha.
+                        var $header = $tarjeta.find('[id^="header-col-job-posting"]');
+                        var empresa = null;
+                        $header.find('h3').each(function() {
+                            var text = $(this).text().trim();
+                            if (text && !/(hace|Actualizado|Publicado|d\\u00edas|horas|minutos|Nuevo|ayer|hoy)/i.test(text)) {
+                                empresa = text;
+                                return false;
+                            }
+                        });
+
+                        datos.push({ url: url, titulo: titulo, empresa: empresa, ubicacion: ubicacion, modalidad: modalidad, descripcion: descripcion });
                     });
 
-                    resultados.push({ url: url, titulo: titulo, empresa: empresa, ubicacion: ubicacion, modalidad: modalidad, descripcion: descripcion });
+                    return datos;
                 });
 
                 log.info('Bumeran: ' + resultados.length + ' ofertas extra\\u00eddas de ' + request.url);
@@ -393,14 +413,16 @@ async function ejecutarScrapingBumeran(opciones = {}) {
             }
         `;
 
-        console.log('Scraping Bumeran: ejecutando web-scraper de Apify...');
+        console.log('Scraping Bumeran: ejecutando puppeteer-scraper de Apify...');
         const ejecucion = await clienteApify.actor(ACTORES.BUMERAN_WEB).call({
             startUrls,
             pageFunction,
-            maxRequestsPerCrawl: urls.length,
+            // puppeteer-scraper no necesita maxRequestsPerCrawl ni proxyConfiguration
+            // como campos obligatorios — el actor los maneja con valores por defecto.
+            // Pero pasamos proxyConfiguration para usar Apify Proxy y proteger la IP.
             proxyConfiguration: { useApifyProxy: true },
-            // web-scraper espera a networkidle2 por defecto,
-            // lo cual da tiempo a que React renderice las tarjetas.
+            // Evito que el scraper siga enlaces de la página (no queremos crawling).
+            linkSelector: '',
         });
 
         console.log('Scraping Bumeran: obteniendo resultados del dataset...');

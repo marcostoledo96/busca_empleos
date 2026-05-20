@@ -33,10 +33,15 @@
  */
 function normalizarOfertaLinkedin(item) {
     // Actor nuevo usa jobUrl; actor viejo usa link. Priorizo el nuevo.
-    const url = item.jobUrl || item.link;
-    if (!url) {
+    const urlCruda = item.jobUrl || item.link;
+    if (!urlCruda) {
         throw new Error('El item de LinkedIn no tiene URL (campo "jobUrl" ni "link").');
     }
+
+    // Canonizo la URL: remuevo query params y fragments para deduplicar.
+    // LinkedIn agrega parámetros de tracking como ?refId=abc que cambian
+    // entre runs, causando duplicados en la tabla ofertas (UNIQUE(url)).
+    const url = canonizarUrlLinkedin(urlCruda);
 
     // Título: actor nuevo → jobTitle; actor viejo → title.
     const titulo = item.jobTitle || item.title || null;
@@ -207,6 +212,36 @@ function normalizarLote(items, plataforma) {
 }
 
 // === Funciones auxiliares (privadas) ===
+
+/**
+ * Canonizo una URL de LinkedIn removiendo query params y fragments.
+ *
+ * ¿Por qué? LinkedIn agrega parámetros de tracking (refId, source, etc.)
+ * que varían entre runs del scraper. Sin canonizar, dos URLs como:
+ *   https://www.linkedin.com/jobs/view/390123?refId=abc
+ *   https://www.linkedin.com/jobs/view/390123?refId=xyz
+ * se consideran distintas, bypasseando el UNIQUE(url) de la tabla.
+ *
+ * Después de canonizar, ambas quedan como:
+ *   https://www.linkedin.com/jobs/view/390123
+ *
+ * Si la URL no es parseable como URL válida, la devuelvo intacta
+ * (fallback defensivo — no quiero romper datos si el actor cambia formato).
+ *
+ * @param {string} url - URL cruda de LinkedIn.
+ * @returns {string} URL canonizada.
+ */
+function canonizarUrlLinkedin(url) {
+    try {
+        const parseada = new URL(url);
+        parseada.search = '';
+        parseada.hash = '';
+        return parseada.toString();
+    } catch {
+        // Si no es una URL válida, la devuelvo tal cual.
+        return url;
+    }
+}
 
 /**
  * Detecto la modalidad de trabajo desde los datos de LinkedIn.
@@ -1240,5 +1275,6 @@ module.exports = {
     _detectarModalidadGlassdoor: detectarModalidadGlassdoor,
     _detectarModalidadJooble: detectarModalidadJooble,
     _detectarModalidadGoogleJobs: detectarModalidadGoogleJobs,
+    _canonizarUrlLinkedin: canonizarUrlLinkedin,
     detectarIdioma,
 };

@@ -30,7 +30,7 @@ jest.mock('../../src/config/apify', () => {
             LINKEDIN: 'actor-linkedin-test',
             COMPUTRABAJO: 'actor-computrabajo-test',
             INDEED: 'actor-indeed-test',
-            BUMERAN_WEB: 'actor-web-scraper-test',
+            BUMERAN_WEB: 'actor-puppeteer-scraper-test',
             GLASSDOOR: 'actor-glassdoor-test',
         },
         TERMINOS_BUSQUEDA: [
@@ -389,7 +389,7 @@ describe('Servicio de scraping', () => {
 
     describe('ejecutarScrapingBumeran()', () => {
 
-        test('llama al actor web-scraper correcto', async () => {
+        test('llama al actor puppeteer-scraper correcto', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-123' });
 
@@ -398,7 +398,7 @@ describe('Servicio de scraping', () => {
 
             await ejecutarScrapingBumeran();
 
-            expect(clienteApify.actor).toHaveBeenCalledWith('actor-web-scraper-test');
+            expect(clienteApify.actor).toHaveBeenCalledWith('actor-puppeteer-scraper-test');
         });
 
         test('retorna ofertas normalizadas de Bumeran', async () => {
@@ -416,7 +416,7 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
         });
 
-        test('pasa startUrls y pageFunction al actor', async () => {
+        test('pasa startUrls, pageFunction y linkSelector vacío al actor puppeteer-scraper', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-123' });
 
@@ -429,6 +429,8 @@ describe('Servicio de scraping', () => {
                 expect.objectContaining({
                     startUrls: expect.any(Array),
                     pageFunction: expect.any(String),
+                    linkSelector: '',
+                    proxyConfiguration: expect.objectContaining({ useApifyProxy: true }),
                 })
             );
         });
@@ -455,8 +457,8 @@ describe('Servicio de scraping', () => {
             expect(resultado.length).toBe(0);
         });
 
-        test('aplana correctamente arrays anidados del dataset de web-scraper', async () => {
-            // web-scraper guarda el return value de pageFunction como UN item del dataset.
+        test('aplana correctamente arrays anidados del dataset de puppeteer-scraper', async () => {
+            // puppeteer-scraper guarda el return value de pageFunction como UN item del dataset.
             // Si pageFunction retorna [oferta1, oferta2], el dataset tiene 1 item: [oferta1, oferta2].
             // Por eso items llega como [[oferta1], [oferta2]] (un sub-array por página scrapeada).
             const mockCall = clienteApify.actor().call;
@@ -481,6 +483,7 @@ describe('Servicio de scraping', () => {
             // Si la pageFunction no pudo extraer la URL de una tarjeta, el item llega sin url.
             // normalizarOfertaBumeran() lanza un error que normalizarLote() captura con console.warn.
             // El resto de los items válidos deben seguir procesándose.
+            // Nota: con puppeteer-scraper el dataset ya no incluye #error/#debug metadata.
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-invalid' });
 

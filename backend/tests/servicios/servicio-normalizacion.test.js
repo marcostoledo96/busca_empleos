@@ -16,6 +16,7 @@ const {
     normalizarOfertaJooble,
     normalizarLote,
     detectarIdioma,
+    _canonizarUrlLinkedin,
 } = require('../../src/servicios/servicio-normalizacion');
 
 // Dato crudo real de LinkedIn (obtenido del actor curious_coder/linkedin-jobs-scraper).
@@ -192,6 +193,105 @@ describe('Servicio de normalización', () => {
             expect(resultado.url).toBe('https://linkedin.com/jobs/view/123');
             expect(resultado.plataforma).toBe('linkedin');
             expect(resultado.empresa).toBeNull();
+        });
+
+        test('canoniza la URL removiendo query params de tracking (refId)', () => {
+            const itemConRefId = {
+                jobUrl: 'https://www.linkedin.com/jobs/view/390123?refId=abcXYZ123',
+                title: 'Developer',
+            };
+            const resultado = normalizarOfertaLinkedin(itemConRefId);
+
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123');
+        });
+
+        test('canoniza la URL removiendo múltiples query params de tracking', () => {
+            const itemConVariosParams = {
+                jobUrl: 'https://www.linkedin.com/jobs/view/390123?refId=abc&source=facebook&trackingId=xyz',
+                title: 'Developer',
+            };
+            const resultado = normalizarOfertaLinkedin(itemConVariosParams);
+
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123');
+        });
+
+        test('canoniza la URL removiendo fragment (#)', () => {
+            const itemConFragment = {
+                jobUrl: 'https://www.linkedin.com/jobs/view/390123#seccion',
+                title: 'Developer',
+            };
+            const resultado = normalizarOfertaLinkedin(itemConFragment);
+
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123');
+        });
+
+        test('dos ofertas con misma path pero distinto refId producen la misma URL canonizada', () => {
+            const item1 = {
+                jobUrl: 'https://www.linkedin.com/jobs/view/390123?refId=aaa',
+                title: 'Dev',
+            };
+            const item2 = {
+                jobUrl: 'https://www.linkedin.com/jobs/view/390123?refId=bbb',
+                title: 'Dev',
+            };
+
+            const resultado1 = normalizarOfertaLinkedin(item1);
+            const resultado2 = normalizarOfertaLinkedin(item2);
+
+            expect(resultado1.url).toBe(resultado2.url);
+        });
+
+        test('URL sin query params se devuelve intacta', () => {
+            const itemSinParams = {
+                jobUrl: 'https://www.linkedin.com/jobs/view/390123',
+                title: 'Developer',
+            };
+            const resultado = normalizarOfertaLinkedin(itemSinParams);
+
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123');
+        });
+
+        test('actor viejo (link) también canoniza query params', () => {
+            const itemActorViejo = {
+                link: 'https://ar.linkedin.com/jobs/view/dev-at-company-4386138111?refId=oldActor123',
+                title: 'Dev',
+            };
+            const resultado = normalizarOfertaLinkedin(itemActorViejo);
+
+            expect(resultado.url).toBe('https://ar.linkedin.com/jobs/view/dev-at-company-4386138111');
+        });
+    });
+
+    describe('canonizarUrlLinkedin()', () => {
+
+        test('remueve query params', () => {
+            expect(_canonizarUrlLinkedin('https://www.linkedin.com/jobs/view/123?refId=abc'))
+                .toBe('https://www.linkedin.com/jobs/view/123');
+        });
+
+        test('remueve fragment', () => {
+            expect(_canonizarUrlLinkedin('https://www.linkedin.com/jobs/view/123#section'))
+                .toBe('https://www.linkedin.com/jobs/view/123');
+        });
+
+        test('remueve query params y fragment juntos', () => {
+            expect(_canonizarUrlLinkedin('https://www.linkedin.com/jobs/view/123?refId=abc#section'))
+                .toBe('https://www.linkedin.com/jobs/view/123');
+        });
+
+        test('devuelve URL intacta si no tiene query ni fragment', () => {
+            expect(_canonizarUrlLinkedin('https://www.linkedin.com/jobs/view/123'))
+                .toBe('https://www.linkedin.com/jobs/view/123');
+        });
+
+        test('devuelve string original si no es una URL válida (fallback defensivo)', () => {
+            expect(_canonizarUrlLinkedin('no-es-una-url'))
+                .toBe('no-es-una-url');
+        });
+
+        test('preserva el path completo sin alterarlo', () => {
+            expect(_canonizarUrlLinkedin('https://ar.linkedin.com/jobs/view/jr-react-native-developer-at-rootstrap-4386138111?refId=xyz'))
+                .toBe('https://ar.linkedin.com/jobs/view/jr-react-native-developer-at-rootstrap-4386138111');
         });
     });
 
