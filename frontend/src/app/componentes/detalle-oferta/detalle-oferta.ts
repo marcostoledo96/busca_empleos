@@ -112,6 +112,7 @@ export class DetalleOferta {
                 if (respuesta.exito) {
                     o.estado_postulacion = respuesta.datos.estado_postulacion;
                     this.postulacionActualizada.emit();
+                    this.visible.set(false);
                 }
             },
             error: (error) => console.error('Error al actualizar postulación:', error)

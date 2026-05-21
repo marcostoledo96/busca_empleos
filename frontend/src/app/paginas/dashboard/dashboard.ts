@@ -192,9 +192,12 @@ export class Dashboard implements OnInit {
         this.dialogoVisible.set(true);
     }
 
-    // Cuando una acción del panel de control termina, recargamos los datos.
+    // Cuando se actualiza una postulación desde un hijo, forzamos la
+    // re-evaluación de los computed signals sin recargar todas las ofertas.
+    // El objeto oferta ya fue mutado localmente por el componente hijo,
+    // así que solo necesitamos que Angular detecte el cambio.
     onAccionCompletada(): void {
-        this.cargarDatos();
+        this.ofertas.update(arr => [...arr]);
     }
 
     // Cuando la tabla dispara una acción masiva de postulación.
