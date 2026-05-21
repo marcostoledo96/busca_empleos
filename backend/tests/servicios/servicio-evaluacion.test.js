@@ -16,7 +16,7 @@
 // Mockeo el módulo de configuración de DeepSeek.
 jest.mock('../../src/config/deepseek', () => ({
     consultarDeepSeek: jest.fn(),
-    DEEPSEEK_URL: 'https://api.deepseek.com/chat/completions',
+    DEEPSEEK_URL: 'https://api.deepseek.com/v1/chat/completions',
     DEEPSEEK_MODELO: 'deepseek-v4-flash',
 }));
 

@@ -1,36 +1,34 @@
 // Configuración del cliente de IA para evaluación de ofertas.
 //
-// Uso OpenCode Go como proveedor, que rutea a múltiples modelos (DeepSeek,
-// Kimi, GLM, Qwen, etc.) a través de una sola API. La suscripción de
-// OpenCode Go unifica la facturación y da acceso a varios modelos.
-//
-// El endpoint es compatible con el formato de OpenAI, lo que significa que
-// el formato de request/response es el mismo. Si algún día quisiéramos cambiar
-// a OpenAI o a otro proveedor compatible, solo cambiaríamos la URL.
+// Uso la API de DeepSeek directamente (formato compatible con OpenAI).
+// Es el mismo endpoint que usa ChatGPT: chat/completions con roles system/user.
 //
 // ¿Por qué no uso el SDK de OpenAI? Porque Node.js 22 ya tiene fetch() nativo.
 // Con una sola función que hace un POST puedo hablar con la API sin agregar
 // dependencias extra. Menos dependencias = menos cosas que pueden fallar.
+//
+// Si algún día quisiera cambiar a OpenAI o a otro proveedor compatible,
+// solo cambiaría la URL y la API key. El formato de request/response es el mismo.
 
 const path = require('path');
 
 // Cargo las variables de entorno.
 require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 
-// URL base de la API de OpenCode Go (compatible con formato OpenAI).
-const OPENCODE_GO_URL = 'https://opencode.ai/zen/go/v1/chat/completions';
+// URL de la API de DeepSeek (compatible con formato OpenAI).
+const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 
 // Modelo a usar por defecto. DeepSeek V4 Flash es rápido y eficiente para
 // tareas de clasificación simple como evaluar ofertas laborales.
-// Está incluido en la suscripción de OpenCode Go.
-const OPENCODE_GO_MODELO = 'deepseek-v4-flash';
+// Usa el endpoint estándar de DeepSeek, no un proxy externo.
+const DEEPSEEK_MODELO = 'deepseek-v4-flash';
 
-// La API key de OpenCode Go viene del .env. NUNCA se hardcodea.
-// Se obtiene de: https://opencode.ai → suscripción Go → API key.
-const OPENCODE_GO_API_KEY = process.env.OPENCODE_GO_API_KEY;
+// La API key de DeepSeek viene del .env. NUNCA se hardcodea.
+// Se obtiene de: https://platform.deepseek.com → API Keys.
+const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
 
 /**
- * Envío un mensaje a la IA (a través de OpenCode Go) y obtengo la respuesta.
+ * Envío un mensaje a DeepSeek y obtengo la respuesta.
  *
  * Uso el formato de chat completions de OpenAI:
  * - messages: array de objetos con { role, content }
@@ -44,24 +42,24 @@ const OPENCODE_GO_API_KEY = process.env.OPENCODE_GO_API_KEY;
  *
  * @param {string} mensajeSistema - Instrucciones para la IA (quién es, cómo responder).
  * @param {string} mensajeUsuario - El contenido a evaluar.
- * @param {string} [modelo] - Modelo a usar (default: OPENCODE_GO_MODELO).
+ * @param {string} [modelo] - Modelo a usar (default: DEEPSEEK_MODELO).
  * @returns {string} La respuesta de la IA en texto plano.
  */
 async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
-    if (!OPENCODE_GO_API_KEY || OPENCODE_GO_API_KEY === 'tu_api_key_de_opencode_go') {
+    if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'tu_api_key_de_deepseek') {
         throw new Error(
-            'OPENCODE_GO_API_KEY no está configurada. Revisá el archivo .env.'
+            'DEEPSEEK_API_KEY no está configurada. Revisá el archivo .env.'
         );
     }
 
-    const respuesta = await fetch(OPENCODE_GO_URL, {
+    const respuesta = await fetch(DEEPSEEK_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${OPENCODE_GO_API_KEY}`,
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
         },
         body: JSON.stringify({
-            model: modelo || OPENCODE_GO_MODELO,
+            model: modelo || DEEPSEEK_MODELO,
             messages: [
                 { role: 'system', content: mensajeSistema },
                 { role: 'user', content: mensajeUsuario },
@@ -74,7 +72,7 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
     if (!respuesta.ok) {
         const cuerpoError = await respuesta.text();
         throw new Error(
-            `OpenCode Go respondió con error ${respuesta.status}: ${cuerpoError}`
+            `DeepSeek respondió con error ${respuesta.status}: ${cuerpoError}`
         );
     }
 
@@ -83,7 +81,7 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
     // La respuesta viene en data.choices[0].message.content
     // (mismo formato que OpenAI).
     if (!datos.choices || datos.choices.length === 0) {
-        throw new Error('OpenCode Go no devolvió ninguna respuesta (choices vacío).');
+        throw new Error('DeepSeek no devolvió ninguna respuesta (choices vacío).');
     }
 
     return datos.choices[0].message.content;
@@ -91,6 +89,6 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
 
 module.exports = {
     consultarDeepSeek,
-    OPENCODE_GO_URL,
-    OPENCODE_GO_MODELO,
+    DEEPSEEK_URL,
+    DEEPSEEK_MODELO,
 };
