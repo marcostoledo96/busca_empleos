@@ -154,15 +154,32 @@ function construirUrlsComputrabajo(opciones = {}) {
  */
 function construirUrlsBumeran(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    const urls = [];
 
-    return terminos.map(termino => {
+    for (const termino of terminos) {
         // Elimino caracteres especiales (ej: "#" de "c#") que rompen la URL
         // porque el navegador los interpreta como fragmento hash.
         // Solo dejo letras, espacios y caracteres del español.
         const terminoLimpio = termino.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim();
-        const terminoFormateado = terminoLimpio.replace(/\s+/g, '-');
-        return `https://www.bumeran.com.ar/empleos-busqueda-${terminoFormateado}.html`;
-    });
+
+        // Separo en palabras individuales. Bumeran no maneja bien términos
+        // compuestos con guiones (ej: "qa-tester" trae pocos resultados),
+        // pero funciona perfecto con palabras sueltas (ej: "tester").
+        // Filtro palabras muy cortas (< 3 letras) porque generan ruido
+        // (ej: "qa", "it", "c" solas matchean demasiadas ofertas irrelevantes).
+        const palabras = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
+
+        for (const palabra of palabras) {
+            const url = `https://www.bumeran.com.ar/empleos-busqueda-${palabra}.html`;
+            // Evito duplicados (ej: "programador" aparece en "programador" a secas
+            // y también podría aparecer en "desarrollador programador").
+            if (!urls.includes(url)) {
+                urls.push(url);
+            }
+        }
+    }
+
+    return urls;
 }
 
 // URL base de la API pública y gratuita de GetOnBrd.
