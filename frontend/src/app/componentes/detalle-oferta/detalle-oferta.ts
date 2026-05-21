@@ -56,6 +56,14 @@ export class DetalleOferta {
 
     // Mueve el foco al primer elemento interactivo dentro del modal.
     private moverFocoAlModal(): void {
+        // Si ya hay un elemento enfocado dentro del modal (ej. el dropdown de
+        // p-select está abierto), no robar el foco. Esto evita que overlays
+        // internos se cierren por un cambio de foco programático.
+        const activo = document.activeElement;
+        if (activo && this.elemento.nativeElement.contains(activo)) {
+            return;
+        }
+
         const dialogContent = this.elemento.nativeElement.querySelector('.p-dialog-content') as HTMLElement
             ?? this.elemento.nativeElement.querySelector('.dialogo-cabecera') as HTMLElement;
         if (dialogContent) {
