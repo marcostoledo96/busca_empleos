@@ -42,6 +42,11 @@ const {
     evaluarOfertasPendientes,
 } = require('../../src/servicios/servicio-evaluacion');
 
+// Extraigo la función interna de matching con un require raw para testearla directamente.
+// Como Node.js cachea el módulo, puedo acceder a las funciones exportadas.
+// UbicaciónEnZonas no está exportada; la pruebo indirectamente a través de evaluarOferta.
+
+
 // Oferta de ejemplo que simula lo que viene de la BD.
 const ofertaEjemplo = {
     id: 1,
@@ -66,6 +71,20 @@ const ofertaConJava = {
     plataforma: 'linkedin',
     nivel_requerido: 'junior',
     url: 'https://linkedin.com/jobs/5678',
+};
+
+// Oferta presencial fuera de las zonas preferidas (Córdoba).
+// Este es el caso de bug reportado: debe ser rechazada aunque la IA apruebe.
+const ofertaCordobaPresencial = {
+    id: 99,
+    titulo: 'Desarrollador Frontend Presencial Córdoba',
+    empresa: 'CordobaTech',
+    ubicacion: 'Córdoba, Argentina',
+    modalidad: 'presencial',
+    descripcion: 'Buscamos desarrollador frontend con React. Nivel junior.',
+    plataforma: 'linkedin',
+    nivel_requerido: 'junior',
+    url: 'https://linkedin.com/jobs/9999',
 };
 
 // Preferencias de ejemplo que simulan la fila de la tabla preferencias.
@@ -190,7 +209,7 @@ describe('Servicio de evaluación con IA', () => {
             const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
             expect(instrucciones).toContain('CABA');
             expect(instrucciones).toContain('GBA Oeste');
-            expect(instrucciones).toMatch(/penalizar/i);
+            expect(instrucciones).toMatch(/RECHAZAR automáticamente|rechazada/i);
         });
 
         test('no incluye criterios de ubicación sin zonas', () => {
@@ -360,6 +379,79 @@ describe('Servicio de evaluación con IA', () => {
 
             const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
             expect(resultado.porcentaje).toBeNull();
+        });
+    });
+
+    describe('defensa programática: ubicación presencial', () => {
+
+        const instruccionesZonas = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
+
+        test('fuerza rechazo si es presencial fuera de zonas preferidas (bug Córdoba)', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 80, razon: 'React junior.' })
+            );
+
+            const resultado = await evaluarOferta(ofertaCordobaPresencial, instruccionesZonas, 'deepseek-v4-flash', preferenciasEjemplo);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.porcentaje).toBe(0);
+            expect(resultado.razon).toContain('rechazada');
+            expect(resultado.razon).toContain('Córdoba');
+        });
+
+        test('NO fuerza rechazo si es híbrida fuera de zonas preferidas', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 65, razon: 'React junior híbrido.' })
+            );
+
+            const ofertaHibridaCordoba = { ...ofertaCordobaPresencial, modalidad: 'híbrido' };
+
+            const resultado = await evaluarOferta(ofertaHibridaCordoba, instruccionesZonas, 'deepseek-v4-flash', preferenciasEjemplo);
+
+            // La defensa programática NO interviene en híbrido: debe respetar lo que dijo la IA.
+            expect(resultado.match).toBe(true);
+            expect(resultado.porcentaje).toBe(65);
+            expect(resultado.razon).toContain('híbrido');
+        });
+
+        test('no fuerza rechazo si es remota aunque esté fuera de zona', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 80, razon: 'React junior remoto.' })
+            );
+
+            const ofertaRemotaCordoba = { ...ofertaCordobaPresencial, modalidad: 'remoto' };
+
+            const resultado = await evaluarOferta(ofertaRemotaCordoba, instruccionesZonas, 'deepseek-v4-flash', preferenciasEjemplo);
+
+            expect(resultado.match).toBe(true);
+            expect(resultado.porcentaje).toBe(80);
+        });
+
+        test('no fuerza rechazo si es presencial DENTRO de zona preferida', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 75, razon: 'React en CABA.' })
+            );
+
+            const ofertaPresencialCaba = { ...ofertaCordobaPresencial, ubicacion: 'CABA, Capital Federal' };
+
+            const resultado = await evaluarOferta(ofertaPresencialCaba, instruccionesZonas, 'deepseek-v4-flash', preferenciasEjemplo);
+
+            expect(resultado.match).toBe(true);
+            expect(resultado.porcentaje).toBe(75);
+        });
+
+        test('no fuerza rechazo si no hay zonas preferidas configuradas', async () => {
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({ match: true, porcentaje: 70, razon: 'Sin preferencias de zona.' })
+            );
+
+            const prefsSinZonas = { ...preferenciasEjemplo, zonas_preferidas: [] };
+            const instruccionesSinZonas = construirInstruccionesDesdePreferencias(prefsSinZonas);
+
+            const resultado = await evaluarOferta(ofertaCordobaPresencial, instruccionesSinZonas, 'deepseek-v4-flash', prefsSinZonas);
+
+            expect(resultado.match).toBe(true);
+            expect(resultado.porcentaje).toBe(70);
         });
     });
 

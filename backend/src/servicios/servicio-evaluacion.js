@@ -230,9 +230,10 @@ function construirInstruccionesDesdePreferencias(prefs) {
     // Criterios de ubicación/zona si hay zonas preferidas.
     if (zonas.length > 0) {
         partes.push('');
-        partes.push('CRITERIOS DE UBICACIÓN:');
-        partes.push(`- Evaluar positivamente ofertas presenciales/híbridas en: ${zonas.join(', ')}.`);
-        partes.push('- Penalizar (reducir porcentaje) ofertas presenciales en zonas lejanas a las preferidas.');
+        partes.push('CRITERIOS DE UBICACIÓN (REGLA ESTRICTA):');
+        partes.push(`- Aceptar ofertas presenciales/híbridas ÚNICAMENTE si la ubicación coincide con alguna de estas zonas: ${zonas.join(', ')}.`);
+        partes.push('- Si la oferta es PRESENCIAL y la ubicación NO está en las zonas listadas arriba, RECHAZAR automáticamente con match: false y porcentaje 0. El candidato solo puede moverse a las zonas indicadas.');
+        partes.push('- Una oferta HÍBRIDA fuera de zona se penaliza fuertemente (porcentaje ≤ 20), salvo que sea remotable en su totalidad.');
         partes.push('- Ofertas remotas no se ven afectadas por la ubicación.');
     }
 
@@ -271,6 +272,19 @@ function construirPromptEvaluacion(oferta) {
 }
 
 /**
+ * Verifico si una ubicación coincide con alguna de las zonas preferidas.
+ * Comparo en minúsculas para que sea insensible a mayúsculas.
+ *
+ * @param {string} ubicacion - Ubicación de la oferta.
+ * @param {string[]} zonas - Lista de zonas preferidas.
+ * @returns {boolean}
+ */
+function ubicacionEnZonas(ubicacion, zonas) {
+    const textoUbicacion = (ubicacion || '').toLowerCase();
+    return zonas.some(zona => textoUbicacion.includes((zona || '').toLowerCase()));
+}
+
+/**
  * Evalúo una oferta individual con DeepSeek.
  *
  * Ahora recibe las instrucciones y el modelo como parámetros para no
@@ -280,9 +294,10 @@ function construirPromptEvaluacion(oferta) {
  * @param {Object} oferta - La oferta de la base de datos.
  * @param {string} instrucciones - Instrucciones de sistema armadas desde preferencias.
  * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-v4-flash').
+ * @param {Object} [preferencias] - Preferencias del usuario (para defensas programáticas).
  * @returns {Object} { match: boolean, razon: string, porcentaje: number, error?: boolean }
  */
-async function evaluarOferta(oferta, instrucciones, modelo) {
+async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
     try {
         const prompt = construirPromptEvaluacion(oferta);
 
@@ -290,12 +305,18 @@ async function evaluarOferta(oferta, instrucciones, modelo) {
         // leo las preferencias de la BD (para llamadas sueltas desde la API).
         let instruccionesFinal = instrucciones;
         let modeloFinal = modelo;
+        let preferenciasFinal = preferencias;
 
-        if (!instruccionesFinal) {
-            const prefs = await modeloPreferencia.obtenerPreferencias();
-            if (prefs) {
-                instruccionesFinal = construirInstruccionesDesdePreferencias(prefs);
-                modeloFinal = modeloFinal || prefs.modelo_ia;
+        if (!instruccionesFinal || !preferenciasFinal) {
+            const prefsDeBD = await modeloPreferencia.obtenerPreferencias();
+            if (prefsDeBD) {
+                if (!instruccionesFinal) {
+                    instruccionesFinal = construirInstruccionesDesdePreferencias(prefsDeBD);
+                }
+                if (!preferenciasFinal) {
+                    preferenciasFinal = prefsDeBD;
+                }
+                modeloFinal = modeloFinal || prefsDeBD.modelo_ia;
             }
         }
 
@@ -318,13 +339,33 @@ async function evaluarOferta(oferta, instrucciones, modelo) {
 
         // Valido y acoto el porcentaje al rango 0–100.
         const porcentajeCrudo = parseInt(respuesta.porcentaje, 10);
-        const porcentaje = Number.isFinite(porcentajeCrudo)
+        let porcentaje = Number.isFinite(porcentajeCrudo)
             ? Math.max(0, Math.min(100, porcentajeCrudo))
             : null;
 
+        let match = respuesta.match === true;
+        let razon = respuesta.razon || 'Sin razón proporcionada.';
+
+        // Defensa programática: una oferta PRESENCIAL fuera de las zonas preferidas
+        // se rechaza SIEMPRE, sin importar lo que devolvió la IA.
+        // Las ofertas HÍBRIDAS fuera de zona NO se fuerzan a rechazo aquí; la IA
+        // las penaliza fuertemente por las instrucciones del prompt (porcentaje ≤ 20).
+        const modalidadOferta = (oferta.modalidad || '').toLowerCase().trim();
+        const zonasPreferidas = (preferenciasFinal || {}).zonas_preferidas || [];
+        const ubicacionOferta = oferta.ubicacion || '';
+
+        const esPresencial = modalidadOferta === 'presencial';
+        const estaEnZonas = zonasPreferidas.length === 0 || ubicacionEnZonas(ubicacionOferta, zonasPreferidas);
+
+        if (esPresencial && !estaEnZonas) {
+            match = false;
+            porcentaje = 0;
+            razon = `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas) => rechazada.`;
+        }
+
         return {
-            match: respuesta.match === true,
-            razon: respuesta.razon || 'Sin razón proporcionada.',
+            match,
+            razon,
             porcentaje,
         };
 
@@ -413,7 +454,7 @@ async function evaluarOfertasPendientes() {
 
             console.log(`[Evaluación] Procesando oferta ID ${oferta.id}: "${oferta.titulo}"...`);
 
-            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA);
+            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs);
             const estado = resultado.match ? 'aprobada' : 'rechazada';
 
             // Actualizo el estado y el porcentaje en la base de datos.
