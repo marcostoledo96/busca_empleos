@@ -345,9 +345,11 @@ describe('Servicio de scraping', () => {
                 maxResultados: 20,
             });
 
+            // El término compuesto 'react developer' se fragmenta en palabras
+            // individuales unidas con OR para aumentar la cobertura.
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    title: 'react developer',
+                    title: 'react OR developer',
                     country: 'ar',
                     limit: 20,
                 })
@@ -365,12 +367,12 @@ describe('Servicio de scraping', () => {
                 terminos: ['react developer', 'angular developer'],
             });
 
-            // Ahora se ejecuta 1 solo run con query unificada (evita cobro de
-            // compute por cada término).
+            // Los términos compuestos se fragmentan en palabras individuales
+            // y se deduplican antes de unirlas con OR.
             expect(mockCall).toHaveBeenCalledTimes(1);
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    title: 'react developer OR angular developer',
+                    title: 'react OR developer OR angular',
                 })
             );
         });
@@ -733,6 +735,8 @@ describe('Servicio de scraping', () => {
                 json: jest.fn().mockResolvedValue(respuestaJoobleFalsa),
             });
 
+            // 'qa tester' se fragmenta en palabras individuales, filtrando
+            // las de menos de 3 letras ('qa' se descarta, queda 'tester').
             await ejecutarScrapingJooble({ terminos: ['qa tester'] });
 
             expect(global.fetch).toHaveBeenCalledWith(
@@ -740,7 +744,7 @@ describe('Servicio de scraping', () => {
                 expect.objectContaining({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: expect.stringContaining('qa tester'),
+                    body: expect.stringContaining('tester'),
                 })
             );
         });

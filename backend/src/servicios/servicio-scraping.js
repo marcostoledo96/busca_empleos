@@ -284,10 +284,24 @@ async function ejecutarScrapingIndeed(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     try {
-        // Combino todos los términos en una sola query OR para ejecutar UN solo
-        // run del actor. Antes se hacía un actor.call() por cada término.
-        const queryUnificada = terminos.join(' OR ');
-        console.log(`Scraping Indeed: ejecutando 1 run con query: "${queryUnificada}"...`);
+        // Fragmento los términos compuestos en palabras individuales para
+        // aumentar la cobertura. Indeed interpreta "frontend developer angular"
+        // como una frase, pero con OR entre palabras sueltas matchea más
+        // ofertas sin perder relevancia (la evaluación IA filtra después).
+        // Filtro palabras de menos de 3 letras (ej: "qa", "it", "c") porque
+        // generan ruido al matchear demasiadas ofertas irrelevantes.
+        const palabras = [];
+        for (const termino of terminos) {
+            const terminoLimpio = termino
+                .toLowerCase()
+                .replace(/[^a-záéíóúüñ\s]/g, '')
+                .trim();
+            const partes = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
+            palabras.push(...partes);
+        }
+        const palabrasUnicas = [...new Set(palabras)];
+        const queryUnificada = palabrasUnicas.join(' OR ');
+        console.log(`Scraping Indeed: ejecutando 1 run con ${palabrasUnicas.length} palabra(s): "${queryUnificada}"...`);
 
         // El actor de Indeed recibe keywords y país directamente.
         const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
@@ -618,17 +632,32 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
  */
 async function ejecutarScrapingJooble(opciones = {}) {
     const maxResultados = opciones.maxResultados || 50;
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    // Fragmento los términos compuestos en palabras individuales para
+    // aumentar la cobertura (mismo patrón que Bumeran). La API de Jooble
+    // acepta una string en "keywords" — las palabras individuales matchean
+    // más ofertas que frases compuestas tipo "frontend developer angular".
+    // Filtro palabras de menos de 3 letras porque generan ruido.
+    const palabras = [];
+    for (const termino of terminosBase) {
+        const terminoLimpio = termino
+            .toLowerCase()
+            .replace(/[^a-záéíóúüñ\s]/g, '')
+            .trim();
+        const partes = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
+        palabras.push(...partes);
+    }
+    const terminos = [...new Set(palabras)];
     // La API de Jooble no tiene cobertura para 'Argentina' ni 'España' (devuelve 0
     // resultados). 'Remote' sí funciona y trae ofertas remotas relevantes.
     // La evaluación IA después descarta las que no aplican al perfil.
     const UBICACIONES_JOOBLE = ['Remote'];
     // Dos páginas por combinación término+país: suficiente cobertura sin inflar llamadas.
-    // (7 términos × 2 países × 2 páginas = 28 llamadas máximo)
+    // (N palabras únicas × 1 país × 2 páginas = 2N llamadas máximo)
     const MAX_PAGINAS_POR_TERMINO = 2;
 
     try {
-        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) en ${UBICACIONES_JOOBLE.join(', ')}...`);
+        console.log(`Scraping Jooble: buscando ${terminos.length} palabra(s) en ${UBICACIONES_JOOBLE.join(', ')}...`);
         let itemsCrudos = [];
 
         for (const termino of terminos) {
@@ -1074,7 +1103,22 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     // Limito a 50 como máximo porque la API gratuita tiene rate limits estrictos.
     // El cap lo garantizo acá en el servicio — no dependo del controlador.
     const maxResultados = Math.min(opciones.maxResultados || 50, 50);
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    // Fragmento los términos compuestos en palabras individuales para
+    // aumentar la cobertura (mismo patrón que Bumeran). Adzuna acepta
+    // una string en el parámetro "what" — las palabras individuales
+    // matchean más ofertas que frases compuestas tipo "frontend developer
+    // angular". Filtro palabras de menos de 3 letras porque generan ruido.
+    const palabras = [];
+    for (const termino of terminosBase) {
+        const terminoLimpio = termino
+            .toLowerCase()
+            .replace(/[^a-záéíóúüñ\s]/g, '')
+            .trim();
+        const partes = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
+        palabras.push(...partes);
+    }
+    const terminos = [...new Set(palabras)];
     // Solo España — Adzuna NO soporta Argentina (ar) → devuelve 404.
     // España tiene buen volumen de ofertas en español para trabajo remoto.
     const paises = ['es'];
