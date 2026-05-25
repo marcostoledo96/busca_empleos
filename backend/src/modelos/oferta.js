@@ -147,16 +147,17 @@ async function obtenerOfertasPendientes() {
  * @param {string} estado - El nuevo estado: 'aprobada' o 'rechazada'.
  * @param {string} razon - La razón que dio la IA.
  * @param {number|null} porcentaje - Porcentaje de match (0–100) que asignó la IA.
+ * @param {string|null} [errorMensaje] - Mensaje de error si la API falló.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null) {
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3,
-             fecha_evaluacion = NOW()
+             fecha_evaluacion = NOW(), evaluacion_error_mensaje = $5
          WHERE id = $4
          RETURNING *`,
-        [estado, razon, porcentaje, id]
+        [estado, razon, porcentaje, id, errorMensaje]
     );
 
     return resultado.rows.length > 0 ? resultado.rows[0] : null;
@@ -270,6 +271,29 @@ async function resetearEvaluacionesPorDias(dias) {
     return resultado.rows;
 }
 
+/**
+ * Guarda el análisis previo de scoring en la oferta.
+ * Se ejecuta ANTES de llamar a DeepSeek, con el score calculado localmente.
+ */
+async function guardarAnalisisPrevio(id, analisis) {
+    const resultado = await pool.query(
+        `UPDATE ofertas
+         SET score_previo = $1,
+             analisis_previo = $2,
+             scoring_version = $3
+         WHERE id = $4
+         RETURNING *`,
+        [
+            analisis.score_previo,
+            JSON.stringify(analisis),
+            analisis.version || 'p3_p5_v1',
+            id,
+        ]
+    );
+
+    return resultado.rows[0];
+}
+
 module.exports = {
     crearOferta,
     obtenerOfertas,
@@ -279,5 +303,6 @@ module.exports = {
     actualizarEvaluacion,
     actualizarPostulacion,
     actualizarPostulacionMasiva,
-    resetearEvaluacionesPorDias
+    resetearEvaluacionesPorDias,
+    guardarAnalisisPrevio,
 };
