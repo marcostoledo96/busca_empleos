@@ -7,167 +7,485 @@
         <span class="preferencias-label">CONFIGURACIÓN</span>
         <h2 class="preferencias-titulo">Preferencias de búsqueda</h2>
         <p class="preferencias-descripcion">
-            Configurá tu perfil, keywords de búsqueda y comportamiento de la IA.
+            Centro de control de tu perfil laboral: tecnologías, roles, scoring, IA e importación de CV.
         </p>
     </div>
 
     @if (modoDemo()) {
         <div class="preferencias-aviso-demo" role="alert">
             <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
-            <span><strong>MODO_DEMO</strong> — Estos son datos de ejemplo. La configuración real no está disponible en modo invitado. Los cambios no se guardan.</span>
+            <span><strong>MODO_DEMO</strong> — Estos son datos de ejemplo. Los cambios no se guardan.</span>
         </div>
     }
 
-    <!-- === Sección 1: Perfil profesional === -->
-    <section class="seccion" aria-labelledby="label-perfil">
-        <div class="seccion-cabecera">
-            <span class="seccion-label" id="label-perfil">PERFIL_PROFESIONAL</span>
-        </div>
+    <div class="preferencias-tabs-shell">
+        <p-tabs [value]="tabActiva()" (valueChange)="tabActiva.set($any($event))">
+            <p-tablist>
+                <p-tab [value]="0"><span class="tab-label-lite">PERFIL</span></p-tab>
+                <p-tab [value]="1"><span class="tab-label-lite">TECNOLOGÍAS</span></p-tab>
+                <p-tab [value]="2"><span class="tab-label-lite">ROLES</span></p-tab>
+                <p-tab [value]="3"><span class="tab-label-lite">SCORING</span></p-tab>
+                <p-tab [value]="4"><span class="tab-label-lite">BÚSQUEDA</span></p-tab>
+                <p-tab [value]="5"><span class="tab-label-lite">IA</span></p-tab>
+                <p-tab [value]="6"><span class="tab-label-lite">IMPORTAR CV</span></p-tab>
+                <p-tab [value]="7"><span class="tab-label-lite">EVALUACIONES</span></p-tab>
+            </p-tablist>
 
-        <div class="seccion-cuerpo">
-            <div class="campo">
-                <label class="campo-etiqueta" for="nombre">Nombre completo</label>
-                <input pInputText id="nombre" [(ngModel)]="nombre"
-                       placeholder="Tu nombre para el prompt de IA" />
-            </div>
+            <p-tabpanels>
+                <!-- PERFIL -->
+                <p-tabpanel [value]="0">
+                    <section class="seccion" aria-labelledby="label-perfil">
+                        <div class="seccion-cabecera"><span class="seccion-label" id="label-perfil">PERFIL_PROFESIONAL</span></div>
+                        <div class="seccion-cuerpo">
+                            <div class="campo">
+                                <label class="campo-etiqueta" for="nombre">Nombre completo</label>
+                                <input pInputText id="nombre" [(ngModel)]="nombre" placeholder="Tu nombre para el prompt de IA" />
+                            </div>
 
-            <div class="campo-fila">
-                <div class="campo">
-                    <label class="campo-etiqueta" for="nivel">Nivel de experiencia</label>
-                    <p-select id="nivel" [(ngModel)]="nivelExperiencia"
-                              [options]="opcionesNivel"
-                              placeholder="Seleccionar nivel"
-                              aria-label="Nivel de experiencia" />
-                </div>
-                <div class="campo">
-                    <label class="campo-etiqueta" for="modalidad">Modalidad aceptada</label>
-                    <p-select id="modalidad" [(ngModel)]="modalidadAceptada"
-                              [options]="opcionesModalidad"
-                              placeholder="Seleccionar modalidad"
-                              aria-label="Modalidad aceptada" />
-                </div>
-            </div>
+                            <div class="campo-fila campo-fila--3">
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="nivel">Nivel de experiencia</label>
+                                    <p-select id="nivel" [(ngModel)]="nivelExperiencia" [options]="opcionesNivel" placeholder="Seleccionar nivel" aria-label="Nivel de experiencia" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="modalidad">Modalidad aceptada</label>
+                                    <p-select id="modalidad" [(ngModel)]="modalidadAceptada" [options]="opcionesModalidad" placeholder="Seleccionar modalidad" aria-label="Modalidad aceptada" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="disponibilidad">Disponibilidad</label>
+                                    <p-select id="disponibilidad" [(ngModel)]="disponibilidad" [options]="opcionesDisponibilidad" placeholder="Disponibilidad" aria-label="Disponibilidad" />
+                                </div>
+                            </div>
 
-            <div class="campo">
-                <label class="campo-etiqueta" for="perfil">Descripción del perfil</label>
-                <textarea pTextarea id="perfil" [(ngModel)]="perfilProfesional"
-                          [rows]="4" [autoResize]="true"
-                          placeholder="Describí tu experiencia, formación y lo que buscás..."></textarea>
-            </div>
+                            <div class="campo-fila campo-fila--3">
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="salarioMin">Salario mínimo</label>
+                                    <input id="salarioMin" type="number" class="input-dias-reset" [(ngModel)]="expectativaSalarialMin" placeholder="Ej: 700000" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="salarioMax">Salario máximo</label>
+                                    <input id="salarioMax" type="number" class="input-dias-reset" [(ngModel)]="expectativaSalarialMax" placeholder="Ej: 1200000" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="moneda">Moneda salarial</label>
+                                    <p-select id="moneda" [(ngModel)]="monedaSalarial" [options]="opcionesMonedaSalarial" placeholder="Moneda" />
+                                </div>
+                            </div>
 
-            <div class="campo">
-                <label class="campo-etiqueta" for="idioma">Nivel de idiomas</label>
-                <textarea pTextarea id="idioma" [(ngModel)]="idiomaCandidato"
-                          [rows]="2" [autoResize]="true"
-                          placeholder="Ej: Español nativo, Inglés básico oral / intermedio escrito"></textarea>
-                <small class="campo-ayuda">La IA usa este campo para rechazar automáticamente ofertas que requieran un nivel de inglés que no tenés.</small>
-            </div>
-        </div>
-    </section>
+                            <div class="campo">
+                                <label class="campo-etiqueta" for="perfil">Descripción del perfil</label>
+                                <textarea pTextarea id="perfil" [(ngModel)]="perfilProfesional" [rows]="4" [autoResize]="true" placeholder="Describí tu experiencia, formación y lo que buscás..."></textarea>
+                            </div>
 
-    <!-- === Sección 2: Stack tecnológico === -->
-    <section class="seccion" aria-labelledby="label-stack">
-        <div class="seccion-cabecera">
-            <span class="seccion-label" id="label-stack">STACK_TECNOLÓGICO</span>
-        </div>
+                            <div class="campo-fila campo-fila--2">
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="idioma">Resumen de idiomas</label>
+                                    <textarea pTextarea id="idioma" [(ngModel)]="idiomaCandidato" [rows]="2" [autoResize]="true"></textarea>
+                                </div>
+                                <div class="campo idioma-detalle-grid">
+                                    <label class="campo-etiqueta">Inglés detallado</label>
+                                    <div class="campo-fila campo-fila--2 idioma-grid-interior">
+                                        <div class="campo idioma-mini-campo">
+                                            <label class="campo-etiqueta campo-etiqueta--mini">Reading (lectura)</label>
+                                            <input pInputText [(ngModel)]="nivelInglesDetalle.reading" placeholder="Ej: A2" />
+                                        </div>
+                                        <div class="campo idioma-mini-campo">
+                                            <label class="campo-etiqueta campo-etiqueta--mini">Writing (escritura)</label>
+                                            <input pInputText [(ngModel)]="nivelInglesDetalle.writing" placeholder="Ej: A2_basico" />
+                                        </div>
+                                        <div class="campo idioma-mini-campo">
+                                            <label class="campo-etiqueta campo-etiqueta--mini">Speaking (habla)</label>
+                                            <input pInputText [(ngModel)]="nivelInglesDetalle.speaking" placeholder="Ej: A1" />
+                                        </div>
+                                        <div class="campo idioma-mini-campo">
+                                            <label class="campo-etiqueta campo-etiqueta--mini">Listening (escucha)</label>
+                                            <input pInputText [(ngModel)]="nivelInglesDetalle.listening" placeholder="Ej: A1" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
 
-        <div class="seccion-cuerpo">
-            <div class="campo">
-                <label class="campo-etiqueta" for="stack">Tecnologías que manejás</label>
-                <p-autocomplete id="stack" [(ngModel)]="stackTecnologico"
-                               [multiple]="true" [suggestions]="sugerencias"
-                               (completeMethod)="filtrarLibre($event)"
-                               placeholder="Escribí y presioná Enter"
-                               aria-label="Tecnologías que manejás" />
-                <small class="campo-ayuda">Agregá cada tecnología y presioná Enter.</small>
-            </div>
+                            <div class="campo">
+                                <label class="campo-etiqueta" for="zonas">Zonas presenciales aceptadas</label>
+                                <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas" [options]="opcionesZonas" placeholder="Seleccioná las zonas" display="chip" />
+                            </div>
+                        </div>
+                    </section>
+                </p-tabpanel>
 
-            <div class="campo">
-                <label class="campo-etiqueta" for="exclusiones">Reglas de exclusión</label>
-                <p-autocomplete id="exclusiones" [(ngModel)]="reglasExclusion"
-                               [multiple]="true" [suggestions]="sugerencias"
-                               (completeMethod)="filtrarLibre($event)"
-                               placeholder="Ej: Java, SAP"
-                               aria-label="Reglas de exclusión" />
-                <small class="campo-ayuda">Ofertas que requieran estas tecnologías serán rechazadas automáticamente.</small>
-            </div>
-        </div>
-    </section>
+                <!-- TECNOLOGÍAS -->
+                <p-tabpanel [value]="1">
+                    <section class="seccion" aria-labelledby="label-tech-niveles">
+                        <div class="seccion-cabecera">
+                            <span class="seccion-label" id="label-tech-niveles">TECNOLOGÍAS</span>
+                            <button class="btn-agregar-tech" (click)="agregarTecnologia()" [disabled]="modoDemo()" aria-label="Agregar tecnología">
+                                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                            </button>
+                        </div>
+                        <div class="seccion-cuerpo">
+                            <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología.</small>
+                            @if (tecnologiasDetalle.length > 0) {
+                                <div class="tabla-tech tabla-tech--amplia">
+                                    <div class="tabla-tech__header tabla-tech__header--amplia">
+                                        <span class="tabla-tech__col">Tecnología</span>
+                                        <span class="tabla-tech__col">Nivel</span>
+                                        <span class="tabla-tech__col">Categoría</span>
+                                        <span class="tabla-tech__col">Importancia</span>
+                                        <span class="tabla-tech__col">Aliases</span>
+                                        <span class="tabla-tech__col">Evidencia</span>
+                                        <span class="tabla-tech__col"></span>
+                                    </div>
+                                    @for (tech of tecnologiasDetalle; track $index; let i = $index) {
+                                        <div class="tabla-tech__fila tabla-tech__fila--amplia">
+                                            <div class="tabla-tech__col"><input pInputText [(ngModel)]="tech.nombre" placeholder="Nombre" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.nivel" [options]="opcionesNivelTecnologia" placeholder="Nivel" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.categoria" [options]="opcionesCategoriaTecnologia" placeholder="Categoría" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.importancia" [options]="opcionesImportanciaTecnologia" placeholder="Importancia" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(tech.aliases)" (ngModelChange)="tech.aliases = stringALista($event)" placeholder="alias1, alias2" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col"><input pInputText [ngModel]="tech.evidencia || ''" (ngModelChange)="tech.evidencia = $event" placeholder="Proyecto o evidencia" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarTecnologia(i)" [disabled]="modoDemo()"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
+                                        </div>
+                                    }
+                                </div>
+                            } @else {
+                                <div class="estado-vacio-bloque">
+                                    <p class="texto-vacio">No hay tecnologías configuradas.</p>
+                                    <small class="campo-ayuda">Podés cargar el perfil sugerido o importar tu CV para poblar esta tabla.</small>
+                                    <div class="importar-acciones">
+                                        <button class="btn-detalle-secundario" (click)="cargarTecnologiasSugeridas()">CARGAR SUGERIDAS</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </p-tabpanel>
 
-    <!-- === Sección 3: Ubicación === -->
-    <section class="seccion" aria-labelledby="label-ubicacion">
-        <div class="seccion-cabecera">
-            <span class="seccion-label" id="label-ubicacion">UBICACIÓN</span>
-        </div>
+                <!-- ROLES -->
+                <p-tabpanel [value]="2">
+                    <section class="seccion" aria-labelledby="label-roles">
+                        <div class="seccion-cabecera">
+                            <span class="seccion-label" id="label-roles">ROLES_OBJETIVO</span>
+                            <button class="btn-agregar-tech" (click)="agregarRol()" [disabled]="modoDemo()"><span class="material-symbols-outlined" aria-hidden="true">add</span></button>
+                        </div>
+                        <div class="seccion-cuerpo">
+                            @if (rolesObjetivoDetalle.length > 0) {
+                                <div class="tabla-tech roles-grid">
+                                    <div class="tabla-tech__header roles-grid__header">
+                                        <span class="tabla-tech__col">Rol</span>
+                                        <span class="tabla-tech__col">Prioridad</span>
+                                        <span class="tabla-tech__col">Aliases</span>
+                                        <span class="tabla-tech__col"></span>
+                                    </div>
+                                    @for (rol of rolesObjetivoDetalle; track $index; let i = $index) {
+                                        <div class="tabla-tech__fila roles-grid__fila">
+                                            <div class="tabla-tech__col"><input pInputText [(ngModel)]="rol.rol" placeholder="Rol" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="rol.prioridad" [options]="opcionesPrioridadRol" placeholder="Prioridad" /></div>
+                                            <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(rol.aliases)" (ngModelChange)="rol.aliases = stringALista($event)" placeholder="alias1, alias2" /></div>
+                                            <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarRol(i)"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
+                                        </div>
+                                    }
+                                </div>
+                            } @else {
+                                <div class="estado-vacio-bloque">
+                                    <p class="texto-vacio">No hay roles configurados.</p>
+                                    <small class="campo-ayuda">Estos roles ayudan a priorizar ofertas. Podés cargar una base sugerida.</small>
+                                    <div class="importar-acciones">
+                                        <button class="btn-detalle-secundario" (click)="cargarRolesSugeridos()">CARGAR ROLES SUGERIDOS</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </p-tabpanel>
 
-        <div class="seccion-cuerpo">
-            <div class="campo">
-                <label class="campo-etiqueta" for="zonas">Zonas donde aceptás trabajar presencial</label>
-                <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas"
-                               [options]="opcionesZonas"
-                               placeholder="Seleccioná las zonas"
-                               display="chip"
-                               aria-label="Zonas preferidas" />
-                <small class="campo-ayuda">Dejalo vacío si solo buscás remoto o no tenés preferencia.</small>
-            </div>
-        </div>
-    </section>
+                <!-- SCORING -->
+                <p-tabpanel [value]="3">
+                    <section class="seccion" aria-labelledby="label-scoring">
+                        <div class="seccion-cabecera">
+                            <span class="seccion-label" id="label-scoring">SCORING</span>
+                            <button class="btn-detalle-secundario" (click)="restaurarScoringRecomendado()">RESTAURAR RECOMENDADO</button>
+                        </div>
+                        <div class="seccion-cuerpo">
+                            <div class="campo-fila campo-fila--3">
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Umbral aprobación</label>
+                                    <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.umbral_aprobacion" min="0" max="100" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Ajuste IA normal</label>
+                                    <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.deepseek.ajuste_maximo_normal" min="0" max="100" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Ajuste IA con evidencia</label>
+                                    <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.deepseek.ajuste_maximo_con_evidencia" min="0" max="100" />
+                                </div>
+                            </div>
 
-    <!-- === Sección 4: Búsqueda === -->
-    <section class="seccion" aria-labelledby="label-terminos">
-        <div class="seccion-cabecera">
-            <span class="seccion-label" id="label-terminos">TÉRMINOS_DE_BÚSQUEDA</span>
-        </div>
+                            <div class="scoring-grid">
+                                <div class="campo"><label class="campo-etiqueta">Semi-senior</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['semi_senior']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Senior</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['senior']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Lead/Architect</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['sr_director']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Tec. desconocida</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['tecnologia_desconocida_importante']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Inglés avanzado</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['ingles_avanzado']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Soporte hardware</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['soporte_hardware']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">QA no software</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['qa_no_software']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Bonus HealthTech</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['healthtech']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Stack principal completo</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['stack_principal_completo']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Rol prioridad alta</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_alta']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Rol prioridad media</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_media']" /></div>
+                            </div>
+                            <small class="campo-ayuda">Umbral 60 = aprobado. Bajalo si querés revisar más oportunidades, subilo si querés ser más estricto.</small>
+                        </div>
+                    </section>
+                </p-tabpanel>
 
-        <div class="seccion-cuerpo">
-            <div class="campo">
-                <label class="campo-etiqueta" for="terminos">Keywords para los scrapers</label>
-                <p-autocomplete id="terminos" [(ngModel)]="terminosBusqueda"
-                               [multiple]="true" [suggestions]="sugerencias"
-                               (completeMethod)="filtrarLibre($event)"
-                               placeholder="Ej: Angular developer, Frontend junior"
-                               aria-label="Términos de búsqueda" />
-                <small class="campo-ayuda">Estas palabras se usan para buscar ofertas en LinkedIn, Computrabajo, Indeed y Bumeran.</small>
-            </div>
-        </div>
-    </section>
+                <!-- BÚSQUEDA -->
+                <p-tabpanel [value]="4">
+                    <section class="seccion" aria-labelledby="label-busqueda-avanzada">
+                        <div class="seccion-cabecera"><span class="seccion-label" id="label-busqueda-avanzada">BÚSQUEDA</span></div>
+                        <div class="seccion-cuerpo">
+                            <div class="campo">
+                                <label class="campo-etiqueta">Términos de búsqueda</label>
+                                <p-autocomplete [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" />
+                            </div>
+                            <div class="campo-fila campo-fila--2">
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Keywords positivas</label>
+                                    <p-autocomplete [(ngModel)]="keywordsPositivas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: healthtech" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Keywords negativas</label>
+                                    <p-autocomplete [(ngModel)]="keywordsNegativas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: java" />
+                                </div>
+                            </div>
+                            <div class="campo-fila campo-fila--2">
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Plataformas preferidas</label>
+                                    <p-multiselect [(ngModel)]="plataformasPreferidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Plataformas excluidas</label>
+                                    <p-multiselect [(ngModel)]="plataformasExcluidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" />
+                                </div>
+                            </div>
+                            <div class="campo">
+                                <label class="campo-etiqueta">Reglas de penalización históricas</label>
+                                <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" />
+                            </div>
+                        </div>
+                    </section>
+                </p-tabpanel>
 
-    <!-- === Sección 5: Configuración de IA === -->
-    <section class="seccion" aria-labelledby="label-ia">
-        <div class="seccion-cabecera">
-            <span class="seccion-label" id="label-ia">CONFIGURACIÓN_IA</span>
-        </div>
+                <!-- IA -->
+                <p-tabpanel [value]="5">
+                    <section class="seccion" aria-labelledby="label-ia-tabs">
+                        <div class="seccion-cabecera"><span class="seccion-label" id="label-ia-tabs">IA</span></div>
+                        <div class="seccion-cuerpo">
+                            <div class="campo-fila campo-fila--2">
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Modelo evaluación ofertas</label>
+                                    <p-select [(ngModel)]="modeloIaEvaluacion" [options]="opcionesModelo" optionLabel="label" optionValue="value" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Modelo importación CV</label>
+                                    <p-select [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" />
+                                </div>
+                            </div>
+                            <div class="campo-fila campo-fila--3">
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Temp. evaluación</label>
+                                    <input type="number" step="0.1" min="0" max="1" class="input-dias-reset" [(ngModel)]="temperaturaEvaluacion" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Temp. importación</label>
+                                    <input type="number" step="0.1" min="0" max="1" class="input-dias-reset" [(ngModel)]="temperaturaImportacion" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Máx. descripción IA</label>
+                                    <input type="number" min="500" max="10000" class="input-dias-reset" [(ngModel)]="maxCaracteresDescripcionIa" />
+                                </div>
+                            </div>
+                            <div class="campo campo-toggle">
+                                <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
+                                <label class="campo-etiqueta campo-etiqueta--inline">Usar prompt personalizado</label>
+                            </div>
+                            @if (usarPromptPersonalizado) {
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Prompt personalizado evaluación</label>
+                                    <textarea pTextarea [(ngModel)]="promptPersonalizado" [rows]="6" [autoResize]="true"></textarea>
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </p-tabpanel>
 
-        <div class="seccion-cuerpo">
-            <div class="campo">
-                <label class="campo-etiqueta" for="modelo">Modelo de DeepSeek</label>
-                <p-select id="modelo" [(ngModel)]="modeloIa"
-                          [options]="opcionesModelo"
-                          placeholder="Seleccionar modelo"
-                          aria-label="Modelo de DeepSeek" />
-            </div>
+                <!-- IMPORTAR CV -->
+                <p-tabpanel [value]="6">
+                    <section class="seccion" aria-labelledby="label-importar">
+                        <div class="seccion-cabecera"><span class="seccion-label" id="label-importar">IMPORTAR_CV_MARKDOWN</span></div>
+                        <div class="seccion-cuerpo">
+                            <small class="campo-ayuda">Usa <strong>{{ modeloIaImportacion }}</strong> por defecto para importar y completar el perfil con más precisión. El botón se habilita cuando seleccionás un archivo `.md` válido.</small>
+                            <div class="importar-grupo">
+                                <input type="file" accept=".md,text/markdown,text/plain" (change)="onArchivoCvSeleccionado($event)" [disabled]="modoDemo()" class="importar-input" />
+                                <button class="btn-importar" [disabled]="!archivoCvSeleccionado || analizandoCv() || modoDemo()" (click)="analizarCv()">
+                                    @if (analizandoCv()) {
+                                        <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
+                                        ANALIZANDO CV...
+                                    } @else {
+                                        <span class="material-symbols-outlined" aria-hidden="true">upload</span>
+                                        ANALIZAR CV
+                                    }
+                                </button>
+                            </div>
 
-            <div class="campo campo-toggle">
-                <p-toggleswitch [(ngModel)]="usarPromptPersonalizado"
-                                aria-label="Usar prompt personalizado" />
-                <label class="campo-etiqueta campo-etiqueta--inline" for="usarPromptPersonalizado">Usar prompt personalizado</label>
-            </div>
+                            @if (!archivoCvSeleccionado && !analizandoCv()) {
+                                <small class="campo-ayuda">Seleccioná primero un archivo `.md` para habilitar el análisis.</small>
+                            }
 
-            @if (usarPromptPersonalizado) {
-                <div class="campo">
-                    <label class="campo-etiqueta" for="prompt">Prompt personalizado</label>
-                    <textarea pTextarea id="prompt" [(ngModel)]="promptPersonalizado"
-                              [rows]="6" [autoResize]="true"
-                              placeholder="Escribí las instrucciones que querés que use la IA..."></textarea>
-                    <small class="campo-ayuda">Este prompt reemplaza al que genera el sistema automáticamente.</small>
-                </div>
-            }
-        </div>
-    </section>
+                            @if (analizandoCv()) {
+                                <div class="importar-loading" role="status" aria-live="polite">
+                                    <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
+                                    <span>DeepSeek está procesando tu CV. Esto puede tardar unos minutos.</span>
+                                </div>
+                            }
 
-    <!-- === Botón guardar === -->
+                            @if (resultadoImportacion) {
+                                <div class="importar-resultado">
+                                    <h3>Vista previa del perfil detectado</h3>
+                                    <div class="importar-resumen">
+                                        <span>Nombre: <strong>{{ resultadoImportacion.nombre || '—' }}</strong></span>
+                                        <span>Nivel: <strong>{{ resultadoImportacion.nivel_experiencia || '—' }}</strong></span>
+                                        <span>Modalidad: <strong>{{ resultadoImportacion.modalidad_aceptada || '—' }}</strong></span>
+                                        <span>Disponibilidad: <strong>{{ resultadoImportacion.disponibilidad || '—' }}</strong></span>
+                                        <span>Tecnologías detectadas: <strong>{{ resultadoImportacion.tecnologias_detalle.length }}</strong></span>
+                                        <span>Roles: <strong>{{ resultadoImportacion.roles_objetivo_detalle.length }}</strong></span>
+                                    </div>
+                                    <div class="campo-fila campo-fila--2 importar-preview-grid">
+                                        <div class="campo">
+                                            <label class="campo-etiqueta">Perfil profesional detectado</label>
+                                            <textarea pTextarea [ngModel]="resultadoImportacion.perfil_profesional || ''" (ngModelChange)="resultadoImportacion!.perfil_profesional = $event" [rows]="4"></textarea>
+                                        </div>
+                                        <div class="campo">
+                                            <label class="campo-etiqueta">Resumen de idiomas detectado</label>
+                                            <textarea pTextarea [ngModel]="resultadoImportacion.idioma_candidato || ''" (ngModelChange)="resultadoImportacion!.idioma_candidato = $event" [rows]="4"></textarea>
+                                        </div>
+                                    </div>
+                                    <div class="campo-fila campo-fila--3 importar-preview-grid">
+                                        <div class="campo">
+                                            <label class="campo-etiqueta">Términos de búsqueda</label>
+                                            <input pInputText [ngModel]="listaAString(resultadoImportacion.terminos_busqueda)" (ngModelChange)="resultadoImportacion!.terminos_busqueda = stringALista($event)" placeholder="term1, term2" />
+                                        </div>
+                                        <div class="campo">
+                                            <label class="campo-etiqueta">Reglas de penalización</label>
+                                            <input pInputText [ngModel]="listaAString(resultadoImportacion.reglas_exclusion || [])" (ngModelChange)="resultadoImportacion!.reglas_exclusion = stringALista($event)" placeholder="java, sap" />
+                                        </div>
+                                        <div class="campo">
+                                            <label class="campo-etiqueta">Keywords positivas</label>
+                                            <input pInputText [ngModel]="listaAString(resultadoImportacion.keywords_positivas || [])" (ngModelChange)="resultadoImportacion!.keywords_positivas = stringALista($event)" placeholder="healthtech, angular" />
+                                        </div>
+                                    </div>
+                                    <div class="importar-mini-listas">
+                                        <div class="importar-mini-lista">
+                                            <label class="campo-etiqueta">Tecnologías detectadas</label>
+                                            <div class="importar-tags">
+                                                @for (tech of resultadoImportacion.tecnologias_detalle; track tech.nombre) {
+                                                    <span class="importar-adv">{{ tech.nombre }} · {{ tech.nivel }}</span>
+                                                }
+                                            </div>
+                                        </div>
+                                        <div class="importar-mini-lista">
+                                            <label class="campo-etiqueta">Roles detectados</label>
+                                            <div class="importar-tags">
+                                                @for (rol of resultadoImportacion.roles_objetivo_detalle; track rol.rol) {
+                                                    <span class="importar-adv">{{ rol.rol }} · {{ rol.prioridad }}</span>
+                                                }
+                                            </div>
+                                        </div>
+                                    </div>
+                                    @if (resultadoImportacion.advertencias.length > 0) {
+                                        <div class="importar-advertencias">
+                                            @for (adv of resultadoImportacion.advertencias; track adv) {
+                                                <span class="importar-adv">{{ adv }}</span>
+                                            }
+                                        </div>
+                                    }
+                                    <div class="importar-acciones">
+                                        <button class="btn-guardar" (click)="aplicarImportacion()"><span class="material-symbols-outlined" aria-hidden="true">check</span>APLICAR AL FORMULARIO</button>
+                                        <button class="btn-detalle-secundario" (click)="cancelarImportacion()">CANCELAR</button>
+                                    </div>
+                                </div>
+                            }
+
+                            @if (preguntasImportacion.length > 0) {
+                                <div class="importar-preguntas">
+                                    <h4>Preguntas sugeridas por la IA</h4>
+                                    @for (p of preguntasImportacion; track $index; let i = $index) {
+                                        <div class="importar-pregunta importar-pregunta--accionable" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
+                                            <span class="material-symbols-outlined" aria-hidden="true">help</span>
+                                            <div class="importar-pregunta__contenido">
+                                                <span>{{ p.pregunta }}</span>
+                                                @if (p.motivo) {
+                                                    <small class="campo-ayuda">{{ p.motivo }}</small>
+                                                }
+                                                @if (p.sugerencia) {
+                                                    <small class="campo-ayuda">Sugerencia: {{ p.sugerencia }}</small>
+                                                }
+                                                <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(i, $event)" [rows]="2" placeholder="Escribí una respuesta o nota para esta pregunta..."></textarea>
+                                                <div class="importar-acciones">
+                                                    <button class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(i)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada'">APLICAR SUGERENCIA</button>
+                                                    <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(i)">IGNORAR</button>
+                                                </div>
+                                                <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">{{ p.estado === 'aplicada' ? '✓ Sugerencia aplicada' : p.estado === 'ignorada' ? '✗ Ignorada' : '○ Pendiente' }}</small>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    </section>
+                </p-tabpanel>
+
+                <!-- EVALUACIONES -->
+                <p-tabpanel [value]="7">
+                    <section class="seccion seccion--peligro" aria-labelledby="label-evaluaciones">
+                        <div class="seccion-cabecera"><span class="seccion-label" id="label-evaluaciones">GESTIÓN_EVALUACIONES</span></div>
+                        <div class="seccion-cuerpo">
+                            <p class="campo-ayuda reset-descripcion">Útil cuando actualizás tu perfil o scoring y querés que la IA vuelva a analizar ofertas recientes.</p>
+                            <div class="campo-fila campo-fila--3">
+                                <div class="campo reset-campo-dias">
+                                    <label class="campo-etiqueta" for="diasReset">Días atrás a resetear</label>
+                                    <input type="number" id="diasReset" class="input-dias-reset" [ngModel]="diasReset()" (ngModelChange)="diasReset.set(+$event || null)" min="1" max="365" placeholder="Ej: 7" />
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Última importación CV</label>
+                                    <input pInputText [ngModel]="fechaImportacionCv || 'Nunca'" readonly />
+                                    <small class="campo-ayuda">Fecha en la que aplicaste por última vez un perfil extraído desde CV Markdown.</small>
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta">Versión scoring activa</label>
+                                    <input pInputText [ngModel]="'p3_p5_v1'" readonly />
+                                    <small class="campo-ayuda">Versión interna de reglas usadas para calcular el score previo antes de DeepSeek.</small>
+                                </div>
+                            </div>
+                            <div class="reset-boton-wrapper">
+                                <button class="btn-reset" [disabled]="!diasReset() || reseteando() || modoDemo()" (click)="resetearEvaluaciones()">
+                                    @if (reseteando()) {
+                                        <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
+                                    } @else {
+                                        <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                                    }
+                                    RESETEAR EVALUACIONES
+                                </button>
+                            </div>
+                            <small class="campo-ayuda">Las preferencias guardan un backup interno antes de sobrescribir para poder recuperar el perfil anterior si hace falta.</small>
+                        </div>
+                    </section>
+                </p-tabpanel>
+            </p-tabpanels>
+        </p-tabs>
+    </div>
+
     <div class="acciones">
-        <!-- Región viva para anunciar resultado del guardado a lectores de pantalla -->
         <span class="sr-only" aria-live="polite" role="status">{{ mensajeAccesible() }}</span>
         <button class="btn-guardar" [disabled]="guardando() || modoDemo()" (click)="guardar()" aria-label="Guardar preferencias">
             @if (guardando()) {
@@ -178,53 +496,6 @@
             GUARDAR PREFERENCIAS
         </button>
     </div>
-
-    <!-- === Sección: Gestión de evaluaciones === -->
-    <section class="seccion seccion--peligro" aria-labelledby="label-evaluaciones">
-        <div class="seccion-cabecera">
-            <span class="seccion-label" id="label-evaluaciones">GESTIÓN_EVALUACIONES</span>
-        </div>
-        <div class="seccion-cuerpo">
-            <p class="campo-ayuda reset-descripcion">
-                Útil cuando actualizás tu perfil o prompt y querés que la IA vuelva a analizar
-                las ofertas recientes desde cero.
-                Ingresá cuántos días atrás querés resetear.
-            </p>
-            <div class="reset-grupo">
-                <div class="campo reset-campo-dias">
-                    <label class="campo-etiqueta" for="diasReset">Días atrás a resetear</label>
-                    <input
-                        type="number"
-                        id="diasReset"
-                        class="input-dias-reset"
-                        [ngModel]="diasReset()"
-                        (ngModelChange)="diasReset.set(+$event || null)"
-                        min="1"
-                        max="365"
-                        placeholder="Ej: 7"
-                        aria-label="Días atrás a resetear" />
-                </div>
-                <div class="reset-boton-wrapper">
-                    <button
-                        class="btn-reset"
-                        [disabled]="!diasReset() || reseteando() || modoDemo()"
-                        (click)="resetearEvaluaciones()"
-                        aria-label="Resetear evaluaciones">
-                        @if (reseteando()) {
-                            <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
-                        } @else {
-                            <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
-                        }
-                        RESETEAR EVALUACIONES
-                    </button>
-                </div>
-            </div>
-            <small class="campo-ayuda">
-                Solo se resetean ofertas con estado "aprobada" o "rechazada" evaluadas en ese rango.
-                Las evaluadas hace más tiempo no se tocan.
-            </small>
-        </div>
-    </section>
 
 </div>
 } @else {

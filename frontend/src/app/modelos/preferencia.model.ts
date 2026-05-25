@@ -16,6 +16,54 @@ export interface Preferencias {
     modelo_ia: 'deepseek-v4-flash' | 'deepseek-v4-pro' | 'deepseek-chat' | 'deepseek-reasoner';
     fecha_creacion: string;
     fecha_actualizacion: string;
+    // Perfil detallado (P3) — tecnologías con niveles.
+    tecnologias_detalle: Array<{
+        nombre: string;
+        nivel: 'ninguno' | 'basico' | 'medio' | 'avanzado';
+        categoria: string;
+        importancia?: 'principal' | 'secundaria' | 'penalizable' | 'no_prioritaria';
+        aliases: string[];
+        evidencia?: string;
+    }>;
+    roles_objetivo_detalle: Array<{
+        rol: string;
+        prioridad: 'alta' | 'media' | 'baja';
+        aliases: string[];
+        evidencia?: string;
+    }>;
+    scoring_config: {
+        umbral_aprobacion: number;
+        penalizaciones: Record<string, number>;
+        bonificaciones: Record<string, number>;
+        deepseek?: {
+            ajuste_maximo_normal?: number;
+            ajuste_maximo_con_evidencia?: number;
+        };
+    };
+    preguntas_perfil_pendientes: Array<Record<string, unknown>>;
+    modelo_ia_evaluacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
+    modelo_ia_importacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
+    disponibilidad?: 'full_time' | 'part_time' | 'freelance' | 'a_coordinar';
+    expectativa_salarial_min?: number | null;
+    expectativa_salarial_max?: number | null;
+    moneda_salarial?: 'ARS' | 'USD' | 'NO_FILTRAR';
+    nivel_ingles_detalle?: {
+        espanol?: string | null;
+        reading?: string | null;
+        writing?: string | null;
+        speaking?: string | null;
+        listening?: string | null;
+        regla?: string | null;
+    };
+    keywords_positivas?: string[];
+    keywords_negativas?: string[];
+    plataformas_preferidas?: string[];
+    plataformas_excluidas?: string[];
+    max_caracteres_descripcion_ia?: number;
+    temperatura_evaluacion?: number;
+    temperatura_importacion?: number;
+    backup_preferencias?: Record<string, unknown> | null;
+    fecha_importacion_cv?: string | null;
 }
 
 // Campos actualizables. Excluyo id, fecha_creacion y fecha_actualizacion
