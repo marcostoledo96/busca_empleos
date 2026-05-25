@@ -57,12 +57,26 @@ function crearHashOferta(oferta) {
  */
 function crearHashPreferencias(preferencias) {
     const base = JSON.stringify({
+        // Campos originales.
         nivel_experiencia: preferencias.nivel_experiencia,
         stack_tecnologico: preferencias.stack_tecnologico,
         modalidad_aceptada: preferencias.modalidad_aceptada,
         zonas_preferidas: preferencias.zonas_preferidas,
         reglas_exclusion: preferencias.reglas_exclusion,
         idioma_candidato: preferencias.idioma_candidato,
+        // Sprint 3–5: Perfil ampliado que afecta scoring/evaluación.
+        // Si cambia CUALQUIERA de estos, el cache viejo NO puede reutilizarse.
+        tecnologias_detalle: preferencias.tecnologias_detalle,
+        roles_objetivo_detalle: preferencias.roles_objetivo_detalle,
+        scoring_config: preferencias.scoring_config,
+        nivel_ingles_detalle: preferencias.nivel_ingles_detalle,
+        nivel_real_seniority: preferencias.nivel_real_seniority,
+        conocimientos_ausentes: preferencias.conocimientos_ausentes,
+        limitaciones_explicitas: preferencias.limitaciones_explicitas,
+        keywords_positivas: preferencias.keywords_positivas,
+        keywords_negativas: preferencias.keywords_negativas,
+        plataformas_preferidas: preferencias.plataformas_preferidas,
+        plataformas_excluidas: preferencias.plataformas_excluidas,
     });
 
     return crypto.createHash('sha256').update(base).digest('hex');

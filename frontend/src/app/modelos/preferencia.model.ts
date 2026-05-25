@@ -13,7 +13,7 @@ export interface Preferencias {
     reglas_exclusion: string[];
     prompt_personalizado: string | null;
     usar_prompt_personalizado: boolean;
-    modelo_ia: 'deepseek-v4-flash' | 'deepseek-v4-pro' | 'deepseek-chat' | 'deepseek-reasoner';
+    modelo_ia: 'deepseek-v4-flash' | 'deepseek-v4-pro';
     fecha_creacion: string;
     fecha_actualizacion: string;
     // Perfil detallado (P3) — tecnologías con niveles.
@@ -64,6 +64,9 @@ export interface Preferencias {
     temperatura_importacion?: number;
     backup_preferencias?: Record<string, unknown> | null;
     fecha_importacion_cv?: string | null;
+    nivel_real_seniority?: string | null;
+    conocimientos_ausentes?: string[];
+    limitaciones_explicitas?: string | null;
 }
 
 // Campos actualizables. Excluyo id, fecha_creacion y fecha_actualizacion

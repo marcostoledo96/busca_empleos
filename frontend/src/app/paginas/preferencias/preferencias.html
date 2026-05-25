@@ -109,6 +109,24 @@
                                 <label class="campo-etiqueta" for="zonas">Zonas presenciales aceptadas</label>
                                 <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas" [options]="opcionesZonas" placeholder="Seleccioná las zonas" display="chip" />
                             </div>
+
+                            <div class="campo">
+                                <label class="campo-etiqueta" for="seniorityReal">Nivel real de seniority</label>
+                                <input pInputText id="seniorityReal" [(ngModel)]="nivelRealSeniority" placeholder="Ej: Junior sin experiencia formal senior" />
+                                <small class="campo-ayuda">Describí honestamente tu nivel real. Esto ayuda a penalizar ofertas que pidan un perfil demasiado alto.</small>
+                            </div>
+
+                            <div class="campo">
+                                <label class="campo-etiqueta" for="ausentes">Conocimientos / tecnologías que NO manejás</label>
+                                <p-autocomplete id="ausentes" [(ngModel)]="conocimientosAusentes" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: microservicios, Kafka, blockchain" />
+                                <small class="campo-ayuda">Si una oferta pide estas tecnologías, el scoring baja automáticamente.</small>
+                            </div>
+
+                            <div class="campo">
+                                <label class="campo-etiqueta" for="limitaciones">Limitaciones explícitas</label>
+                                <textarea pTextarea id="limitaciones" [(ngModel)]="limitacionesExplicitas" [rows]="3" [autoResize]="true" placeholder="Describí lo que NO podés hacer o lo que NO buscás..."></textarea>
+                                <small class="campo-ayuda">Este texto se incluye en el análisis para que la IA entienda mejor tus límites.</small>
+                            </div>
                         </div>
                     </section>
                 </p-tabpanel>
@@ -291,6 +309,19 @@
                                     <p-select [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" />
                                 </div>
                             </div>
+                            <!--
+                                NOTA(P5-Fix5): Los campos temperamentos_evaluacion/importacion y
+                                max_caracteres_descripcion_ia están deshabilitados porque todavía
+                                no están conectados al backend.
+                                - consultarDeepSeek() hardcodea temperature: 0.
+                                - El recorte de descripción está fijo en 1500 chars en servicio-evaluacion.js.
+                                Para conectarlos habría que:
+                                1. Agregar temperature al body de DeepSeek dinámicamente.
+                                2. Leer max_caracteres_descripcion_ia en construirPromptRefinamiento().
+                                3. Pasar ambos valores desde preferencias → evaluarOferta.
+                                Hasta que se haga eso, no se muestran para no mentir al usuario.
+                            -->
+                            <!--
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo">
                                     <label class="campo-etiqueta">Temp. evaluación</label>
@@ -305,6 +336,7 @@
                                     <input type="number" min="500" max="10000" class="input-dias-reset" [(ngModel)]="maxCaracteresDescripcionIa" />
                                 </div>
                             </div>
+                            -->
                             <div class="campo campo-toggle">
                                 <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
                                 <label class="campo-etiqueta campo-etiqueta--inline">Usar prompt personalizado</label>
@@ -419,24 +451,59 @@
                             @if (preguntasImportacion.length > 0) {
                                 <div class="importar-preguntas">
                                     <h4>Preguntas sugeridas por la IA</h4>
-                                    @for (p of preguntasImportacion; track $index; let i = $index) {
-                                        <div class="importar-pregunta importar-pregunta--accionable" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
-                                            <span class="material-symbols-outlined" aria-hidden="true">help</span>
-                                            <div class="importar-pregunta__contenido">
-                                                <span>{{ p.pregunta }}</span>
-                                                @if (p.motivo) {
-                                                    <small class="campo-ayuda">{{ p.motivo }}</small>
-                                                }
-                                                @if (p.sugerencia) {
-                                                    <small class="campo-ayuda">Sugerencia: {{ p.sugerencia }}</small>
-                                                }
-                                                <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(i, $event)" [rows]="2" placeholder="Escribí una respuesta o nota para esta pregunta..."></textarea>
-                                                <div class="importar-acciones">
-                                                    <button class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(i)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada'">APLICAR SUGERENCIA</button>
-                                                    <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(i)">IGNORAR</button>
+                                    <small class="campo-ayuda">
+                                        ⚡ Acción automática: aplicar sugerencia modifica el perfil.<br>
+                                        📝 Informativas: se guardan como nota; podés editarlas y guardar manualmente.
+                                    </small>
+
+                                    @if (preguntasAccionables.length > 0) {
+                                        <div class="importar-seccion-preguntas">
+                                            <h5>Acción automática</h5>
+                                            @for (p of preguntasAccionables; track p.campo + $index; let i = $index) {
+                                                <div class="importar-pregunta importar-pregunta--accionable" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
+                                                    <span class="material-symbols-outlined" aria-hidden="true">⚡ help</span>
+                                                    <div class="importar-pregunta__contenido">
+                                                        <span>{{ p.pregunta }}</span>
+                                                        @if (p.motivo) {
+                                                            <small class="campo-ayuda">{{ p.motivo }}</small>
+                                                        }
+                                                        @if (p.sugerencia) {
+                                                            <small class="campo-ayuda">Sugerencia: {{ p.sugerencia }}</small>
+                                                        }
+                                                        <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(i, $event)" [rows]="2" placeholder="Escribí una respuesta o nota para esta pregunta..."></textarea>
+                                                        <div class="importar-acciones">
+                                                            <button class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(i)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada'">Aplicar sugerencia</button>
+                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(i)">Ignorar</button>
+                                                        </div>
+                                                        <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">{{ p.estado === 'aplicada' ? '✓ Sugerencia aplicada' : p.estado === 'ignorada' ? '✗ Ignorada' : '○ Pendiente' }}</small>
+                                                    </div>
                                                 </div>
-                                                <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">{{ p.estado === 'aplicada' ? '✓ Sugerencia aplicada' : p.estado === 'ignorada' ? '✗ Ignorada' : '○ Pendiente' }}</small>
-                                            </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    @if (preguntasInformativas.length > 0) {
+                                        <div class="importar-seccion-preguntas">
+                                            <h5>Preguntas informativas</h5>
+                                            @for (p of preguntasInformativas; track p.campo + $index; let i = $index) {
+                                                <div class="importar-pregunta importar-pregunta--informativa" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
+                                                    <span class="material-symbols-outlined" aria-hidden="true">📝 help</span>
+                                                    <div class="importar-pregunta__contenido">
+                                                        <span>{{ p.pregunta }}</span>
+                                                        @if (p.motivo) {
+                                                            <small class="campo-ayuda">{{ p.motivo }}</small>
+                                                        }
+                                                        @if (p.sugerencia) {
+                                                            <small class="campo-ayuda">Sugerencia: {{ p.sugerencia }}</small>
+                                                        }
+                                                        <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(i, $event)" [rows]="2" placeholder="Escribí aquí tu respuesta como nota de trabajo. No hay acción automática, vas a tener que actualizar el perfil a mano."></textarea>
+                                                        <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">{{ p.estado === 'aplicada' ? '✓ Respuesta guardada' : p.estado === 'ignorada' ? '✗ Ignorada' : '○ Pendiente — guardá tu nota e ignorá para continuar' }}</small>
+                                                        <div class="importar-acciones">
+                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(i)">Guardar nota e ignorar</button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            }
                                         </div>
                                     }
                                 </div>

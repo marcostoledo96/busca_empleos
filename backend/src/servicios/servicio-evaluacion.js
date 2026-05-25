@@ -352,6 +352,22 @@ function construirPromptRefinamiento(oferta, perfil, analisis) {
         partes.push(`Tecnologías penalizadas: ${analisis.tecnologias.desconocidas.map(d => d.nombre).join(', ')}`);
     }
 
+    // Sprint 3: contexto del perfil ampliado.
+    if (analisis.perfil_ampliado) {
+        if (analisis.perfil_ampliado.nivel_real_seniority) {
+            partes.push(`Nivel real del candidato: ${analisis.perfil_ampliado.nivel_real_seniority}`);
+        }
+        if (analisis.perfil_ampliado.conocimientos_ausentes_detectados?.length > 0) {
+            partes.push(`Conocimientos ausentes detectados: ${analisis.perfil_ampliado.conocimientos_ausentes_detectados.join(', ')}`);
+        }
+        if (analisis.perfil_ampliado.senales_rol_alto?.length > 0) {
+            partes.push(`Señales de rol alto detectadas: ${analisis.perfil_ampliado.senales_rol_alto.join(', ')}`);
+        }
+        if (analisis.perfil_ampliado.limitaciones_explicitas) {
+            partes.push(`Limitaciones del candidato: ${analisis.perfil_ampliado.limitaciones_explicitas}`);
+        }
+    }
+
     return partes.join('\n');
 }
 
@@ -396,6 +412,16 @@ function resumirAnalisisPrevio(analisis) {
 
     if (analisis.stack_principal_completo) {
         motivos.push('stack principal completo (+10)');
+    }
+
+    // Sprint 3: perfil ampliado.
+    if (analisis.perfil_ampliado?.penalizacion_rol_senior > 0) {
+        motivos.push(`rol demasiado senior: ${analisis.perfil_ampliado.senales_rol_alto.join(', ')} (-${analisis.perfil_ampliado.penalizacion_rol_senior})`);
+    }
+
+    if (analisis.perfil_ampliado?.conocimientos_ausentes_detectados?.length > 0) {
+        const ausentes = analisis.perfil_ampliado.conocimientos_ausentes_detectados.slice(0, 3).join(', ');
+        motivos.push(`conocimientos ausentes detectados: ${ausentes} (-${analisis.perfil_ampliado.penalizacion_ausentes})`);
     }
 
     return motivos.length > 0

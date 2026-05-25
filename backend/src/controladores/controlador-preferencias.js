@@ -13,13 +13,11 @@ const NIVELES_VALIDOS = ['trainee', 'junior', 'semi-senior'];
 const MODALIDADES_VALIDAS = ['cualquiera', 'remoto', 'hibrido', 'presencial'];
 const ZONAS_VALIDAS = ['CABA', 'GBA Oeste', 'GBA Norte', 'GBA Sur', 'Interior'];
 const MODELOS_IA_VALIDOS = [
-    // OpenCode Go — suscripción unificada
+    // Solo modelos DeepSeek compatibles con la API configurada.
+    // Los demás (kimi, glm, qwen, mimo) requieren endpoints distintos
+    // que todavía no están integrados en este servicio.
     'deepseek-v4-flash',
     'deepseek-v4-pro',
-    'kimi-k2.6',
-    'glm-5.1',
-    'qwen3.6-plus',
-    'mimo-v2.5-pro',
 ];
 
 // Valores válidos para tecnologias_detalle.

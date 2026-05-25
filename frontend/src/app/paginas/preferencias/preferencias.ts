@@ -23,6 +23,7 @@ type PreguntaImportacion = {
     sugerencia?: string | null;
     estado?: 'pendiente' | 'aplicada' | 'ignorada';
     respuesta?: string;
+    tieneAccionAutomatica?: boolean;
 };
 
 @Component({
@@ -105,6 +106,9 @@ export class Preferencias implements OnInit {
     temperaturaImportacion = 0;
     fechaImportacionCv: string | null = null;
     tabActiva = signal(0);
+    nivelRealSeniority = 'Junior / Junior avanzado en proyectos propios, sin experiencia formal semi-senior o senior';
+    conocimientosAusentes: string[] = [];
+    limitacionesExplicitas = '';
 
     // Perfil detallado: tecnologías con niveles y categorías.
     tecnologiasDetalle: Array<{ nombre: string; nivel: string; categoria: string; importancia: string; aliases: string[]; evidencia?: string }> = [];
@@ -151,11 +155,13 @@ export class Preferencias implements OnInit {
         { label: 'Interior', value: 'Interior' },
     ];
 
+    // Solo modelos DeepSeek compatibles con la API configurada.
+    // Los modelos legacy (deepseek-chat, deepseek-reasoner) y de otros
+    // proveedores (kimi, glm, qwen, mimo) requieren endpoints distintos
+    // que todavía no están integrados en este servicio.
     opcionesModelo = [
         { label: 'DeepSeek V4 Flash (recomendado)', value: 'deepseek-v4-flash' },
         { label: 'DeepSeek V4 Pro (potente)', value: 'deepseek-v4-pro' },
-        { label: 'DeepSeek Chat (legacy)', value: 'deepseek-chat' },
-        { label: 'DeepSeek Reasoner (legacy)', value: 'deepseek-reasoner' },
     ];
 
     opcionesModeloImportacion = [
@@ -234,6 +240,16 @@ export class Preferencias implements OnInit {
             { nombre: 'Java', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['java'], evidencia: 'Penalizable para scoring' },
             { nombre: 'Spring Boot', nivel: 'ninguno', categoria: 'backend', importancia: 'penalizable', aliases: ['spring boot', 'springboot'], evidencia: 'Penalizable para scoring' },
             { nombre: 'React Native', nivel: 'basico', categoria: 'mobile', importancia: 'no_prioritaria', aliases: ['react native'], evidencia: 'No priorizar ofertas mobile' },
+            { nombre: 'Kotlin', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['kotlin'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Go', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['go', 'golang'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Python', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['python'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'PHP', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['php'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Ruby', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['ruby', 'rails'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Swift', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['swift'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'AWS', nivel: 'ninguno', categoria: 'cloud', importancia: 'penalizable', aliases: ['aws', 'amazon web services'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'MongoDB', nivel: 'ninguno', categoria: 'base_de_datos', importancia: 'penalizable', aliases: ['mongodb', 'mongo'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'GraphQL', nivel: 'ninguno', categoria: 'backend', importancia: 'penalizable', aliases: ['graphql'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Kubernetes', nivel: 'ninguno', categoria: 'cloud', importancia: 'penalizable', aliases: ['kubernetes', 'k8s'], evidencia: 'Penalizable para scoring' },
         ];
     }
 
@@ -382,6 +398,10 @@ export class Preferencias implements OnInit {
             max_caracteres_descripcion_ia: this.maxCaracteresDescripcionIa,
             temperatura_evaluacion: this.temperaturaEvaluacion,
             temperatura_importacion: this.temperaturaImportacion,
+            nivel_real_seniority: this.nivelRealSeniority,
+            conocimientos_ausentes: this.conocimientosAusentes,
+            limitaciones_explicitas: this.limitacionesExplicitas,
+            fecha_importacion_cv: this.fechaImportacionCv,
         };
 
         this.servicio.actualizarPreferencias(datos).subscribe({
@@ -448,6 +468,9 @@ export class Preferencias implements OnInit {
         this.temperaturaEvaluacion = prefs.temperatura_evaluacion ?? 0;
         this.temperaturaImportacion = prefs.temperatura_importacion ?? 0;
         this.fechaImportacionCv = prefs.fecha_importacion_cv ?? null;
+        this.nivelRealSeniority = prefs.nivel_real_seniority ?? 'Junior / Junior avanzado en proyectos propios, sin experiencia formal semi-senior o senior';
+        this.conocimientosAusentes = prefs.conocimientos_ausentes ?? [];
+        this.limitacionesExplicitas = prefs.limitaciones_explicitas ?? '';
         this.preguntasPerfilPendientes = (prefs.preguntas_perfil_pendientes || []) as PreguntaImportacion[];
         const tecnologiasApi = (prefs as any).tecnologias_detalle ?? [];
         const rolesApi = (prefs as any).roles_objetivo_detalle ?? [];
@@ -649,6 +672,27 @@ export class Preferencias implements OnInit {
         this.archivoCvSeleccionado = null;
     }
 
+    /**
+     * Detecta si una pregunta de importación tiene acción automática conocida.
+     * Solo estas palabras clave aplican cambios reales al perfil; el resto
+     * queda como notas informativas pendientes.
+     */
+    preguntaTieneAccionAutomatica(campo: string): boolean {
+        const clavesAccionables = ['react native', 'docker', 'salario', 'soporte'];
+        const texto = (campo || '').toLowerCase();
+        return clavesAccionables.some(clave => texto.includes(clave));
+    }
+
+    /** Preguntas que tienen acción automática (aplicar sugerencia hace un cambio real). */
+    get preguntasAccionables(): PreguntaImportacion[] {
+        return this.preguntasImportacion.filter(p => this.preguntaTieneAccionAutomatica(p.campo));
+    }
+
+    /** Preguntas informativas: todavía no hay acción real, solo guardar como nota. */
+    get preguntasInformativas(): PreguntaImportacion[] {
+        return this.preguntasImportacion.filter(p => !this.preguntaTieneAccionAutomatica(p.campo));
+    }
+
     aceptarSugerenciaImportacion(indice: number): void {
         const pregunta = this.preguntasImportacion[indice];
         if (!pregunta) return;
@@ -694,6 +738,11 @@ export class Preferencias implements OnInit {
             if (!this.keywordsPositivas.includes('soporte de aplicaciones')) {
                 this.keywordsPositivas = [...this.keywordsPositivas, 'soporte de aplicaciones'];
             }
+        } else {
+            // Si no es una pregunta con acción automática conocida,
+            // simplemente guardamos la respuesta como nota pendiente.
+            // El usuario puede editarla después.
+            console.log(`[Importar CV] Pregunta "${pregunta.campo}" sin acción automática. Guardada como nota.`);
         }
 
         this.preguntasImportacion[indice] = {

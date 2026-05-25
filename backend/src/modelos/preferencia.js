@@ -112,6 +112,8 @@ async function actualizarPreferencias(datos) {
         'plataformas_preferidas', 'plataformas_excluidas',
         'max_caracteres_descripcion_ia',
         'temperatura_evaluacion', 'temperatura_importacion',
+        'nivel_real_seniority', 'conocimientos_ausentes', 'limitaciones_explicitas',
+        'fecha_importacion_cv',
     ];
 
     // Campos que son JSONB en PostgreSQL. Necesito stringificarlos

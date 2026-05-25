@@ -42,6 +42,17 @@ const CATALOGO_TECNOLOGIAS = [
     { nombre: 'QA Manual', aliases: [/\bqa\b/i, /\bqa manual\b/i, /\btesting funcional\b/i, /\bqa testing\b/i], categoria: 'testing' },
     { nombre: 'Docker', aliases: [/\bdocker\b/i], categoria: 'herramienta' },
     { nombre: 'AWS', aliases: [/\baws\b/i, /\bamazon web services\b/i], categoria: 'cloud' },
+    { nombre: 'Kotlin', aliases: [/\bkotlin\b/i], categoria: 'lenguaje' },
+    { nombre: 'Go', aliases: [/\bgolang\b/i, /\bgo\b/i], categoria: 'lenguaje' },
+    { nombre: 'Python', aliases: [/\bpython\b/i], categoria: 'lenguaje' },
+    { nombre: 'PHP', aliases: [/\bphp\b/i], categoria: 'lenguaje' },
+    { nombre: 'Ruby', aliases: [/\bruby\b/i, /\brails\b/i], categoria: 'lenguaje' },
+    { nombre: 'Swift', aliases: [/\bswift\b/i], categoria: 'lenguaje' },
+    { nombre: 'GraphQL', aliases: [/\bgraphql\b/i], categoria: 'backend' },
+    { nombre: 'MongoDB', aliases: [/\bmongodb\b/i, /\bmongo\b/i], categoria: 'base_de_datos' },
+    { nombre: 'Firebase', aliases: [/\bfirebase\b/i], categoria: 'cloud' },
+    { nombre: 'Terraform', aliases: [/\bterraform\b/i], categoria: 'cloud' },
+    { nombre: 'Kubernetes', aliases: [/\bkubernetes\b/i, /\bk8s\b/i], categoria: 'cloud' },
 ];
 
 // Patrones para detectar nivel de seniority en la oferta.
@@ -256,8 +267,22 @@ function detectarIdioma(oferta) {
     const parecePortugues = idiomaPrincipal === 'portugues';
     const pareceIngles = idiomaPrincipal === 'ingles';
     const idiomaNoEspanol = parecePortugues || pareceIngles;
-    const penalizacionIdioma = parecePortugues ? 60 : pareceIngles ? 50 : 0;
-    const penalizacion = (requiereAvanzado ? 25 : 0) + penalizacionIdioma;
+
+    // Penalización proporcional al contexto:
+    // - Portugués: siempre muy fuerte (-60), el candidato no lo habla.
+    // - Inglés avanzado explícito (fluent, bilingual, reuniones): fuerte (-50).
+    // - Inglés dominante (texto en inglés pero sin exigir fluidez): leve (-20).
+    //   Muchas ofertas tech publican en inglés aunque el trabajo sea en español.
+    let penalizacionIdioma = 0;
+    if (parecePortugues) {
+        penalizacionIdioma = 60;
+    } else if (requiereAvanzado) {
+        penalizacionIdioma = 50;
+    } else if (pareceIngles) {
+        penalizacionIdioma = 20;
+    }
+
+    const penalizacion = penalizacionIdioma;
 
     return {
         requiereAvanzado,
@@ -364,6 +389,60 @@ function calcularScorePrevio(oferta, perfil) {
     score -= seniority.penalizacion;
     score -= ingles.penalizacion;
 
+    // === Sprint 3: Perfil ampliado ===
+
+    // Penalizar conocimientos ausentes detectados en la oferta.
+    const conocimientosAusentes = Array.isArray(perfil.conocimientos_ausentes)
+        ? perfil.conocimientos_ausentes.filter(c => typeof c === 'string')
+        : [];
+    let penalizacionAusentes = 0;
+    const ausentesDetectados = [];
+
+    if (conocimientosAusentes.length > 0) {
+        const texto = extraerTextoOferta(oferta);
+        for (const conocimiento of conocimientosAusentes) {
+            // Buscar el conocimiento como frase completa o palabras clave.
+            const patron = new RegExp(
+                conocimiento.replace(/[-\s]+/g, '[\\s-]*'),
+                'i'
+            );
+            if (patron.test(texto)) {
+                penalizacionAusentes += 5;
+                ausentesDetectados.push(conocimiento);
+            }
+        }
+        score -= penalizacionAusentes;
+    }
+
+    // Penalizar si la oferta pide un rol demasiado senior vs nivel real.
+    // Usamos nivel_experiencia (campo estructurado: trainee | junior | semi-senior)
+    // en vez de nivel_real_seniority (texto libre) porque el texto puede contener
+    // falsos positivos (p.ej. "sin experiencia senior" incluye la palabra "senior").
+    const nivelExperiencia = perfil.nivel_experiencia || 'junior';
+    const esJunior = nivelExperiencia === 'trainee' || nivelExperiencia === 'junior';
+    const textoOferta = extraerTextoOferta(oferta);
+    let penalizacionRolSenior = 0;
+    const senalesRolAlto = [];
+
+    if (esJunior) {
+        const senalesSenior = [
+            { patron: /\bingeniero\s+de\s+software\b/i, nombre: 'ingeniero de software', puntos: 15 },
+            { patron: /\bsenior\s+software\b/i, nombre: 'senior software', puntos: 20 },
+            { patron: /\b(amplia|sólida|vasta|extensa)\s+experiencia\b/i, nombre: 'experiencia alta requerida', puntos: 10 },
+            { patron: /\b(minimo|al menos)\s+[345]\s+años\b/i, nombre: '3+ años requeridos', puntos: 15 },
+            { patron: /\b(lead|staff|principal)\s+(engineer|developer)\b/i, nombre: 'rol de liderazgo técnico', puntos: 20 },
+            { patron: /\b(arquitecturas?\s+(basadas\s+)?en\s+eventos|event\s+(driven|sourcing))\b/i, nombre: 'arquitectura de eventos', puntos: 5 },
+        ];
+
+        for (const senal of senalesSenior) {
+            if (senal.patron.test(textoOferta)) {
+                penalizacionRolSenior += senal.puntos;
+                senalesRolAlto.push(senal.nombre);
+            }
+        }
+        score -= penalizacionRolSenior;
+    }
+
     // Bonificaciones.
     score += rol.bonificacion;
 
@@ -393,6 +472,15 @@ function calcularScorePrevio(oferta, perfil) {
         rol,
         healthtech: esHealthTech,
         stack_principal_completo: stackCompleto,
+        // Sprint 3: perfil ampliado.
+        perfil_ampliado: {
+            nivel_real_seniority: perfil.nivel_real_seniority || null,
+            conocimientos_ausentes_detectados: ausentesDetectados,
+            penalizacion_ausentes: penalizacionAusentes,
+            senales_rol_alto: senalesRolAlto,
+            penalizacion_rol_senior: penalizacionRolSenior,
+            limitaciones_explicitas: perfil.limitaciones_explicitas || null,
+        },
         version: 'p3_p5_v1',
     };
 }
