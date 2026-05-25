@@ -163,6 +163,7 @@ export class Dashboard implements OnInit {
     // Refresh liviano durante el polling de evaluación.
     // Solo recarga ofertas (sin spinner, sin tocar estado de carga principal).
     // Evita requests superpuestos con una guarda.
+    // Hace merge con el estado local para no pisar optimistic updates en curso.
     onProgresoEvaluacion(): void {
         if (this.refrescandoEnSegundoPlano) return;
         this.refrescandoEnSegundoPlano = true;
@@ -171,9 +172,22 @@ export class Dashboard implements OnInit {
             next: (respuesta) => {
                 this.refrescandoEnSegundoPlano = false;
                 if (respuesta.exito) {
-                    this.ofertas.set(respuesta.datos);
+                    const ofertasActuales = this.ofertas();
+                    const ofertasApi = respuesta.datos;
+
+                    // Merge: si el estado de postulación local difiere del backend,
+                    // preservamos el local (optimistic update en curso).
+                    const ofertasMergeadas = ofertasApi.map(api => {
+                        const local = ofertasActuales.find(o => o.id === api.id);
+                        if (local && local.estado_postulacion !== api.estado_postulacion) {
+                            return { ...api, estado_postulacion: local.estado_postulacion };
+                        }
+                        return api;
+                    });
+
+                    this.ofertas.set(ofertasMergeadas);
                     this.persistenciaDashboard.guardarCache({
-                        ofertas: respuesta.datos,
+                        ofertas: ofertasMergeadas,
                         estadisticas: null,
                         fechaGuardado: new Date().toISOString(),
                     });
@@ -194,10 +208,20 @@ export class Dashboard implements OnInit {
 
     // Cuando se actualiza una postulación desde un hijo, forzamos la
     // re-evaluación de los computed signals sin recargar todas las ofertas.
-    // El objeto oferta ya fue mutado localmente por el componente hijo,
+    // El objeto oferta ya fue mutado con optimistic update en el hijo,
     // así que solo necesitamos que Angular detecte el cambio.
+    // Además invalidamos el cache local para que no muestre datos viejos
+    // en caso de recarga.
     onAccionCompletada(): void {
         this.ofertas.update(arr => [...arr]);
+        this.datosDesdeCache.set(false);
+
+        // Actualizar cache con el estado actual para no perder cambios.
+        this.persistenciaDashboard.guardarCache({
+            ofertas: this.ofertas(),
+            estadisticas: null,
+            fechaGuardado: new Date().toISOString(),
+        });
     }
 
     // Cuando la tabla dispara una acción masiva de postulación.

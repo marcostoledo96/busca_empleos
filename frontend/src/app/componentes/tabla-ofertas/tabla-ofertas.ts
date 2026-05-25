@@ -207,17 +207,38 @@ export class TablaOfertas {
         }
     }
 
-    // Cambia el estado de postulación de una oferta vía API.
+    // Cambia el estado de postulación con optimistic update.
+    // El cambio se ve instantáneo; si el backend falla, se revierte solo.
     cambiarPostulacion(oferta: Oferta, nuevoEstado: string): void {
         if (this.modoDemo()) return;
+
+        const estadoAnterior = oferta.estado_postulacion;
+        const estado = nuevoEstado as Oferta['estado_postulacion'];
+
+        // 1. Optimistic update — se refleja en la UI al instante.
+        oferta.estado_postulacion = estado;
+        this.postulacionActualizada.emit();
+
+        // 2. Persistir en el backend.
         this.ofertasService.actualizarPostulacion(oferta.id, nuevoEstado).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito) {
+                    // Confirmar con los datos reales del backend.
                     oferta.estado_postulacion = respuesta.datos.estado_postulacion;
                     this.postulacionActualizada.emit();
+                } else {
+                    // Revertir si el backend respondió pero con error lógico.
+                    oferta.estado_postulacion = estadoAnterior;
+                    this.postulacionActualizada.emit();
+                    console.error('Error al actualizar postulación:', respuesta.error);
                 }
             },
-            error: (error) => console.error('Error al actualizar postulación:', error)
+            error: (error) => {
+                // Revertir si falló la red o el servidor.
+                oferta.estado_postulacion = estadoAnterior;
+                this.postulacionActualizada.emit();
+                console.error('Error al actualizar postulación:', error);
+            }
         });
     }
 

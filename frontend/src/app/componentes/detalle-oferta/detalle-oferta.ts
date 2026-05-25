@@ -115,15 +115,34 @@ export class DetalleOferta {
         if (!o) return;
         if (this.modoDemo()) return;
 
+        const estadoAnterior = o.estado_postulacion;
+        const estado = nuevoEstado as Oferta['estado_postulacion'];
+
+        // 1. Optimistic update — se refleja en la UI al instante.
+        o.estado_postulacion = estado;
+        this.postulacionActualizada.emit();
+        this.visible.set(false);
+
+        // 2. Persistir en el backend.
         this.ofertasService.actualizarPostulacion(o.id, nuevoEstado).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito) {
+                    // Confirmar con los datos reales del backend.
                     o.estado_postulacion = respuesta.datos.estado_postulacion;
                     this.postulacionActualizada.emit();
-                    this.visible.set(false);
+                } else {
+                    // Revertir si el backend respondió con error lógico.
+                    o.estado_postulacion = estadoAnterior;
+                    this.postulacionActualizada.emit();
+                    console.error('Error al actualizar postulación:', respuesta.error);
                 }
             },
-            error: (error) => console.error('Error al actualizar postulación:', error)
+            error: (error) => {
+                // Revertir si falló la red o el servidor.
+                o.estado_postulacion = estadoAnterior;
+                this.postulacionActualizada.emit();
+                console.error('Error al actualizar postulación:', error);
+            }
         });
     }
 }

@@ -31,7 +31,8 @@
                     placeholder="Cambiar estado a..."
                     size="small"
                     ariaLabel="Seleccionar estado para acción masiva"
-                    [style]="{ minWidth: '170px' }" />
+                    [style]="{ minWidth: '170px' }"
+                    appendTo="body" />
                 <button
                     class="btn-bulk-aplicar"
                     [disabled]="!estadoBulkSeleccionado"
@@ -149,6 +150,7 @@
                         styleClass="select-postulacion"
                         [style]="{ width: '100%', minWidth: '130px' }"
                         size="small"
+                        appendTo="body"
                         [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                 </td>
                 <td class="columna-extraida celda-mono celda-fecha">
@@ -254,6 +256,7 @@
                                 optionValue="value"
                                 [style]="{ minWidth: '130px' }"
                                 size="small"
+                                appendTo="body"
                                 (click)="$event.stopPropagation()"
                                 [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                         } @else {
