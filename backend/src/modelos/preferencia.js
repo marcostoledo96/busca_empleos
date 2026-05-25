@@ -86,23 +86,41 @@ async function crearPreferenciasPorDefecto() {
  * @returns {Object|null} Las preferencias actualizadas, o null si no existe la fila.
  */
 async function actualizarPreferencias(datos) {
+    // Si viene tecnologias_detalle pero no viene stack_tecnologico, lo derivo
+    // automáticamente para mantener compatibilidad con el prompt y código viejo.
+    if (datos.tecnologias_detalle !== undefined && datos.stack_tecnologico === undefined) {
+        datos.stack_tecnologico = datos.tecnologias_detalle
+            .filter(tech => tech && tech.nombre && tech.nivel !== 'ninguno')
+            .map(tech => tech.nombre)
+            .filter((nombre, index, arr) => arr.indexOf(nombre) === index);
+    }
+
     // Defino los campos que se pueden actualizar.
     // Si alguien manda un campo que no está en esta lista, se ignora.
     // Esto previene que se modifiquen campos internos como id o fecha_creacion.
     const camposPermitidos = [
-        'nombre',
-        'nivel_experiencia',
-        'perfil_profesional',
-        'idioma_candidato',
-        'stack_tecnologico',
-        'modalidad_aceptada',
-        'zonas_preferidas',
-        'terminos_busqueda',
-        'reglas_exclusion',
-        'prompt_personalizado',
-        'usar_prompt_personalizado',
-        'modelo_ia',
+        'nombre', 'nivel_experiencia', 'perfil_profesional', 'idioma_candidato',
+        'stack_tecnologico', 'modalidad_aceptada', 'zonas_preferidas',
+        'terminos_busqueda', 'reglas_exclusion',
+        'prompt_personalizado', 'usar_prompt_personalizado', 'modelo_ia',
+        'tecnologias_detalle', 'roles_objetivo_detalle', 'scoring_config',
+        'preguntas_perfil_pendientes',
+        'modelo_ia_evaluacion', 'modelo_ia_importacion',
+        'disponibilidad', 'expectativa_salarial_min', 'expectativa_salarial_max',
+        'moneda_salarial', 'nivel_ingles_detalle',
+        'keywords_positivas', 'keywords_negativas',
+        'plataformas_preferidas', 'plataformas_excluidas',
+        'max_caracteres_descripcion_ia',
+        'temperatura_evaluacion', 'temperatura_importacion',
     ];
+
+    // Campos que son JSONB en PostgreSQL. Necesito stringificarlos
+    // explícitamente porque el driver pg puede no serializarlos bien
+    // en ciertas versiones de Railway.
+    const camposJsonb = new Set([
+        'tecnologias_detalle', 'roles_objetivo_detalle', 'scoring_config',
+        'preguntas_perfil_pendientes', 'nivel_ingles_detalle',
+    ]);
 
     // Filtro solo los campos permitidos que vengan en datos.
     const camposActualizar = [];
@@ -110,7 +128,10 @@ async function actualizarPreferencias(datos) {
 
     for (const campo of camposPermitidos) {
         if (datos[campo] !== undefined) {
-            valores.push(datos[campo]);
+            const valor = camposJsonb.has(campo)
+                ? JSON.stringify(datos[campo])
+                : datos[campo];
+            valores.push(valor);
             camposActualizar.push(`${campo} = $${valores.length}`);
         }
     }
@@ -118,6 +139,20 @@ async function actualizarPreferencias(datos) {
     // Si no hay nada que actualizar, retorno las preferencias actuales.
     if (camposActualizar.length === 0) {
         return obtenerPreferencias();
+    }
+
+    // Guardo backup de las preferencias actuales antes de sobrescribir.
+    // El campo backup_preferencias guarda una copia completa de la fila anterior.
+    try {
+        const actuales = await pool.query('SELECT * FROM preferencias WHERE id = $1', [ID_PREFERENCIAS]);
+        if (actuales.rows.length > 0) {
+            await pool.query(
+                'UPDATE preferencias SET backup_preferencias = $1::jsonb WHERE id = $2',
+                [JSON.stringify(actuales.rows[0]), ID_PREFERENCIAS]
+            );
+        }
+    } catch {
+        // Si falla el backup, no bloqueo la actualización.
     }
 
     // Siempre actualizo fecha_actualizacion al momento actual.
