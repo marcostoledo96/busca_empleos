@@ -256,6 +256,15 @@ async function actualizarPreferencias(req, res) {
     if (datos.zonas_preferidas !== undefined) {
         if (!Array.isArray(datos.zonas_preferidas)) {
             errores.push('zonas_preferidas debe ser un array.');
+        } else if (datos.zonas_preferidas.length > 0) {
+            // Validar contra zonas del enum si los valores no son conocidos
+            // Permitimos valores personalizados del CV, pero no arrays vacíos.
+            const zonasInvalidas = datos.zonas_preferidas.filter(
+                z => typeof z !== 'string' || z.trim().length === 0
+            );
+            if (zonasInvalidas.length > 0) {
+                errores.push('zonas_preferidas contiene valores inválidos.');
+            }
         }
     }
 
@@ -353,6 +362,15 @@ async function actualizarPreferencias(req, res) {
     const errorTempImport = validarNumeroEnRango(datos.temperatura_importacion, 'temperatura_importacion', 0, 1);
     if (errorTempImport) errores.push(errorTempImport);
 
+    const errorAniosExperiencia = validarNumeroEnRango(datos.anios_experiencia_reales, 'anios_experiencia_reales', 0, 50);
+    if (errorAniosExperiencia) errores.push(errorAniosExperiencia);
+
+    // Si viene scoring_config.penalizaciones.anio_experiencia_excedente, validar rango.
+    if (datos.scoring_config?.penalizaciones?.anio_experiencia_excedente !== undefined) {
+        const errorPenExp = validarNumeroEnRango(datos.scoring_config.penalizaciones.anio_experiencia_excedente, 'scoring_config.penalizaciones.anio_experiencia_excedente', 0, 50);
+        if (errorPenExp) errores.push(errorPenExp);
+    }
+
     // Si hay errores de validación, respondo 400 con todos los errores juntos.
     if (errores.length > 0) {
         return res.status(400).json({
@@ -390,7 +408,7 @@ async function actualizarPreferencias(req, res) {
     console.error('[PUT /api/preferencias] Error interno:', err.message, err.stack);
     return res.status(500).json({
         exito: false,
-        error: `Error interno al guardar: ${err.message}`,
+        error: 'Error interno al guardar preferencias.',
     });
 }
 }

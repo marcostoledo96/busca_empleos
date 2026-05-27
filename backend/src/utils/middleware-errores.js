@@ -43,6 +43,24 @@ function manejarErrores(error, req, res, next) {
         return next(error);
     }
 
+    // Soporte para errores de Multer (upload de archivos).
+    // MulterError indica problemas de validación de archivo (tipo, tamaño) que deben
+    // responderse como 400/413 en lugar de 500 genérico.
+    if (error.name === 'MulterError') {
+        // MulterError.LIMIT_FILE_SIZE = archivo supera fileSize.
+        if (error.code === 'LIMIT_FILE_SIZE') {
+            return res.status(413).json({
+                exito: false,
+                error: 'El archivo supera el tamaño máximo permitido (1MB).',
+            });
+        }
+        // Otros MulterError (tipo, límite de campos, etc.) → 400 Bad Request.
+        return res.status(400).json({
+            exito: false,
+            error: error.message || 'Error al procesar el archivo adjunto.',
+        });
+    }
+
     // Si el error tiene un statusCode personalizado (ej: 400, 404), lo uso.
     // Si no, es un error interno del servidor (500).
     const statusCode = error.statusCode || 500;

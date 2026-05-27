@@ -302,5 +302,22 @@ describe('Controlador de preferencias', () => {
             expect(res.body.error).toContain('stack_tecnologico');
             expect(modeloPreferencia.actualizarPreferencias).not.toHaveBeenCalled();
         });
+
+        test('no filtra mensajes de error interno al cliente en error 500', async () => {
+            modeloPreferencia.actualizarPreferencias.mockRejectedValue(
+                new Error('relation "preferencias" does not exist — este es un detalle interno de BD')
+            );
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ nombre: 'Nuevo nombre' });
+
+            expect(res.status).toBe(500);
+            expect(res.body.exito).toBe(false);
+            // El mensaje debe ser genérico, NO contener el error real de BD.
+            expect(res.body.error).toBe('Error interno al guardar preferencias.');
+            expect(res.body.error).not.toContain('does not exist');
+            expect(res.body.error).not.toContain('relation');
+        });
     });
 });

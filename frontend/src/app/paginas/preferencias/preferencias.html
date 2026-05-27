@@ -59,6 +59,10 @@
 
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo">
+                                    <label class="campo-etiqueta" for="aniosExperiencia">Años reales de experiencia</label>
+                                    <input id="aniosExperiencia" type="number" class="input-dias-reset" [(ngModel)]="aniosExperienciaReales" min="0" max="50" placeholder="Ej: 1" />
+                                </div>
+                                <div class="campo">
                                     <label class="campo-etiqueta" for="salarioMin">Salario mínimo</label>
                                     <input id="salarioMin" type="number" class="input-dias-reset" [(ngModel)]="expectativaSalarialMin" placeholder="Ej: 700000" />
                                 </div>
@@ -244,6 +248,7 @@
                                 <div class="campo"><label class="campo-etiqueta">Senior</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['senior']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Lead/Architect</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['sr_director']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Tec. desconocida</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['tecnologia_desconocida_importante']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Año extra exp.</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['anio_experiencia_excedente']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Inglés avanzado</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['ingles_avanzado']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Soporte hardware</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['soporte_hardware']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">QA no software</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['qa_no_software']" /></div>

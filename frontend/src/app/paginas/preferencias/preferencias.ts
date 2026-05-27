@@ -105,6 +105,7 @@ export class Preferencias implements OnInit {
     temperaturaEvaluacion = 0;
     temperaturaImportacion = 0;
     fechaImportacionCv: string | null = null;
+    aniosExperienciaReales: number | null = 1;
     tabActiva = signal(0);
     nivelRealSeniority = 'Junior / Junior avanzado en proyectos propios, sin experiencia formal semi-senior o senior';
     conocimientosAusentes: string[] = [];
@@ -270,6 +271,7 @@ export class Preferencias implements OnInit {
                 senior: 20,
                 sr_director: 30,
                 tecnologia_desconocida_importante: 5,
+                anio_experiencia_excedente: 5,
                 ingles_avanzado: 25,
                 soporte_hardware: 15,
                 qa_no_software: 20,
@@ -325,6 +327,7 @@ export class Preferencias implements OnInit {
         this.modeloIaImportacion = 'deepseek-v4-pro';
         this.disponibilidad = 'full_time';
         this.monedaSalarial = 'NO_FILTRAR';
+        this.aniosExperienciaReales = 1;
         this.keywordsPositivas = ['healthtech', 'angular', 'frontend'];
         this.keywordsNegativas = ['java', 'cableado', 'soporte hardware'];
         this.plataformasPreferidas = ['linkedin', 'getonbrd'];
@@ -398,6 +401,7 @@ export class Preferencias implements OnInit {
             max_caracteres_descripcion_ia: this.maxCaracteresDescripcionIa,
             temperatura_evaluacion: this.temperaturaEvaluacion,
             temperatura_importacion: this.temperaturaImportacion,
+            anios_experiencia_reales: this.aniosExperienciaReales,
             nivel_real_seniority: this.nivelRealSeniority,
             conocimientos_ausentes: this.conocimientosAusentes,
             limitaciones_explicitas: this.limitacionesExplicitas,
@@ -468,6 +472,7 @@ export class Preferencias implements OnInit {
         this.temperaturaEvaluacion = prefs.temperatura_evaluacion ?? 0;
         this.temperaturaImportacion = prefs.temperatura_importacion ?? 0;
         this.fechaImportacionCv = prefs.fecha_importacion_cv ?? null;
+        this.aniosExperienciaReales = prefs.anios_experiencia_reales ?? 1;
         this.nivelRealSeniority = prefs.nivel_real_seniority ?? 'Junior / Junior avanzado en proyectos propios, sin experiencia formal semi-senior o senior';
         this.conocimientosAusentes = prefs.conocimientos_ausentes ?? [];
         this.limitacionesExplicitas = prefs.limitaciones_explicitas ?? '';
@@ -557,6 +562,7 @@ export class Preferencias implements OnInit {
                 senior: 20,
                 sr_director: 30,
                 tecnologia_desconocida_importante: 5,
+                anio_experiencia_excedente: 5,
                 ingles_avanzado: 25,
                 soporte_hardware: 15,
                 qa_no_software: 20,
@@ -734,6 +740,7 @@ export class Preferencias implements OnInit {
             this.expectativaSalarialMin = null;
             this.expectativaSalarialMax = null;
             this.monedaSalarial = 'NO_FILTRAR';
+        this.aniosExperienciaReales = 1;
         } else if (campo.includes('soporte')) {
             if (!this.keywordsPositivas.includes('soporte de aplicaciones')) {
                 this.keywordsPositivas = [...this.keywordsPositivas, 'soporte de aplicaciones'];

@@ -64,6 +64,7 @@ export interface Preferencias {
     temperatura_importacion?: number;
     backup_preferencias?: Record<string, unknown> | null;
     fecha_importacion_cv?: string | null;
+    anios_experiencia_reales?: number | null;
     nivel_real_seniority?: string | null;
     conocimientos_ausentes?: string[];
     limitaciones_explicitas?: string | null;

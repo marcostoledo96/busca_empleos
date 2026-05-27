@@ -123,7 +123,14 @@ describe('Controlador de ofertas', () => {
     });
 
     describe('GET /api/ofertas/diagnostico/persistencia', () => {
-        test('retorna el diagnostico de persistencia visible por la API', async () => {
+        test('retorna el diagnostico sanitizado cuando está habilitado', async () => {
+            // Simulamos que el diagnóstico está habilitado
+            const habilitadoOriginal = process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA;
+            process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA = 'true';
+            // Garantizamos que no estamos en producción
+            const nodeEnvOriginal = process.env.NODE_ENV;
+            process.env.NODE_ENV = 'development';
+
             baseDatos.obtenerDiagnosticoPersistencia.mockResolvedValue({
                 configuracion: {
                     host: 'localhost',
@@ -145,9 +152,51 @@ describe('Controlador de ofertas', () => {
 
             expect(res.status).toBe(200);
             expect(res.body.exito).toBe(true);
-            expect(res.body.datos.configuracion.baseDatos).toBe('busca_empleos');
-            expect(res.body.datos.conexion.total_ofertas).toBe(12);
+            // Verificamos que NO vengan datos sensibles
+            expect(res.body.datos).not.toHaveProperty('configuracion');
+            expect(res.body.datos).not.toHaveProperty('conexion');
+            expect(res.body.datos).not.toHaveProperty('host');
+            expect(res.body.datos).not.toHaveProperty('usuario');
+            // Verificamos que vengan los datos sanitizados
+            expect(res.body.datos.base_de_datos).toBe('busca_empleos');
+            expect(res.body.datos.tabla_ofertas_existe).toBe(true);
+            expect(res.body.datos.total_ofertas).toBe(12);
             expect(res.body.datos.fecha_consulta).toBeDefined();
+
+            // Restauramos las variables
+            process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA = habilitadoOriginal;
+            process.env.NODE_ENV = nodeEnvOriginal;
+        });
+
+        test('retorna 404 cuando el diagnóstico está deshabilitado', async () => {
+            const habilitadoOriginal = process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA;
+            process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA = '';
+            const nodeEnvOriginal = process.env.NODE_ENV;
+            process.env.NODE_ENV = 'development';
+
+            const res = await request(app).get('/api/ofertas/diagnostico/persistencia');
+
+            expect(res.status).toBe(404);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('No encontrado');
+
+            process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA = habilitadoOriginal;
+            process.env.NODE_ENV = nodeEnvOriginal;
+        });
+
+        test('retorna 404 en producción aunque esté habilitado', async () => {
+            const habilitadoOriginal = process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA;
+            process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA = 'true';
+            const nodeEnvOriginal = process.env.NODE_ENV;
+            process.env.NODE_ENV = 'production';
+
+            const res = await request(app).get('/api/ofertas/diagnostico/persistencia');
+
+            expect(res.status).toBe(404);
+            expect(res.body.exito).toBe(false);
+
+            process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA = habilitadoOriginal;
+            process.env.NODE_ENV = nodeEnvOriginal;
         });
     });
 

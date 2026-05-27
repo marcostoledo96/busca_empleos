@@ -42,6 +42,7 @@ const { rutaNoEncontrada, manejarErrores } = require('./utils/middleware-errores
 
 // Importo el middleware de autenticación Firebase.
 const { verificarAuth } = require('./utils/middleware-auth');
+const controladorPreferencias = require('./controladores/controlador-preferencias');
 
 const app = express();
 
@@ -69,6 +70,14 @@ const origenesConfigurados = (process.env.CORS_ORIGEN || '')
     .split(',')
     .map((origen) => origen.trim())
     .filter(Boolean);
+
+// En producción exigimos CORS_ORIGEN explícito. No usamos defaults en prod
+// para evitar que cualquier origen pase si la variable falta.
+if (process.env.NODE_ENV === 'production' && origenesConfigurados.length === 0) {
+    throw new Error(
+        'CORS_ORIGEN es obligatorio en producción. Configuralo con los orígenes permitidos del frontend.'
+    );
+}
 
 const origenesPermitidos = origenesConfigurados.length > 0
     ? origenesConfigurados
@@ -124,6 +133,22 @@ const limitadorCostoso = esTest
         validate: { xForwardedForHeader: false },
     });
 
+// Rate limiter para importación de CV — consume IA cara (deepseek-v4-pro).
+// Permitimos 2 requests cada 5 minutos. En test se desactiva para no bloquear tests.
+const limitadorImportacionCv = esTest
+    ? (req, res, next) => next()
+    : rateLimit({
+        windowMs: 5 * 60 * 1000, // 5 minutos
+        max: 2,                  // máximo 2 requests por ventana
+        message: {
+            exito: false,
+            error: 'Demasiadas solicitudes de análisis de CV. Esperá 5 minutos antes de intentar de nuevo.',
+        },
+        standardHeaders: true,
+        legacyHeaders: false,
+        validate: { xForwardedForHeader: false },
+    });
+
 // === Rutas ===
 
 // Endpoint de salud — público, sin autenticación.
@@ -167,6 +192,36 @@ app.post('/api/evaluacion/cancelar', controladorEvaluacion.cancelarEvaluacion);
 app.use('/api/scraping', limitadorCostoso, rutasScraping);
 app.use('/api/evaluacion', limitadorCostoso, rutasEvaluacion);
 app.use('/api/automatizacion', limitadorCostoso, rutasAutomatizacion);
+
+// Importar CV consume IA cara (deepseek-v4-pro) — rate limit separado.
+// Se monta ANTES del router general de preferencias para que esta ruta específica
+// tenga su propio rate limit sin afectar GET/PUT de preferencias.
+// Usamos multer inline para procesar el archivo antes de llegar al controlador.
+const Multer = require('multer');
+const uploadCvLimitado = Multer({
+    storage: Multer.memoryStorage(),
+    limits: { fileSize: 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        const nombreOk = file.originalname.toLowerCase().endsWith('.md');
+        const mimeOk = ['text/markdown', 'text/plain', 'application/octet-stream'].includes(file.mimetype);
+
+        if (!nombreOk || !mimeOk) {
+            const error = new Error('Solo se permiten archivos Markdown (.md)');
+            error.statusCode = 400;
+            return cb(error);
+        }
+
+        cb(null, true);
+    },
+});
+app.post(
+    '/api/preferencias/importar-cv/analizar',
+    limitadorImportacionCv,
+    uploadCvLimitado.single('cv'),
+    controladorPreferencias.analizarCvMarkdown
+);
+
+// El resto de preferencias (GET/PUT) va sin rate limit.
 app.use('/api/preferencias', rutasPreferencias);
 
 // === Manejo de errores ===

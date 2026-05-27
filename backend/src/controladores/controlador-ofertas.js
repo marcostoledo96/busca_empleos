@@ -64,20 +64,30 @@ async function obtenerEstadisticas(req, res) {
  * la base correcta y cuántas ofertas persistidas ve en este momento.
  */
 async function obtenerDiagnosticoPersistencia(req, res) {
-    // Este endpoint expone metadatos internos de la base de datos (host, usuario, puerto).
-    // En producción no tiene utilidad y representa un riesgo innecesario.
-    if (process.env.NODE_ENV === 'production') {
+    // Este endpoint expone metadatos internos de la base de datos.
+    // Solo se habilita si la variable explícita está seteada, nunca en producción por defecto.
+    const habilitado = process.env.HABILITAR_DIAGNOSTICO_PERSISTENCIA === 'true';
+
+    if (!habilitado || process.env.NODE_ENV === 'production') {
         return res.status(404).json({ exito: false, error: 'No encontrado' });
     }
 
     const diagnostico = await baseDatos.obtenerDiagnosticoPersistencia();
 
+    const conexion = diagnostico.conexion || {};
+
+    const sanitizado = {
+        base_de_datos: conexion.base_datos_actual || null,
+        tabla_ofertas_existe: conexion.tabla_ofertas_existe || false,
+        total_ofertas: conexion.total_ofertas || 0,
+        estrategia: diagnostico.resumen?.estrategia || null,
+        ssl_activo: diagnostico.resumen?.usaSsl || false,
+        fecha_consulta: new Date().toISOString(),
+    };
+
     res.json({
         exito: true,
-        datos: {
-            ...diagnostico,
-            fecha_consulta: new Date().toISOString(),
-        },
+        datos: sanitizado,
     });
 }
 
