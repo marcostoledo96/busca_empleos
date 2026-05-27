@@ -104,8 +104,8 @@ async function obtenerOfertas(filtros = {}) {
 
     // Paginación con valores seguros.
     let limite = parseInt(filtros.limite_pagina, 10);
-    if (!Number.isFinite(limite) || limite < 1) limite = 30;
-    if (limite > 100) limite = 100;
+    if (!Number.isFinite(limite) || limite < 1) limite = 1000;
+    if (limite > 1000) limite = 1000;
 
     let pagina = parseInt(filtros.pagina, 10);
     if (!Number.isFinite(pagina) || pagina < 1) pagina = 1;
