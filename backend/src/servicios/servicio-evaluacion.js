@@ -777,6 +777,32 @@ async function evaluarOfertasPendientes() {
     }
 }
 
+/**
+ * Rehidrata el progreso de evaluación desde el último lote persistido en BD.
+ * Se ejecuta al arrancar el servidor para recuperar el estado si se reinició.
+ */
+async function rehidratarProgreso() {
+    try {
+        const lote = await evaluacionLote.obtenerUltimoLote();
+
+        if (lote && lote.estado === 'activo') {
+            progresoEvaluacion = {
+                activo: true,
+                total: lote.total,
+                evaluadas: lote.evaluadas,
+                aprobadas: lote.aprobadas,
+                rechazadas: lote.rechazadas,
+                errores: lote.errores,
+                porcentaje: lote.porcentaje,
+            };
+
+            console.log(`[Evaluación] Progreso rehidratado: lote #${lote.id}, ${lote.porcentaje}%`);
+        }
+    } catch (err) {
+        console.warn('[Evaluación] No se pudo rehidratar el progreso:', err.message);
+    }
+}
+
 module.exports = {
     construirPromptEvaluacion,
     construirPerfilDesdePreferencias,
@@ -787,4 +813,5 @@ module.exports = {
     evaluarOfertasPendientes,
     obtenerProgresoEvaluacion,
     cancelarEvaluacionPendiente,
+    rehidratarProgreso,
 };

@@ -6,6 +6,7 @@
 
 const app = require('./app');
 const baseDatos = require('./config/base-datos');
+const servicioEvaluacion = require('./servicios/servicio-evaluacion');
 
 // Railway (y la mayoría de PaaS) inyectan PORT automáticamente.
 // Respeto PORT primero, luego PUERTO como fallback para desarrollo local.
@@ -62,9 +63,10 @@ async function iniciarServidor() {
                 : 'la tabla ofertas todavía no existe.'
         );
 
-        app.listen(PUERTO, () => {
+        app.listen(PUERTO, async () => {
             console.log(`Servidor escuchando en http://localhost:${PUERTO}`);
             console.log(`Entorno: ${process.env.NODE_ENV || 'development'}`);
+            await servicioEvaluacion.rehidratarProgreso();
         });
     } catch (error) {
         console.error('No pude iniciar el backend porque falló la conexión a PostgreSQL.');

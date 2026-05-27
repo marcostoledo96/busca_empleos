@@ -9,15 +9,27 @@
 
 const servicioEvaluacion = require('../servicios/servicio-evaluacion');
 const modeloOferta = require('../modelos/oferta');
+const bloqueo = require('../utils/bloqueo-concurrente');
 
 /**
  * POST /api/evaluacion/ejecutar
  * Inicio la evaluación en segundo plano y respondo de inmediato.
  * El cliente consulta /progreso hasta que activo === false.
  */
-function ejecutarEvaluacion(req, res) {
+async function ejecutarEvaluacion(req, res) {
+    // Intento adquirir un Advisory Lock para evitar evaluaciones simultáneas.
+    const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
+    if (!lock.ok) {
+        return res.status(409).json({
+            exito: false,
+            mensaje: 'Ya hay una evaluación en curso.',
+        });
+    }
+
+    // Verifico si ya hay una evaluación activa (doble chequeo).
     const progreso = servicioEvaluacion.obtenerProgresoEvaluacion();
     if (progreso.activo) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
         return res.status(409).json({
             exito: false,
             mensaje: 'Ya hay una evaluación en curso.',
@@ -26,9 +38,13 @@ function ejecutarEvaluacion(req, res) {
 
     // Lanzamos sin await: el controlador responde inmediatamente
     // y la evaluación corre en segundo plano en el mismo proceso de Node.js.
-    servicioEvaluacion.evaluarOfertasPendientes().catch((error) => {
-        console.error('[Evaluación] Error en segundo plano:', error.message);
-    });
+    servicioEvaluacion.evaluarOfertasPendientes()
+        .catch((error) => {
+            console.error('[Evaluación] Error en segundo plano:', error.message);
+        })
+        .finally(async () => {
+            await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        });
 
     res.json({
         exito: true,

@@ -34,13 +34,24 @@ async function listarOfertas(req, res) {
     if (req.query.estado_postulacion) filtros.estado_postulacion = req.query.estado_postulacion;
     if (req.query.ordenar_por) filtros.ordenar_por = req.query.ordenar_por;
     if (req.query.direccion) filtros.direccion = req.query.direccion;
+    if (req.query.limite_pagina) filtros.limite_pagina = req.query.limite_pagina;
+    if (req.query.pagina) filtros.pagina = req.query.pagina;
 
-    const ofertas = await modeloOferta.obtenerOfertas(filtros);
+    const resultado = await modeloOferta.obtenerOfertas(filtros);
+
+    // Compatibilidad con mocks legacy que retornan un array directamente.
+    const esArrayLegacy = Array.isArray(resultado);
+    const ofertas = esArrayLegacy ? resultado : resultado.ofertas;
+    const total = esArrayLegacy ? resultado.length : resultado.total;
+    const pagina = esArrayLegacy ? 1 : resultado.pagina;
+    const limitePagina = esArrayLegacy ? ofertas.length : resultado.limite_pagina;
 
     res.json({
         exito: true,
         datos: ofertas,
-        total: ofertas.length,
+        total,
+        pagina,
+        limite_pagina: limitePagina,
     });
 }
 
@@ -187,6 +198,14 @@ async function actualizarPostulacionMasiva(req, res) {
         return res.status(400).json({
             exito: false,
             error: 'El campo ids debe ser un array no vacío de números enteros positivos.',
+        });
+    }
+
+    const MAXIMO_BULK = 200;
+    if (ids.length > MAXIMO_BULK) {
+        return res.status(400).json({
+            exito: false,
+            error: `No se pueden procesar más de ${MAXIMO_BULK} IDs en una sola operación.`,
         });
     }
 

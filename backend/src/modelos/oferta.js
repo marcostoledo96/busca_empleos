@@ -60,10 +60,10 @@ async function crearOferta(datos) {
 }
 
 /**
- * Obtengo ofertas de la base de datos, con filtros opcionales.
+ * Obtengo ofertas de la base de datos, con filtros y paginación opcionales.
  *
- * @param {Object} filtros - Filtros opcionales: { estado, plataforma }.
- * @returns {Array} Lista de ofertas que coinciden con los filtros.
+ * @param {Object} filtros - Filtros opcionales: { estado, plataforma, limite_pagina, pagina }.
+ * @returns {Object} { ofertas, total, pagina, limite_pagina }.
  */
 async function obtenerOfertas(filtros = {}) {
     // Construyo la query dinámicamente según los filtros que vengan.
@@ -102,13 +102,35 @@ async function obtenerOfertas(filtros = {}) {
         : 'fecha_extraccion';
     const direccion = filtros.direccion === 'ASC' ? 'ASC' : 'DESC';
 
-    // NULLS LAST para que las ofertas sin fecha o sin porcentaje queden al final.
-    const resultado = await pool.query(
-        `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST`,
+    // Paginación con valores seguros.
+    let limite = parseInt(filtros.limite_pagina, 10);
+    if (!Number.isFinite(limite) || limite < 1) limite = 30;
+    if (limite > 100) limite = 100;
+
+    let pagina = parseInt(filtros.pagina, 10);
+    if (!Number.isFinite(pagina) || pagina < 1) pagina = 1;
+
+    const offset = (pagina - 1) * limite;
+
+    // Query de conteo total (sin LIMIT/OFFSET).
+    const totalResultado = await pool.query(
+        `SELECT COUNT(*)::integer AS total FROM ofertas ${clausulaWhere}`,
         parametros
     );
+    const total = totalResultado.rows[0].total;
 
-    return resultado.rows;
+    // Query paginada.
+    const resultado = await pool.query(
+        `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST LIMIT $${parametros.length + 1} OFFSET $${parametros.length + 2}`,
+        [...parametros, limite, offset]
+    );
+
+    return {
+        ofertas: resultado.rows,
+        total,
+        pagina,
+        limite_pagina: limite,
+    };
 }
 
 /**

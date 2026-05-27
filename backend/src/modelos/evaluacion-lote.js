@@ -60,6 +60,19 @@ async function actualizarProgreso(loteId, progreso) {
  * @param {number} loteId - ID del lote.
  * @param {string} estado - Estado final ('completado' o 'cancelado').
  */
+/**
+ * Obtiene el último lote de evaluación creado.
+ *
+ * @returns {Object|null} El último lote, o null si no hay lotes.
+ */
+async function obtenerUltimoLote() {
+    const resultado = await pool.query(
+        `SELECT * FROM evaluacion_lotes ORDER BY creado_en DESC LIMIT 1`
+    );
+
+    return resultado.rows.length > 0 ? resultado.rows[0] : null;
+}
+
 async function finalizarLote(loteId, estado = 'completado') {
     await pool.query(
         `UPDATE evaluacion_lotes
@@ -73,4 +86,5 @@ module.exports = {
     crearLote,
     actualizarProgreso,
     finalizarLote,
+    obtenerUltimoLote,
 };
