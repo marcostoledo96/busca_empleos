@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, input, model, output, ViewChild, effect } from '@angular/core';
+import { Component, ElementRef, inject, input, model, output, effect, OnDestroy } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
@@ -12,7 +12,7 @@ import { OfertasService } from '../../servicios/ofertas.service';
     templateUrl: './detalle-oferta.html',
     styleUrl: './detalle-oferta.css'
 })
-export class DetalleOferta {
+export class DetalleOferta implements OnDestroy {
 
     private readonly ofertasService = inject(OfertasService);
 
@@ -28,6 +28,10 @@ export class DetalleOferta {
     // Evento que emite cuando se actualiza la postulación.
     readonly postulacionActualizada = output<void>();
 
+    // Evento que emite cuando inicia o termina un optimistic update de postulación.
+    // pendiente = true cuando empieza, false cuando termina (éxito o error).
+    readonly postulacionPendiente = output<{ id: number; pendiente: boolean }>();
+
     readonly opcionesPostulacion = [
         { label: 'No postulado', value: 'no_postulado' },
         { label: 'CV enviado', value: 'cv_enviado' },
@@ -38,6 +42,9 @@ export class DetalleOferta {
     // Guarda el elemento que tenía foco antes de abrir el modal.
     private elementoFocoPrevio: HTMLElement | null = null;
 
+    // ID del timeout de foco programático, para limpiar si el componente se destruye.
+    private idTimeoutFoco: ReturnType<typeof setTimeout> | null = null;
+
     constructor(private readonly elemento: ElementRef) {
         // Effect: cuando el modal se abre, mover foco al contenido;
         // cuando se cierra, restaurar foco al elemento que lo abrió.
@@ -46,12 +53,27 @@ export class DetalleOferta {
             if (abierto) {
                 // Guardar foco previo antes de mover.
                 this.elementoFocoPrevio = document.activeElement as HTMLElement;
+                // Limpiar timeout anterior antes de crear uno nuevo (por si el modal
+                // se abre y cierra rápidamente).
+                this.limpiarTimeoutFoco();
                 // Timeout para que PrimeNG renderice el dialog.
-                setTimeout(() => this.moverFocoAlModal(), 100);
+                this.idTimeoutFoco = setTimeout(() => this.moverFocoAlModal(), 100);
             } else {
+                this.limpiarTimeoutFoco();
                 this.restaurarFoco();
             }
         });
+    }
+
+    ngOnDestroy(): void {
+        this.limpiarTimeoutFoco();
+    }
+
+    private limpiarTimeoutFoco(): void {
+        if (this.idTimeoutFoco !== null) {
+            clearTimeout(this.idTimeoutFoco);
+            this.idTimeoutFoco = null;
+        }
     }
 
     // Mueve el foco al primer elemento interactivo dentro del modal.
@@ -121,11 +143,13 @@ export class DetalleOferta {
         // 1. Optimistic update — se refleja en la UI al instante.
         o.estado_postulacion = estado;
         this.postulacionActualizada.emit();
+        this.postulacionPendiente.emit({ id: o.id, pendiente: true });
         this.visible.set(false);
 
         // 2. Persistir en el backend.
         this.ofertasService.actualizarPostulacion(o.id, nuevoEstado).subscribe({
             next: (respuesta) => {
+                this.postulacionPendiente.emit({ id: o.id, pendiente: false });
                 if (respuesta.exito) {
                     // Confirmar con los datos reales del backend.
                     o.estado_postulacion = respuesta.datos.estado_postulacion;
@@ -138,6 +162,7 @@ export class DetalleOferta {
                 }
             },
             error: (error) => {
+                this.postulacionPendiente.emit({ id: o.id, pendiente: false });
                 // Revertir si falló la red o el servidor.
                 o.estado_postulacion = estadoAnterior;
                 this.postulacionActualizada.emit();

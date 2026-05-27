@@ -5,7 +5,15 @@ export interface CacheDashboard {
     ofertas: Oferta[];
     estadisticas: Estadisticas | null;
     fechaGuardado: string;
+    version: number;
 }
+
+// Versión actual del esquema de cache.
+// Incrementar este valor invalida automáticamente cualquier cache anterior.
+const VERSION_CACHE = 1;
+
+// TTL del cache en horas (2 días).
+const TTL_HORAS = 48;
 
 @Injectable({ providedIn: 'root' })
 export class PersistenciaDashboardService {
@@ -22,6 +30,7 @@ export class PersistenciaDashboardService {
         // Con cientos de ofertas, supera el límite de ~5 MB de localStorage.
         const cacheLiviano: CacheDashboard = {
             ...cache,
+            version: VERSION_CACHE,
             ofertas: cache.ofertas.map(({ datos_crudos, ...resto }) => resto as Oferta),
         };
 
@@ -48,6 +57,20 @@ export class PersistenciaDashboardService {
             const cache = JSON.parse(cacheSerializado) as Partial<CacheDashboard>;
 
             if (!Array.isArray(cache.ofertas) || typeof cache.fechaGuardado !== 'string') {
+                this.limpiarCache();
+                return null;
+            }
+
+            // Invalido el cache si cambió la versión del esquema.
+            if (cache.version !== VERSION_CACHE) {
+                this.limpiarCache();
+                return null;
+            }
+
+            // Valido el TTL: si el cache expiró, lo invalido.
+            const fechaGuardado = new Date(cache.fechaGuardado).getTime();
+            if (Number.isNaN(fechaGuardado) || Date.now() - fechaGuardado > TTL_HORAS * 3600000) {
+                this.limpiarCache();
                 return null;
             }
 
@@ -55,9 +78,17 @@ export class PersistenciaDashboardService {
                 ofertas: cache.ofertas,
                 estadisticas: cache.estadisticas ?? null,
                 fechaGuardado: cache.fechaGuardado,
+                version: cache.version,
             };
         } catch {
+            this.limpiarCache();
             return null;
+        }
+    }
+
+    limpiarCache(): void {
+        if (this.storageDisponible()) {
+            localStorage.removeItem(this.claveStorage);
         }
     }
 

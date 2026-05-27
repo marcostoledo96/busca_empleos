@@ -43,6 +43,10 @@ export class Dashboard implements OnInit {
     // Guarda para evitar requests superpuestos durante el refresh de polling.
     private refrescandoEnSegundoPlano = false;
 
+    // Trackea IDs con optimistic update de postulación en curso.
+    // Solo estos IDs preservan su estado local durante el merge del polling.
+    readonly postulacionesPendientes = signal<Set<number>>(new Set());
+
     // Filtro global de plataforma.
     readonly filtroPlataforma = signal<string | null>(null);
 
@@ -148,6 +152,7 @@ export class Dashboard implements OnInit {
                     ofertas: respuesta.datos,
                     estadisticas: null,
                     fechaGuardado: new Date().toISOString(),
+                    version: 1,
                 });
                 this.datosDesdeCache.set(false);
                 this.mensajeEstado.set(null);
@@ -175,11 +180,14 @@ export class Dashboard implements OnInit {
                     const ofertasActuales = this.ofertas();
                     const ofertasApi = respuesta.datos;
 
-                    // Merge: si el estado de postulación local difiere del backend,
-                    // preservamos el local (optimistic update en curso).
+                    // Merge: preservo el estado local de postulación SOLO si
+                    // hay un optimistic update en curso para ese ID.
+                    // Si no está pendiente, adoptamos el valor del backend
+                    // (puede que el usuario ya haya revertido o el backend se actualizó).
+                    const idsPendientes = this.postulacionesPendientes();
                     const ofertasMergeadas = ofertasApi.map(api => {
                         const local = ofertasActuales.find(o => o.id === api.id);
-                        if (local && local.estado_postulacion !== api.estado_postulacion) {
+                        if (local && idsPendientes.has(api.id) && local.estado_postulacion !== api.estado_postulacion) {
                             return { ...api, estado_postulacion: local.estado_postulacion };
                         }
                         return api;
@@ -190,6 +198,7 @@ export class Dashboard implements OnInit {
                         ofertas: ofertasMergeadas,
                         estadisticas: null,
                         fechaGuardado: new Date().toISOString(),
+                        version: 1,
                     });
                 }
             },
@@ -221,6 +230,22 @@ export class Dashboard implements OnInit {
             ofertas: this.ofertas(),
             estadisticas: null,
             fechaGuardado: new Date().toISOString(),
+            version: 1,
+        });
+    }
+
+    // Trackea el inicio/fin de optimistic updates de postulación.
+    // Solo los IDs marcados como pendientes preservan su estado local
+    // durante el merge de datos del polling.
+    onPostulacionPendiente(evento: { id: number; pendiente: boolean }): void {
+        this.postulacionesPendientes.update(setActual => {
+            const nuevo = new Set(setActual);
+            if (evento.pendiente) {
+                nuevo.add(evento.id);
+            } else {
+                nuevo.delete(evento.id);
+            }
+            return nuevo;
         });
     }
 

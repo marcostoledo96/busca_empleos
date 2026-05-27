@@ -35,6 +35,10 @@ export class TablaOfertas {
     // Evento que emite cuando se actualiza una postulación (para refrescar datos).
     readonly postulacionActualizada = output<void>();
 
+    // Evento que emite cuando inicia o termina un optimistic update de postulación.
+    // pendiente = true cuando empieza, false cuando termina (éxito o error).
+    readonly postulacionPendiente = output<{ id: number; pendiente: boolean }>();
+
     // Evento que emite cuando el usuario aplica una acción masiva.
     readonly accionMasiva = output<{ ids: number[]; estadoPostulacion: string }>();
 
@@ -218,10 +222,12 @@ export class TablaOfertas {
         // 1. Optimistic update — se refleja en la UI al instante.
         oferta.estado_postulacion = estado;
         this.postulacionActualizada.emit();
+        this.postulacionPendiente.emit({ id: oferta.id, pendiente: true });
 
         // 2. Persistir en el backend.
         this.ofertasService.actualizarPostulacion(oferta.id, nuevoEstado).subscribe({
             next: (respuesta) => {
+                this.postulacionPendiente.emit({ id: oferta.id, pendiente: false });
                 if (respuesta.exito) {
                     // Confirmar con los datos reales del backend.
                     oferta.estado_postulacion = respuesta.datos.estado_postulacion;
@@ -234,6 +240,7 @@ export class TablaOfertas {
                 }
             },
             error: (error) => {
+                this.postulacionPendiente.emit({ id: oferta.id, pendiente: false });
                 // Revertir si falló la red o el servidor.
                 oferta.estado_postulacion = estadoAnterior;
                 this.postulacionActualizada.emit();

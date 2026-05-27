@@ -104,6 +104,7 @@
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
                         (postulacionActualizada)="onAccionCompletada()"
+                        (postulacionPendiente)="onPostulacionPendiente($event)"
                         (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
 
@@ -117,6 +118,7 @@
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
                         (postulacionActualizada)="onAccionCompletada()"
+                        (postulacionPendiente)="onPostulacionPendiente($event)"
                         (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
 
@@ -130,6 +132,7 @@
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
                         (postulacionActualizada)="onAccionCompletada()"
+                        (postulacionPendiente)="onPostulacionPendiente($event)"
                         (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
 
@@ -143,6 +146,7 @@
                         [sortOrder]="-1"
                         (ofertaSeleccionada)="mostrarDetalle($event)"
                         (postulacionActualizada)="onAccionCompletada()"
+                        (postulacionPendiente)="onPostulacionPendiente($event)"
                         (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
             </p-tabpanels>
@@ -161,5 +165,6 @@
         [oferta]="ofertaSeleccionada()"
         [(visible)]="dialogoVisible"
         [modoDemo]="modoDemo()"
-        (postulacionActualizada)="onAccionCompletada()" />
+        (postulacionActualizada)="onAccionCompletada()"
+        (postulacionPendiente)="onPostulacionPendiente($event)" />
 </section>
