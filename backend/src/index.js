@@ -7,6 +7,7 @@
 const app = require('./app');
 const baseDatos = require('./config/base-datos');
 const servicioEvaluacion = require('./servicios/servicio-evaluacion');
+const logger = require('./utils/logger');
 
 // Railway (y la mayoría de PaaS) inyectan PORT automáticamente.
 // Respeto PORT primero, luego PUERTO como fallback para desarrollo local.
@@ -52,11 +53,11 @@ async function iniciarServidor() {
     try {
         const diagnostico = await obtenerDiagnosticoConReintentos();
 
-        console.log(
+        logger.info(
             'Base de datos activa:',
             `${diagnostico.conexion.base_datos_actual} en ${diagnostico.conexion.host_postgresql}:${diagnostico.conexion.puerto_postgresql}`
         );
-        console.log(
+        logger.info(
             'Persistencia detectada:',
             diagnostico.conexion.tabla_ofertas_existe
                 ? `${diagnostico.conexion.total_ofertas} ofertas visibles al arrancar.`
@@ -64,13 +65,13 @@ async function iniciarServidor() {
         );
 
         app.listen(PUERTO, async () => {
-            console.log(`Servidor escuchando en http://localhost:${PUERTO}`);
-            console.log(`Entorno: ${process.env.NODE_ENV || 'development'}`);
+            logger.info(`Servidor escuchando en http://localhost:${PUERTO}`);
+            logger.info(`Entorno: ${process.env.NODE_ENV || 'development'}`);
             await servicioEvaluacion.rehidratarProgreso();
         });
     } catch (error) {
-        console.error('No pude iniciar el backend porque falló la conexión a PostgreSQL.');
-        console.error('Configuración detectada:', {
+        logger.error('No pude iniciar el backend porque falló la conexión a PostgreSQL.');
+        logger.error('Configuración detectada:', {
             entorno: process.env.NODE_ENV || 'development',
             usaDatabaseUrl: Boolean(process.env.DATABASE_URL),
             databaseUrlPareceValida: /^(postgres|postgresql):\/\//i.test(process.env.DATABASE_URL || ''),
@@ -80,7 +81,7 @@ async function iniciarServidor() {
             maximoIntentosPostgres: MAXIMO_INTENTOS_POSTGRES,
             esperaReintentoMs: ESPERA_POSTGRES_MS,
         });
-        console.error(error.message);
+        logger.error(error.message);
         process.exit(1);
     }
 }

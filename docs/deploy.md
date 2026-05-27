@@ -17,8 +17,10 @@ en el mismo proyecto — sin cold starts, sin terceros extra, todo en un solo lu
 6. [Configurar el servicio de backend](#6-configurar-el-servicio-de-backend)
 7. [Deploy del frontend en Vercel](#7-deploy-del-frontend-en-vercel)
 8. [Post-deploy: conectar todo](#8-post-deploy-conectar-todo)
-9. [Variables de entorno — referencia completa](#9-variables-de-entorno--referencia-completa)
-10. [Troubleshooting](#10-troubleshooting)
+9. [Export seguro del código (procedimiento H001)](#9-export-seguro-del-código-procedimiento-h001)
+10. [Rotación de secretos](#10-rotación-de-secretos)
+11. [Variables de entorno — referencia completa](#11-variables-de-entorno--referencia-completa)
+12. [Troubleshooting](#12-troubleshooting)
 
 ---
 
@@ -332,7 +334,79 @@ Firebase Authentication rechaza logins desde dominios no autorizados.
 
 ---
 
-## 9. Variables de entorno — referencia completa
+## 9. Export seguro del código (procedimiento H001)
+
+> **IMPORTANTE:** Nunca descargues todo el repositorio con la carpeta `.git`
+> desde un entorno compartido o público. El directorio `.git` contiene el
+> historial completo de commits, incluyendo secretos que podrían haber sido
+> eliminados del código actual pero que aún existen en commits anteriores.
+
+### Exportar solo el código fuente con `git archive`
+
+El comando `git archive` genera un paquete limpio que **excluye** `.git`,
+`.env`, y todo lo que esté en `.gitignore`:
+
+```bash
+# Exportar la rama actual como un archivo .tar.gz
+git archive --format=tar.gz --output=busca-empleos-export.tar.gz HEAD
+
+# O exportar como .zip
+git archive --format=zip --output=busca-empleos-export.zip HEAD
+```
+
+**Ventajas:**
+- No incluye el directorio `.git`.
+- Respeta automáticamente el `.gitignore`.
+- El archivo resultante solo tiene los archivos fuente que deberían estar en producción.
+- Ideal para compartir código o preparar despliegues manuales (por ejemplo, para Railway a través de la CLI).
+
+### Alternativa: `git checkout` a un directorio temporal
+
+Si necesitás todos los archivos como planos (sin comprimir):
+
+```bash
+git checkout-index -a -f --prefix=./export-limpio/
+```
+
+Esto copia todos los archivos trackeados a `export-limpio/` sin `.git`.
+
+---
+
+## 10. Rotación de secretos
+
+Si alguna credencial o API key se ve comprometida, seguí este procedimiento:
+
+### 1. Identificar las variables que se rotan
+
+| Servicio | Variable | Dónde rotar |
+|----------|----------|-------------|
+| Apify | `APIFY_TOKEN` | Apify Console → Settings → API tokens → Regenerate |
+| DeepSeek | `DEEPSEEK_API_KEY` | DeepSeek Platform → API Keys → Revoke y regenerate |
+| Firebase | Service account JSON | Firebase Console → Project Settings → Service Accounts → Generate new key → Eliminar la anterior |
+| PostgreSQL | `DATABASE_URL` o contraseña | Railway → PostgreSQL service → Settings → Rotate password |
+
+### 2. Actualizar en Railway / Vercel
+
+1. Ir al servicio correspondiente (Railway para backend, Vercel para frontend).
+2. Ir a la pestaña **Variables**.
+3. Reemplazar el valor viejo con la nueva credencial.
+4. Railway reinicia automáticamente el servicio.
+5. En Vercel: hacer **Redeploy** manualmente.
+
+### 3. Verificar que el nuevo secreto funciona
+
+- Railway: verificar los logs del backend (`Deployments` → último deployment).
+- Vercel: verificar que el build sale bien y que el frontend llega al backend.
+
+### 4. Revocar la credencial vieja
+
+**Nunca revoques antes de confirmar que la nueva funciona.** Si revocás primero y la nueva tiene un typo, el sistema se queda sin acceso.
+
+> **Regla de oro:** rotar de a una, probar, revocar. Nunca todas a la vez.
+
+---
+
+## 11. Variables de entorno — referencia completa
 
 ### Backend (Railway — pestaña Variables del servicio backend)
 
@@ -367,7 +441,7 @@ Estas variables las lee `frontend/scripts/generar-env.js` durante el build.
 
 ---
 
-## 10. Troubleshooting
+## 12. Troubleshooting
 
 ### El backend no arranca en Railway
 

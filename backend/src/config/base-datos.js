@@ -12,6 +12,7 @@
 
 const { Pool } = require('pg');
 const path = require('path');
+const logger = require('../utils/logger');
 
 // Cargo las variables de entorno desde el .env del backend.
 // El path.resolve garantiza que encuentre el archivo sin importar
@@ -121,16 +122,17 @@ const resumenConfiguracionConexion = {
 };
 
 // Evento que se dispara cuando una conexión nueva se abre.
-// Útil para debugging: si veo este log, sé que el pool está funcionando.
+// Útil para debugging: solo se muestra si LOG_LEVEL=debug.
+// No se loguean credenciales ni connection strings.
 pool.on('connect', () => {
-    console.log('Base de datos: nueva conexión establecida con PostgreSQL.');
-    console.log('Base de datos: configuración detectada:', resumenConfiguracionConexion);
+    logger.debug('Base de datos: nueva conexión establecida con PostgreSQL.');
+    logger.debug('Base de datos: configuración detectada:', resumenConfiguracionConexion);
 });
 
 // Evento que se dispara si hay un error inesperado en una conexión idle.
 // Sin este handler, el error crashearía el proceso de Node.
 pool.on('error', (error) => {
-    console.error('Base de datos: error inesperado en conexión idle:', error.message);
+    logger.error('Base de datos: error inesperado en conexión idle:', error.message);
 });
 
 async function obtenerDiagnosticoPersistencia() {
