@@ -13,6 +13,22 @@
 const servicioScraping = require('../servicios/servicio-scraping');
 const modeloOferta = require('../modelos/oferta');
 
+// --- helpers ---
+
+/**
+ * Normaliza el parametro maxResultados del body.
+ *
+ * @param {any} raw     - valor enviado por el cliente (ej: "-5", "abc", 20).
+ * @param {number} def  - default si el valor no es parseable.
+ * @param {number} cap  - limite maximo admitido.
+ * @returns {number}    - numero entero entre 1 y cap.
+ */
+function normalizarMaxResultados(raw, def, cap) {
+    const parsed = parseInt(raw, 10);
+    const conDefecto = Number.isNaN(parsed) ? def : parsed;
+    return Math.min(Math.max(conDefecto, 1), cap);
+}
+
 /**
  * POST /api/scraping/linkedin
  * Ejecuto el scraping de LinkedIn y guardo las ofertas en la BD.
@@ -23,7 +39,7 @@ const modeloOferta = require('../modelos/oferta');
  * - ubicacion: ubicación personalizada (default: "Argentina")
  */
 async function scrapearLinkedin(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 100, 500);
+    const maxResultados = normalizarMaxResultados(req.body.maxResultados, 100, 500);
     const opciones = {
         maxResultados,
         terminos: req.body.terminos,

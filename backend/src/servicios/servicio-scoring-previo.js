@@ -372,6 +372,7 @@ function clamp(numero, min = 0, max = 100) {
  * @returns {Object} Análisis completo con score_previo, penalizaciones y bonificaciones.
  */
 function calcularScorePrevio(oferta, perfil) {
+    perfil = perfil || {};
     const config = perfil.scoring_config || {};
     const matchTecnologico = analizarMatchTecnologico(oferta, perfil);
     const seniority = detectarSeniority(oferta);

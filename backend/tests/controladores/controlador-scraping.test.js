@@ -581,3 +581,56 @@ describe('Controlador de scraping', () => {
         });
     });
 });
+
+    // === Validacion de opciones de entrada (H018) ===
+
+    describe('validacion de opciones de scraping', () => {
+        test('maxResultados negativo se normaliza al minimo (1)', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({ maxResultados: -50 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            // Math.max(-50, 1) → 1, Math.min(1, 500) → 1.
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(
+                expect.objectContaining({ maxResultados: 1 })
+            );
+        });
+
+        test('terminos con strings vacios se pasan tal cual (no crashea)', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({ terminos: ['', 'react'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(
+                expect.objectContaining({ terminos: ['', 'react'] })
+            );
+        });
+
+        test('opciones validas pasan sin error', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({
+                    maxResultados: 25,
+                    terminos: ['react', 'angular'],
+                    ubicacion: 'Buenos Aires',
+                });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+    });
+
+    // Nota: El controlador de scraping NO tiene validacion explicita de tamaño
+    // de array ni longitud de strings en terminos. Estos tests documentan el
+    // comportamiento actual. Si en el futuro se agrega validacion (ej: body
+    // con terminos.length > 20 → 400), estos tests deberan actualizarse.
