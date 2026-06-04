@@ -22,7 +22,6 @@ const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
-const scoringPrevio = require('./servicio-scoring-previo');
 
 // Progreso de la evaluación en curso.
 // ¿Por qué un objeto en memoria y no en la BD? Porque el progreso es efímero:
@@ -298,138 +297,6 @@ function clamp(numero, min = 0, max = 100) {
 }
 
 /**
- * Construye instrucciones de sistema CORTAS para DeepSeek (modo refinador).
- * Ya no necesita el perfil completo porque el scoring previo ya lo calculó.
- */
-function construirInstruccionesRefinamiento() {
-    return `Sos un refinador de scores de ofertas laborales. Recibís un análisis previo ya calculado y tenés que ajustarlo solo si encontrás evidencia clara en la descripción.
-
-Reglas:
-- No rechaces automáticamente por Java, Spring, seniority alto ni tecnologías desconocidas.
-- El score previo ya penalizó esas cosas. Vos solo ajustá si ves algo que el análisis no capturó.
-- Ajuste normal máximo: ±15 puntos.
-- Ajuste excepcional: ±25 solo si hay evidencia textual MUY clara (seteá evidencia_extra: true).
-- Inglés avanzado, fluido o bilingüe BAJA el score (ya viene penalizado, pero reforzá si es muy excluyente).
-- Si la oferta está principalmente en inglés o portugués, el score debe bajar fuerte o quedar por debajo del umbral porque el candidato no tiene nivel suficiente para trabajar en ese idioma.
-- Inglés deseable o lectura técnica NO penaliza.
-- HealthTech suma valor.
-- Red flags: horas extra no pagas, disponibilidad 24/7, sueldo 100% variable.
-
-Devolvé SOLO JSON válido:
-{"porcentaje": 75, "razon": "Buen match Angular/Node, semi-senior ya penalizado.", "evidencia_extra": false}`;
-}
-
-/**
- * Construye el prompt de refinamiento con el análisis previo.
- * DeepSeek recibe datos resumidos, no la oferta completa.
- */
-function construirPromptRefinamiento(oferta, perfil, analisis) {
-    const partes = [
-        `OFERTA: ${oferta.titulo}`,
-        oferta.empresa ? `Empresa: ${oferta.empresa}` : '',
-        oferta.ubicacion ? `Ubicación: ${oferta.ubicacion}` : '',
-        oferta.modalidad ? `Modalidad: ${oferta.modalidad}` : '',
-    ].filter(Boolean);
-
-    // Descripción recortada a 1500 caracteres para ahorrar tokens.
-    const descripcion = (oferta.descripcion || '').slice(0, 1500);
-    partes.push(`Descripción: ${descripcion || 'Sin descripción.'}`);
-
-    partes.push('');
-    partes.push('ANÁLISIS PREVIO:');
-    partes.push(`Score previo: ${analisis.score_previo}`);
-    partes.push(`Seniority detectado: ${analisis.seniority.nivel} (penalización: -${analisis.seniority.penalizacion})`);
-    partes.push(`Inglés avanzado: ${analisis.ingles.requiereAvanzado ? 'SÍ (-25)' : 'No'}`);
-    partes.push(`Idioma principal detectado: ${analisis.ingles.idiomaPrincipal}${analisis.ingles.idiomaNoEspanol ? ' (penaliza fuerte)' : ''}`);
-    partes.push(`HealthTech: ${analisis.healthtech ? 'SÍ (+5)' : 'No'}`);
-    partes.push(`Stack principal completo: ${analisis.stack_principal_completo ? 'SÍ (+10)' : 'No'}`);
-
-    if (analisis.tecnologias.dominadas.length > 0) {
-        partes.push(`Tecnologías dominadas: ${analisis.tecnologias.dominadas.map(d => `${d.nombre}(${d.nivel})`).join(', ')}`);
-    }
-
-    if (analisis.tecnologias.desconocidas.length > 0) {
-        partes.push(`Tecnologías penalizadas: ${analisis.tecnologias.desconocidas.map(d => d.nombre).join(', ')}`);
-    }
-
-    // Sprint 3: contexto del perfil ampliado.
-    if (analisis.perfil_ampliado) {
-        if (analisis.perfil_ampliado.nivel_real_seniority) {
-            partes.push(`Nivel real del candidato: ${analisis.perfil_ampliado.nivel_real_seniority}`);
-        }
-        if (analisis.perfil_ampliado.conocimientos_ausentes_detectados?.length > 0) {
-            partes.push(`Conocimientos ausentes detectados: ${analisis.perfil_ampliado.conocimientos_ausentes_detectados.join(', ')}`);
-        }
-        if (analisis.perfil_ampliado.senales_rol_alto?.length > 0) {
-            partes.push(`Señales de rol alto detectadas: ${analisis.perfil_ampliado.senales_rol_alto.join(', ')}`);
-        }
-        if (analisis.perfil_ampliado.limitaciones_explicitas) {
-            partes.push(`Limitaciones del candidato: ${analisis.perfil_ampliado.limitaciones_explicitas}`);
-        }
-    }
-
-    return partes.join('\n');
-}
-
-/**
- * Resume el análisis previo en una razón legible para el usuario.
- * Se usa cuando el scoring previo decide sin llamar a DeepSeek.
- */
-function resumirAnalisisPrevio(analisis) {
-    const motivos = [];
-
-    if (analisis.seniority?.penalizacion > 0) {
-        motivos.push(`seniority ${analisis.seniority.nivel} (-${analisis.seniority.penalizacion})`);
-    }
-
-    if (analisis.ingles?.penalizacion > 0) {
-        if (analisis.ingles.idiomaPrincipal !== 'espanol') {
-            motivos.push(`idioma principal ${analisis.ingles.idiomaPrincipal} (-${analisis.ingles.penalizacion})`);
-        } else if (analisis.ingles.requiereAvanzado) {
-            motivos.push('requiere inglés avanzado (-25)');
-        }
-    }
-
-    if (analisis.tecnologias?.desconocidas?.length > 0) {
-        const techs = analisis.tecnologias.desconocidas
-            .slice(0, 3)
-            .map(t => t.nombre)
-            .join(', ');
-        motivos.push(`tecnologías fuera del perfil: ${techs}`);
-    }
-
-    if (analisis.tecnologias?.dominadas?.length > 0) {
-        const techs = analisis.tecnologias.dominadas
-            .slice(0, 3)
-            .map(t => `${t.nombre}(${t.nivel})`)
-            .join(', ');
-        motivos.push(`stack compatible: ${techs}`);
-    }
-
-    if (analisis.healthtech) {
-        motivos.push('bonus HealthTech (+5)');
-    }
-
-    if (analisis.stack_principal_completo) {
-        motivos.push('stack principal completo (+10)');
-    }
-
-    // Sprint 3: perfil ampliado.
-    if (analisis.perfil_ampliado?.penalizacion_rol_senior > 0) {
-        motivos.push(`rol demasiado senior: ${analisis.perfil_ampliado.senales_rol_alto.join(', ')} (-${analisis.perfil_ampliado.penalizacion_rol_senior})`);
-    }
-
-    if (analisis.perfil_ampliado?.conocimientos_ausentes_detectados?.length > 0) {
-        const ausentes = analisis.perfil_ampliado.conocimientos_ausentes_detectados.slice(0, 3).join(', ');
-        motivos.push(`conocimientos ausentes detectados: ${ausentes} (-${analisis.perfil_ampliado.penalizacion_ausentes})`);
-    }
-
-    return motivos.length > 0
-        ? motivos.join('; ') + '.'
-        : 'score calculado por reglas locales.';
-}
-
-/**
  * Evalúo una oferta individual con DeepSeek.
  *
  * Ahora recibe las instrucciones y el modelo como parámetros para no
@@ -468,9 +335,6 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
             instruccionesFinal = 'Sos un evaluador de ofertas de empleo. Respondé con JSON: {"match": true/false, "porcentaje": 0-100, "razon": "..."}';
         }
 
-        // === NUEVO (P4): Scoring previo local antes de DeepSeek ===
-        const analisisPrevio = scoringPrevio.calcularScorePrevio(oferta, preferenciasFinal || {});
-
         // Defensa programática: presencial fuera de zona → rechazo sin consultar IA.
         const modalidadOferta = (oferta.modalidad || '').toLowerCase().trim();
         const zonasPreferidas = (preferenciasFinal || {}).zonas_preferidas || [];
@@ -479,79 +343,18 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         const estaEnZonas = zonasPreferidas.length === 0 || ubicacionEnZonas(ubicacionOferta, zonasPreferidas);
 
         if (esPresencial && !estaEnZonas) {
-            const resultado = {
+            return {
                 match: false,
                 porcentaje: 0,
                 razon: `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas) => rechazada.`,
             };
-            await modeloOferta.guardarAnalisisPrevio(oferta.id, {
-                ...analisisPrevio,
-                score_previo: 0,
-                match_previo: false,
-            });
-            return resultado;
         }
 
-        // === OPTIMIZACIÓN: Cortar DeepSeek en extremos ===
-        // Si el score previo es muy bajo o muy alto, no gastamos tokens.
-        const UMBRAL_BAJO = 30;
-        const UMBRAL_ALTO = 85;
-        const score = analisisPrevio.score_previo;
-
-        if (score < UMBRAL_BAJO) {
-            console.log('[EVALUACION_DECISION]', {
-                oferta_id: oferta.id,
-                score_previo: score,
-                usa_deepseek: false,
-                origen: 'scoring_previo',
-                motivo: 'score bajo',
-            });
-
-            const razonLocal = resumirAnalisisPrevio(analisisPrevio);
-            await modeloOferta.guardarAnalisisPrevio(oferta.id, {
-                ...analisisPrevio,
-                match_previo: false,
-            });
-            return {
-                match: false,
-                porcentaje: score,
-                razon: `[SCORING_PREVIO] Rechazo automático por score bajo (${score}). ${razonLocal}`,
-            };
-        }
-
-        if (score >= UMBRAL_ALTO) {
-            console.log('[EVALUACION_DECISION]', {
-                oferta_id: oferta.id,
-                score_previo: score,
-                usa_deepseek: false,
-                origen: 'scoring_previo',
-                motivo: 'score alto',
-            });
-
-            const razonLocal = resumirAnalisisPrevio(analisisPrevio);
-            await modeloOferta.guardarAnalisisPrevio(oferta.id, {
-                ...analisisPrevio,
-                match_previo: true,
-            });
-            return {
-                match: true,
-                porcentaje: score,
-                razon: `[SCORING_PREVIO] Aprobación automática por score alto (${score}). ${razonLocal}`,
-            };
-        }
-
-        console.log('[EVALUACION_DECISION]', {
-            oferta_id: oferta.id,
-            score_previo: score,
-            usa_deepseek: true,
-            origen: 'deepseek',
-        });
-
-        // DeepSeek refina el score previo (ajuste máximo: ±15 puntos, ±25 con evidencia).
-        const promptRefinamiento = construirPromptRefinamiento(oferta, preferenciasFinal || {}, analisisPrevio);
+        // Llamo directamente a DeepSeek con instrucciones completas y prompt completo.
+        const promptEvaluacion = construirPromptEvaluacion(oferta);
         const respuestaTexto = await consultarDeepSeek(
-            construirInstruccionesRefinamiento(),
-            promptRefinamiento,
+            instruccionesFinal,
+            promptEvaluacion,
             modeloFinal
         );
 
@@ -564,32 +367,19 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         const respuesta = JSON.parse(jsonLimpio);
 
         const porcentajeCrudo = parseInt(respuesta.porcentaje, 10);
-        let porcentajeIA = Number.isFinite(porcentajeCrudo)
-            ? Math.max(0, Math.min(100, porcentajeCrudo))
-            : analisisPrevio.score_previo;
+        let porcentaje = Number.isFinite(porcentajeCrudo)
+            ? clamp(porcentajeCrudo)
+            : null;
 
-        // Limitar ajuste de DeepSeek a ±15 puntos (o ±25 con evidencia).
-        const ajusteMaximo = respuesta.evidencia_extra
-            ? (preferenciasFinal?.scoring_config?.deepseek?.ajuste_maximo_con_evidencia ?? 25)
-            : (preferenciasFinal?.scoring_config?.deepseek?.ajuste_maximo_normal ?? 15);
-
-        const porcentajeFinal = clamp(porcentajeIA, analisisPrevio.score_previo - ajusteMaximo, analisisPrevio.score_previo + ajusteMaximo);
-        const umbral = (preferenciasFinal?.scoring_config || preferenciasFinal?.scoringConfig)?.umbral_aprobacion ?? 60;
-        const matchFinal = porcentajeFinal >= umbral;
-        const razonFinal = respuesta.razon || (analisisPrevio.match_previo ? 'Match según análisis previo.' : 'No matchea según análisis previo.');
-
-        // Guardo el análisis previo en BD.
-        await modeloOferta.guardarAnalisisPrevio(oferta.id, {
-            ...analisisPrevio,
-            score_previo: porcentajeFinal,
-            match_previo: matchFinal,
-            porcentaje_ia: porcentajeIA,
-        });
+        const match = !!respuesta.match;
+        const razon = respuesta.razon || (match
+            ? 'La oferta matchea con el perfil.'
+            : 'La oferta no matchea con el perfil.');
 
         return {
-            match: matchFinal,
-            razon: razonFinal,
-            porcentaje: porcentajeFinal,
+            match,
+            razon,
+            porcentaje,
         };
 
     } catch (error) {
@@ -807,8 +597,6 @@ module.exports = {
     construirPromptEvaluacion,
     construirPerfilDesdePreferencias,
     construirInstruccionesDesdePreferencias,
-    construirInstruccionesRefinamiento,
-    construirPromptRefinamiento,
     evaluarOferta,
     evaluarOfertasPendientes,
     obtenerProgresoEvaluacion,

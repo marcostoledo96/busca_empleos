@@ -534,9 +534,9 @@
                                     <small class="campo-ayuda">Fecha en la que aplicaste por última vez un perfil extraído desde CV Markdown.</small>
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Versión scoring activa</label>
-                                    <input pInputText [ngModel]="'p3_p5_v1'" readonly />
-                                    <small class="campo-ayuda">Versión interna de reglas usadas para calcular el score previo antes de DeepSeek.</small>
+                                    <label class="campo-etiqueta">Modo de evaluación</label>
+                                    <input pInputText [ngModel]="'DeepSeek directo'" readonly />
+                                    <small class="campo-ayuda">Cada oferta se evalúa directamente con DeepSeek. No hay scoring previo ni filtros automáticos.</small>
                                 </div>
                             </div>
                             <div class="reset-boton-wrapper">

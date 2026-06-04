@@ -31,6 +31,21 @@ jest.mock('../../src/modelos/preferencia', () => ({
     obtenerPreferencias: jest.fn(),
 }));
 
+// Mockeo cache y lotes para no depender de PostgreSQL en tests unitarios.
+jest.mock('../../src/modelos/evaluacion-cache', () => ({
+    crearHashOferta: jest.fn(() => 'hash-oferta-test'),
+    crearHashPreferencias: jest.fn(() => 'hash-preferencias-test'),
+    buscarCache: jest.fn(() => Promise.resolve(null)),
+    guardarCache: jest.fn(() => Promise.resolve()),
+}));
+
+jest.mock('../../src/modelos/evaluacion-lote', () => ({
+    crearLote: jest.fn(() => Promise.resolve({ id: 1 })),
+    actualizarProgreso: jest.fn(() => Promise.resolve()),
+    finalizarLote: jest.fn(() => Promise.resolve()),
+    obtenerUltimoLote: jest.fn(() => Promise.resolve(null)),
+}));
+
 const { consultarDeepSeek } = require('../../src/config/deepseek');
 const modeloOferta = require('../../src/modelos/oferta');
 const modeloPreferencia = require('../../src/modelos/preferencia');
@@ -108,7 +123,7 @@ describe('Servicio de evaluación con IA', () => {
 
     // Limpio los mocks antes de cada test para que no se contaminen.
     beforeEach(() => {
-        jest.clearAllMocks();
+        jest.resetAllMocks();
         // Por defecto, el modelo de preferencias retorna las preferencias de ejemplo.
         modeloPreferencia.obtenerPreferencias.mockResolvedValue(preferenciasEjemplo);
     });
@@ -299,16 +314,17 @@ describe('Servicio de evaluación con IA', () => {
             expect(resultado.porcentaje).toBe(15);
         });
 
-        test('pasa las instrucciones de sistema a DeepSeek', async () => {
+        test('pasa las instrucciones de sistema completas a DeepSeek', async () => {
             consultarDeepSeek.mockResolvedValueOnce(
                 JSON.stringify({ match: true, razon: 'Cumple requisitos.' })
             );
 
             await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-v4-flash');
 
-            // Verifico que el primer argumento (mensaje sistema) contiene el perfil.
+            // Verifico que el primer argumento (mensaje sistema) contiene el perfil completo.
             const mensajeSistema = consultarDeepSeek.mock.calls[0][0];
             expect(mensajeSistema).toContain('evaluador de ofertas');
+            expect(mensajeSistema).toContain('Marcos Ezequiel Toledo');
             // Verifico que pasó el modelo como tercer argumento.
             expect(consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-v4-flash');
         });
@@ -380,6 +396,25 @@ describe('Servicio de evaluación con IA', () => {
             const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest);
             expect(resultado.porcentaje).toBeNull();
         });
+
+        test('llama a DeepSeek SIEMPRE para ofertas que antes eran cortadas por scoring', async () => {
+            // Oferta con Java pero remota — antes el scoring previo la cortaba sin llamar a DeepSeek.
+            // Ahora DeepSeek SIEMPRE debe ser llamado.
+            const ofertaJavaRemota = { ...ofertaConJava, modalidad: 'remoto' };
+            consultarDeepSeek.mockResolvedValueOnce(
+                JSON.stringify({
+                    match: false,
+                    porcentaje: 10,
+                    razon: 'La oferta requiere Java, que está en exclusiones.',
+                })
+            );
+
+            const resultado = await evaluarOferta(ofertaJavaRemota, instruccionesTest, 'deepseek-v4-flash');
+
+            expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+            expect(resultado.match).toBe(false);
+            expect(resultado.porcentaje).toBe(10);
+        });
     });
 
     describe('defensa programática: ubicación presencial', () => {
@@ -397,6 +432,8 @@ describe('Servicio de evaluación con IA', () => {
             expect(resultado.porcentaje).toBe(0);
             expect(resultado.razon).toContain('rechazada');
             expect(resultado.razon).toContain('Córdoba');
+            // DeepSeek NO debe ser llamado en este caso.
+            expect(consultarDeepSeek).not.toHaveBeenCalled();
         });
 
         test('NO fuerza rechazo si es híbrida fuera de zonas preferidas', async () => {
@@ -493,14 +530,13 @@ describe('Servicio de evaluación con IA', () => {
             // Verifico que se llamó a actualizarEvaluacion 2 veces.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledTimes(2);
 
-            // Primera oferta: aprobada con porcentaje.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                1, 'aprobada', 'Cumple con React y TypeScript.', 85
+                1, 'aprobada', 'Cumple con React y TypeScript.', 85, null
             );
 
             // Segunda oferta: rechazada con porcentaje.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.', 20
+                3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.', 20, null
             );
         });
 
