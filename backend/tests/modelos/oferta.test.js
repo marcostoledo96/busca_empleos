@@ -106,17 +106,60 @@ contexto('Modelo de ofertas — CRUD', () => {
     // === obtenerOfertas() ===
 
     describe('obtenerOfertas()', () => {
-        test('debería retornar todas las ofertas sin filtros', async () => {
-            // Inserto dos ofertas distintas.
+        test('debería retornar ofertas recientes (dentro del último mes)', async () => {
+            // Inserto dos ofertas distintas. Ambas tienen fecha_extraccion = NOW()
+            // (default de la BD), así que caen dentro del último mes.
             await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.crearOferta(segundaOferta);
 
-            const ofertas = await modeloOferta.obtenerOfertas();
+            const resultado = await modeloOferta.obtenerOfertas();
 
-            expect(ofertas).toHaveLength(2);
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.total).toBe(2);
         });
 
-        test('debería filtrar ofertas por estado_evaluacion', async () => {
+        test('debería excluir ofertas con fecha_extraccion anterior al último mes', async () => {
+            // Inserto una oferta reciente (default NOW(), dentro del mes).
+            await modeloOferta.crearOferta(ofertaEjemplo);
+
+            // Inserto una oferta y le fuerzo fecha_extraccion a hace 2 meses.
+            // Esto simula una oferta vieja que ya no debería aparecer.
+            const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                [ofertaVieja.id]
+            );
+
+            const resultado = await modeloOferta.obtenerOfertas();
+
+            // Solo la oferta reciente debería aparecer.
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.total).toBe(1);
+            expect(resultado.ofertas[0].titulo).toBe(ofertaEjemplo.titulo);
+        });
+
+        test('el total debería reflejar solo ofertas dentro del último mes', async () => {
+            // Inserto 3 ofertas: 2 recientes y 1 vieja.
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+            const ofertaVieja = await modeloOferta.crearOferta({
+                ...ofertaEjemplo,
+                url: 'https://www.linkedin.com/jobs/view/33333',
+                titulo: 'Oferta Vieja',
+            });
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                [ofertaVieja.id]
+            );
+
+            const resultado = await modeloOferta.obtenerOfertas();
+
+            // El total cuenta solo las 2 recientes, no la vieja.
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.total).toBe(2);
+        });
+
+        test('debería filtrar ofertas por estado_evaluacion dentro del último mes', async () => {
             // Inserto una oferta y la apruebo manualmente.
             const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.actualizarEvaluacion(oferta.id, 'aprobada', 'Cumple con el perfil');
@@ -125,9 +168,10 @@ contexto('Modelo de ofertas — CRUD', () => {
             await modeloOferta.crearOferta(segundaOferta);
 
             // Filtro solo las aprobadas.
-            const aprobadas = await modeloOferta.obtenerOfertas({ estado: 'aprobada' });
-            expect(aprobadas).toHaveLength(1);
-            expect(aprobadas[0].titulo).toBe(ofertaEjemplo.titulo);
+            const resultado = await modeloOferta.obtenerOfertas({ estado: 'aprobada' });
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.ofertas[0].titulo).toBe(ofertaEjemplo.titulo);
+            expect(resultado.total).toBe(1);
         });
     });
 
@@ -289,23 +333,23 @@ contexto('Modelo de ofertas — CRUD', () => {
             await modeloOferta.actualizarEvaluacion(oferta1.id, 'aprobada', 'Match', 60);
             await modeloOferta.actualizarEvaluacion(oferta2.id, 'aprobada', 'Match', 90);
 
-            const ofertas = await modeloOferta.obtenerOfertas({
+            const resultado = await modeloOferta.obtenerOfertas({
                 ordenar_por: 'porcentaje_match',
                 direccion: 'DESC'
             });
 
-            expect(ofertas[0].porcentaje_match).toBe(90);
-            expect(ofertas[1].porcentaje_match).toBe(60);
+            expect(resultado.ofertas[0].porcentaje_match).toBe(90);
+            expect(resultado.ofertas[1].porcentaje_match).toBe(60);
         });
 
         test('debería usar fecha_extraccion DESC como orden por defecto', async () => {
             await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.crearOferta(segundaOferta);
 
-            const ofertas = await modeloOferta.obtenerOfertas();
+            const resultado = await modeloOferta.obtenerOfertas();
 
             // La segunda insertada tiene fecha_extraccion más reciente.
-            expect(ofertas[0].titulo).toBe(segundaOferta.titulo);
+            expect(resultado.ofertas[0].titulo).toBe(segundaOferta.titulo);
         });
 
         test('debería ignorar columnas de orden no permitidas (previene SQL injection)', async () => {
@@ -313,11 +357,11 @@ contexto('Modelo de ofertas — CRUD', () => {
 
             // Intento meter una columna maliciosa — el modelo debería ignorarla
             // y usar fecha_extraccion por defecto.
-            const ofertas = await modeloOferta.obtenerOfertas({
+            const resultado = await modeloOferta.obtenerOfertas({
                 ordenar_por: 'DROP TABLE ofertas; --'
             });
 
-            expect(ofertas).toHaveLength(1);
+            expect(resultado.ofertas).toHaveLength(1);
         });
 
         test('debería filtrar por estado_postulacion', async () => {
@@ -326,9 +370,182 @@ contexto('Modelo de ofertas — CRUD', () => {
 
             await modeloOferta.actualizarPostulacion(oferta1.id, 'cv_enviado');
 
-            const conCv = await modeloOferta.obtenerOfertas({ estado_postulacion: 'cv_enviado' });
-            expect(conCv).toHaveLength(1);
-            expect(conCv[0].id).toBe(oferta1.id);
+            const resultado = await modeloOferta.obtenerOfertas({ estado_postulacion: 'cv_enviado' });
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.ofertas[0].id).toBe(oferta1.id);
+        });
+
+        test('debería excluir ofertas viejas del sorting (filtro de último mes)', async () => {
+            // Inserto una oferta reciente y la apruebo con 60%.
+            const ofertaReciente = await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.actualizarEvaluacion(ofertaReciente.id, 'aprobada', 'Match', 60);
+
+            // Inserto otra oferta y la fuerzo a fecha vieja con 90% de match.
+            // Aunque tiene mejor porcentaje, no debería aparecer porque es vieja.
+            const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
+            await modeloOferta.actualizarEvaluacion(ofertaVieja.id, 'aprobada', 'Match', 90);
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                [ofertaVieja.id]
+            );
+
+            const resultado = await modeloOferta.obtenerOfertas({
+                ordenar_por: 'porcentaje_match',
+                direccion: 'DESC'
+            });
+
+            // Solo la oferta reciente (60%) aparece, la vieja (90%) queda filtrada.
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.ofertas[0].porcentaje_match).toBe(60);
+            expect(resultado.total).toBe(1);
+        });
+    });
+
+    // === obtenerOfertas() — Sin paginación (sin limite_pagina) ===
+
+    describe('obtenerOfertas() — Sin paginación', () => {
+        test('sin limite_pagina: debería retornar TODAS las ofertas sin LIMIT', async () => {
+            // Inserto varias ofertas y verifico que todas se retornan.
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+            await modeloOferta.crearOferta({
+                ...ofertaEjemplo,
+                url: 'https://www.linkedin.com/jobs/view/55555',
+                titulo: 'Backend Junior',
+            });
+
+            const resultado = await modeloOferta.obtenerOfertas();
+
+            // Sin limite_pagina, obtengo todas sin restricción.
+            expect(resultado.ofertas).toHaveLength(3);
+            expect(resultado.total).toBe(3);
+            // limite_pagina debe ser null cuando no se pasa paginación.
+            expect(resultado.limite_pagina).toBeNull();
+            expect(resultado.pagina).toBe(1);
+        });
+
+        test('sin limite_pagina: debería excluir ofertas fuera del último mes', async () => {
+            // Inserto una oferta reciente y una vieja.
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                [ofertaVieja.id]
+            );
+
+            const resultado = await modeloOferta.obtenerOfertas();
+
+            // Solo la oferta reciente aparece.
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.total).toBe(1);
+            expect(resultado.limite_pagina).toBeNull();
+        });
+
+        test('sin limite_pagina con filtros: debería retornar todas las que coincidan', async () => {
+            // Inserto 3 ofertas con distinto estado.
+            const oferta1 = await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+            const oferta3 = await modeloOferta.crearOferta({
+                ...ofertaEjemplo,
+                url: 'https://www.linkedin.com/jobs/view/77777',
+                titulo: 'Otra aprobada',
+            });
+
+            // Apruebo 2 ofertas.
+            await modeloOferta.actualizarEvaluacion(oferta1.id, 'aprobada', 'Match');
+            await modeloOferta.actualizarEvaluacion(oferta3.id, 'aprobada', 'Match');
+
+            // Filtro por estado 'aprobada' sin paginación.
+            const resultado = await modeloOferta.obtenerOfertas({ estado: 'aprobada' });
+
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.total).toBe(2);
+            expect(resultado.limite_pagina).toBeNull();
+        });
+
+        test('limite_pagina vacío o nulo: debería comportarse como sin paginación', async () => {
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+
+            // Paso limite_pagina como string vacío — no debe paginar.
+            const resultado = await modeloOferta.obtenerOfertas({ limite_pagina: '' });
+
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.limite_pagina).toBeNull();
+        });
+    });
+
+    // === obtenerOfertas() — Con paginación (con limite_pagina) ===
+
+    describe('obtenerOfertas() — Con paginación', () => {
+        test('con limite_pagina: debería paginar correctamente', async () => {
+            // Inserto 3 ofertas.
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+            await modeloOferta.crearOferta({
+                ...ofertaEjemplo,
+                url: 'https://www.linkedin.com/jobs/view/55555',
+                titulo: 'Backend Junior',
+            });
+
+            // Pido página 1 con límite 2.
+            const resultado = await modeloOferta.obtenerOfertas({ limite_pagina: 2, pagina: 1 });
+
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.total).toBe(3);
+            expect(resultado.pagina).toBe(1);
+            expect(resultado.limite_pagina).toBe(2);
+        });
+
+        test('con limite_pagina: página 2 debería retornar los resultados restantes', async () => {
+            // Inserto 3 ofertas.
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+            await modeloOferta.crearOferta({
+                ...ofertaEjemplo,
+                url: 'https://www.linkedin.com/jobs/view/55555',
+                titulo: 'Backend Junior',
+            });
+
+            // Pido página 2 con límite 2 (debería tener 1 sola oferta).
+            const resultado = await modeloOferta.obtenerOfertas({ limite_pagina: 2, pagina: 2 });
+
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.total).toBe(3);
+            expect(resultado.pagina).toBe(2);
+            expect(resultado.limite_pagina).toBe(2);
+        });
+
+        test('con limite_pagina mayor al total: debería retornar todas sin error', async () => {
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+
+            // Pido límite 100 — hay solo 2 ofertas.
+            const resultado = await modeloOferta.obtenerOfertas({ limite_pagina: 100 });
+
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.total).toBe(2);
+            expect(resultado.limite_pagina).toBe(100);
+        });
+
+        test('con limite_pagina inválido: debería comportarse como sin paginación', async () => {
+            await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.crearOferta(segundaOferta);
+
+            // Paso un valor no numérico — no debe paginar.
+            const resultado = await modeloOferta.obtenerOfertas({ limite_pagina: 'abc' });
+
+            expect(resultado.ofertas).toHaveLength(2);
+            expect(resultado.limite_pagina).toBeNull();
+        });
+
+        test('con limite_pagina negativo: debería comportarse como sin paginación', async () => {
+            await modeloOferta.crearOferta(ofertaEjemplo);
+
+            const resultado = await modeloOferta.obtenerOfertas({ limite_pagina: -5 });
+
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.limite_pagina).toBeNull();
         });
     });
 });

@@ -62,13 +62,36 @@ async function crearOferta(datos) {
 /**
  * Obtengo ofertas de la base de datos, con filtros y paginación opcionales.
  *
+ * Siempre filtro por fecha_extraccion dentro del último mes, para no mostrar
+ * ofertas antiguas que ya no son relevantes. Este filtro es FIJO (no depende
+ * de parámetros del usuario) y se aplica tanto al SELECT como al COUNT.
+ *
+ * ¿Por qué NOW() - INTERVAL '1 month' directo en SQL y no como parámetro?
+ * Porque es una expresión fija de PostgreSQL, no input del usuario.
+ * No hay riesgo de SQL injection porque no viene de afuera.
+ * Si usara un parámetro ($N), tendría que calcular el valor en JavaScript
+ * y pasar la fecha como string, lo cual es menos preciso por temas de
+ * zona horaria entre el servidor Node y el servidor PostgreSQL.
+ * Delegando el cálculo a PostgreSQL, ambos (SELECT y COUNT) usan el mismo
+ * instante NOW(), garantizando consistencia exacta.
+ *
+ * PAGINACIÓN:
+ * - Si NO se pasa limite_pagina: retorna TODAS las ofertas del último mes
+ *   sin LIMIT ni OFFSET. El campo limite_pagina del retorno vale null.
+ * - Si se pasa limite_pagina: se aplica paginación con LIMIT/OFFSET.
+ *   No hay tope máximo artificial — si el caller pide 5000, obtiene 5000.
+ *   Es responsabilidad del caller decidir cuántos registros necesita.
+ *
  * @param {Object} filtros - Filtros opcionales: { estado, plataforma, limite_pagina, pagina }.
  * @returns {Object} { ofertas, total, pagina, limite_pagina }.
+ *   Cuando no hay paginación: pagina=1, limite_pagina=null.
+ *   Cuando hay paginación: pagina y limite_pagina con los valores usados.
  */
 async function obtenerOfertas(filtros = {}) {
     // Construyo la query dinámicamente según los filtros que vengan.
-    // Arranco con un array de condiciones y parámetros vacíos.
-    const condiciones = [];
+    // Arranco con el filtro fijo de último mes y luego agrego los opcionales.
+    // El filtro de fecha SIEMPRE va primero porque es una condición fija.
+    const condiciones = [`fecha_extraccion >= NOW() - INTERVAL '1 month'`];
     const parametros = [];
 
     if (filtros.estado) {
@@ -86,10 +109,9 @@ async function obtenerOfertas(filtros = {}) {
         condiciones.push(`estado_postulacion = $${parametros.length}`);
     }
 
-    // Si hay condiciones, las uno con AND. Si no, no agrego WHERE.
-    const clausulaWhere = condiciones.length > 0
-        ? `WHERE ${condiciones.join(' AND ')}`
-        : '';
+    // Las condiciones siempre tienen al menos el filtro de fecha,
+    // así que siempre hay WHERE.
+    const clausulaWhere = `WHERE ${condiciones.join(' AND ')}`;
 
     // Sorting: el controlador puede pedir ordenar por determinada columna.
     // Solo permito columnas seguras (whitelist) para evitar SQL injection.
@@ -102,15 +124,27 @@ async function obtenerOfertas(filtros = {}) {
         : 'fecha_extraccion';
     const direccion = filtros.direccion === 'ASC' ? 'ASC' : 'DESC';
 
-    // Paginación con valores seguros.
-    let limite = parseInt(filtros.limite_pagina, 10);
-    if (!Number.isFinite(limite) || limite < 1) limite = 1000;
-    if (limite > 1000) limite = 1000;
+    // Determino si hay paginación o no.
+    // Si limite_pagina no viene (undefined, null, vacío), NO pagino:
+    // devuelvo todas las ofertas del último mes sin LIMIT/OFFSET.
+    // Si viene, valido que sea un entero positivo y lo uso sin tope máximo.
+    const limiteRaw = filtros.limite_pagina;
+    const hayLimite = limiteRaw !== undefined && limiteRaw !== null && limiteRaw !== '';
 
-    let pagina = parseInt(filtros.pagina, 10);
-    if (!Number.isFinite(pagina) || pagina < 1) pagina = 1;
+    let limite = null;
+    let pagina = 1;
 
-    const offset = (pagina - 1) * limite;
+    if (hayLimite) {
+        limite = parseInt(limiteRaw, 10);
+        if (!Number.isFinite(limite) || limite < 1) limite = null;
+    }
+
+    // Si limite_pagina vino pero no era un número válido, lo ignoro
+    // y no pagino (caigo en el mismo caso que si no se pasó limite_pagina).
+    if (limite !== null) {
+        pagina = parseInt(filtros.pagina, 10);
+        if (!Number.isFinite(pagina) || pagina < 1) pagina = 1;
+    }
 
     // Query de conteo total (sin LIMIT/OFFSET).
     const totalResultado = await pool.query(
@@ -119,11 +153,22 @@ async function obtenerOfertas(filtros = {}) {
     );
     const total = totalResultado.rows[0].total;
 
-    // Query paginada.
-    const resultado = await pool.query(
-        `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST LIMIT $${parametros.length + 1} OFFSET $${parametros.length + 2}`,
-        [...parametros, limite, offset]
-    );
+    let resultado;
+
+    if (limite !== null) {
+        // Caso con paginación: aplico LIMIT y OFFSET.
+        const offset = (pagina - 1) * limite;
+        resultado = await pool.query(
+            `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST LIMIT $${parametros.length + 1} OFFSET $${parametros.length + 2}`,
+            [...parametros, limite, offset]
+        );
+    } else {
+        // Sin paginación: traigo todas las ofertas del último mes.
+        resultado = await pool.query(
+            `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST`,
+            parametros
+        );
+    }
 
     return {
         ofertas: resultado.rows,

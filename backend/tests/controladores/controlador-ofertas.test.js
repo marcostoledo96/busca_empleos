@@ -98,6 +98,40 @@ describe('Controlador de ofertas', () => {
 
             expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({});
         });
+
+        test('pasa limite_pagina y pagina al modelo cuando se envían en query params', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue({
+                ofertas: [{ id: 1, titulo: 'Dev Junior' }],
+                total: 10,
+                pagina: 2,
+                limite_pagina: 5,
+            });
+
+            const res = await request(app).get('/api/ofertas?limite_pagina=5&pagina=2');
+
+            expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({
+                limite_pagina: '5',
+                pagina: '2',
+            });
+            expect(res.status).toBe(200);
+            expect(res.body.limite_pagina).toBe(5);
+            expect(res.body.pagina).toBe(2);
+        });
+
+        test('retorna limite_pagina null cuando el modelo no paginó', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue({
+                ofertas: [{ id: 1, titulo: 'Dev Junior' }],
+                total: 1,
+                pagina: 1,
+                limite_pagina: null,
+            });
+
+            const res = await request(app).get('/api/ofertas');
+
+            expect(res.status).toBe(200);
+            expect(res.body.limite_pagina).toBeNull();
+            expect(res.body.total).toBe(1);
+        });
     });
 
     // === GET /api/ofertas/estadisticas ===
