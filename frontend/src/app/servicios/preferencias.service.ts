@@ -32,6 +32,8 @@ export interface ResultadoImportacionCv {
     keywords_negativas?: string[];
     plataformas_preferidas?: string[];
     plataformas_excluidas?: string[];
+    // scoring_config fue deprecado en B1. Se conserva el campo opcional
+    // para compatibilidad si la API lo devuelve, pero el frontend no lo usa.
     scoring_config?: Record<string, unknown> | null;
     preguntas: Array<{ campo: string; pregunta: string; motivo?: string; sugerencia?: string | null }>;
     preguntas_perfil_pendientes?: Array<{ campo: string; pregunta: string; motivo?: string; sugerencia?: string | null }>;

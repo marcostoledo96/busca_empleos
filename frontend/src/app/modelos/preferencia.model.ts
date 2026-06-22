@@ -31,15 +31,8 @@ export interface Preferencias {
         aliases: string[];
         evidencia?: string;
     }>;
-    scoring_config: {
-        umbral_aprobacion: number;
-        penalizaciones: Record<string, number>;
-        bonificaciones: Record<string, number>;
-        deepseek?: {
-            ajuste_maximo_normal?: number;
-            ajuste_maximo_con_evidencia?: number;
-        };
-    };
+    // scoring_config fue deprecado en B1. La columna sigue existiendo en BD
+    // para B2, pero el frontend ya no lo consume ni envía.
     preguntas_perfil_pendientes: Array<Record<string, unknown>>;
     modelo_ia_evaluacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
     modelo_ia_importacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';

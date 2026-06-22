@@ -316,7 +316,6 @@
     .campo-fila--2,
     .campo-fila--3,
     .idioma-grid-interior,
-    .scoring-grid,
     .importar-mini-listas {
         grid-template-columns: 1fr;
     }
@@ -759,25 +758,6 @@
     overflow-y: visible;
 }
 
-/* === Bonus de scoring por tecnologías (dentro del tab TECNOLOGÍAS) === */
-.bonus-scoring-tech {
-    margin-top: 1.5rem;
-    border: 1px solid var(--outline-variant);
-    border-radius: var(--radius-sm);
-    padding: 1rem;
-    background: color-mix(in srgb, var(--primary) 4%, transparent);
-}
-
-.bonus-scoring-tech .seccion-cabecera--inline {
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    margin-bottom: 0.5rem;
-    padding: 0;
-    border-bottom: none;
-    background: transparent;
-}
-
 .tabla-tech__header--amplia,
 .tabla-tech__fila--amplia {
     grid-template-columns: 1.2fr 0.9fr 1fr 1fr 1.4fr 1.6fr 44px;
@@ -789,19 +769,11 @@
     grid-template-columns: 1.3fr 0.8fr 1.8fr 44px;
 }
 
-.scoring-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem 1rem;
-}
+/* === Fin de estilos de preferencias === */
 
 @media (min-width: 1280px) {
     .campo-fila--3 {
         grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-
-    .scoring-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 }
 

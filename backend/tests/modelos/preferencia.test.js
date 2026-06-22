@@ -5,13 +5,26 @@
 // Estos tests verifican que la lectura y actualización funcionan correctamente.
 //
 // ⚠️  IMPORTANTE: estos tests hacen TRUNCATE sobre la tabla preferencias.
-// Solo corren si ALLOW_DB_TESTS=true está activo. Ver instrucciones en oferta.test.js.
+// Solo corren si ALLOW_DB_TESTS=true está activo Y además se verifica que
+// NODE_ENV === 'test' o que PGDATABASE contenga 'test' antes de ejecutar
+// cualquier TRUNCATE. Esto protege contra correr tests destructivos en
+// producción. Ver instrucciones detalladas en oferta.test.js.
+//
+// Cómo correrlos en PowerShell:
+//   $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos/preferencia --runInBand
+// En Linux/Mac:
+//   ALLOW_DB_TESTS=true NODE_ENV=test npx jest tests/modelos/preferencia --runInBand
 
 const pool = require('../../src/config/base-datos');
 const modeloPreferencia = require('../../src/modelos/preferencia');
 
 // Si no está el flag, todos los tests de este archivo se marcan como 'skipped'.
-const contexto = process.env.ALLOW_DB_TESTS === 'true' ? describe : describe.skip;
+// Además, verifico que NODE_ENV sea 'test' o que PGDATABASE contenga 'test'
+// como doble seguro para no correr TRUNCATE contra producción.
+const dbTestsPermitidos = process.env.ALLOW_DB_TESTS === 'true';
+const entornoSeguro = process.env.NODE_ENV === 'test'
+    || (process.env.PGDATABASE || '').includes('test');
+const contexto = (dbTestsPermitidos && entornoSeguro) ? describe : describe.skip;
 
 contexto('Modelo de preferencias — lectura y actualización', () => {
     // Antes de cada test, limpio la tabla y creo la fila por defecto.
@@ -182,28 +195,23 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
             expect(prefs.anios_experiencia_reales).toBe(2);
         });
 
-        test('debería actualizar scoring_config con bonificaciones de IA/Next.js', async () => {
-            const scoringConfig = {
-                umbral_aprobacion: 65,
-                penalizaciones: { senior: 25 },
-                bonificaciones: {
-                    healthtech: 5,
-                    herramientas_ia: 6,
-                    nextjs: 4,
-                    herramientas_ia_nextjs_max: 8,
-                },
-                deepseek: { ajuste_maximo_normal: 15, ajuste_maximo_con_evidencia: 25 },
-            };
-
+        test('debería ignorar scoring_config en la actualización (campo deprecado)', async () => {
+            // scoring_config ya no está en camposPermitidos, así que si el
+            // frontend legacy lo manda, se ignora sin error ni persistencia.
             const prefs = await modeloPreferencia.actualizarPreferencias({
-                scoring_config: scoringConfig,
+                nombre: 'Test scoring legacy',
+                scoring_config: { umbral_aprobacion: 70 },
             });
 
-            const config = prefs.scoring_config;
-            expect(config.umbral_aprobacion).toBe(65);
-            expect(config.bonificaciones.herramientas_ia).toBe(6);
-            expect(config.bonificaciones.nextjs).toBe(4);
-            expect(config.bonificaciones.herramientas_ia_nextjs_max).toBe(8);
+            // El nombre sí se actualizó.
+            expect(prefs.nombre).toBe('Test scoring legacy');
+            // scoring_config NO se actualizó — se ignoró.
+            // Puede ser null o el valor anterior, pero nunca el que mandamos.
+            if (prefs.scoring_config !== null && prefs.scoring_config !== undefined) {
+                // Si la columna ya existía con datos previos, scoring_config
+                // mantiene su valor anterior (no fue sobrescrito).
+                expect(prefs.scoring_config.umbral_aprobacion).not.toBe(70);
+            }
         });
     });
 });

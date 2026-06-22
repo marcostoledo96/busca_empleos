@@ -106,44 +106,30 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(component.guardando()).toBe(false);
     });
 
-    // --- Bonus IA/Next.js preservados en scoringConfig ---
+    // --- Scoring previo eliminado (B1): no hay scoringConfig ni métodos de scoring ---
 
-    it('restaurarScoringRecomendado incluye bonus herramientas_ia, nextjs y herramientas_ia_nextjs_max', async () => {
+    it('el componente no tiene propiedad scoringConfig (deprecado en B1)', async () => {
         const { component } = await crearComponente();
-
-        component.restaurarScoringRecomendado();
-
-        expect(component.scoringConfig.bonificaciones['herramientas_ia']).toBe(6);
-        expect(component.scoringConfig.bonificaciones['nextjs']).toBe(4);
-        expect(component.scoringConfig.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+        expect((component as any).scoringConfig).toBeUndefined();
     });
 
-    it('normalizarScoringConfig preserva bonus IA/Next.js existentes y agrega defaults', async () => {
+    it('el componente no tiene método restaurarScoringRecomendado (eliminado en B1)', async () => {
         const { component } = await crearComponente();
-
-        // Simulo una config de API que trae herramientas_ia pero no nextjs ni max.
-        const configParcial = {
-            penalizaciones: { senior: 25 },
-            bonificaciones: { herramientas_ia: 10 },
-        };
-        // normalizarScoringConfig es privado, accedo con any para testing.
-        const resultado = (component as any).normalizarScoringConfig(configParcial);
-
-        // El valor existente se conserva.
-        expect(resultado.bonificaciones['herramientas_ia']).toBe(10);
-        // Los defaults se completan.
-        expect(resultado.bonificaciones['nextjs']).toBe(4);
-        expect(resultado.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+        expect((component as any).restaurarScoringRecomendado).toBeUndefined();
     });
 
-    it('normalizarScoringConfig con config vacía usa defaults de bonus IA/Next.js', async () => {
+    it('el componente no tiene método normalizarScoringConfig (eliminado en B1)', async () => {
         const { component } = await crearComponente();
+        expect((component as any).normalizarScoringConfig).toBeUndefined();
+    });
 
-        const resultado = (component as any).normalizarScoringConfig({});
+    it('guardar() no envía scoring_config en el payload', async () => {
+        const { component } = await crearComponente();
+        component.nombre = 'Test';
+        component.nivelExperiencia = 'junior';
 
-        expect(resultado.bonificaciones['herramientas_ia']).toBe(6);
-        expect(resultado.bonificaciones['nextjs']).toBe(4);
-        expect(resultado.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+        // Verificar que scoring_config no existe como propiedad del componente.
+        expect((component as any).scoringConfig).toBeUndefined();
     });
 
     // --- Agregar y quitar tecnologías ---
@@ -204,25 +190,22 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(component.tecnologiasDetalle.length).toBe(cantidadOriginal);
     });
 
-    // --- Defaults IA/Next.js no se pierden al agregar/quitar tecnologías ---
+    // --- Agregar/quitar tecnologías no requiere scoringConfig (B1) ---
 
-    it('los bonus IA/Next.js se preservan después de agregar y quitar tecnologías', async () => {
+    it('agregar y quitar tecnologías funciona sin scoringConfig', async () => {
         const { component } = await crearComponente();
         component.cargarTecnologiasSugeridas();
+        const cantidadOriginal = component.tecnologiasDetalle.length;
 
-        // Guardo los valores originales de los bonus.
-        const bonusIaOriginal = component.scoringConfig.bonificaciones['herramientas_ia'];
-        const bonusNextjsOriginal = component.scoringConfig.bonificaciones['nextjs'];
-        const bonusMaxOriginal = component.scoringConfig.bonificaciones['herramientas_ia_nextjs_max'];
-
-        // Agrego y quito tecnologías — esto NO debe alterar scoringConfig.
         component.agregarTecnologia();
-        component.quitarTecnologia(component.tecnologiasDetalle.length - 1);
+        expect(component.tecnologiasDetalle.length).toBe(cantidadOriginal + 1);
 
-        // Los bonus siguen iguales.
-        expect(component.scoringConfig.bonificaciones['herramientas_ia']).toBe(bonusIaOriginal);
-        expect(component.scoringConfig.bonificaciones['nextjs']).toBe(bonusNextjsOriginal);
-        expect(component.scoringConfig.bonificaciones['herramientas_ia_nextjs_max']).toBe(bonusMaxOriginal);
+        // Quito la última (la que acabo de agregar).
+        component.quitarTecnologia(component.tecnologiasDetalle.length - 1);
+        expect(component.tecnologiasDetalle.length).toBe(cantidadOriginal);
+
+        // scoringConfig no existe (deprecado en B1).
+        expect((component as any).scoringConfig).toBeUndefined();
     });
 
     // --- Botones agregar/quitar NO están deshabilitados por modoDemo ---

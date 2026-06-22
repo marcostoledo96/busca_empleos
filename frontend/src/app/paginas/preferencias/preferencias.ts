@@ -4,6 +4,7 @@ import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/pre
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { Preferencias as PreferenciasModel, PreferenciasActualizar } from '../../modelos/preferencia.model';
 import { DemoService } from '../../servicios/demo.service';
+import { obtenerOpcionesPreferenciaPlataforma } from '../../config/plataformas';
 
 // PrimeNG
 import { InputText } from 'primeng/inputtext';
@@ -114,15 +115,8 @@ export class Preferencias implements OnInit {
     // Perfil detallado: tecnologías con niveles y categorías.
     tecnologiasDetalle: Array<{ nombre: string; nivel: string; categoria: string; importancia: string; aliases: string[]; evidencia?: string }> = [];
     rolesObjetivoDetalle: Array<{ rol: string; prioridad: string; aliases: string[]; evidencia?: string }> = [];
-    scoringConfig = {
-        umbral_aprobacion: 60,
-        penalizaciones: {} as Record<string, number>,
-        bonificaciones: {} as Record<string, number>,
-        deepseek: {
-            ajuste_maximo_normal: 15,
-            ajuste_maximo_con_evidencia: 25,
-        },
-    };
+    // scoringConfig fue eliminado en B1 (deprecación de scoring previo).
+    // La evaluación ahora usa DeepSeek directo + reglas-exclusion, sin scoring previo.
 
     // Importación de CV Markdown.
     archivoCvSeleccionado: File | null = null;
@@ -215,17 +209,9 @@ export class Preferencias implements OnInit {
         { label: 'USD', value: 'USD' },
     ];
 
-    opcionesPlataformas = [
-        { label: 'LinkedIn', value: 'linkedin' },
-        { label: 'Computrabajo', value: 'computrabajo' },
-        { label: 'Indeed', value: 'indeed' },
-        { label: 'Bumeran', value: 'bumeran' },
-        { label: 'Glassdoor', value: 'glassdoor' },
-        { label: 'GetOnBrd', value: 'getonbrd' },
-        { label: 'Jooble', value: 'jooble' },
-        { label: 'Google Jobs', value: 'google-jobs' },
-        { label: 'Adzuna', value: 'adzuna' },
-    ];
+    // Opciones de plataformas para preferencias (solo activas).
+    // Sale del registry, usa el id interno como valor.
+    opcionesPlataformas = obtenerOpcionesPreferenciaPlataforma();
 
     private crearTecnologiasSugeridas(): Array<{ nombre: string; nivel: string; categoria: string; importancia: string; aliases: string[]; evidencia?: string }> {
         return [
@@ -238,19 +224,19 @@ export class Preferencias implements OnInit {
             { nombre: 'React', nivel: 'medio', categoria: 'frontend', importancia: 'principal', aliases: ['react', 'react.js', 'reactjs'], evidencia: 'SanPa Holmes y proyectos frontend' },
             { nombre: 'C#', nivel: 'medio', categoria: 'lenguaje', importancia: 'secundaria', aliases: ['c#', 'c sharp', 'csharp'], evidencia: 'Grupo Scout San Patricio' },
             { nombre: 'SQL Server', nivel: 'medio', categoria: 'base_de_datos', importancia: 'secundaria', aliases: ['sql server', 'mssql'], evidencia: 'Grupo Scout San Patricio' },
-            { nombre: 'Java', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['java'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'Spring Boot', nivel: 'ninguno', categoria: 'backend', importancia: 'penalizable', aliases: ['spring boot', 'springboot'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Java', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['java'], evidencia: 'Regla de exclusión estricta' },
+            { nombre: 'Spring Boot', nivel: 'ninguno', categoria: 'backend', importancia: 'penalizable', aliases: ['spring boot', 'springboot'], evidencia: 'Regla de exclusión estricta' },
             { nombre: 'React Native', nivel: 'basico', categoria: 'mobile', importancia: 'no_prioritaria', aliases: ['react native'], evidencia: 'No priorizar ofertas mobile' },
-            { nombre: 'Kotlin', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['kotlin'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'Go', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['go', 'golang'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'Python', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['python'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'PHP', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['php'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'Ruby', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['ruby', 'rails'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'Swift', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['swift'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'AWS', nivel: 'ninguno', categoria: 'cloud', importancia: 'penalizable', aliases: ['aws', 'amazon web services'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'MongoDB', nivel: 'ninguno', categoria: 'base_de_datos', importancia: 'penalizable', aliases: ['mongodb', 'mongo'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'GraphQL', nivel: 'ninguno', categoria: 'backend', importancia: 'penalizable', aliases: ['graphql'], evidencia: 'Penalizable para scoring' },
-            { nombre: 'Kubernetes', nivel: 'ninguno', categoria: 'cloud', importancia: 'penalizable', aliases: ['kubernetes', 'k8s'], evidencia: 'Penalizable para scoring' },
+            { nombre: 'Kotlin', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['kotlin'], evidencia: 'Regla de exclusión' },
+            { nombre: 'Go', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['go', 'golang'], evidencia: 'Regla de exclusión' },
+            { nombre: 'Python', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['python'], evidencia: 'Regla de exclusión' },
+            { nombre: 'PHP', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['php'], evidencia: 'Regla de exclusión' },
+            { nombre: 'Ruby', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['ruby', 'rails'], evidencia: 'Regla de exclusión' },
+            { nombre: 'Swift', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: ['swift'], evidencia: 'Regla de exclusión' },
+            { nombre: 'AWS', nivel: 'ninguno', categoria: 'cloud', importancia: 'penalizable', aliases: ['aws', 'amazon web services'], evidencia: 'Regla de exclusión' },
+            { nombre: 'MongoDB', nivel: 'ninguno', categoria: 'base_de_datos', importancia: 'penalizable', aliases: ['mongodb', 'mongo'], evidencia: 'Regla de exclusión' },
+            { nombre: 'GraphQL', nivel: 'ninguno', categoria: 'backend', importancia: 'penalizable', aliases: ['graphql'], evidencia: 'Regla de exclusión' },
+            { nombre: 'Kubernetes', nivel: 'ninguno', categoria: 'cloud', importancia: 'penalizable', aliases: ['kubernetes', 'k8s'], evidencia: 'Regla de exclusión' },
         ];
     }
 
@@ -261,38 +247,6 @@ export class Preferencias implements OnInit {
             { rol: 'Full Stack Developer Jr', prioridad: 'media', aliases: ['full stack', 'fullstack', 'node developer'], evidencia: 'Rol secundario buscado' },
             { rol: 'Soporte IT / Aplicaciones', prioridad: 'media', aliases: ['soporte it', 'soporte de aplicaciones', 'help desk'], evidencia: 'Rol secundario buscado' },
         ];
-    }
-
-    private normalizarScoringConfig(config: any): typeof this.scoringConfig {
-        return {
-            umbral_aprobacion: 60,
-            penalizaciones: {
-                semi_senior: 10,
-                senior: 20,
-                sr_director: 30,
-                tecnologia_desconocida_importante: 5,
-                anio_experiencia_excedente: 5,
-                ingles_avanzado: 25,
-                soporte_hardware: 15,
-                qa_no_software: 20,
-                ...(config?.penalizaciones || {}),
-            },
-            bonificaciones: {
-                healthtech: 5,
-                stack_principal_completo: 10,
-                rol_prioridad_alta: 5,
-                rol_prioridad_media: 3,
-                herramientas_ia: 6,
-                nextjs: 4,
-                herramientas_ia_nextjs_max: 8,
-                ...(config?.bonificaciones || {}),
-            },
-            deepseek: {
-                ajuste_maximo_normal: 15,
-                ajuste_maximo_con_evidencia: 25,
-                ...(config?.deepseek || {}),
-            },
-        };
     }
 
     ngOnInit(): void {
@@ -337,7 +291,6 @@ export class Preferencias implements OnInit {
         this.plataformasExcluidas = [];
         this.tecnologiasDetalle = this.crearTecnologiasSugeridas();
         this.rolesObjetivoDetalle = this.crearRolesSugeridos();
-        this.scoringConfig = this.normalizarScoringConfig(null);
         this.cargando.set(false);
     }
 
@@ -388,7 +341,7 @@ export class Preferencias implements OnInit {
             modelo_ia: this.modeloIa,
             tecnologias_detalle: this.tecnologiasDetalle as any,
             roles_objetivo_detalle: this.rolesObjetivoDetalle as any,
-            scoring_config: this.scoringConfig as any,
+            // scoring_config eliminado en B1: ya no se envía al backend.
             preguntas_perfil_pendientes: this.preguntasPerfilPendientes as any,
             modelo_ia_evaluacion: this.modeloIaEvaluacion,
             modelo_ia_importacion: this.modeloIaImportacion,
@@ -484,8 +437,7 @@ export class Preferencias implements OnInit {
         const rolesApi = (prefs as any).roles_objetivo_detalle ?? [];
         this.tecnologiasDetalle = tecnologiasApi.length > 0 ? tecnologiasApi : this.crearTecnologiasSugeridas();
         this.rolesObjetivoDetalle = rolesApi.length > 0 ? rolesApi : this.crearRolesSugeridos();
-        const scoringApi = ((prefs as any).scoring_config || {}) as any;
-        this.scoringConfig = this.normalizarScoringConfig(scoringApi) as any;
+        // scoring_config ya no se consume en el frontend (B1). Se ignora.
     }
 
     // Resetea a "pendiente" las evaluaciones de los últimos N días.
@@ -555,35 +507,6 @@ export class Preferencias implements OnInit {
 
     cargarRolesSugeridos(): void {
         this.rolesObjetivoDetalle = this.crearRolesSugeridos();
-    }
-
-    restaurarScoringRecomendado(): void {
-        this.scoringConfig = {
-            umbral_aprobacion: 60,
-            penalizaciones: {
-                semi_senior: 10,
-                senior: 20,
-                sr_director: 30,
-                tecnologia_desconocida_importante: 5,
-                anio_experiencia_excedente: 5,
-                ingles_avanzado: 25,
-                soporte_hardware: 15,
-                qa_no_software: 20,
-            },
-            bonificaciones: {
-                healthtech: 5,
-                stack_principal_completo: 10,
-                rol_prioridad_alta: 5,
-                rol_prioridad_media: 3,
-                herramientas_ia: 6,
-                nextjs: 4,
-                herramientas_ia_nextjs_max: 8,
-            },
-            deepseek: {
-                ajuste_maximo_normal: 15,
-                ajuste_maximo_con_evidencia: 25,
-            },
-        } as any;
     }
 
     listaAString(lista: string[] | undefined): string {
@@ -662,9 +585,7 @@ export class Preferencias implements OnInit {
         if (r.keywords_negativas?.length) this.keywordsNegativas = r.keywords_negativas;
         if (r.plataformas_preferidas?.length) this.plataformasPreferidas = r.plataformas_preferidas;
         if (r.plataformas_excluidas?.length) this.plataformasExcluidas = r.plataformas_excluidas;
-        if (r.scoring_config) {
-            this.scoringConfig = this.normalizarScoringConfig(r.scoring_config);
-        }
+        // scoring_config ya no se aplica (B1): se ignora del resultado de importación.
         if (r.preguntas_perfil_pendientes?.length) {
             this.preguntasImportacion = r.preguntas_perfil_pendientes.map((p: any) => ({ ...p, estado: 'pendiente', respuesta: '' }));
         }

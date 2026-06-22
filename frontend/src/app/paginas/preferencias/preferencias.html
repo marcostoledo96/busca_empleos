@@ -6,9 +6,7 @@
     <div class="preferencias-cabecera">
         <span class="preferencias-label">CONFIGURACIÓN</span>
         <h2 class="preferencias-titulo">Preferencias de búsqueda</h2>
-        <p class="preferencias-descripcion">
-            Centro de control de tu perfil laboral: tecnologías, roles, scoring, IA e importación de CV.
-        </p>
+        <p class="preferencias-descripcion">Centro de control de tu perfil laboral: tecnologías, roles, búsqueda, IA e importación de CV.</p>
     </div>
 
     @if (modoDemo()) {
@@ -24,11 +22,10 @@
                 <p-tab [value]="0"><span class="tab-label-lite">PERFIL</span></p-tab>
                 <p-tab [value]="1"><span class="tab-label-lite">TECNOLOGÍAS</span></p-tab>
                 <p-tab [value]="2"><span class="tab-label-lite">ROLES</span></p-tab>
-                <p-tab [value]="3"><span class="tab-label-lite">SCORING</span></p-tab>
-                <p-tab [value]="4"><span class="tab-label-lite">BÚSQUEDA</span></p-tab>
-                <p-tab [value]="5"><span class="tab-label-lite">IA</span></p-tab>
-                <p-tab [value]="6"><span class="tab-label-lite">IMPORTAR CV</span></p-tab>
-                <p-tab [value]="7"><span class="tab-label-lite">EVALUACIONES</span></p-tab>
+                <p-tab [value]="3"><span class="tab-label-lite">BÚSQUEDA</span></p-tab>
+                <p-tab [value]="4"><span class="tab-label-lite">IA</span></p-tab>
+                <p-tab [value]="5"><span class="tab-label-lite">IMPORTAR CV</span></p-tab>
+                <p-tab [value]="6"><span class="tab-label-lite">EVALUACIONES</span></p-tab>
             </p-tablist>
 
             <p-tabpanels>
@@ -123,7 +120,7 @@
                             <div class="campo">
                                 <label class="campo-etiqueta" for="ausentes">Conocimientos / tecnologías que NO manejás</label>
                                 <p-autocomplete id="ausentes" [(ngModel)]="conocimientosAusentes" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: microservicios, Kafka, blockchain" appendTo="body" />
-                                <small class="campo-ayuda">Si una oferta pide estas tecnologías, el scoring baja automáticamente.</small>
+                                <small class="campo-ayuda">Si una oferta pide estas tecnologías, la evaluación las marca como ausentes en tu perfil.</small>
                             </div>
 
                             <div class="campo">
@@ -178,28 +175,6 @@
                                     </div>
                                 </div>
                             }
-
-                            <!-- Bonus de scoring por tecnologías específicas -->
-                            <div class="bonus-scoring-tech">
-                                <div class="seccion-cabecera seccion-cabecera--inline">
-                                    <span class="seccion-label">BONUS_DE_SCORING_POR_TECNOLOGÍAS</span>
-                                </div>
-                                <small class="campo-ayuda">Estos bonus se aplican cuando la oferta valora herramientas de IA o Next.js. El combinado no compensa exclusiones por Java, Senior o inglés avanzado.</small>
-                                <div class="campo-fila campo-fila--3">
-                                    <div class="campo">
-                                        <label class="campo-etiqueta">Bonus herramientas IA</label>
-                                        <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia']" min="0" max="20" />
-                                    </div>
-                                    <div class="campo">
-                                        <label class="campo-etiqueta">Bonus Next.js</label>
-                                        <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['nextjs']" min="0" max="20" />
-                                    </div>
-                                    <div class="campo">
-                                        <label class="campo-etiqueta">Máx. combinado IA/Next.js</label>
-                                        <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia_nextjs_max']" min="0" max="20" />
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                     </section>
                 </p-tabpanel>
@@ -242,50 +217,8 @@
                     </section>
                 </p-tabpanel>
 
-                <!-- SCORING -->
-                <p-tabpanel [value]="3">
-                    <section class="seccion" aria-labelledby="label-scoring">
-                        <div class="seccion-cabecera">
-                            <span class="seccion-label" id="label-scoring">SCORING</span>
-                            <button class="btn-detalle-secundario" (click)="restaurarScoringRecomendado()">RESTAURAR RECOMENDADO</button>
-                        </div>
-                        <div class="seccion-cuerpo">
-                            <div class="campo-fila campo-fila--3">
-                                <div class="campo">
-                                    <label class="campo-etiqueta">Umbral aprobación</label>
-                                    <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.umbral_aprobacion" min="0" max="100" />
-                                </div>
-                                <div class="campo">
-                                    <label class="campo-etiqueta">Ajuste IA normal</label>
-                                    <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.deepseek.ajuste_maximo_normal" min="0" max="100" />
-                                </div>
-                                <div class="campo">
-                                    <label class="campo-etiqueta">Ajuste IA con evidencia</label>
-                                    <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.deepseek.ajuste_maximo_con_evidencia" min="0" max="100" />
-                                </div>
-                            </div>
-
-                            <div class="scoring-grid">
-                                <div class="campo"><label class="campo-etiqueta">Semi-senior</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['semi_senior']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Senior</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['senior']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Lead/Architect</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['sr_director']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Tec. desconocida</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['tecnologia_desconocida_importante']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Año extra exp.</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['anio_experiencia_excedente']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Inglés avanzado</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['ingles_avanzado']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Soporte hardware</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['soporte_hardware']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">QA no software</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.penalizaciones['qa_no_software']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Bonus HealthTech</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['healthtech']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Stack principal completo</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['stack_principal_completo']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Rol prioridad alta</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_alta']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Rol prioridad media</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_media']" /></div>
-                            </div>
-                            <small class="campo-ayuda">Umbral 60 = aprobado. Bajalo si querés revisar más oportunidades, subilo si querés ser más estricto. Los bonus IA/Next.js se configuran en el tab TECNOLOGÍAS.</small>
-                        </div>
-                    </section>
-                </p-tabpanel>
-
                 <!-- BÚSQUEDA -->
-                <p-tabpanel [value]="4">
+                <p-tabpanel [value]="3">
                     <section class="seccion" aria-labelledby="label-busqueda-avanzada">
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-busqueda-avanzada">BÚSQUEDA</span></div>
                         <div class="seccion-cuerpo">
@@ -322,7 +255,7 @@
                 </p-tabpanel>
 
                 <!-- IA -->
-                <p-tabpanel [value]="5">
+                <p-tabpanel [value]="4">
                     <section class="seccion" aria-labelledby="label-ia-tabs">
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-ia-tabs">IA</span></div>
                         <div class="seccion-cuerpo">
@@ -366,12 +299,13 @@
                             -->
                             <div class="campo campo-toggle">
                                 <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
-                                <label class="campo-etiqueta campo-etiqueta--inline">Usar prompt personalizado</label>
+                                <label class="campo-etiqueta campo-etiqueta--inline">Usar criterios adicionales para la IA</label>
                             </div>
                             @if (usarPromptPersonalizado) {
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Prompt personalizado evaluación</label>
+                                    <label class="campo-etiqueta">Criterios adicionales para la evaluación</label>
                                     <textarea pTextarea [(ngModel)]="promptPersonalizado" [rows]="6" [autoResize]="true"></textarea>
+                                    <small class="campo-ayuda">Estos criterios se agregan al final del prompt de evaluación como complemento. NO reemplazan las reglas de exclusión (Java, Senior, 3+ años, inglés avanzado, ubicación). Son preferencias extra que la IA considera siempre y cuando no contradigan las reglas estrictas.</small>
                                 </div>
                             }
                         </div>
@@ -379,7 +313,7 @@
                 </p-tabpanel>
 
                 <!-- IMPORTAR CV -->
-                <p-tabpanel [value]="6">
+                <p-tabpanel [value]="5">
                     <section class="seccion" aria-labelledby="label-importar">
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-importar">IMPORTAR_CV_MARKDOWN</span></div>
                         <div class="seccion-cuerpo">
@@ -540,11 +474,11 @@
                 </p-tabpanel>
 
                 <!-- EVALUACIONES -->
-                <p-tabpanel [value]="7">
+                <p-tabpanel [value]="6">
                     <section class="seccion seccion--peligro" aria-labelledby="label-evaluaciones">
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-evaluaciones">GESTIÓN_EVALUACIONES</span></div>
                         <div class="seccion-cuerpo">
-                            <p class="campo-ayuda reset-descripcion">Útil cuando actualizás tu perfil o scoring y querés que la IA vuelva a analizar ofertas recientes.</p>
+                            <p class="campo-ayuda reset-descripcion">Útil cuando actualizás tu perfil y querés que la IA vuelva a analizar ofertas recientes.</p>
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo reset-campo-dias">
                                     <label class="campo-etiqueta" for="diasReset">Días atrás a resetear</label>
@@ -558,7 +492,7 @@
                                 <div class="campo">
                                     <label class="campo-etiqueta">Modo de evaluación</label>
                                     <input pInputText [ngModel]="'DeepSeek directo'" readonly />
-                                    <small class="campo-ayuda">Cada oferta se evalúa directamente con DeepSeek. No hay scoring previo ni filtros automáticos.</small>
+                                    <small class="campo-ayuda">Cada oferta se evalúa con DeepSeek más reglas determinísticas activas (exclusión por Java, seniority, experiencia, idioma, ubicación).</small>
                                 </div>
                             </div>
                             <div class="reset-boton-wrapper">

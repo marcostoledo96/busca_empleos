@@ -103,7 +103,7 @@ async function actualizarPreferencias(datos) {
         'stack_tecnologico', 'modalidad_aceptada', 'zonas_preferidas',
         'terminos_busqueda', 'reglas_exclusion',
         'prompt_personalizado', 'usar_prompt_personalizado', 'modelo_ia',
-        'tecnologias_detalle', 'roles_objetivo_detalle', 'scoring_config',
+        'tecnologias_detalle', 'roles_objetivo_detalle',
         'preguntas_perfil_pendientes',
         'modelo_ia_evaluacion', 'modelo_ia_importacion',
         'disponibilidad', 'expectativa_salarial_min', 'expectativa_salarial_max',
@@ -121,7 +121,7 @@ async function actualizarPreferencias(datos) {
     // explícitamente porque el driver pg puede no serializarlos bien
     // en ciertas versiones de Railway.
     const camposJsonb = new Set([
-        'tecnologias_detalle', 'roles_objetivo_detalle', 'scoring_config',
+        'tecnologias_detalle', 'roles_objetivo_detalle',
         'preguntas_perfil_pendientes', 'nivel_ingles_detalle',
     ]);
 

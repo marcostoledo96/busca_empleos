@@ -48,11 +48,6 @@ describe('PreferenciasService', () => {
                 fecha_actualizacion: '2025-01-01T00:00:00Z',
                 tecnologias_detalle: [],
                 roles_objetivo_detalle: [],
-                scoring_config: {
-                    umbral_aprobacion: 60,
-                    penalizaciones: {},
-                    bonificaciones: {},
-                },
                 preguntas_perfil_pendientes: [],
             },
         };
@@ -101,11 +96,6 @@ describe('PreferenciasService', () => {
                 fecha_actualizacion: '2025-01-02T00:00:00Z',
                 tecnologias_detalle: [],
                 roles_objetivo_detalle: [],
-                scoring_config: {
-                    umbral_aprobacion: 60,
-                    penalizaciones: {},
-                    bonificaciones: {},
-                },
                 preguntas_perfil_pendientes: [],
             },
         });
