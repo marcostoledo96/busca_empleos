@@ -62,11 +62,17 @@ async function crearOferta(datos) {
 /**
  * Obtengo ofertas de la base de datos, con filtros y paginación opcionales.
  *
- * Siempre filtro por fecha_extraccion dentro del último mes, para no mostrar
- * ofertas antiguas que ya no son relevantes. Este filtro es FIJO (no depende
- * de parámetros del usuario) y se aplica tanto al SELECT como al COUNT.
+ * Siempre filtro por fecha_extraccion dentro de los últimos 30 días, para no
+ * mostrar ofertas antiguas que ya no son relevantes. Este filtro es FIJO (no
+ * depende de parámetros del usuario) y se aplica tanto al SELECT como al COUNT.
  *
- * ¿Por qué NOW() - INTERVAL '1 month' directo en SQL y no como parámetro?
+ * ¿Por qué NOW() - INTERVAL '30 days' y no '1 month'?
+ * Porque '1 month' es ambiguo en PostgreSQL: resta 1 mes calendario, que puede
+ * ser 28, 29, 30 o 31 días dependiendo del mes. Si hoy es 31 de marzo,
+ * NOW() - INTERVAL '1 month' da 3 de marzo (28 días), no 28 de marzo (3 días).
+ * Con '30 days' siempre obtenemos exactamente 30 días atrás, sin ambigüedad.
+ *
+ * ¿Por qué directo en SQL y no como parámetro?
  * Porque es una expresión fija de PostgreSQL, no input del usuario.
  * No hay riesgo de SQL injection porque no viene de afuera.
  * Si usara un parámetro ($N), tendría que calcular el valor en JavaScript
@@ -76,8 +82,8 @@ async function crearOferta(datos) {
  * instante NOW(), garantizando consistencia exacta.
  *
  * PAGINACIÓN:
- * - Si NO se pasa limite_pagina: retorna TODAS las ofertas del último mes
- *   sin LIMIT ni OFFSET. El campo limite_pagina del retorno vale null.
+ * - Si NO se pasa limite_pagina: retorna TODAS las ofertas de los últimos
+ *   30 días sin LIMIT ni OFFSET. El campo limite_pagina del retorno vale null.
  * - Si se pasa limite_pagina: se aplica paginación con LIMIT/OFFSET.
  *   No hay tope máximo artificial — si el caller pide 5000, obtiene 5000.
  *   Es responsabilidad del caller decidir cuántos registros necesita.
@@ -89,9 +95,9 @@ async function crearOferta(datos) {
  */
 async function obtenerOfertas(filtros = {}) {
     // Construyo la query dinámicamente según los filtros que vengan.
-    // Arranco con el filtro fijo de último mes y luego agrego los opcionales.
+    // Arranco con el filtro fijo de últimos 30 días y luego agrego los opcionales.
     // El filtro de fecha SIEMPRE va primero porque es una condición fija.
-    const condiciones = [`fecha_extraccion >= NOW() - INTERVAL '1 month'`];
+    const condiciones = [`fecha_extraccion >= NOW() - INTERVAL '30 days'`];
     const parametros = [];
 
     if (filtros.estado) {
@@ -163,7 +169,7 @@ async function obtenerOfertas(filtros = {}) {
             [...parametros, limite, offset]
         );
     } else {
-        // Sin paginación: traigo todas las ofertas del último mes.
+        // Sin paginación: traigo todas las ofertas de los últimos 30 días.
         resultado = await pool.query(
             `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST`,
             parametros
@@ -254,12 +260,17 @@ async function actualizarPostulacion(id, estadoPostulacion) {
  * Obtengo estadísticas de las ofertas agrupadas por estado de evaluación.
  * El dashboard necesita estos contadores para mostrar un resumen rápido.
  *
+ * Al igual que obtenerOfertas(), filtro por los últimos 30 días para que
+ * las estadísticas sean consistentes con lo que el usuario ve en el listado.
+ * Una oferta de hace 31 días no debería sumar al total visible.
+ *
  * @returns {Object} { total, pendientes, aprobadas, rechazadas }
  */
 async function obtenerEstadisticas() {
     const resultado = await pool.query(
         `SELECT estado_evaluacion, COUNT(*)::integer AS cantidad
          FROM ofertas
+         WHERE fecha_extraccion >= NOW() - INTERVAL '30 days'
          GROUP BY estado_evaluacion`
     );
 
@@ -338,29 +349,6 @@ async function resetearEvaluacionesPorDias(dias) {
     return resultado.rows;
 }
 
-/**
- * Guarda el análisis previo de scoring en la oferta.
- * Se ejecuta ANTES de llamar a DeepSeek, con el score calculado localmente.
- */
-async function guardarAnalisisPrevio(id, analisis) {
-    const resultado = await pool.query(
-        `UPDATE ofertas
-         SET score_previo = $1,
-             analisis_previo = $2,
-             scoring_version = $3
-         WHERE id = $4
-         RETURNING *`,
-        [
-            analisis.score_previo,
-            JSON.stringify(analisis),
-            analisis.version || 'p3_p5_v1',
-            id,
-        ]
-    );
-
-    return resultado.rows[0];
-}
-
 module.exports = {
     crearOferta,
     obtenerOfertas,
@@ -371,5 +359,4 @@ module.exports = {
     actualizarPostulacion,
     actualizarPostulacionMasiva,
     resetearEvaluacionesPorDias,
-    guardarAnalisisPrevio,
 };

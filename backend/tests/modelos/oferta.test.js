@@ -7,17 +7,27 @@
 // Para proteger los datos de producción, solo corren si la variable
 // de entorno ALLOW_DB_TESTS=true está activa.
 //
+// ⚠️  PROTECCIÓN ADICIONAL: además de ALLOW_DB_TESTS, se verifica que
+// NODE_ENV === 'test' o que PGDATABASE contenga 'test' antes de ejecutar
+// cualquier TRUNCATE. Si no se cumple, los tests se saltan automáticamente.
+// NUNCA correr estos tests contra una base de datos de producción.
+//
 // Cómo correrlos en PowerShell:
-//   $env:ALLOW_DB_TESTS="true"; npx jest tests/modelos --runInBand
+//   $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --runInBand
 // En Linux/Mac:
-//   ALLOW_DB_TESTS=true npx jest tests/modelos --runInBand
+//   ALLOW_DB_TESTS=true NODE_ENV=test npx jest tests/modelos --runInBand
 
 const pool = require('../../src/config/base-datos');
 const modeloOferta = require('../../src/modelos/oferta');
 
 // Si no está el flag, todos los tests de este archivo se marcan como 'skipped'.
 // Esto protege la BD de producción cuando se corre el test suite normal.
-const contexto = process.env.ALLOW_DB_TESTS === 'true' ? describe : describe.skip;
+// Además, verifico que NODE_ENV sea 'test' o que PGDATABASE contenga 'test'
+// como doble seguro para no correr TRUNCATE contra producción.
+const dbTestsPermitidos = process.env.ALLOW_DB_TESTS === 'true';
+const entornoSeguro = process.env.NODE_ENV === 'test'
+    || (process.env.PGDATABASE || '').includes('test');
+const contexto = (dbTestsPermitidos && entornoSeguro) ? describe : describe.skip;
 
 // Datos de ejemplo que reutilizo en varios tests.
 // Los defino acá para no repetirlos en cada test (principio DRY).
@@ -106,9 +116,9 @@ contexto('Modelo de ofertas — CRUD', () => {
     // === obtenerOfertas() ===
 
     describe('obtenerOfertas()', () => {
-        test('debería retornar ofertas recientes (dentro del último mes)', async () => {
+        test('debería retornar ofertas recientes (dentro de los últimos 30 días)', async () => {
             // Inserto dos ofertas distintas. Ambas tienen fecha_extraccion = NOW()
-            // (default de la BD), así que caen dentro del último mes.
+            // (default de la BD), así que caen dentro de los últimos 30 días.
             await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.crearOferta(segundaOferta);
 
@@ -118,15 +128,31 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(resultado.total).toBe(2);
         });
 
-        test('debería excluir ofertas con fecha_extraccion anterior al último mes', async () => {
-            // Inserto una oferta reciente (default NOW(), dentro del mes).
+        test('debería incluir ofertas con fecha_extraccion de hace 29 días (límite inclusivo)', async () => {
+            // Inserto una oferta y le fuerzo fecha_extraccion a hace 29 días.
+            // Debe aparecer porque 29 < 30.
+            const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '29 days' WHERE id = $1`,
+                [oferta.id]
+            );
+
+            const resultado = await modeloOferta.obtenerOfertas();
+
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.total).toBe(1);
+            expect(resultado.ofertas[0].id).toBe(oferta.id);
+        });
+
+        test('debería excluir ofertas con fecha_extraccion de hace 31 días (fuera de la ventana)', async () => {
+            // Inserto una oferta reciente (default NOW(), dentro de los 30 días).
             await modeloOferta.crearOferta(ofertaEjemplo);
 
-            // Inserto una oferta y le fuerzo fecha_extraccion a hace 2 meses.
-            // Esto simula una oferta vieja que ya no debería aparecer.
+            // Inserto otra y le fuerzo fecha_extraccion a hace 31 días.
+            // No debería aparecer porque está fuera de la ventana de 30 días.
             const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 
@@ -138,8 +164,8 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(resultado.ofertas[0].titulo).toBe(ofertaEjemplo.titulo);
         });
 
-        test('el total debería reflejar solo ofertas dentro del último mes', async () => {
-            // Inserto 3 ofertas: 2 recientes y 1 vieja.
+        test('el total debería reflejar solo ofertas dentro de los últimos 30 días', async () => {
+            // Inserto 3 ofertas: 2 recientes y 1 vieja (más de 30 días).
             await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.crearOferta(segundaOferta);
             const ofertaVieja = await modeloOferta.crearOferta({
@@ -148,7 +174,7 @@ contexto('Modelo de ofertas — CRUD', () => {
                 titulo: 'Oferta Vieja',
             });
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 
@@ -159,7 +185,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(resultado.total).toBe(2);
         });
 
-        test('debería filtrar ofertas por estado_evaluacion dentro del último mes', async () => {
+        test('debería filtrar ofertas por estado_evaluacion dentro de los últimos 30 días', async () => {
             // Inserto una oferta y la apruebo manualmente.
             const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.actualizarEvaluacion(oferta.id, 'aprobada', 'Cumple con el perfil');
@@ -217,8 +243,8 @@ contexto('Modelo de ofertas — CRUD', () => {
     // === obtenerEstadisticas() ===
 
     describe('obtenerEstadisticas()', () => {
-        test('debería retornar conteo por cada estado de evaluación', async () => {
-            // Inserto 3 ofertas con distintos estados.
+        test('debería retornar conteo por cada estado de evaluación (solo últimos 30 días)', async () => {
+            // Inserto 3 ofertas con distintos estados, todas recientes.
             const oferta1 = await modeloOferta.crearOferta(ofertaEjemplo);
             const oferta2 = await modeloOferta.crearOferta(segundaOferta);
             await modeloOferta.crearOferta({
@@ -236,6 +262,42 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(estadisticas.total).toBe(3);
             expect(estadisticas.pendientes).toBe(1);
             expect(estadisticas.aprobadas).toBe(1);
+            expect(estadisticas.rechazadas).toBe(1);
+        });
+
+        test('debería excluir ofertas de hace más de 30 días del conteo', async () => {
+            // Inserto una oferta y la apruebo, pero con fecha de hace 31 días.
+            // No debe sumar al conteo de aprobadas ni al total.
+            const ofertaAprobadaVieja = await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.actualizarEvaluacion(ofertaAprobadaVieja.id, 'aprobada', 'Match');
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
+                [ofertaAprobadaVieja.id]
+            );
+
+            // Inserto una oferta reciente pendiente.
+            await modeloOferta.crearOferta(segundaOferta);
+
+            const estadisticas = await modeloOferta.obtenerEstadisticas();
+
+            // Solo la oferta reciente cuenta.
+            expect(estadisticas.total).toBe(1);
+            expect(estadisticas.pendientes).toBe(1);
+            expect(estadisticas.aprobadas).toBe(0);
+        });
+
+        test('debería incluir ofertas de hace 29 días en el conteo', async () => {
+            // Inserto una oferta y le fuerzo fecha a hace 29 días — debe aparecer.
+            const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.actualizarEvaluacion(oferta.id, 'rechazada', 'Requiere Java');
+            await pool.query(
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '29 days' WHERE id = $1`,
+                [oferta.id]
+            );
+
+            const estadisticas = await modeloOferta.obtenerEstadisticas();
+
+            expect(estadisticas.total).toBe(1);
             expect(estadisticas.rechazadas).toBe(1);
         });
 
@@ -375,17 +437,18 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(resultado.ofertas[0].id).toBe(oferta1.id);
         });
 
-        test('debería excluir ofertas viejas del sorting (filtro de último mes)', async () => {
+        test('debería excluir ofertas viejas del sorting (filtro de últimos 30 días)', async () => {
             // Inserto una oferta reciente y la apruebo con 60%.
             const ofertaReciente = await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.actualizarEvaluacion(ofertaReciente.id, 'aprobada', 'Match', 60);
 
             // Inserto otra oferta y la fuerzo a fecha vieja con 90% de match.
-            // Aunque tiene mejor porcentaje, no debería aparecer porque es vieja.
+            // Aunque tiene mejor porcentaje, no debería aparecer porque está fuera
+            // de la ventana de 30 días.
             const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
             await modeloOferta.actualizarEvaluacion(ofertaVieja.id, 'aprobada', 'Match', 90);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 
@@ -424,12 +487,12 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(resultado.pagina).toBe(1);
         });
 
-        test('sin limite_pagina: debería excluir ofertas fuera del último mes', async () => {
+        test('sin limite_pagina: debería excluir ofertas fuera de los últimos 30 días', async () => {
             // Inserto una oferta reciente y una vieja.
             await modeloOferta.crearOferta(ofertaEjemplo);
             const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '2 months' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 

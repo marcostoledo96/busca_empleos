@@ -56,6 +56,8 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 | `idx_ofertas_plataforma` | `plataforma` | Acelerar filtrado por plataforma (linkedin/computrabajo). |
 | `idx_ofertas_porcentaje_match` | `porcentaje_match` | Acelerar ordenamiento por porcentaje de match. |
 | `idx_ofertas_estado_postulacion` | `estado_postulacion` | Acelerar filtrado por estado de postulación. |
+| `idx_ofertas_fecha_extraccion_desc` | `fecha_extraccion DESC` | Acelerar el listado de ofertas ordenado por fecha de extracción (el orden por defecto). |
+| `idx_ofertas_estado_fecha_extraccion` | `(estado_evaluacion, fecha_extraccion DESC)` | Acelerar consultas que filtran por estado y ordenan por fecha (usado en listados y estadísticas). |
 
 ### Deduplicación
 
@@ -77,7 +79,7 @@ Archivo: `backend/src/modelos/oferta.js`. Funciones CRUD con queries SQL paramet
 | `obtenerOfertasPendientes()` | SELECT WHERE estado='pendiente' | Lista ofertas no evaluadas. Usado por el servicio de evaluación. |
 | `actualizarEvaluacion(id, estado, razon, porcentaje)` | UPDATE SET estado, razon, porcentaje_match | Actualiza el resultado de la evaluación IA (incluye porcentaje 0-100). Retorna la oferta actualizada o `null`. |
 | `actualizarPostulacion(id, estadoPostulacion)` | UPDATE SET estado_postulacion | Cambia el estado de postulación de una oferta. Retorna la oferta actualizada o `null`. |
-| `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado | Retorna `{ total, pendientes, aprobadas, rechazadas }` por `estado_evaluacion`. Disponible para diagnósticos o consumidores que necesiten ese agregado bruto. |
+| `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado WHERE fecha ≥ 30 días | Retorna `{ total, pendientes, aprobadas, rechazadas }` por `estado_evaluacion`, **solo de los últimos 30 días** (filtro por `fecha_extraccion`). Consistente con `obtenerOfertas()`. |
 
 ### Firma de `crearOferta`
 
@@ -119,6 +121,7 @@ La query se construye dinámicamente. Si vienen filtros, se agregan condiciones 
 | `backend/sql/migracion-005-fecha-evaluacion.sql` | Agrega `fecha_evaluacion` e índice para reseteos. |
 | `backend/sql/migracion-006-actualizar-perfil.sql` | Actualiza perfil, idioma y stack del candidato. |
 | `backend/sql/migracion-007-modelo-deepseek-v4-flash.sql` | Cambia el modelo por defecto y migra preferencias existentes a `deepseek-v4-flash`. |
+| `backend/sql/migracion-015-indices-ofertas-ultimos-30-dias.sql` | Agrega índices para acelerar consultas que filtran por `fecha_extraccion` (ventana de 30 días) y `estado_evaluacion`. Índices: `idx_ofertas_fecha_extraccion_desc` y `idx_ofertas_estado_fecha_extraccion`. Idempotente. |
 
 ## Documentos relacionados
 
