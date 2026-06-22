@@ -114,7 +114,6 @@ describe('Modelo de cache de evaluaciones', () => {
                 idioma_candidato: 'Espanol',
                 tecnologias_detalle: [{ nombre: 'React', nivel: 'medio' }],
                 roles_objetivo_detalle: [{ rol: 'Frontend', prioridad: 'alta' }],
-                scoring_config: { umbral_aprobacion: 60 },
                 nivel_ingles_detalle: null,
                 nivel_real_seniority: null,
                 conocimientos_ausentes: [],
@@ -127,11 +126,39 @@ describe('Modelo de cache de evaluaciones', () => {
 
             const hashBase = modeloCache.crearHashPreferencias(base);
 
-            const cambioScoring = { ...base, scoring_config: { umbral_aprobacion: 70 } };
-            expect(modeloCache.crearHashPreferencias(cambioScoring)).not.toBe(hashBase);
-
             const cambioTecnologias = { ...base, tecnologias_detalle: [{ nombre: 'React', nivel: 'avanzado' }] };
             expect(modeloCache.crearHashPreferencias(cambioTecnologias)).not.toBe(hashBase);
+        });
+
+        test('ignora scoring_config al generar el hash (campo deprecado)', () => {
+            const base = {
+                nivel_experiencia: 'junior',
+                stack_tecnologico: ['React'],
+                modalidad_aceptada: 'cualquiera',
+                zonas_preferidas: ['CABA'],
+                reglas_exclusion: [],
+                idioma_candidato: 'Espanol',
+                tecnologias_detalle: [{ nombre: 'React', nivel: 'medio' }],
+                roles_objetivo_detalle: [{ rol: 'Frontend', prioridad: 'alta' }],
+                nivel_ingles_detalle: null,
+                nivel_real_seniority: null,
+                conocimientos_ausentes: [],
+                limitaciones_explicitas: null,
+                keywords_positivas: [],
+                keywords_negativas: [],
+                plataformas_preferidas: [],
+                plataformas_excluidas: [],
+            };
+
+            // scoring_config NO participa en el hash — es un campo deprecado.
+            const sinScoring = modeloCache.crearHashPreferencias(base);
+            const conScoring = modeloCache.crearHashPreferencias({
+                ...base,
+                scoring_config: { umbral_aprobacion: 60 },
+            });
+
+            // Ambos hashes deben ser idénticos porque scoring_config se ignora.
+            expect(sinScoring).toBe(conScoring);
         });
     });
 

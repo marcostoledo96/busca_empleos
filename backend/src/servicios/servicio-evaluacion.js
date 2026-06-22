@@ -22,6 +22,8 @@ const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
+const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
+const { evaluarReglasExclusion } = require('./evaluacion/reglas-exclusion');
 
 // Progreso de la evaluación en curso.
 // ¿Por qué un objeto en memoria y no en la BD? Porque el progreso es efímero:
@@ -179,10 +181,11 @@ function construirPerfilDesdePreferencias(prefs) {
  * @returns {string} Instrucciones de sistema completas.
  */
 function construirInstruccionesDesdePreferencias(prefs) {
-    // Si el usuario activó su prompt personalizado, lo uso tal cual.
-    if (prefs.usar_prompt_personalizado && prefs.prompt_personalizado) {
-        return prefs.prompt_personalizado;
-    }
+    // Las instrucciones base SIEMPRE se construyen. Si el usuario activó
+    // su prompt personalizado, se agrega al final como criterios adicionales
+    // que NUNCA pueden anular las exclusiones fuertes (Java, Senior, 3+ años,
+    // inglés avanzado, presencial fuera de zona).
+    // Antes este campo reemplazaba todo el prompt; ahora es adicional.
 
     const perfil = construirPerfilDesdePreferencias(prefs);
     const zonas = prefs.zonas_preferidas || [];
@@ -259,6 +262,16 @@ function construirInstruccionesDesdePreferencias(prefs) {
     partes.push('');
     partes.push('- La "razon" debe ser concisa (1-2 oraciones), en español, y mencionar las tecnologías relevantes.');
 
+    // Si el usuario activó su prompt personalizado, lo agrego como criterios
+    // adicionales al final. NUNCA reemplaza las reglas base ni las exclusiones
+    // fuertes. Es un complemento, no una superposición.
+    if (prefs.usar_prompt_personalizado && prefs.prompt_personalizado && prefs.prompt_personalizado.trim()) {
+        partes.push('');
+        partes.push('CRITERIOS ADICIONALES DEL USUARIO:');
+        partes.push('Los siguientes criterios son preferencias adicionales del usuario. NO anulan las reglas estrictas de exclusión (Java, Senior/SR/Lead, 3+ años excluyentes, inglés avanzado/fluido/bilingüe, presencial fuera de zona). Aplicar estos criterios solo si no contradicen ninguna exclusión fuerte.');
+        partes.push(prefs.prompt_personalizado.trim());
+    }
+
     return partes.join('\n');
 }
 
@@ -304,13 +317,6 @@ function ubicacionEnZonas(ubicacion, zonas) {
 }
 
 /**
- * Acota un número al rango [min, max].
- */
-function clamp(numero, min = 0, max = 100) {
-    return Math.max(min, Math.min(max, Math.round(numero)));
-}
-
-/**
  * Evalúo una oferta individual con DeepSeek.
  *
  * Ahora recibe las instrucciones y el modelo como parámetros para no
@@ -349,7 +355,24 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
             instruccionesFinal = 'Sos un evaluador de ofertas de empleo. Respondé con JSON: {"match": true/false, "porcentaje": 0-100, "razon": "..."}';
         }
 
+        // ── Paso 1: Pre-evaluación con reglas de exclusión ──
+        // Si la oferta cumple algún criterio de exclusión determinístico
+        // (Java, Senior, 3+ años, inglés avanzado, presencial fuera de zona),
+        // la rechazo SIN llamar a DeepSeek.
+        if (preferenciasFinal) {
+            const resultadoExclusion = evaluarReglasExclusion(oferta, preferenciasFinal);
+            if (resultadoExclusion.excluida) {
+                return {
+                    match: false,
+                    porcentaje: resultadoExclusion.porcentaje,
+                    razon: resultadoExclusion.razon,
+                    error: false,
+                };
+            }
+        }
+
         // Defensa programática: presencial fuera de zona → rechazo sin consultar IA.
+        // (Esta defensa se mantiene por compatibilidad y como respaldo extra.)
         const modalidadOferta = (oferta.modalidad || '').toLowerCase().trim();
         const zonasPreferidas = (preferenciasFinal || {}).zonas_preferidas || [];
         const ubicacionOferta = oferta.ubicacion || '';
@@ -364,7 +387,8 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
             };
         }
 
-        // Llamo directamente a DeepSeek con instrucciones completas y prompt completo.
+        // ── Paso 2: Llamada a DeepSeek ──
+        // Solo llego acá si las reglas de exclusión no se activaron.
         const promptEvaluacion = construirPromptEvaluacion(oferta);
         const respuestaTexto = await consultarDeepSeek(
             instruccionesFinal,
@@ -372,36 +396,46 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
             modeloFinal
         );
 
-        // Parseo la respuesta de DeepSeek.
-        const jsonLimpio = respuestaTexto
-            .replace(/```json\s*/g, '')
-            .replace(/```\s*/g, '')
-            .trim();
+        // ── Paso 3: Parsear la respuesta de DeepSeek con el parser estricto ──
+        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto);
 
-        const respuesta = JSON.parse(jsonLimpio);
+        // Si el parser no pudo interpretar la respuesta, devuelvo rechazo seguro.
+        if (respuesta.error) {
+            return {
+                match: false,
+                porcentaje: 15,
+                razon: `No se pudo interpretar la respuesta de DeepSeek: ${respuesta.razon}`,
+                error: true,
+            };
+        }
 
-        const porcentajeCrudo = parseInt(respuesta.porcentaje, 10);
-        let porcentaje = Number.isFinite(porcentajeCrudo)
-            ? clamp(porcentajeCrudo)
-            : null;
+        // ── Paso 4: Post-evaluación con reglas de exclusión ──
+        // Si DeepSeek aprobó la oferta pero las reglas determinísticas dicen
+        // que debe ser rechazada (Java, Senior, 3+ años, inglés avanzado),
+        // sobreescribo el resultado. La IA puede equivocarse; las reglas no.
+        if (respuesta.match && preferenciasFinal) {
+            const resultadoPostExclusion = evaluarReglasExclusion(oferta, preferenciasFinal);
+            if (resultadoPostExclusion.excluida) {
+                return {
+                    match: false,
+                    porcentaje: resultadoPostExclusion.porcentaje,
+                    razon: resultadoPostExclusion.razon,
+                    error: false,
+                };
+            }
+        }
 
-        const match = !!respuesta.match;
-        const razon = respuesta.razon || (match
-            ? 'La oferta matchea con el perfil.'
-            : 'La oferta no matchea con el perfil.');
-
+        // Si la IA dijo match:false con porcentaje bajo, las reglas también
+        // pueden enriquecer la razón si detectan algo que la IA no mencionó.
+        // Pero no sobreescribimos si ya fue rechazada — dejamos la razón de la IA.
         return {
-            match,
-            razon,
-            porcentaje,
+            match: respuesta.match,
+            razon: respuesta.razon,
+            porcentaje: respuesta.porcentaje,
         };
 
     } catch (error) {
-        const esErrorDeParseo = error instanceof SyntaxError;
-        const razonError = esErrorDeParseo
-            ? `No se pudo parsear la respuesta de DeepSeek: ${error.message}`
-            : `Error al evaluar con DeepSeek: ${error.message}`;
-
+        const razonError = `Error al evaluar con DeepSeek: ${error.message}`;
         console.error(`[Evaluación] Error al evaluar oferta ID ${oferta.id}: ${razonError}`);
 
         return {
@@ -499,6 +533,9 @@ async function evaluarOfertasPendientes() {
 
             // Verifico si ya existe un resultado cacheado para esta oferta
             // con las preferencias actuales y el mismo modelo.
+            // Si hay cache hit, revalido con las reglas de exclusión antes de aceptar.
+            // Una oferta que antes pasó pero ahora debería excluirse por reglas
+            // determinísticas NO debe ser aprobada desde cache.
             if (hashOferta && hashPreferencias) {
                 const cacheado = await evaluacionCache.buscarCache(
                     hashOferta, hashPreferencias, modeloIA
@@ -506,7 +543,25 @@ async function evaluarOfertasPendientes() {
 
                 if (cacheado) {
                     console.log(`[Evaluación] Cache hit para oferta ID ${oferta.id}`);
-                    resultado = cacheado;
+
+                    // Revalidación: si el cache dice aprobada pero las reglas
+                    // de exclusión la rechazan, sobreescribo a rechazo.
+                    if (cacheado.match && prefs) {
+                        const resultadoExclusion = evaluarReglasExclusion(oferta, prefs);
+                        if (resultadoExclusion.excluida) {
+                            console.log(`[Evaluación] Cache rechazado por reglas de exclusión para oferta ID ${oferta.id}: ${resultadoExclusion.razon}`);
+                            resultado = {
+                                match: false,
+                                porcentaje: resultadoExclusion.porcentaje,
+                                razon: resultadoExclusion.razon,
+                                error: false,
+                            };
+                        } else {
+                            resultado = cacheado;
+                        }
+                    } else {
+                        resultado = cacheado;
+                    }
                 }
             }
 

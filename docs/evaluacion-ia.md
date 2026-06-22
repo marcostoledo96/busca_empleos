@@ -14,7 +14,9 @@ DeepSeek es un modelo de lenguaje (como ChatGPT) pero más barato, con una API c
 | Archivo | Responsabilidad |
 |---------|----------------|
 | `backend/src/config/deepseek.js` | Función `consultarDeepSeek()` que envía mensajes y retorna la respuesta en texto. |
-| `backend/src/servicios/servicio-evaluacion.js` | Construye prompts, evalúa ofertas, parsea respuestas JSON, actualiza la BD. |
+| `backend/src/servicios/servicio-evaluacion.js` | Construye prompts, evalúa ofertas, integra parser + reglas, actualiza la BD. |
+| `backend/src/servicios/evaluacion/parser-respuesta-ia.js` | Parser estricto: limpia fences, valida schema JSON (match boolean real, porcentaje 0-100 o null, razon string con fallback). |
+| `backend/src/servicios/evaluacion/reglas-exclusion.js` | Reglas determinísticas de exclusión fuerte (Java, Senior/SR/Lead, 3+ años, inglés excluyente, ubicación/modalidad). |
 | `backend/src/controladores/controlador-evaluacion.js` | Recibe request HTTP y dispara la evaluación de todas las pendientes. |
 
 ## Configuración del cliente (deepseek.js)
@@ -84,11 +86,18 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
 
 ```
 1. Construir prompt con datos de la oferta (título, empresa, ubicación, modalidad, nivel, descripción)
-2. Enviar a DeepSeek: sistema = instrucciones + perfil, usuario = datos de la oferta
-3. Recibir respuesta en texto
-4. Limpiar markdown code blocks (```json ... ```) si vienen
-5. Parsear JSON → { match: boolean, razon: string }
-6. Retornar resultado
+2. Ejecutar reglas de exclusión determinísticas (pre-validación):
+   - Si la oferta es excluida → retornar rechazo sin llamar DeepSeek.
+   - Si no → continuar.
+3. Enviar a DeepSeek: sistema = instrucciones + perfil, usuario = datos de la oferta
+4. Recibir respuesta en texto
+5. Limpiar fences Markdown y parsear JSON con parser estricto (parser-respuesta-ia.js)
+   - match debe ser boolean real (rechaza "true"/"false" string)
+   - porcentaje entero 0-100 o null
+   - razon string con fallback si vacía
+6. Post-validación: reaplicar reglas de exclusión sobre resultado IA
+   - Si DeepSeek aprobó una oferta excluida → sobrescribir con rechazo determinístico.
+7. Retornar resultado
 ```
 
 **Manejo de errores:** Si la API falla o la respuesta no es JSON válido, la oferta se marca como rechazada con un mensaje de error descriptivo, sin romper el flujo de las demás.
@@ -162,7 +171,12 @@ const jsonLimpio = respuestaTexto
 
 ## Bonus de IA y Next.js
 
-El sistema de scoring previo y el prompt de DeepSeek incluyen un **bonus acotado** para ofertas que valoren el uso competente de herramientas de IA y Next.js.
+> **Nota:** El sistema de scoring previo fue deprecado en B1. Los bonus de IA/Next.js
+> ya no se configuran desde la UI de preferencias. DeepSeek + reglas-exclusion son el
+> único flujo de evaluación. Los bonus por IA se manejan directamente en el prompt de
+> DeepSeek como parte de los criterios de evaluación.
+
+El prompt de DeepSeek incluye un **bonus acotado** para ofertas que valoren el uso competente de herramientas de IA y Next.js.
 
 ### Herramientas IA reconocidas
 
@@ -188,13 +202,72 @@ El bonus IA **NO compensa** las siguientes exclusiones:
 
 Estos caps se aplican **después** de sumar el bonus, de modo que ninguna oferta excluida por Java, seniority o idioma pueda quedar aprobada por el bonus IA.
 
-### Detección de IA en scoring previo
+### Detección de IA en evaluación
 
-Los patrones regex para IA están diseñados para evitar falsos positivos: no matchean "ai" suelto ni acrónimos irrelevantes. Solo detectan términos concretos de productividad con IA en desarrollo.
+Los patrones regex para IA están diseñados para evitar falsos positivos: no matchean "ai" suelto ni acrónimos irrelevantes. Solo detectan términos concretos de productividad con IA en desarrollo. La detección se ejecuta dentro del prompt de DeepSeek, no como scoring previo.
 
 ### Next.js en el perfil
 
-Next.js se incluye como tecnología aceptada en el stack del candidato (nivel práctico). Se agrega al catálogo de tecnologías del scoring previo con sus patrones: `next.js`, `nextjs`, `next 13+`, `app router`, `pages router`.
+Next.js se incluye como tecnología aceptada en el stack del candidato (nivel práctico). Los patrones `next.js`, `nextjs`, `next 13+`, `app router`, `pages router` se reconocen en la evaluación de IA.
+
+## Criterios adicionales del usuario (antes "prompt personalizado")
+
+El campo de texto libre en preferencias ahora se llama **"criterios adicionales para la IA"** y funciona como complemento, no como reemplazo del prompt base.
+
+### Comportamiento
+
+- Cuando `usar_prompt_personalizado === true`, el texto se agrega al final del prompt de sistema bajo un bloque `### CRITERIOS ADICIONALES DEL USUARIO`.
+- El texto NUNCA reemplaza las reglas base (exclusión Java, Senior/SR/Lead, 3+ años, inglés excluyente, ubicación/modalidad).
+- Si el texto está vacío, no se agrega la sección adicional.
+
+### UI
+
+La interfaz de preferencias muestra:
+- **Label:** "Criterios adicionales para la IA"
+- **Placeholder:** "Agregá criterios extra para la evaluación (no reemplazan las reglas automáticas)"
+- El cambio de nombre evita que el usuario crea que puede reescribir todo el prompt de evaluación.
+
+## Parser estricto de respuesta IA (`parser-respuesta-ia.js`)
+
+### Schema validado
+
+| Campo | Tipo | Regla |
+|-------|------|-------|
+| `match` | boolean | **Rechaza** `"true"` o `"false"` como string. Solo acepta `true`/`false` literales. |
+| `porcentaje` | number \| null | Entero 0-100. Clamp si fuera de rango. Null permitido. |
+| `razon` | string | Fallback descriptivo si vacía o solo espacios. |
+
+### Limpieza previa
+
+Antes de parsear, elimina fences Markdown (```json ... ```) automáticamente.
+
+### Manejo de errores
+
+Si el JSON es inválido o no cumple el schema, retorna `{ match: false, porcentaje: null, razon: "Error de parseo: ...", error: true }`.
+
+## Reglas determinísticas de exclusión (`reglas-exclusion.js`)
+
+### Exclusiones fuertes
+
+| Exclusión | Porcentaje | Regla |
+|-----------|-----------|-------|
+| Java como tecnología principal/excluyente | 10 | `java` |
+| Senior / SR / Lead | 15 | `seniority` |
+| 3+ años de experiencia excluyente | 20 | `experiencia` |
+| Inglés avanzado/fluido/bilingüe excluyente | 15 | `idioma` |
+| Presencial fuera de zonas preferidas | 10 | `ubicacion_modalidad` |
+
+### Pre-validación
+
+Se ejecutan antes de llamar a DeepSeek. Si alguna regla excluye, se retorna rechazo sin consumo de API.
+
+### Post-validación
+
+Se reaplican después de parsear la respuesta IA. Si DeepSeek aprueba una oferta que debió ser excluida, el resultado se sobrescribe con rechazo determinístico.
+
+### Cache defensivo
+
+También se aplican al leer resultados cacheados en `evaluarOfertasPendientes()`. Una oferta cacheada como aprobada pero que ahora es excluible se rechaza igual.
 
 ## Documentos relacionados
 

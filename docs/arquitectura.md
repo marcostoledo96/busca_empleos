@@ -54,6 +54,7 @@ Busca_empleos/
 │   │   ├── config/          ← Configuración (BD, Apify, DeepSeek)
 │   │   ├── controladores/   ← Controladores de rutas Express (capa HTTP)
 │   │   ├── servicios/       ← Lógica de negocio (scraping, IA, automatización, notificación email)
+│   └── evaluacion/  ← Módulos internos de evaluación IA (parser-respuesta-ia, reglas-exclusion)
 │   │   ├── modelos/         ← Queries SQL parametrizadas contra PostgreSQL
 │   │   ├── rutas/           ← Definición de rutas Express (Router)
 │   │   ├── utils/           ← Middlewares de errores
