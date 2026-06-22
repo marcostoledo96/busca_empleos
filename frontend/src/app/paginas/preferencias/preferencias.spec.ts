@@ -106,7 +106,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(component.guardando()).toBe(false);
     });
 
-    // --- Bonus IA/Next.js en scoring ---
+    // --- Bonus IA/Next.js preservados en scoringConfig ---
 
     it('restaurarScoringRecomendado incluye bonus herramientas_ia, nextjs y herramientas_ia_nextjs_max', async () => {
         const { component } = await crearComponente();
@@ -144,5 +144,130 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(resultado.bonificaciones['herramientas_ia']).toBe(6);
         expect(resultado.bonificaciones['nextjs']).toBe(4);
         expect(resultado.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+    });
+
+    // --- Agregar y quitar tecnologías ---
+
+    it('agregarTecnologia agrega una tecnología vacía con valores por defecto', async () => {
+        const { component } = await crearComponente();
+        const cantidadInicial = component.tecnologiasDetalle.length;
+
+        component.agregarTecnologia();
+
+        expect(component.tecnologiasDetalle.length).toBe(cantidadInicial + 1);
+        const nuevaTech = component.tecnologiasDetalle[component.tecnologiasDetalle.length - 1];
+        expect(nuevaTech.nombre).toBe('');
+        expect(nuevaTech.nivel).toBe('basico');
+        expect(nuevaTech.categoria).toBe('lenguaje');
+        expect(nuevaTech.importancia).toBe('secundaria');
+        expect(nuevaTech.aliases).toEqual([]);
+    });
+
+    it('quitarTecnologia elimina la tecnología en el índice dado', async () => {
+        const { component } = await crearComponente();
+        // Cargo las sugeridas para tener datos conocidos.
+        component.cargarTecnologiasSugeridas();
+        const cantidadInicial = component.tecnologiasDetalle.length;
+        const nombreEliminado = component.tecnologiasDetalle[0].nombre;
+
+        component.quitarTecnologia(0);
+
+        expect(component.tecnologiasDetalle.length).toBe(cantidadInicial - 1);
+        expect(component.tecnologiasDetalle[0].nombre).not.toBe(nombreEliminado);
+    });
+
+    it('quitarTecnologia con índice inválido no modifica el array', async () => {
+        const { component } = await crearComponente();
+        component.cargarTecnologiasSugeridas();
+        const cantidadAntes = component.tecnologiasDetalle.length;
+
+        // Índice fuera de rango — filter no elimina nada.
+        component.quitarTecnologia(-1);
+
+        expect(component.tecnologiasDetalle.length).toBe(cantidadAntes);
+
+        component.quitarTecnologia(999);
+
+        expect(component.tecnologiasDetalle.length).toBe(cantidadAntes);
+    });
+
+    it('agregarTecnologia seguido de quitarTecnologia restaura la cantidad original', async () => {
+        const { component } = await crearComponente();
+        component.cargarTecnologiasSugeridas();
+        const cantidadOriginal = component.tecnologiasDetalle.length;
+
+        component.agregarTecnologia();
+        expect(component.tecnologiasDetalle.length).toBe(cantidadOriginal + 1);
+
+        // Quito la última (la que acabo de agregar).
+        component.quitarTecnologia(component.tecnologiasDetalle.length - 1);
+        expect(component.tecnologiasDetalle.length).toBe(cantidadOriginal);
+    });
+
+    // --- Defaults IA/Next.js no se pierden al agregar/quitar tecnologías ---
+
+    it('los bonus IA/Next.js se preservan después de agregar y quitar tecnologías', async () => {
+        const { component } = await crearComponente();
+        component.cargarTecnologiasSugeridas();
+
+        // Guardo los valores originales de los bonus.
+        const bonusIaOriginal = component.scoringConfig.bonificaciones['herramientas_ia'];
+        const bonusNextjsOriginal = component.scoringConfig.bonificaciones['nextjs'];
+        const bonusMaxOriginal = component.scoringConfig.bonificaciones['herramientas_ia_nextjs_max'];
+
+        // Agrego y quito tecnologías — esto NO debe alterar scoringConfig.
+        component.agregarTecnologia();
+        component.quitarTecnologia(component.tecnologiasDetalle.length - 1);
+
+        // Los bonus siguen iguales.
+        expect(component.scoringConfig.bonificaciones['herramientas_ia']).toBe(bonusIaOriginal);
+        expect(component.scoringConfig.bonificaciones['nextjs']).toBe(bonusNextjsOriginal);
+        expect(component.scoringConfig.bonificaciones['herramientas_ia_nextjs_max']).toBe(bonusMaxOriginal);
+    });
+
+    // --- Botones agregar/quitar NO están deshabilitados por modoDemo ---
+
+    it('agregarTecnologia funciona en modo demo (el botón no está bloqueado por modoDemo)', async () => {
+        const mockDemoServiceActivo = { esModoDemo: () => true };
+
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [
+                { provide: PreferenciasService, useValue: { obtenerPreferencias: () => of(mockPreferencias), actualizarPreferencias: () => of(mockPreferencias) } },
+                { provide: EvaluacionService, useValue: { resetearEvaluaciones: () => of({ exito: true, datos: { reseteadas: 0 } }) } },
+                { provide: DemoService, useValue: mockDemoServiceActivo },
+                MessageService,
+            ],
+        }).compileComponents();
+
+        const fixture = TestBed.createComponent(Preferencias);
+        const component = fixture.componentInstance;
+
+        // En modo demo, el componente carga datos mockup.
+        const cantidadAntes = component.tecnologiasDetalle.length;
+        component.agregarTecnologia();
+        expect(component.tecnologiasDetalle.length).toBe(cantidadAntes + 1);
+    });
+
+    it('quitarTecnologia funciona en modo demo (el botón no está bloqueado por modoDemo)', async () => {
+        const mockDemoServiceActivo = { esModoDemo: () => true };
+
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [
+                { provide: PreferenciasService, useValue: { obtenerPreferencias: () => of(mockPreferencias), actualizarPreferencias: () => of(mockPreferencias) } },
+                { provide: EvaluacionService, useValue: { resetearEvaluaciones: () => of({ exito: true, datos: { reseteadas: 0 } }) } },
+                { provide: DemoService, useValue: mockDemoServiceActivo },
+                MessageService,
+            ],
+        }).compileComponents();
+
+        const fixture = TestBed.createComponent(Preferencias);
+        const component = fixture.componentInstance;
+
+        component.cargarTecnologiasSugeridas();
+        const cantidadAntes = component.tecnologiasDetalle.length;
+        component.quitarTecnologia(0);
+        expect(component.tecnologiasDetalle.length).toBe(cantidadAntes - 1);
     });
 });

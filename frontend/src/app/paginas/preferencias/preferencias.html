@@ -45,15 +45,15 @@
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="nivel">Nivel de experiencia</label>
-                                    <p-select id="nivel" [(ngModel)]="nivelExperiencia" [options]="opcionesNivel" placeholder="Seleccionar nivel" aria-label="Nivel de experiencia" />
+                                    <p-select id="nivel" [(ngModel)]="nivelExperiencia" [options]="opcionesNivel" placeholder="Seleccionar nivel" aria-label="Nivel de experiencia" appendTo="body" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="modalidad">Modalidad aceptada</label>
-                                    <p-select id="modalidad" [(ngModel)]="modalidadAceptada" [options]="opcionesModalidad" placeholder="Seleccionar modalidad" aria-label="Modalidad aceptada" />
+                                    <p-select id="modalidad" [(ngModel)]="modalidadAceptada" [options]="opcionesModalidad" placeholder="Seleccionar modalidad" aria-label="Modalidad aceptada" appendTo="body" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="disponibilidad">Disponibilidad</label>
-                                    <p-select id="disponibilidad" [(ngModel)]="disponibilidad" [options]="opcionesDisponibilidad" placeholder="Disponibilidad" aria-label="Disponibilidad" />
+                                    <p-select id="disponibilidad" [(ngModel)]="disponibilidad" [options]="opcionesDisponibilidad" placeholder="Disponibilidad" aria-label="Disponibilidad" appendTo="body" />
                                 </div>
                             </div>
 
@@ -72,7 +72,7 @@
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="moneda">Moneda salarial</label>
-                                    <p-select id="moneda" [(ngModel)]="monedaSalarial" [options]="opcionesMonedaSalarial" placeholder="Moneda" />
+                                    <p-select id="moneda" [(ngModel)]="monedaSalarial" [options]="opcionesMonedaSalarial" placeholder="Moneda" appendTo="body" />
                                 </div>
                             </div>
 
@@ -111,7 +111,7 @@
 
                             <div class="campo">
                                 <label class="campo-etiqueta" for="zonas">Zonas presenciales aceptadas</label>
-                                <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas" [options]="opcionesZonas" placeholder="Seleccioná las zonas" display="chip" />
+                                <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas" [options]="opcionesZonas" placeholder="Seleccioná las zonas" display="chip" appendTo="body" />
                             </div>
 
                             <div class="campo">
@@ -122,7 +122,7 @@
 
                             <div class="campo">
                                 <label class="campo-etiqueta" for="ausentes">Conocimientos / tecnologías que NO manejás</label>
-                                <p-autocomplete id="ausentes" [(ngModel)]="conocimientosAusentes" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: microservicios, Kafka, blockchain" />
+                                <p-autocomplete id="ausentes" [(ngModel)]="conocimientosAusentes" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: microservicios, Kafka, blockchain" appendTo="body" />
                                 <small class="campo-ayuda">Si una oferta pide estas tecnologías, el scoring baja automáticamente.</small>
                             </div>
 
@@ -140,7 +140,7 @@
                     <section class="seccion" aria-labelledby="label-tech-niveles">
                         <div class="seccion-cabecera">
                             <span class="seccion-label" id="label-tech-niveles">TECNOLOGÍAS</span>
-                            <button class="btn-agregar-tech" (click)="agregarTecnologia()" [disabled]="modoDemo()" aria-label="Agregar tecnología">
+                            <button class="btn-agregar-tech" (click)="agregarTecnologia()" aria-label="Agregar tecnología">
                                 <span class="material-symbols-outlined" aria-hidden="true">add</span>
                             </button>
                         </div>
@@ -160,12 +160,12 @@
                                     @for (tech of tecnologiasDetalle; track $index; let i = $index) {
                                         <div class="tabla-tech__fila tabla-tech__fila--amplia">
                                             <div class="tabla-tech__col"><input pInputText [(ngModel)]="tech.nombre" placeholder="Nombre" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.nivel" [options]="opcionesNivelTecnologia" placeholder="Nivel" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.categoria" [options]="opcionesCategoriaTecnologia" placeholder="Categoría" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.importancia" [options]="opcionesImportanciaTecnologia" placeholder="Importancia" [disabled]="modoDemo()" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.nivel" [options]="opcionesNivelTecnologia" placeholder="Nivel" [disabled]="modoDemo()" appendTo="body" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.categoria" [options]="opcionesCategoriaTecnologia" placeholder="Categoría" [disabled]="modoDemo()" appendTo="body" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.importancia" [options]="opcionesImportanciaTecnologia" placeholder="Importancia" [disabled]="modoDemo()" appendTo="body" /></div>
                                             <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(tech.aliases)" (ngModelChange)="tech.aliases = stringALista($event)" placeholder="alias1, alias2" [disabled]="modoDemo()" /></div>
                                             <div class="tabla-tech__col"><input pInputText [ngModel]="tech.evidencia || ''" (ngModelChange)="tech.evidencia = $event" placeholder="Proyecto o evidencia" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarTecnologia(i)" [disabled]="modoDemo()"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
+                                            <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarTecnologia(i)"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
                                         </div>
                                     }
                                 </div>
@@ -178,6 +178,28 @@
                                     </div>
                                 </div>
                             }
+
+                            <!-- Bonus de scoring por tecnologías específicas -->
+                            <div class="bonus-scoring-tech">
+                                <div class="seccion-cabecera seccion-cabecera--inline">
+                                    <span class="seccion-label">BONUS_DE_SCORING_POR_TECNOLOGÍAS</span>
+                                </div>
+                                <small class="campo-ayuda">Estos bonus se aplican cuando la oferta valora herramientas de IA o Next.js. El combinado no compensa exclusiones por Java, Senior o inglés avanzado.</small>
+                                <div class="campo-fila campo-fila--3">
+                                    <div class="campo">
+                                        <label class="campo-etiqueta">Bonus herramientas IA</label>
+                                        <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia']" min="0" max="20" />
+                                    </div>
+                                    <div class="campo">
+                                        <label class="campo-etiqueta">Bonus Next.js</label>
+                                        <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['nextjs']" min="0" max="20" />
+                                    </div>
+                                    <div class="campo">
+                                        <label class="campo-etiqueta">Máx. combinado IA/Next.js</label>
+                                        <input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia_nextjs_max']" min="0" max="20" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </section>
                 </p-tabpanel>
@@ -201,7 +223,7 @@
                                     @for (rol of rolesObjetivoDetalle; track $index; let i = $index) {
                                         <div class="tabla-tech__fila roles-grid__fila">
                                             <div class="tabla-tech__col"><input pInputText [(ngModel)]="rol.rol" placeholder="Rol" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="rol.prioridad" [options]="opcionesPrioridadRol" placeholder="Prioridad" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="rol.prioridad" [options]="opcionesPrioridadRol" placeholder="Prioridad" appendTo="body" /></div>
                                             <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(rol.aliases)" (ngModelChange)="rol.aliases = stringALista($event)" placeholder="alias1, alias2" /></div>
                                             <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarRol(i)"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
                                         </div>
@@ -256,11 +278,8 @@
                                 <div class="campo"><label class="campo-etiqueta">Stack principal completo</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['stack_principal_completo']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Rol prioridad alta</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_alta']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Rol prioridad media</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_media']" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Bonus herramientas IA</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia']" min="0" max="20" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Bonus Next.js</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['nextjs']" min="0" max="20" /></div>
-                                <div class="campo"><label class="campo-etiqueta">Máx. combinado IA/Next.js</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia_nextjs_max']" min="0" max="20" /></div>
                             </div>
-                            <small class="campo-ayuda">Umbral 60 = aprobado. Bajalo si querés revisar más oportunidades, subilo si querés ser más estricto. Los bonus IA/Next.js son acotados y NO compensan exclusiones por Java, Senior o inglés avanzado.</small>
+                            <small class="campo-ayuda">Umbral 60 = aprobado. Bajalo si querés revisar más oportunidades, subilo si querés ser más estricto. Los bonus IA/Next.js se configuran en el tab TECNOLOGÍAS.</small>
                         </div>
                     </section>
                 </p-tabpanel>
@@ -272,31 +291,31 @@
                         <div class="seccion-cuerpo">
                             <div class="campo">
                                 <label class="campo-etiqueta">Términos de búsqueda</label>
-                                <p-autocomplete [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" />
+                                <p-autocomplete [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" appendTo="body" />
                             </div>
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
                                     <label class="campo-etiqueta">Keywords positivas</label>
-                                    <p-autocomplete [(ngModel)]="keywordsPositivas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: healthtech" />
+                                    <p-autocomplete [(ngModel)]="keywordsPositivas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: healthtech" appendTo="body" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta">Keywords negativas</label>
-                                    <p-autocomplete [(ngModel)]="keywordsNegativas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: java" />
+                                    <p-autocomplete [(ngModel)]="keywordsNegativas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: java" appendTo="body" />
                                 </div>
                             </div>
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
                                     <label class="campo-etiqueta">Plataformas preferidas</label>
-                                    <p-multiselect [(ngModel)]="plataformasPreferidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" />
+                                    <p-multiselect [(ngModel)]="plataformasPreferidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" appendTo="body" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta">Plataformas excluidas</label>
-                                    <p-multiselect [(ngModel)]="plataformasExcluidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" />
+                                    <p-multiselect [(ngModel)]="plataformasExcluidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" appendTo="body" />
                                 </div>
                             </div>
                             <div class="campo">
                                 <label class="campo-etiqueta">Reglas de penalización históricas</label>
-                                <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" />
+                                <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" appendTo="body" />
                             </div>
                         </div>
                     </section>
@@ -310,11 +329,11 @@
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
                                     <label class="campo-etiqueta">Modelo evaluación ofertas</label>
-                                    <p-select [(ngModel)]="modeloIaEvaluacion" [options]="opcionesModelo" optionLabel="label" optionValue="value" />
+                                    <p-select [(ngModel)]="modeloIaEvaluacion" [options]="opcionesModelo" optionLabel="label" optionValue="value" appendTo="body" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta">Modelo importación CV</label>
-                                    <p-select [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" />
+                                    <p-select [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" appendTo="body" />
                                 </div>
                             </div>
                             <!--

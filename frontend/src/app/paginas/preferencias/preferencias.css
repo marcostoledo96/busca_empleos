@@ -435,7 +435,7 @@
 .tabla-tech {
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
-    overflow: hidden;
+    overflow: visible;
     width: 100%;
 }
 
@@ -756,6 +756,26 @@
 
 .tabla-tech--amplia {
     overflow-x: auto;
+    overflow-y: visible;
+}
+
+/* === Bonus de scoring por tecnologías (dentro del tab TECNOLOGÍAS) === */
+.bonus-scoring-tech {
+    margin-top: 1.5rem;
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-sm);
+    padding: 1rem;
+    background: color-mix(in srgb, var(--primary) 4%, transparent);
+}
+
+.bonus-scoring-tech .seccion-cabecera--inline {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    margin-bottom: 0.5rem;
+    padding: 0;
+    border-bottom: none;
+    background: transparent;
 }
 
 .tabla-tech__header--amplia,
