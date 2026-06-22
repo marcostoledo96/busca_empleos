@@ -1,111 +1,46 @@
 // Tests del runner de migraciones.
-// Verifico que el script detecta pendientes, aplica en orden y marca como aplicadas.
-
-jest.mock('../../src/config/base-datos', () => {
-    // Creamos un pool simulado con una "BD" de prueba en memoria.
-    const state = {
-        tablaCreada: false,
-        aplicadas: [],
-    };
-
-    function crearPoolMock() {
-        return {
-            async query(sql, params) {
-                // Simulamos la tabla schema_migrations
-                if (sql.includes('to_regclass') && sql.includes('schema_migrations')) {
-                    return { rows: [{ existe: state.tablaCreada }] };
-                }
-
-                if (sql === 'SELECT id FROM schema_migrations WHERE exitoso = true;') {
-                    return { rows: state.aplicadas.map(id => ({ id })) };
-                }
-
-                if (sql === 'BEGIN') return;
-                if (sql === 'COMMIT') return;
-                if (sql === 'ROLLBACK') return;
-
-                if (sql.startsWith('INSERT INTO schema_migrations')) {
-                    const id = params[0] || 'desconocido';
-                    state.aplicadas.push(id);
-                    return;
-                }
-
-                // Cualquier otro SQL se considera como ejecutado sin error.
-                return { rows: [] };
-            },
-            async connect() {
-                return {
-                    async query(sql, params) { return crearPoolMock().query(sql, params); },
-                    release: jest.fn(),
-                };
-            },
-            async end() {},
-            on: jest.fn(),
-        };
-    }
-
-    return crearPoolMock();
-});
+// Verifico que el script tiene la estructura correcta y se puede importar
+// sin errores de sintaxis. Como es un script auto-ejecutable, no podemos
+// testear su lógica interna directamente (llama a process.exit y requiere BD),
+// pero validamos la estructura y contenido.
 
 const fs = require('fs');
 const path = require('path');
 
-// Mockeamos fs para simular archivos SQL.
-const sqlDir = path.resolve(__dirname, '..', 'sql');
-jest.spyOn(fs, 'readdirSync').mockImplementation((dir) => {
-    if (dir === sqlDir) {
-        return [
-            'migracion-001.sql',
-            'migracion-002.sql',
-            'migracion-003.sql',
-        ];
-    }
-    return fs.readdirSync(dir);
-});
+const rutaMigrar = path.resolve(__dirname, '../../scripts/migrar.js');
 
-jest.spyOn(fs, 'readFileSync').mockImplementation((filePath, encoding) => {
-    if (encoding === 'utf-8' && typeof filePath === 'string' && filePath.includes('.sql')) {
-        return 'SELECT 1;';
-    }
-    return fs.readFileSync(filePath, encoding);
-});
-
-// Mockeamos console.log para evitar ruido en tests.
-const logOriginal = console.log;
-const errorOriginal = console.error;
+// Leo el archivo sin ejecutarlo — el script es auto-ejecutable y llama
+// a process.exit, así que no podemos require()lo en tests.
+let contenidoMigrar;
 
 beforeAll(() => {
-    console.log = jest.fn();
-    console.error = jest.fn();
+    contenidoMigrar = fs.readFileSync(rutaMigrar, 'utf-8');
 });
-
-afterAll(() => {
-    console.log = logOriginal;
-    console.error = errorOriginal;
-});
-
-// Importamos el runner después de los mocks.
-const migrar = require('../../scripts/migrar');
 
 describe('Runner de migraciones', () => {
-    let poolMock;
-
-    // Nota: no podemos requerir 'migrar' porque inmediatamente llama a migrar().
-    // Para testear unitariamente necesitaríamos extraer la función en un módulo separado.
-    // Por ahora, validamos que el archivo existe y tiene la estructura correcta.
-
-    test('el archivo migrar.js existe y exporta una función', () => {
-        expect(typeof migrar).toBe('undefined'); // Es un script auto-ejecutable.
+    test('el archivo migrar.js existe y es un script auto-ejecutable', () => {
+        expect(fs.existsSync(rutaMigrar)).toBe(true);
+        // Es un script auto-ejecutable: no tiene module.exports,
+        // sino que llama a migrar() al final.
+        expect(contenidoMigrar).toContain('migrar()');
+        expect(contenidoMigrar).not.toContain('module.exports');
     });
 
     test('no hay errores de sintaxis en el runner', () => {
-        const ruta = path.resolve(__dirname, '../../scripts/migrar.js');
-        const contenido = fs.readFileSync(ruta, 'utf-8');
-        expect(contenido).toContain('async function migrar()');
-        expect(contenido).toContain('--apply');
-        expect(contenido).toContain('schema_migrations');
-        expect(contenido).toContain('BEGIN');
-        expect(contenido).toContain('COMMIT');
-        expect(contenido).toContain('ROLLBACK');
+        expect(contenidoMigrar).toContain('async function migrar()');
+        expect(contenidoMigrar).toContain('--apply');
+        expect(contenidoMigrar).toContain('schema_migrations');
+        expect(contenidoMigrar).toContain('BEGIN');
+        expect(contenidoMigrar).toContain('COMMIT');
+        expect(contenidoMigrar).toContain('ROLLBACK');
+    });
+
+    test('el runner tiene manejo de errores con process.exit', () => {
+        expect(contenidoMigrar).toContain('process.exit(1)');
+    });
+
+    test('el runner lee migraciones del directorio sql/', () => {
+        expect(contenidoMigrar).toContain('readdirSync');
+        expect(contenidoMigrar).toContain('.sql');
     });
 });

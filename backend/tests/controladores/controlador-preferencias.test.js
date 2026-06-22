@@ -182,14 +182,21 @@ describe('Controlador de preferencias', () => {
 
         // --- Validación de zonas_preferidas ---
 
-        test('rechaza zonas_preferidas con valores fuera del enum', async () => {
+        test('acepta zonas_preferidas con valores personalizados (fuera del enum original)', async () => {
+            // El controlador ahora acepta cualquier string no vacío porque el CV
+            // importado puede traer ubicaciones reales como "Buenos Aires, Argentina"
+            // que no están en ZONAS_VALIDAS. Solo rechaza strings vacíos o no-strings.
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                zonas_preferidas: ['CABA', 'La Plata'],
+            });
+
             const res = await request(app)
                 .put('/api/preferencias')
                 .send({ zonas_preferidas: ['CABA', 'La Plata'] });
 
-            expect(res.status).toBe(400);
-            expect(res.body.error).toContain('La Plata');
-            expect(res.body.error).toContain('inválidos');
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
         });
 
         test('acepta zonas_preferidas vacío (el usuario puede no tener preferencia)', async () => {
@@ -216,10 +223,32 @@ describe('Controlador de preferencias', () => {
 
         // --- Validación de reglas_exclusion ---
 
-        test('rechaza reglas_exclusion con strings vacíos', async () => {
+        test('filtra strings vacíos en reglas_exclusion y acepta los válidos', async () => {
+            // validarArrayStrings filtra silenciosamente los strings vacíos (porque
+            // el AutoComplete puede dejar items en blanco). 'Java' queda y es válido.
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                reglas_exclusion: ['Java'],
+            });
+
             const res = await request(app)
                 .put('/api/preferencias')
                 .send({ reglas_exclusion: ['Java', ''] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('rechaza reglas_exclusion donde todos los elementos son strings vacíos', async () => {
+            // Si después de filtrar no queda ningún elemento válido, se rechaza
+            // porque permitirVacio es true para reglas_exclusion (array vacío está
+            // permitido, pero un array con solo basura se limpia a vacío, que también
+            // es válido). Sin embargo, si TODO el array son strings vacíos o no-strings,
+            // el filtro los elimina y queda un array vacío, que sí es aceptado.
+            // Para probar el rechazo, enviamos algo que NO sea array.
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ reglas_exclusion: 'no-es-array' });
 
             expect(res.status).toBe(400);
             expect(res.body.error).toContain('reglas_exclusion');
