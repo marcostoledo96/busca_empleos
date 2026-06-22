@@ -58,6 +58,11 @@ Archivo: `frontend/src/app/modelos/oferta.model.ts`
 Mapea 1:1 con las columnas de la tabla `ofertas` de PostgreSQL:
 
 ```typescript
+type PlataformaId =
+    | 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor'
+    | 'getonbrd' | 'jooble' | 'google_jobs' | 'remotive' | 'remoteok'
+    | 'infojobs' | 'adzuna';
+
 interface Oferta {
     id: number;
     titulo: string;
@@ -66,7 +71,7 @@ interface Oferta {
     modalidad: string | null;
     descripcion: string | null;
     url: string;
-    plataforma: 'linkedin' | 'computrabajo';
+    plataforma: PlataformaId;
     nivel_requerido: string | null;
     salario_min: string | null;
     salario_max: string | null;
@@ -89,6 +94,48 @@ interface Estadisticas {
     rechazadas: number;
 }
 ```
+
+### Registry de plataformas
+
+Archivo: `frontend/src/app/config/plataformas.ts`
+
+Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. Duplicación controlada del backend (`backend/src/config/plataformas.js`), sincronizada mediante tests de contrato.
+
+**Reglas:**
+
+- El `id` (snake_case) se usa como valor interno en filtros, preferencias, DTOs y BD. Ejemplo: `google_jobs`.
+- El `slugHttp` (kebab-case) se usa solo en URLs de la API (`/api/scraping/:slug`). Ejemplo: `google-jobs`.
+- Para la mayoría de las plataformas, `id` y `slugHttp` coinciden. Google Jobs es la excepción.
+- Plataformas con `activa: false` (Google Jobs, InfoJobs) NO aparecen en selectores de scraping ni en preferencias como opción seleccionable.
+- Los filtros de ofertas incluyen todas las plataformas (activas e inactivas) para permitir filtrar datos históricos.
+
+**Funciones principales:**
+
+| Función | Uso |
+|---------|-----|
+| `obtenerPlataformasActivas()` | Lista de plataformas activas con `{id, slugHttp, label}` |
+| `esPlataformaActiva(idOSlug)` | Verifica si una plataforma está activa (acepta id o slug) |
+| `normalizarIdPlataforma(idOSlug)` | Convierte slug HTTP a id interno (`google-jobs` → `google_jobs`) |
+| `obtenerOpcionesFiltroPlataforma()` | Opciones para dropdown de filtro de ofertas (con "Todas") |
+| `obtenerOpcionesScrapingPlataforma()` | Opciones para selector de scraping (solo activas, sin "Todas") |
+| `obtenerOpcionesPreferenciaPlataforma()` | Opciones para preferencias (solo activas) |
+
+**Estado de plataformas:**
+
+| Plataforma | id | slugHttp | activa | motivo |
+|------------|-----|----------|--------|--------|
+| LinkedIn | `linkedin` | `linkedin` | ✅ | — |
+| Computrabajo | `computrabajo` | `computrabajo` | ✅ | — |
+| Indeed | `indeed` | `indeed` | ✅ | — |
+| Bumeran | `bumeran` | `bumeran` | ✅ | — |
+| Glassdoor | `glassdoor` | `glassdoor` | ✅ | — |
+| GetOnBrd | `getonbrd` | `getonbrd` | ✅ | — |
+| Jooble | `jooble` | `jooble` | ✅ | — |
+| Google Jobs | `google_jobs` | `google-jobs` | ❌ | Desactivado por costo y baja utilidad |
+| Remotive | `remotive` | `remotive` | ✅ | — |
+| RemoteOK | `remoteok` | `remoteok` | ✅ | — |
+| InfoJobs | `infojobs` | `infojobs` | ❌ | Portal developers suspendido |
+| Adzuna | `adzuna` | `adzuna` | ✅ | — |
 
 Archivo: `frontend/src/app/modelos/respuesta-api.model.ts`
 

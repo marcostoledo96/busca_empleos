@@ -348,5 +348,214 @@ describe('Controlador de preferencias', () => {
             expect(res.body.error).not.toContain('does not exist');
             expect(res.body.error).not.toContain('relation');
         });
+
+        // --- scoring_config deprecado: se ignora sin error ---
+
+        test('ignora scoring_config en payload legacy sin error', async () => {
+            // Un cliente viejo puede mandar scoring_config — el backend
+            // ya no lo valida ni persiste, pero no debe responder con error.
+            // scoring_config no está en camposPermitidos del modelo, así que
+            // aunque llegue al modelo, se ignora silenciosamente.
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                nombre: 'Test legacy scoring',
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({
+                    nombre: 'Test legacy scoring',
+                    scoring_config: { umbral_aprobacion: 70 },
+                });
+
+            // scoring_config se ignora porque no está en camposPermitidos.
+            // La request es válida porque nombre sí está permitido.
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+    });
+
+    // === Validación de plataformas con registry ===
+
+    describe('validación de plataformas_preferidas y plataformas_excluidas', () => {
+        test('acepta plataformas_preferidas con ids internos válidos', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: ['linkedin', 'computrabajo'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['linkedin', 'computrabajo'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('acepta plataformas_excluidas con ids internos válidos', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_excluidas: ['google_jobs', 'infojobs'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_excluidas: ['google_jobs', 'infojobs'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('acepta slug HTTP "google-jobs" y lo normaliza a id interno', async () => {
+            // El registry normaliza google-jobs (slug HTTP) a google_jobs (id interno).
+            // El controlador acepta ambos formatos gracias a normalizarIdPlataforma.
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: ['google-jobs'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['google-jobs'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('rechaza plataformas_preferidas con valores inválidos', async () => {
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['linkedin', 'no_existe'] });
+
+            expect(res.status).toBe(400);
+            expect(res.body.error).toContain('plataformas_preferidas');
+            expect(res.body.error).toContain('no_existe');
+            expect(modeloPreferencia.actualizarPreferencias).not.toHaveBeenCalled();
+        });
+
+        test('acepta plataformas_preferidas vacío', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: [],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: [] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('acepta todas las plataformas activas del registry', async () => {
+            const activas = ['linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'getonbrd', 'jooble', 'remotive', 'remoteok', 'adzuna'];
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: activas,
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: activas });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        test('acepta plataformas inactivas en preferencias (existen en el registry)', async () => {
+            // google_jobs e infojobs son inactivas pero siguen siendo válidas como valores.
+            // El usuario puede excluirlas o incluirlas en preferencias.
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: ['linkedin', 'google_jobs'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['linkedin', 'google_jobs'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+        });
+
+        // --- Normalización de slugs HTTP a ids internos antes de persistir ---
+
+        test('normaliza slug HTTP "google-jobs" a id interno "google_jobs" antes de persistir', async () => {
+            // El cliente manda 'google-jobs' (slug HTTP), pero la BD debe recibir
+            // 'google_jobs' (id interno canónico). Verifico que el controlador
+            // normaliza antes de llamar al modelo.
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: ['google_jobs'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['google-jobs'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            // Verifico que el modelo recibió el id normalizado, no el slug crudo.
+            expect(modeloPreferencia.actualizarPreferencias).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    plataformas_preferidas: ['google_jobs'],
+                })
+            );
+        });
+
+        test('normaliza slug HTTP en plataformas_excluidas antes de persistir', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_excluidas: ['google_jobs'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_excluidas: ['google-jobs'] });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(modeloPreferencia.actualizarPreferencias).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    plataformas_excluidas: ['google_jobs'],
+                })
+            );
+        });
+
+        test('no altera ids internos que ya son canónicos', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: ['linkedin', 'computrabajo'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['linkedin', 'computrabajo'] });
+
+            expect(res.status).toBe(200);
+            expect(modeloPreferencia.actualizarPreferencias).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    plataformas_preferidas: ['linkedin', 'computrabajo'],
+                })
+            );
+        });
+
+        test('normaliza mix de slugs HTTP e ids internos en un mismo array', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({
+                ...preferenciasEjemplo,
+                plataformas_preferidas: ['linkedin', 'google_jobs'],
+            });
+
+            const res = await request(app)
+                .put('/api/preferencias')
+                .send({ plataformas_preferidas: ['linkedin', 'google-jobs'] });
+
+            expect(res.status).toBe(200);
+            expect(modeloPreferencia.actualizarPreferencias).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    plataformas_preferidas: ['linkedin', 'google_jobs'],
+                })
+            );
+        });
     });
 });

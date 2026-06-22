@@ -67,6 +67,29 @@ describe('Controlador de ofertas', () => {
             });
         });
 
+        test('normaliza slug HTTP "google-jobs" a id interno "google_jobs" en el filtro plataforma', async () => {
+            // Si el cliente manda ?plataforma=google-jobs (slug HTTP),
+            // el controlador debe normalizarlo a google_jobs antes de pasarlo al modelo,
+            // porque en la BD el valor es 'google_jobs', no 'google-jobs'.
+            modeloOferta.obtenerOfertas.mockResolvedValue([]);
+
+            await request(app).get('/api/ofertas?plataforma=google-jobs');
+
+            expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({
+                plataforma: 'google_jobs',
+            });
+        });
+
+        test('deja pasar ids internos canónicos sin modificarlos', async () => {
+            modeloOferta.obtenerOfertas.mockResolvedValue([]);
+
+            await request(app).get('/api/ofertas?plataforma=linkedin');
+
+            expect(modeloOferta.obtenerOfertas).toHaveBeenCalledWith({
+                plataforma: 'linkedin',
+            });
+        });
+
         test('pasa filtros de sorting y postulacion al modelo', async () => {
             modeloOferta.obtenerOfertas.mockResolvedValue([]);
 

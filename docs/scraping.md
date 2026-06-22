@@ -319,7 +319,7 @@ Parsea strings de salario como `"$50,000.00/yr - $70,000.00/yr"`:
 - Cada item se normaliza individualmente.
 - Si un item falla (ej: sin URL), se loguea un warning y se salta.
 - **Diseño resiliente:** es mejor tener 99 ofertas que 0 por un item roto.
-- Soporta 9 plataformas: `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`, `jooble`, `google-jobs`, `infojobs`.
+- Soporta todas las plataformas del registry (ver `backend/src/config/plataformas.js`), con normalización automática de slugs HTTP a ids internos (ej: `google-jobs` → `google_jobs`).
 
 ## Guardado en BD (en el controlador)
 
@@ -331,65 +331,31 @@ El controlador de scraping orquesta el flujo completo:
 
 El guardado está en el controlador (no en el servicio) para mantener la separación de responsabilidades: el servicio solo extrae y normaliza, el controlador orquesta.
 
-## InfoJobs España — API Oficial
+## InfoJobs España — estado actual
 
-InfoJobs es el portal de empleo más grande de España. A diferencia del resto de las plataformas (que usan Apify o APIs públicas sin auth), InfoJobs requiere registro de aplicación y usa autenticación HTTP Basic.
+InfoJobs queda preservado en el registry de plataformas con id interno `infojobs`, pero actualmente está marcado como `activa: false` porque el portal de developers está suspendido.
 
 **Endpoint del controlador:** `POST /api/scraping/infojobs`
-**Servicio:** `ejecutarScrapingInfojobs()` en `servicio-scraping.js`
-**Costo:** API gratuita para proyectos personales (sujeta a rate limits).
-**Tipo de fuente:** API REST oficial — no scraping HTML.
+**Estado:** inactivo controlado.
 
-### Credenciales requeridas
+Mientras permanezca inactivo, el controlador responde inmediatamente con `codigo_resultado: "PLATAFORMA_INACTIVA"` y no invoca `ejecutarScrapingInfojobs()` ni servicios externos.
 
-Registrar una aplicación en el [Portal de desarrolladores de InfoJobs](https://developer.infojobs.net/) y agregar al `.env`:
+La lógica histórica de API oficial, credenciales, filtro remoto y límite de resultados queda como referencia de implementación previa, pero no representa el comportamiento activo del sistema.
 
-```
-INFOJOBS_CLIENT_ID=tu_client_id_aqui
-INFOJOBS_CLIENT_SECRET=tu_client_secret_aqui
-```
+## Plataformas inactivas
 
-> Si ambas variables están ausentes, el endpoint retorna `[]` con una advertencia en el log (feature deshabilitada silenciosamente). Si solo una está presente, el servicio lanza error de configuración.
+El registry de plataformas (`backend/src/config/plataformas.js`) define qué plataformas están activas para scraping. Las inactivas son:
 
-### Filtro estricto de modalidad remota
+| Plataforma | id | slug HTTP | Razón |
+|------------|-----|-----------|--------|
+| Google Jobs | `google_jobs` | `google-jobs` | Desactivado por costo y baja utilidad |
+| InfoJobs | `infojobs` | `infojobs` | Portal developers suspendido |
 
-InfoJobs aplica el filtro en **dos capas** para garantizar remoto puro:
+**Comportamiento cuando se invoca una plataforma inactiva:**
 
-| Capa | Dónde | Cómo |
-|------|-------|------|
-| Capa 1 — en origen | Parámetro de la API | `teleworking=solo-teletrabajo` en la query |
-| Capa 2 — en normalización | `servicio-normalizacion.js` | Descarta toda oferta cuyo `teleworking` no resuelva al texto `"Solo teletrabajo"` o `"solo-teletrabajo"`. Soporta string plano y objeto `{ id, value }` (prioriza `.value`). |
-
-**Ofertas excluidas:** híbridas, presenciales y aquellas sin campo `teleworking` definido. Solo pasan las que sean remoto puro confirmado por ambas capas.
-
-### Límite de resultados
-
-El endpoint limita `maxResultados` a **50** (hardcodeado en el controlador y en el servicio), porque la API gratuita de InfoJobs tiene rate limits estrictos por aplicación.
-
-### Estructura de la respuesta de la API
-
-La API devuelve un JSON con la colección de ofertas. En la documentación oficial suele figurar como `offers`, aunque vimos variantes históricas o ejemplos con otras formas. La integración actual tolera `offers` como contrato principal y `items` como compatibilidad defensiva:
-
-```json
-{
-  "currentPage": 1,
-  "totalResults": 12,
-  "offers": [
-    {
-      "id": "a1b2c3d4e5f6",
-      "title": "Frontend Developer Junior",
-      "author": { "name": "Empresa Ejemplo" },
-      "locations": [{ "province": { "value": "Madrid" }, "city": "Madrid" }],
-      "teleworking": { "id": 2, "value": "Solo teletrabajo" },
-      "link": "https://www.infojobs.net/offerjob/a1b2c3d4e5f6"
-    }
-  ]
-}
-```
-
-### Normalización de ubicación
-
-La normalización tolera dos shapes de ubicación: `locations[0]` (contrato principal) o `city`/`province` al tope del item. Si hay ciudad y provincia, las combina como `${city}, ${province}`. Si solo hay uno de los dos valores, usa ese. Si no hay dato de ubicación, queda como `null`.
+- El endpoint responde inmediatamente sin invocar Apify ni servicios externos.
+- La respuesta incluye `codigo_resultado: "PLATAFORMA_INACTIVA"` y un `motivo` explicativo.
+- El ciclo de automatización no incluye plataformas inactivas.
 
 ## Documentos relacionados
 

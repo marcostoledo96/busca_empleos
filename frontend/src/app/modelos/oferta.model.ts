@@ -1,3 +1,21 @@
+// Tipo union con todos los ids internos válidos de plataforma.
+// Se usa en filtros, preferencias y cualquier lugar donde se necesite un
+// valor de plataforma tipado. Incluye inactivas (google_jobs, infojobs)
+// para compatibilidad con datos históricos.
+export type PlataformaId =
+    | 'linkedin'
+    | 'computrabajo'
+    | 'indeed'
+    | 'bumeran'
+    | 'glassdoor'
+    | 'getonbrd'
+    | 'jooble'
+    | 'google_jobs'
+    | 'remotive'
+    | 'remoteok'
+    | 'infojobs'
+    | 'adzuna';
+
 // Interfaz que representa una oferta de empleo tal como viene de la API.
 // Mapea 1:1 con las columnas de la tabla "ofertas" de PostgreSQL.
 export interface Oferta {
@@ -8,7 +26,7 @@ export interface Oferta {
     modalidad: string | null;
     descripcion: string | null;
     url: string;
-    plataforma: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor' | 'getonbrd' | 'jooble' | 'google_jobs' | 'remotive' | 'remoteok' | 'adzuna';
+    plataforma: PlataformaId;
     nivel_requerido: string | null;
     salario_min: string | null;
     salario_max: string | null;

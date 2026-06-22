@@ -2,13 +2,15 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Oferta, Estadisticas } from '../modelos/oferta.model';
+import { Oferta, Estadisticas, PlataformaId } from '../modelos/oferta.model';
 import { RespuestaApi } from '../modelos/respuesta-api.model';
 
 // Filtros opcionales para la consulta de ofertas.
+// El campo `plataforma` usa el id interno del registry (snake_case),
+// nunca el slug HTTP (kebab-case). Ejemplo: `google_jobs`, no `google-jobs`.
 export interface FiltrosOfertas {
     estado?: 'pendiente' | 'aprobada' | 'rechazada';
-    plataforma?: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | 'glassdoor' | 'getonbrd' | 'jooble' | 'google_jobs' | 'adzuna';
+    plataforma?: PlataformaId;
     estado_postulacion?: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada';
     ordenar_por?: 'fecha_extraccion' | 'fecha_publicacion' | 'porcentaje_match' | 'titulo' | 'empresa' | 'estado_evaluacion';
     direccion?: 'ASC' | 'DESC';

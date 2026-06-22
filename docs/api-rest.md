@@ -54,7 +54,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/glassdoor` | Ejecutar scraping de Glassdoor | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/getonbrd` | Ejecutar scraping de GetOnBrd | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
-| POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
@@ -73,14 +73,16 @@ Controlador: `backend/src/controladores/controlador-ofertas.js`
 
 ### GET /api/ofertas
 
-Lista todas las ofertas, con filtros opcionales por query params.
+Lista las ofertas de los **últimos 30 días**, con filtros opcionales por query params.
+
+> **Ventana de 30 días:** Solo se muestran ofertas con `fecha_extraccion` dentro de los últimos 30 días. Ofertas más antiguas no aparecen en el listado ni en el conteo total.
 
 **Query params:**
 
 | Param | Tipo | Valores posibles |
 |-------|------|-----------------|
 | `estado` | string | `pendiente`, `aprobada`, `rechazada` |
-| `plataforma` | string | `linkedin`, `computrabajo`, `indeed`, `bumeran`, `glassdoor`, `getonbrd`, `jooble`, `google-jobs` |
+| `plataforma` | string | Id interno del registry. Se aceptan slugs HTTP como alias (ej: `google-jobs` → `google_jobs`). Ver `backend/src/config/plataformas.js` para la lista completa. |
 | `estado_postulacion` | string | `no_postulado`, `cv_enviado`, `en_proceso`, `descartada` |
 | `ordenar_por` | string | `fecha_extraccion`, `fecha_publicacion`, `porcentaje_match` |
 | `direccion` | string | `ASC`, `DESC` (default: `DESC`) |
@@ -125,7 +127,9 @@ GET /api/ofertas?estado_postulacion=cv_enviado
 
 ### GET /api/ofertas/estadisticas
 
-Retorna contadores agrupados por estado de evaluación.
+Retorna contadores agrupados por estado de evaluación **de los últimos 30 días**.
+
+> **Ventana de 30 días:** Al igual que `GET /api/ofertas`, este endpoint solo cuenta ofertas con `fecha_extraccion` dentro de los últimos 30 días. Ofertas más antiguas no se incluyen en los conteos ni en el total. Esto garantiza que las estadísticas sean consistentes con lo que el usuario ve en el listado.
 
 **Ejemplo response (200):**
 ```json

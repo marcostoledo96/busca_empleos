@@ -6,6 +6,23 @@
 
 const modeloPreferencia = require('../modelos/preferencia');
 const { consultarDeepSeek } = require('../config/deepseek');
+const { IDS_PLATAFORMAS, normalizarIdPlataforma } = require('../config/plataformas');
+
+/**
+ * Normaliza los campos de plataformas en el objeto datos, convirtiendo
+ * slugs HTTP (ej: 'google-jobs') a ids internos canónicos (ej: 'google_jobs').
+ *
+ * Se llama DESPUÉS de la validación y ANTES de persistir, para garantizar
+ * que la BD siempre reciba el id interno, nunca el slug HTTP.
+ */
+function normalizarPlataformasEnDatos(datos) {
+    if (datos.plataformas_preferidas && Array.isArray(datos.plataformas_preferidas)) {
+        datos.plataformas_preferidas = datos.plataformas_preferidas.map(p => normalizarIdPlataforma(p) || p);
+    }
+    if (datos.plataformas_excluidas && Array.isArray(datos.plataformas_excluidas)) {
+        datos.plataformas_excluidas = datos.plataformas_excluidas.map(p => normalizarIdPlataforma(p) || p);
+    }
+}
 
 // Valores válidos para los campos con opciones fijas.
 // Los defino acá para validar en el boundary del sistema (la API HTTP).
@@ -30,7 +47,6 @@ const IMPORTANCIAS_TECNOLOGIA = new Set(['principal', 'secundaria', 'penalizable
 const PRIORIDADES_ROL = new Set(['alta', 'media', 'baja']);
 const DISPONIBILIDADES_VALIDAS = ['full_time', 'part_time', 'freelance', 'a_coordinar'];
 const MONEDAS_SALARIALES_VALIDAS = ['ARS', 'USD', 'NO_FILTRAR'];
-const PLATAFORMAS_VALIDAS = ['linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'getonbrd', 'jooble', 'google-jobs', 'adzuna'];
 
 function validarArrayStrings(valor, campo, { maxItems = 100, permitirVacio = true } = {}) {
     if (!Array.isArray(valor)) {
@@ -82,7 +98,9 @@ function validarPlataformas(valor, campo) {
     if (valor === undefined) return null;
     const error = validarArrayStrings(valor, campo, { maxItems: 20, permitirVacio: true });
     if (error) return error;
-    const invalidas = valor.filter(item => !PLATAFORMAS_VALIDAS.includes(item));
+    // Normalizo cada valor: acepto ids internos (google_jobs) y slugs HTTP (google-jobs).
+    // Si un valor no se puede normalizar (no existe en el registry), es inválido.
+    const invalidas = valor.filter(item => normalizarIdPlataforma(item) === null);
     if (invalidas.length > 0) {
         return `${campo} contiene plataformas inválidas: ${invalidas.join(', ')}.`;
     }
@@ -157,23 +175,6 @@ function validarRolesObjetivoDetalle(roles) {
 
         if (!PRIORIDADES_ROL.has(rol.prioridad)) {
             return `${prefijo}: prioridad inválida "${rol.prioridad}". Debe ser: ${[...PRIORIDADES_ROL].join(', ')}.`;
-        }
-    }
-
-    return null;
-}
-
-/**
- * Valida que scoring_config sea un objeto con los campos esperados.
- */
-function validarScoringConfig(config) {
-    if (!config || typeof config !== 'object' || Array.isArray(config)) {
-        return 'scoring_config debe ser un objeto.';
-    }
-
-    if (config.umbral_aprobacion !== undefined) {
-        if (typeof config.umbral_aprobacion !== 'number' || config.umbral_aprobacion < 0 || config.umbral_aprobacion > 100) {
-            return 'scoring_config.umbral_aprobacion debe ser un número entre 0 y 100.';
         }
     }
 
@@ -300,12 +301,6 @@ async function actualizarPreferencias(req, res) {
         if (errorRoles) errores.push(errorRoles);
     }
 
-    // Valido scoring_config: objeto JSON con umbrales y penalizaciones.
-    if (datos.scoring_config !== undefined) {
-        const errorScoring = validarScoringConfig(datos.scoring_config);
-        if (errorScoring) errores.push(errorScoring);
-    }
-
     // Valido preguntas_perfil_pendientes: array JSON de preguntas.
     if (datos.preguntas_perfil_pendientes !== undefined) {
         if (!Array.isArray(datos.preguntas_perfil_pendientes)) {
@@ -365,12 +360,6 @@ async function actualizarPreferencias(req, res) {
     const errorAniosExperiencia = validarNumeroEnRango(datos.anios_experiencia_reales, 'anios_experiencia_reales', 0, 50);
     if (errorAniosExperiencia) errores.push(errorAniosExperiencia);
 
-    // Si viene scoring_config.penalizaciones.anio_experiencia_excedente, validar rango.
-    if (datos.scoring_config?.penalizaciones?.anio_experiencia_excedente !== undefined) {
-        const errorPenExp = validarNumeroEnRango(datos.scoring_config.penalizaciones.anio_experiencia_excedente, 'scoring_config.penalizaciones.anio_experiencia_excedente', 0, 50);
-        if (errorPenExp) errores.push(errorPenExp);
-    }
-
     // Si hay errores de validación, respondo 400 con todos los errores juntos.
     if (errores.length > 0) {
         return res.status(400).json({
@@ -383,12 +372,14 @@ async function actualizarPreferencias(req, res) {
     if (datos.nivel_ingles_detalle) {
         datos.nivel_ingles_detalle = JSON.parse(JSON.stringify(datos.nivel_ingles_detalle));
     }
-    if (datos.scoring_config) {
-        datos.scoring_config = JSON.parse(JSON.stringify(datos.scoring_config));
-    }
     if (datos.preguntas_perfil_pendientes) {
         datos.preguntas_perfil_pendientes = JSON.parse(JSON.stringify(datos.preguntas_perfil_pendientes));
     }
+
+    // Normalizo slugs HTTP a ids internos antes de persistir.
+    // Si el cliente mandó 'google-jobs', lo convierto a 'google_jobs'
+    // para que la BD siempre reciba el id canónico.
+    normalizarPlataformasEnDatos(datos);
 
     const preferencias = await modeloPreferencia.actualizarPreferencias(datos);
 
@@ -494,7 +485,6 @@ async function analizarCvMarkdown(req, res) {
                 keywords_negativas: datos.keywords_negativas || [],
                 plataformas_preferidas: datos.plataformas_preferidas || [],
                 plataformas_excluidas: datos.plataformas_excluidas || [],
-                scoring_config: datos.scoring_config || null,
                 preguntas: datos.preguntas || [],
                 preguntas_perfil_pendientes: datos.preguntas_perfil_pendientes || datos.preguntas || [],
                 advertencias: datos.advertencias || [],
@@ -576,7 +566,6 @@ Devolvé SOLO JSON válido con este formato:
   "keywords_negativas": string[],
   "plataformas_preferidas": string[],
   "plataformas_excluidas": string[],
-  "scoring_config": object | null,
   "preguntas": [
     {
       "campo": string,

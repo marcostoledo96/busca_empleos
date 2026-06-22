@@ -9,6 +9,7 @@ import { ProgressBarModule } from 'primeng/progressbar';
 import { FormsModule } from '@angular/forms';
 import { Oferta } from '../../modelos/oferta.model';
 import { OfertasService } from '../../servicios/ofertas.service';
+import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 
 @Component({
     selector: 'app-tabla-ofertas',
@@ -129,18 +130,7 @@ export class TablaOfertas {
         { label: 'Rechazadas', value: 'rechazada' }
     ];
 
-    readonly opcionesPlataforma = [
-        { label: 'Todas', value: null },
-        { label: 'LinkedIn', value: 'linkedin' },
-        { label: 'Computrabajo', value: 'computrabajo' },
-        { label: 'Indeed', value: 'indeed' },
-        { label: 'Bumeran', value: 'bumeran' },
-        { label: 'Glassdoor', value: 'glassdoor' },
-        { label: 'GetOnBrd', value: 'getonbrd' },
-        { label: 'Jooble', value: 'jooble' },
-        { label: 'Google Jobs', value: 'google-jobs' },
-        { label: 'Adzuna', value: 'adzuna' },
-    ];
+    readonly opcionesPlataforma = obtenerOpcionesFiltroPlataforma();
 
     readonly opcionesPostulacion = [
         { label: 'No postulado', value: 'no_postulado' },

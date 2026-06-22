@@ -9,6 +9,7 @@ import { OfertasService } from '../../servicios/ofertas.service';
 import { PersistenciaDashboardService } from '../../servicios/persistencia-dashboard.service';
 import { Oferta } from '../../modelos/oferta.model';
 import { DemoService } from '../../servicios/demo.service';
+import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 
 @Component({
     selector: 'app-dashboard',
@@ -51,19 +52,9 @@ export class Dashboard implements OnInit {
     readonly filtroPlataforma = signal<string | null>(null);
 
     // Opciones del dropdown de plataforma.
-    // InfoJobs excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
-    readonly opcionesPlataforma = [
-        { label: 'Todas', value: null },
-        { label: 'LinkedIn', value: 'linkedin' },
-        { label: 'Computrabajo', value: 'computrabajo' },
-        { label: 'Indeed', value: 'indeed' },
-        { label: 'Bumeran', value: 'bumeran' },
-        { label: 'Glassdoor', value: 'glassdoor' },
-        { label: 'GetOnBrd', value: 'getonbrd' },
-        { label: 'Jooble', value: 'jooble' },
-        { label: 'Google Jobs', value: 'google-jobs' },
-        { label: 'Adzuna', value: 'adzuna' },
-    ];
+    // Sale del registry: incluye todas las plataformas (activas e inactivas)
+    // para permitir filtrar ofertas históricas. Usa el id interno como valor.
+    readonly opcionesPlataforma = obtenerOpcionesFiltroPlataforma();
 
     // Computed: aplica el filtro de plataforma al array completo base.
     private readonly ofertasFiltradas = computed(() => {

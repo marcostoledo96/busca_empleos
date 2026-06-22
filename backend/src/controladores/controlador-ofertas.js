@@ -12,6 +12,7 @@
 
 const modeloOferta = require('../modelos/oferta');
 const baseDatos = require('../config/base-datos');
+const { normalizarIdPlataforma } = require('../config/plataformas');
 
 /**
  * GET /api/ofertas
@@ -19,7 +20,9 @@ const baseDatos = require('../config/base-datos');
  *
  * Query params soportados:
  * - estado: 'pendiente' | 'aprobada' | 'rechazada'
- * - plataforma: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran'
+ * - plataforma: 'linkedin' | 'computrabajo' | 'indeed' | 'bumeran' | ...
+ *   Se aceptan tanto ids internos ('google_jobs') como slugs HTTP ('google-jobs').
+ *   El controlador normaliza slugs a ids internos antes de pasar al modelo.
  * - estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada'
  * - ordenar_por: 'fecha_extraccion' | 'fecha_publicacion' | 'porcentaje_match' | 'titulo' | 'empresa' | 'estado_evaluacion'
  * - direccion: 'ASC' | 'DESC'
@@ -30,7 +33,18 @@ async function listarOfertas(req, res) {
     const filtros = {};
 
     if (req.query.estado) filtros.estado = req.query.estado;
-    if (req.query.plataforma) filtros.plataforma = req.query.plataforma;
+    // Normalizo el filtro de plataforma: si el cliente manda 'google-jobs',
+    // lo convierto a 'google_jobs' para que coincida con el valor almacenado en BD.
+    if (req.query.plataforma) {
+        const plataformaNormalizada = normalizarIdPlataforma(req.query.plataforma);
+        if (plataformaNormalizada) {
+            filtros.plataforma = plataformaNormalizada;
+        } else {
+            // Si no es un id/slug conocido, paso el valor original
+            // y dejo que el modelo lo maneje (devolverá 0 resultados).
+            filtros.plataforma = req.query.plataforma;
+        }
+    }
     if (req.query.estado_postulacion) filtros.estado_postulacion = req.query.estado_postulacion;
     if (req.query.ordenar_por) filtros.ordenar_por = req.query.ordenar_por;
     if (req.query.direccion) filtros.direccion = req.query.direccion;

@@ -12,6 +12,7 @@
 
 const servicioScraping = require('../servicios/servicio-scraping');
 const modeloOferta = require('../modelos/oferta');
+const { PLATAFORMAS, esPlataformaActiva } = require('../config/plataformas');
 
 // --- helpers ---
 
@@ -315,17 +316,20 @@ async function scrapearJooble(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGoogleJobs(req, res) {
-    // DESACTIVADO PERMANENTEMENTE — ver servicio-scraping.js para contexto.
+    // Google Jobs está desactivado en el registry.
     // El endpoint sigue activo para no romper el frontend, pero retorna 0 resultados
     // sin llamar al servicio ni a la base de datos.
+    const plataforma = PLATAFORMAS.google_jobs;
     return res.json({
         exito: true,
         datos: {
-            mensaje: 'Google Jobs está desactivado. No se realizó ninguna extracción.',
-            plataforma: 'google_jobs',
+            mensaje: `${plataforma.label} está desactivado. ${plataforma.motivo || 'No se realizó ninguna extracción.'}`,
+            plataforma: plataforma.id,
             ofertas_nuevas: 0,
             ofertas_duplicadas: 0,
             total_extraidas: 0,
+            codigo_resultado: 'PLATAFORMA_INACTIVA',
+            advertencia: plataforma.motivo || 'Plataforma desactivada.',
         },
     });
 }
@@ -439,51 +443,19 @@ async function scrapearRemoteOK(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearInfojobs(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 50);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
-
-    const resultadoServicio = await servicioScraping.ejecutarScrapingInfojobs(opciones);
-
-    // El servicio puede retornar un objeto con metadata cuando InfoJobs está
-    // deshabilitado por falta de credenciales. En ese caso, no hay ofertas que
-    // guardar y el frontend necesita saber el motivo para mostrar una advertencia.
-    if (resultadoServicio && resultadoServicio.deshabilitado === true) {
-        return res.json({
-            exito: true,
-            datos: {
-                mensaje: 'InfoJobs está deshabilitado por falta de credenciales.',
-                plataforma: 'infojobs',
-                ofertas_nuevas: 0,
-                ofertas_duplicadas: 0,
-                total_extraidas: 0,
-                codigo_resultado: resultadoServicio.codigo_resultado,
-                advertencia: resultadoServicio.advertencia,
-            },
-        });
-    }
-
-    // Caso normal: el servicio retornó un array de ofertas normalizadas.
-    const ofertasNormalizadas = resultadoServicio;
-    let guardadas = 0;
-    let duplicadas = 0;
-
-    for (const oferta of ofertasNormalizadas) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
-
-    res.json({
+    // InfoJobs está desactivado en el registry — no se debe invocar como plataforma activa.
+    // Retorno respuesta controlada sin llamar al servicio ni a la base de datos.
+    const plataforma = PLATAFORMAS.infojobs;
+    return res.json({
         exito: true,
         datos: {
-            mensaje: `Scraping de InfoJobs completado: ${guardadas} ofertas nuevas.`,
-            plataforma: 'infojobs',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
+            mensaje: `${plataforma.label} está desactivado. ${plataforma.motivo || 'No se realizó ninguna extracción.'}`,
+            plataforma: plataforma.id,
+            ofertas_nuevas: 0,
+            ofertas_duplicadas: 0,
+            total_extraidas: 0,
+            codigo_resultado: 'PLATAFORMA_INACTIVA',
+            advertencia: plataforma.motivo || 'Plataforma desactivada.',
         },
     });
 }
