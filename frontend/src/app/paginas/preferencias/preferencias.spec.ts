@@ -105,4 +105,44 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         // Pero guardando.set(false) sí se ejecuta.
         expect(component.guardando()).toBe(false);
     });
+
+    // --- Bonus IA/Next.js en scoring ---
+
+    it('restaurarScoringRecomendado incluye bonus herramientas_ia, nextjs y herramientas_ia_nextjs_max', async () => {
+        const { component } = await crearComponente();
+
+        component.restaurarScoringRecomendado();
+
+        expect(component.scoringConfig.bonificaciones['herramientas_ia']).toBe(6);
+        expect(component.scoringConfig.bonificaciones['nextjs']).toBe(4);
+        expect(component.scoringConfig.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+    });
+
+    it('normalizarScoringConfig preserva bonus IA/Next.js existentes y agrega defaults', async () => {
+        const { component } = await crearComponente();
+
+        // Simulo una config de API que trae herramientas_ia pero no nextjs ni max.
+        const configParcial = {
+            penalizaciones: { senior: 25 },
+            bonificaciones: { herramientas_ia: 10 },
+        };
+        // normalizarScoringConfig es privado, accedo con any para testing.
+        const resultado = (component as any).normalizarScoringConfig(configParcial);
+
+        // El valor existente se conserva.
+        expect(resultado.bonificaciones['herramientas_ia']).toBe(10);
+        // Los defaults se completan.
+        expect(resultado.bonificaciones['nextjs']).toBe(4);
+        expect(resultado.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+    });
+
+    it('normalizarScoringConfig con config vacía usa defaults de bonus IA/Next.js', async () => {
+        const { component } = await crearComponente();
+
+        const resultado = (component as any).normalizarScoringConfig({});
+
+        expect(resultado.bonificaciones['herramientas_ia']).toBe(6);
+        expect(resultado.bonificaciones['nextjs']).toBe(4);
+        expect(resultado.bonificaciones['herramientas_ia_nextjs_max']).toBe(8);
+    });
 });

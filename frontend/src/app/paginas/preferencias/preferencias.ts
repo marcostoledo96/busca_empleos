@@ -282,6 +282,9 @@ export class Preferencias implements OnInit {
                 stack_principal_completo: 10,
                 rol_prioridad_alta: 5,
                 rol_prioridad_media: 3,
+                herramientas_ia: 6,
+                nextjs: 4,
+                herramientas_ia_nextjs_max: 8,
                 ...(config?.bonificaciones || {}),
             },
             deepseek: {
@@ -572,6 +575,9 @@ export class Preferencias implements OnInit {
                 stack_principal_completo: 10,
                 rol_prioridad_alta: 5,
                 rol_prioridad_media: 3,
+                herramientas_ia: 6,
+                nextjs: 4,
+                herramientas_ia_nextjs_max: 8,
             },
             deepseek: {
                 ajuste_maximo_normal: 15,

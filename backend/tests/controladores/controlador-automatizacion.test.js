@@ -22,6 +22,8 @@ const servicioAutomatizacion = require('../../src/servicios/servicio-automatizac
 describe('Controlador de automatización', () => {
     beforeEach(() => {
         jest.clearAllMocks();
+        // Inicializo cicloEnProgreso en false por defecto (sin ciclo activo).
+        servicioAutomatizacion.cicloEnProgreso.mockReturnValue(false);
     });
 
     describe('GET /api/automatizacion/estado', () => {
@@ -226,38 +228,71 @@ describe('Controlador de automatización', () => {
     });
 
     describe('POST /api/automatizacion/ejecutar', () => {
-        test('ejecuta un ciclo completo manualmente', async () => {
+        test('responde 202 e inicia ciclo en background sin esperar resolución', async () => {
+            // Mock: ciclo no está en progreso y se ejecuta correctamente.
+            servicioAutomatizacion.cicloEnProgreso.mockReturnValue(false);
             servicioAutomatizacion.ejecutarCicloCompleto.mockResolvedValue({
                 exito: true,
                 scraping: { linkedin: 5, computrabajo: 3, totalExtraidas: 8, guardadas: 6 },
                 evaluacion: { total: 6, aprobadas: 4, rechazadas: 2, errores: 0 },
                 errores: [],
             });
-
-            const respuesta = await request(app)
-                .post('/api/automatizacion/ejecutar')
-                .expect(200);
-
-            expect(respuesta.body.exito).toBe(true);
-            expect(respuesta.body.datos.scraping.linkedin).toBe(5);
-            expect(respuesta.body.datos.evaluacion.aprobadas).toBe(4);
-            expect(servicioAutomatizacion.ejecutarCicloCompleto).toHaveBeenCalledTimes(1);
-        });
-
-        test('reporta errores parciales sin fallar', async () => {
-            servicioAutomatizacion.ejecutarCicloCompleto.mockResolvedValue({
-                exito: true,
-                scraping: { linkedin: 0, computrabajo: 2, totalExtraidas: 2, guardadas: 2 },
-                evaluacion: null,
-                errores: ['Error en scraping de LinkedIn: timeout', 'Error en evaluación: API down'],
+            servicioAutomatizacion.obtenerProgreso.mockReturnValue({
+                activo: true,
+                porcentaje: 0,
+                pasos: [],
             });
 
             const respuesta = await request(app)
                 .post('/api/automatizacion/ejecutar')
-                .expect(200);
+                .expect(202);
 
-            expect(respuesta.body.datos.errores).toHaveLength(2);
-            expect(respuesta.body.datos.evaluacion).toBeNull();
+            expect(respuesta.body.exito).toBe(true);
+            expect(respuesta.body.mensaje).toContain('iniciado');
+            expect(respuesta.body.datos.activo).toBe(true);
+            expect(servicioAutomatizacion.ejecutarCicloCompleto).toHaveBeenCalledTimes(1);
+        });
+
+        test('responde 409 si ya hay un ciclo activo', async () => {
+            servicioAutomatizacion.cicloEnProgreso.mockReturnValue(true);
+
+            const respuesta = await request(app)
+                .post('/api/automatizacion/ejecutar')
+                .expect(409);
+
+            expect(respuesta.body.exito).toBe(false);
+            expect(respuesta.body.error).toContain('en curso');
+            // No debe llamar a ejecutarCicloCompleto si ya hay ciclo activo.
+            expect(servicioAutomatizacion.ejecutarCicloCompleto).not.toHaveBeenCalled();
+        });
+
+        test('promesa rechazada queda logueada sin crashear el servidor', async () => {
+            servicioAutomatizacion.cicloEnProgreso.mockReturnValue(false);
+            servicioAutomatizacion.ejecutarCicloCompleto.mockRejectedValue(
+                new Error('Error simulado en ciclo')
+            );
+            servicioAutomatizacion.obtenerProgreso.mockReturnValue({
+                activo: true,
+                porcentaje: 0,
+                pasos: [],
+            });
+
+            // Espío console.error para verificar que se loguea.
+            const errorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+
+            const respuesta = await request(app)
+                .post('/api/automatizacion/ejecutar')
+                .expect(202);
+
+            expect(respuesta.body.exito).toBe(true);
+
+            // Espero a que la promesa rechazada se procese.
+            await new Promise(resolve => setImmediate(resolve));
+
+            expect(errorSpy).toHaveBeenCalledWith(
+                expect.stringContaining('Error en ciclo en background')
+            );
+            errorSpy.mockRestore();
         });
     });
 
@@ -367,6 +402,7 @@ describe('Controlador de automatización', () => {
                 activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null,
             });
             servicioFresco.programarCron.mockReturnValue({ detener: jest.fn() });
+            servicioFresco.cicloEnProgreso.mockReturnValue(false);
 
             // 5 calls a /progreso + 5 calls a /estado = 10 calls de polling.
             // Ninguna de ellas debe consumir cuota del limitador costoso.

@@ -147,6 +147,7 @@ export class PanelControl implements OnInit, OnDestroy {
     ngOnInit(): void {
         this.consultarEstadoCron();
         this.rehidratarEvaluacion();
+        this.rehidratarCiclo();
     }
 
     ngOnDestroy(): void {
@@ -183,6 +184,24 @@ export class PanelControl implements OnInit, OnDestroy {
         });
     }
 
+    // Rehidrato el estado de un ciclo de automatización en curso al montar el componente.
+    // Si el backend reporta activo === true, restauro las signals locales y
+    // reanudo el polling para que la UI refleje el progreso real.
+    // Patrón idéntico a rehidratarEvaluacion().
+    private rehidratarCiclo(): void {
+        this.automatizacionService.obtenerProgreso().subscribe({
+            next: (respuesta) => {
+                if (respuesta.exito && respuesta.datos.activo) {
+                    this.ejecutandoCiclo.set(true);
+                    this.mostrarOverlayCiclo.set(true);
+                    this.progresoCiclo.set(respuesta.datos);
+                    this.iniciarPolling();
+                }
+            },
+            error: () => {} // Silencioso — si falla, el componente arranca sin ciclo activo.
+        });
+    }
+
     // Inicia el polling al endpoint de progreso (cada 2 segundos).
     private iniciarPolling(): void {
         this.detenerPolling(); // Evito duplicados.
@@ -199,9 +218,23 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.errores429Ciclo = 0;
                     if (respuesta.exito) {
                         this.progresoCiclo.set(respuesta.datos);
-                        // Si el backend terminó, detengo el polling.
+                        // Si el backend terminó, detengo el polling y cierro el overlay.
                         if (!respuesta.datos.activo && respuesta.datos.porcentaje >= 100) {
                             this.detenerPolling();
+                            this.ejecutandoCiclo.set(false);
+                            // Aseguro que el overlay muestre 100% antes de cerrar.
+                            this.progresoCiclo.set({ ...respuesta.datos, porcentaje: 100, activo: false });
+                            setTimeout(() => {
+                                this.mostrarOverlayCiclo.set(false);
+                                this.progresoCiclo.set(null);
+                                this.mensajes.add({
+                                    severity: 'success',
+                                    summary: 'Ciclo completo',
+                                    detail: 'Scraping y evaluación finalizados.',
+                                    life: 5000
+                                });
+                                this.accionCompletada.emit();
+                            }, 1200);
                         }
                     }
                 },
@@ -293,7 +326,10 @@ export class PanelControl implements OnInit, OnDestroy {
         this.errores429Eval = 0;
     }
 
-    // Ejecuta el ciclo completo (scraping de las 4 plataformas + evaluación IA).
+    // Ejecuta el ciclo completo (scraping de las plataformas + evaluación IA).
+    // El backend responde 202 Accepted al iniciar el ciclo (no al terminarlo).
+    // El frontend mantiene overlay y polling activos hasta que el progreso
+    // indique que el ciclo terminó (activo=false + porcentaje>=100).
     ejecutarCicloCompleto(): void {
         this.ejecutandoCiclo.set(true);
         this.mostrarOverlayCiclo.set(true);
@@ -304,28 +340,27 @@ export class PanelControl implements OnInit, OnDestroy {
         setTimeout(() => this.iniciarPolling(), 500);
 
         this.automatizacionService.ejecutarCiclo().subscribe({
-            next: (respuesta) => {
-                this.detenerPolling();
-                this.ejecutandoCiclo.set(false);
-
-                // Aseguro que el overlay muestre 100% antes de cerrar.
-                if (this.progresoCiclo()) {
-                    this.progresoCiclo.set({ ...this.progresoCiclo()!, porcentaje: 100, activo: false });
-                }
-
-                setTimeout(() => {
-                    this.mostrarOverlayCiclo.set(false);
-                    this.progresoCiclo.set(null);
-                    this.mensajes.add({
-                        severity: 'success',
-                        summary: 'Ciclo completo',
-                        detail: 'Scraping y evaluación finalizados.',
-                        life: 5000
-                    });
-                    this.accionCompletada.emit();
-                }, 1200);
+            next: () => {
+                // 202 Accepted: el ciclo arrancó correctamente en el backend.
+                // NO cerramos el overlay ni paramos el polling.
+                // El polling se encarga de detectar cuándo el ciclo termina
+                // (activo=false + porcentaje>=100) y cerrar todo.
             },
             error: (error) => {
+                // 409 Conflict: ya hay un ciclo en curso iniciado antes.
+                // En lugar de mostrar error, rehidrato el estado desde el backend.
+                if (error?.status === 409) {
+                    this.rehidratarCiclo();
+                    this.mensajes.add({
+                        severity: 'info',
+                        summary: 'Ciclo ya en ejecución',
+                        detail: 'Se retomó el seguimiento del ciclo en curso.',
+                        life: 4000
+                    });
+                    return;
+                }
+
+                // Cualquier otro error sí es fatal: limpio todo.
                 this.detenerPolling();
                 this.ejecutandoCiclo.set(false);
                 this.mostrarOverlayCiclo.set(false);

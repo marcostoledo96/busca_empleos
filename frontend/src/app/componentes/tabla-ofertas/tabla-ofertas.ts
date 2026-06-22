@@ -50,7 +50,7 @@ export class TablaOfertas {
 
     // === Vista cards (mobile) — paginación y filtro propio ===
     readonly paginaActualCards = signal(0);
-    readonly filasPorPaginaCards = 10;
+    readonly filasPorPaginaCards = 20;
     readonly filtroTextoCards = signal('');
 
     // Ofertas filtradas por el buscador de la vista cards.

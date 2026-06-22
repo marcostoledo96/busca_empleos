@@ -173,5 +173,37 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
 
             expect(prefs.modelo_ia).toBe('deepseek-v4-pro');
         });
+
+        test('debería actualizar anios_experiencia_reales (campo permitido)', async () => {
+            const prefs = await modeloPreferencia.actualizarPreferencias({
+                anios_experiencia_reales: 2,
+            });
+
+            expect(prefs.anios_experiencia_reales).toBe(2);
+        });
+
+        test('debería actualizar scoring_config con bonificaciones de IA/Next.js', async () => {
+            const scoringConfig = {
+                umbral_aprobacion: 65,
+                penalizaciones: { senior: 25 },
+                bonificaciones: {
+                    healthtech: 5,
+                    herramientas_ia: 6,
+                    nextjs: 4,
+                    herramientas_ia_nextjs_max: 8,
+                },
+                deepseek: { ajuste_maximo_normal: 15, ajuste_maximo_con_evidencia: 25 },
+            };
+
+            const prefs = await modeloPreferencia.actualizarPreferencias({
+                scoring_config: scoringConfig,
+            });
+
+            const config = prefs.scoring_config;
+            expect(config.umbral_aprobacion).toBe(65);
+            expect(config.bonificaciones.herramientas_ia).toBe(6);
+            expect(config.bonificaciones.nextjs).toBe(4);
+            expect(config.bonificaciones.herramientas_ia_nextjs_max).toBe(8);
+        });
     });
 });

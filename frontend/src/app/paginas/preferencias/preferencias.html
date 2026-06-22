@@ -256,8 +256,11 @@
                                 <div class="campo"><label class="campo-etiqueta">Stack principal completo</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['stack_principal_completo']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Rol prioridad alta</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_alta']" /></div>
                                 <div class="campo"><label class="campo-etiqueta">Rol prioridad media</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['rol_prioridad_media']" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Bonus herramientas IA</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia']" min="0" max="20" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Bonus Next.js</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['nextjs']" min="0" max="20" /></div>
+                                <div class="campo"><label class="campo-etiqueta">Máx. combinado IA/Next.js</label><input type="number" class="input-dias-reset" [(ngModel)]="scoringConfig.bonificaciones['herramientas_ia_nextjs_max']" min="0" max="20" /></div>
                             </div>
-                            <small class="campo-ayuda">Umbral 60 = aprobado. Bajalo si querés revisar más oportunidades, subilo si querés ser más estricto.</small>
+                            <small class="campo-ayuda">Umbral 60 = aprobado. Bajalo si querés revisar más oportunidades, subilo si querés ser más estricto. Los bonus IA/Next.js son acotados y NO compensan exclusiones por Java, Senior o inglés avanzado.</small>
                         </div>
                     </section>
                 </p-tabpanel>

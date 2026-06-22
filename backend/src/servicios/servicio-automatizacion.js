@@ -28,12 +28,13 @@ const servicioEvaluacion = require('./servicio-evaluacion');
 const { detectarIdioma } = require('./servicio-normalizacion');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
+const servicioNotificacionEmail = require('./servicio-notificacion-email');
 
-// Expresión cron por defecto: todos los miércoles a las 8:00 AM hora Argentina (ART).
-// En sintaxis cron: minuto=0, hora=8, cualquier día del mes, cualquier mes, miércoles=3.
-// La timezone 'America/Argentina/Buenos_Aires' hace que el 08:00 sea exactamente
-// las 8 AM en Argentina sin tener que calcular el offset UTC manualmente.
-const EXPRESION_CRON_DEFECTO = '0 8 * * 3';
+// Expresión cron por defecto: todos los martes a las 20:00 (8 PM) hora Argentina (ART).
+// En sintaxis cron: minuto=0, hora=20, cualquier día del mes, cualquier mes, martes=2.
+// La timezone 'America/Argentina/Buenos_Aires' hace que las 20:00 sea exactamente
+// las 8 PM en Argentina sin tener que calcular el offset UTC manualmente.
+const EXPRESION_CRON_DEFECTO = '0 20 * * 2';
 const TIMEZONE_CRON = 'America/Argentina/Buenos_Aires';
 
 // Estado interno del servicio — guardo el cron activo y los resultados.
@@ -387,10 +388,21 @@ async function ejecutarCicloCompleto() {
     const duracion = (fin - inicio) / 1000; // en segundos
     console.log(`[Automatización] Ciclo completo en ${duracion}s. Errores: ${resultado.errores.length}`);
 
+    // Agrego métricas de duración y fecha al resultado para el email de resumen.
+    resultado.fechaEjecucion = inicio.toISOString();
+    resultado.duracionSegundos = Math.round(duracion);
+    resultado.scraping.descartadasPorIdioma = descartadasPorIdioma;
+
     progreso.activo = false;
     progreso.porcentaje = 100;
     estado.ultimaEjecucion = inicio.toISOString();
     estado.ultimoResultado = resultado;
+
+    // Envío notificación por email en background (fire-and-forget).
+    // Si el email falla o SMTP no está configurado, no rompe el ciclo.
+    servicioNotificacionEmail.enviarResumenCiclo(resultado).catch((errorEmail) => {
+        console.error(`[Automatización] Error en notificación por email: ${errorEmail.message}`);
+    });
 
     return resultado;
 }
@@ -419,9 +431,14 @@ function programarCron(opciones = {}) {
 
     // cron.schedule() acepta la expresión, un callback y opciones.
     // La opción `timezone` hace que node-cron interprete la hora en ART
-    // en vez de UTC. Sin esto, las 08:00 serían las 5 AM Argentina.
+    // en vez de UTC. Sin esto, las 20:00 serían las 17:00 Argentina.
     const tarea = cron.schedule(expresion, async () => {
         console.log(`[Automatización] Cron disparado a las ${new Date().toISOString()}`);
+        // Si ya hay un ciclo activo (manual o de un cron anterior), salteo esta ejecución.
+        if (cicloEnProgreso()) {
+            console.log('[Automatización] Ciclo ya en progreso, salteando ejecución del cron.');
+            return;
+        }
         try {
             await ejecutarCicloCompleto();
         } catch (error) {
@@ -497,11 +514,23 @@ function _resetearEstado() {
     };
 }
 
+/**
+ * Retorno true si hay un ciclo de automatización en progreso.
+ * Útil para el controlador y para el cron: evita ejecutar ciclos superpuestos.
+ *
+ * En Node.js (single-threaded), el check + set de progreso.activo es atómico
+ * dentro del mismo event loop, así que no hay race condition.
+ */
+function cicloEnProgreso() {
+    return progreso.activo === true;
+}
+
 module.exports = {
     ejecutarCicloCompleto,
     programarCron,
     detenerCron,
     obtenerEstado,
     obtenerProgreso,
+    cicloEnProgreso,
     _resetearEstado,
 };

@@ -160,6 +160,42 @@ const jsonLimpio = respuestaTexto
     .trim();
 ```
 
+## Bonus de IA y Next.js
+
+El sistema de scoring previo y el prompt de DeepSeek incluyen un **bonus acotado** para ofertas que valoren el uso competente de herramientas de IA y Next.js.
+
+### Herramientas IA reconocidas
+
+Se detectan menciones de: Claude Code, Codex, OpenCode, Antigravity, Copilot, ChatGPT, GPT-4, LLM, IA generativa, agentes de IA, prompt engineering, automatización/integración con IA, y AI tools.
+
+### Magnitud del bonus
+
+| Señal | Bonus máximo |
+|-------|-------------|
+| Herramientas IA | +6 |
+| Next.js | +4 |
+| Combinado (IA + Next.js) | +8 (cap) |
+
+### Salvaguardas
+
+El bonus IA **NO compensa** las siguientes exclusiones:
+
+| Exclusión | Cap aplicado |
+|-----------|-------------|
+| Java como tecnología principal/excluyente | Score máximo 35 |
+| Senior / SR / Lead | Score máximo 45 |
+| Inglés avanzado excluyente | Score máximo 15 |
+
+Estos caps se aplican **después** de sumar el bonus, de modo que ninguna oferta excluida por Java, seniority o idioma pueda quedar aprobada por el bonus IA.
+
+### Detección de IA en scoring previo
+
+Los patrones regex para IA están diseñados para evitar falsos positivos: no matchean "ai" suelto ni acrónimos irrelevantes. Solo detectan términos concretos de productividad con IA en desarrollo.
+
+### Next.js en el perfil
+
+Next.js se incluye como tecnología aceptada en el stack del candidato (nivel práctico). Se agrega al catálogo de tecnologías del scoring previo con sus patrones: `next.js`, `nextjs`, `next 13+`, `app router`, `pages router`.
+
 ## Documentos relacionados
 
 - [Arquitectura](arquitectura.md) — Vista general del flujo.

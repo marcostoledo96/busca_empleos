@@ -20,6 +20,7 @@ const modeloPreferencia = require('../modelos/preferencia');
 const CATALOGO_TECNOLOGIAS = [
     { nombre: 'Angular', aliases: [/\bangular\b/i], categoria: 'frontend' },
     { nombre: 'React', aliases: [/\breact\b/i, /\breact\.js\b/i, /\breactjs\b/i], categoria: 'frontend' },
+    { nombre: 'Next.js', aliases: [/\bnext\.?js\b/i, /\bnextjs\b/i, /\bnext\s+1[3456789]\+?\b/i, /\bapp router\b/i, /\bpages router\b/i], categoria: 'frontend' },
     { nombre: 'Blazor', aliases: [/\bblazor\b/i], categoria: 'frontend' },
     { nombre: 'Node.js', aliases: [/\bnode\.js\b/i, /\bnodejs\b/i, /\bnode\b/i], categoria: 'backend' },
     { nombre: 'Express', aliases: [/\bexpress\b/i, /\bexpress\.js\b/i], categoria: 'backend' },
@@ -55,12 +56,81 @@ const CATALOGO_TECNOLOGIAS = [
     { nombre: 'Kubernetes', aliases: [/\bkubernetes\b/i, /\bk8s\b/i], categoria: 'cloud' },
 ];
 
+// Patrones para detectar menciones relevantes de herramientas IA en ofertas.
+// Diseñados para evitar falsos positivos: no matchean "ai" suelto ni
+// acrónimos irrelevantes. Solo matchean términos concretos de productividad
+// de desarrollo con IA.
+const PATRONES_HERRAMIENTAS_IA = [
+    /\bclaude\s*code\b/i,
+    /\bcodex\b/i,
+    /\bopencode\b/i,
+    /\bantigravity\b/i,
+    /\bcopilot\b/i,
+    /\bchatgpt\b/i,
+    /\bgpt[- ]?4\b/i,
+    /\bllm\b/i,
+    /\bia generativa\b/i,
+    /\bagentes? de ia\b/i,
+    /\bai agents?\b/i,
+    /\bprompt engineering\b/i,
+    /\bautomatizaci[oó]n con ia\b/i,
+    /\bintegraci[oó]n de ia\b/i,
+    /\bherramientas? de ia\b/i,
+    /\bai tools?\b/i,
+];
+
+// Patrones para detectar menciones de Next.js en ofertas (ya incluido en catálogo,
+// pero se usa para calcular bonus específico de Next.js).
+const PATRONES_NEXTJS = [
+    /\bnext\.?js\b/i,
+    /\bnextjs\b/i,
+    /\bnext\s+1[3456789]\+?\b/i,
+    /\bapp router\b/i,
+    /\bpages router\b/i,
+];
+
 // Patrones para detectar nivel de seniority en la oferta.
 const PATRONES_SENIORITY = [
     { nivel: 'sr_director', patrones: [/\bsr\.?\b/i, /\bsenior\b/i], penalizacion: 30 },
     { nivel: 'semi_senior', patrones: [/\bssr\.?\b/i, /\bsemi\s*senior\b/i, /\bsemisenior\b/i], penalizacion: 10 },
     { nivel: 'junior', patrones: [/\bjunior\b/i, /\bjr\.?\b/i], penalizacion: 0 },
     { nivel: 'trainee', patrones: [/\btrainee\b/i], penalizacion: 0 },
+];
+
+// Patrones para detectar "Lead" como rol seniority (no solo como adjetivo de engineer/developer).
+// "Tech Lead", "Team Lead", "Engineering Lead" son roles de liderazgo excluyentes para un junior.
+const PATRONES_LEAD = [
+    /\btech\s*lead\b/i,
+    /\bteam\s*lead\b/i,
+    /\bengineering\s*lead\b/i,
+    /\blead\s+developer\b/i,
+    /\blead\s+engineer\b/i,
+    /\blead\b(?:\s+(?:engineer|developer|dev|architect))?\b/i,
+];
+
+// Patrones para detectar requisitos de experiencia excluyente (>3 años, 3+ años, etc.).
+// Estas frases indican que la oferta exige más experiencia de la que tiene un junior/trainee,
+// y el bonus IA/Next.js NO debe compensarlo. Se aplica un hard cap equivalente al de seniority.
+const PATRONES_EXPERIENCIA_EXCLUYENTE = [
+    // ">3 años", "> 3 años", ">3 anos" (sin ñ)
+    />\s*3\s*(años|anos|years|yr|año|ano|year)\b/i,
+    // "3+ años", "3+ anos"
+    /\b3\s*\+\s*(años|anos|years|yr|año|ano|year)\b/i,
+    // "al menos 3 años/anos/years"
+    /\bal\s+menos\s+3\s*(años|anos|years|yr|año|ano|year)\b/i,
+    // "mínimo 3 años/anos/years" (con y sin acento)
+    /\bm[ií]nimo\s+3\s*(años|anos|years|yr|año|ano|year)\b/i,
+    // "minimum 3 years"
+    /\bminimum\s+3\s*(years|yr|year)\b/i,
+    // "at least 3 years"
+    /\bat\s+least\s+3\s*(years|yr|year)\b/i,
+    // "3 or more years", "3+ years of experience"
+    /\b3\s*(or\s+more|o\s+mas)\s*(años|anos|years|yr|año|ano|year)\b/i,
+    // Variantes: "4+ años", ">4 años", "5+ años", ">5 años" (también excluyentes)
+    /\b[45]\s*\+\s*(años|anos|years|yr|año|ano|year)\b/i,
+    />\s*[45]\s*(años|anos|years|yr|año|ano|year)\b/i,
+    // "al menos 4/5 años", "mínimo 4/5 años"
+    /\b(al\s+menos|m[ií]nimo|at\s+least|minimum)\s+[45]\s*(años|anos|years|yr|año|ano|year)\b/i,
 ];
 
 // Patrones para detectar requisitos de inglés avanzado.
@@ -343,6 +413,116 @@ function detectarHealthTech(oferta) {
 }
 
 /**
+ * Detecta si la oferta tiene requisitos de experiencia excluyente para un junior.
+ * Patrones como ">3 años", "3+ años", "al menos 3 años", "mínimo 3 años",
+ * y variantes normalizadas sin ñ ("anos") o en inglés ("years").
+ *
+ * También detecta roles de "Lead" (Tech Lead, Team Lead, etc.) que implican
+ * seniority excluyente.
+ *
+ * Retorna true si alguna señal de experiencia excluyente fue detectada.
+ */
+function detectarExperienciaExcluyente(oferta) {
+    const texto = extraerTextoOferta(oferta);
+
+    // Eliminar falsos positivos de seniority del texto antes de evaluar.
+    let textoLimpio = texto;
+    for (const fp of FALSOS_POSITIVOS_SENIORITY) {
+        textoLimpio = textoLimpio.replace(fp, '');
+    }
+
+    const patronesMatcheados = [];
+
+    // Verificar patrones de experiencia excluyente (>3 años, etc.).
+    for (const patron of PATRONES_EXPERIENCIA_EXCLUYENTE) {
+        if (patron.test(textoLimpio)) {
+            const match = textoLimpio.match(patron);
+            if (match) {
+                patronesMatcheados.push(match[0]);
+            }
+        }
+    }
+
+    // Verificar patrones de "Lead" como rol excluyente.
+    for (const patron of PATRONES_LEAD) {
+        if (patron.test(textoLimpio)) {
+            const match = textoLimpio.match(patron);
+            if (match) {
+                patronesMatcheados.push(match[0]);
+            }
+        }
+    }
+
+    return {
+        detectado: patronesMatcheados.length > 0,
+        patrones: patronesMatcheados,
+    };
+}
+
+/**
+ * Detecta menciones relevantes de herramientas IA en la oferta.
+ * Retorna las herramientas detectadas y un bonus acotado.
+ *
+ * Salvaguardas:
+ * - El bonus NO compensa exclusiones por Java, seniority, idioma, experiencia excluyente o ubicación.
+ * - Se aplica un cap máximo configurable (default: +8 combinado).
+ * - Ofertas Senior/SR/Lead o con >3 años excluyentes no reciben bonus IA.
+ */
+function calcularBonusIA(oferta, perfil) {
+    const texto = extraerTextoOferta(oferta);
+    const config = perfil.scoring_config || {};
+    const bonificaciones = config.bonificaciones || {};
+    const limites = config.limites || {};
+
+    const bonusIA = bonificaciones.herramientas_ia ?? 6;
+    const bonusNextjs = bonificaciones.nextjs ?? 4;
+    const maxCombinado = bonificaciones.herramientas_ia_nextjs_max ?? 8;
+    const maxScoreSiJava = limites.max_score_si_java_excluyente ?? 35;
+    const maxScoreSiSenior = limites.max_score_si_senior ?? 45;
+    const maxScoreSiIngles = limites.max_score_si_ingles_excluyente ?? 15;
+    const maxScoreSiExperienciaExcluyente = limites.max_score_si_experiencia_excluyente ?? 45;
+
+    // Detectar herramientas IA mencionadas.
+    const herramientasDetectadas = [];
+    for (const patron of PATRONES_HERRAMIENTAS_IA) {
+        if (patron.test(texto)) {
+            // Extraer el nombre de la herramienta del match.
+            const match = texto.match(patron);
+            if (match) {
+                herramientasDetectadas.push(match[0]);
+            }
+        }
+    }
+
+    // Detectar Next.js mencionado.
+    const nextjsDetectado = PATRONES_NEXTJS.some(p => p.test(texto));
+
+    // Calcular bonus bruto.
+    let bonusBruto = 0;
+    if (herramientasDetectadas.length > 0) {
+        bonusBruto += Math.min(bonusIA, bonusIA); // Bonus completo si hay cualquier mención.
+    }
+    if (nextjsDetectado) {
+        bonusBruto += Math.min(bonusNextjs, bonusNextjs);
+    }
+
+    // Cap combinado: el bonus total no puede superar el máximo configurado.
+    const bonusAplicado = Math.min(bonusBruto, maxCombinado);
+
+    return {
+        herramientasIA: herramientasDetectadas,
+        nextjsDetectado,
+        bonusIA: herramientasDetectadas.length > 0 ? Math.min(bonusIA, maxCombinado) : 0,
+        bonusNextjs: nextjsDetectado ? Math.min(bonusNextjs, maxCombinado - (herramientasDetectadas.length > 0 ? Math.min(bonusIA, maxCombinado) : 0)) : 0,
+        bonusTotal: bonusAplicado,
+        maxScoreSiJava,
+        maxScoreSiSenior,
+        maxScoreSiIngles,
+        maxScoreSiExperienciaExcluyente,
+    };
+}
+
+/**
  * Verifica si la oferta cubre el stack principal completo de Marcos.
  */
 function tieneStackPrincipalCompleto(matchTecnologico, perfil) {
@@ -379,6 +559,7 @@ function calcularScorePrevio(oferta, perfil) {
     const ingles = detectarIdioma(oferta);
     const rol = detectarRolObjetivo(oferta, perfil);
     const esHealthTech = detectarHealthTech(oferta);
+    const experienciaExcluyente = detectarExperienciaExcluyente(oferta);
 
     let score = 50;
 
@@ -456,6 +637,35 @@ function calcularScorePrevio(oferta, perfil) {
         score += 10;
     }
 
+    // === Bonus IA / Next.js ===
+    const bonusIA = calcularBonusIA(oferta, perfil);
+    score += bonusIA.bonusTotal;
+
+    // === Salvaguardas: caps por exclusiones ===
+    // El bonus IA NO puede compensar exclusiones estrictas.
+    const tieneJavaExcluyente = (
+        Array.isArray(perfil.reglas_exclusion)
+            ? perfil.reglas_exclusion
+            : []
+    ).some(r => typeof r === 'string' && r.toLowerCase() === 'java')
+        && matchTecnologico.tecnologiasDetectadas.some(t => t.nombre === 'Java');
+    const esSenior = seniority.nivel === 'sr_director';
+    const tieneInglesExcluyente = ingles.requiereAvanzado;
+    const tieneExperienciaExcluyente = experienciaExcluyente.detectado;
+
+    if (tieneJavaExcluyente) {
+        score = Math.min(score, bonusIA.maxScoreSiJava);
+    }
+    if (esSenior) {
+        score = Math.min(score, bonusIA.maxScoreSiSenior);
+    }
+    if (tieneInglesExcluyente) {
+        score = Math.min(score, bonusIA.maxScoreSiIngles);
+    }
+    if (tieneExperienciaExcluyente) {
+        score = Math.min(score, bonusIA.maxScoreSiExperienciaExcluyente);
+    }
+
     const scorePrevio = clamp(score);
     const umbral = config.umbral_aprobacion ?? 60;
 
@@ -482,7 +692,24 @@ function calcularScorePrevio(oferta, perfil) {
             penalizacion_rol_senior: penalizacionRolSenior,
             limitaciones_explicitas: perfil.limitaciones_explicitas || null,
         },
-        version: 'p3_p5_v1',
+        // Bonus IA / Next.js.
+        bonus_ia: {
+            herramientas_detectadas: bonusIA.herramientasIA,
+            nextjs_detectado: bonusIA.nextjsDetectado,
+            bonus_ia_aplicado: bonusIA.bonusTotal,
+            salvaguardas: {
+                java_excluyente_aplicado: tieneJavaExcluyente,
+                senior_excluyente_aplicado: esSenior,
+                ingles_excluyente_aplicado: tieneInglesExcluyente,
+                experiencia_excluyente_aplicado: tieneExperienciaExcluyente,
+            },
+        },
+        // Experiencia excluyente detectada (>3 años, Lead, etc.).
+        experiencia_excluyente: {
+            detectado: experienciaExcluyente.detectado,
+            patrones: experienciaExcluyente.patrones,
+        },
+        version: 'p3_p6_v1',
     };
 }
 
@@ -496,5 +723,7 @@ module.exports = {
         detectarIdioma,
         detectarRolObjetivo,
         detectarHealthTech,
+        calcularBonusIA,
+        detectarExperienciaExcluyente,
     },
 };

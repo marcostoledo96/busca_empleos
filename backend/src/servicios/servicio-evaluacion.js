@@ -108,6 +108,13 @@ function construirPerfilDesdePreferencias(prefs) {
     partes.push('Jira, Postman, Git, GitHub Actions (CI/CD), Figma, AnyDesk, Google Workspace (administración), phpMyAdmin, VSCode.');
 
     partes.push('');
+    partes.push('BONUS — Herramientas de IA y Next.js (diferencial fuerte):');
+    partes.push('Uso intensivo de herramientas de IA para productividad en desarrollo, testing y documentación: Claude Code, Codex (OpenAI), OpenCode, Antigravity. También menciono GitHub Copilot y ChatGPT como contexto adicional de uso habitual.');
+    partes.push('Next.js es parte de mi stack aceptado: lo manejo a nivel práctico junto con React y TypeScript.');
+    partes.push('REGLA DE BONUS: Si la oferta valora el uso competente de IA en desarrollo/testing/documentación/productividad, o menciona Next.js favorablemente, sumar al porcentaje de match. Este bonus es un diferencial fuerte de mi perfil.');
+    partes.push('REGLA ESTRICTA DE SALVAGUARDA: El bonus de IA y Next.js NO compensa exclusiones. Si la oferta requiere Java como tecnología principal/excluyente, pide nivel Senior/Lead, o exige >3 años / 3+ años / al menos 3 años / mínimo 3 años / 3+ anos de experiencia comprobable, el bonus NO aplica y la oferta debe rechazarse. Tampoco compensa requisitos de inglés avanzado/fluido/bilingüe o ubicación fuera de zonas preferidas.');
+
+    partes.push('');
     partes.push('Metodologías:');
     partes.push('Scrum, Kanban, metodologías ágiles, MoSCoW. Diagramas UML (casos de uso, clases, secuencia, flujo) con PlantUML.');
 
@@ -124,6 +131,13 @@ function construirPerfilDesdePreferencias(prefs) {
         ? 'Cualquiera (Remoto, Híbrido, Presencial)'
         : modalidad.charAt(0).toUpperCase() + modalidad.slice(1);
     partes.push(`Modalidad aceptada: ${modalidadTexto}.`);
+
+    // Instrucciones sobre Next.js y herramientas IA como favorables.
+    partes.push('');
+    partes.push('NOTA SOBRE NEXT.JS E IA:');
+    partes.push('Next.js está en mi stack aceptado. Si la oferta menciona Next.js como tecnología deseable o requerida, considerarlo como match positivo.');
+    partes.push('Si la oferta valora el uso de IA (Claude Code, Codex, OpenCode, Antigravity, Copilot, ChatGPT, LLM, IA generativa, prompt engineering) para desarrollo, testing, documentación o productividad, considerarlo como diferencial positivo de mi perfil. Es un uso fuerte y real, no solo teórico.');
+    partes.push('Sin embargo, el bonus por IA/Next.js NO anula las exclusiones: Java como requisito principal sigue siendo rechazo automático, Senior/Lead o >3 años / 3+ años / al menos 3 años / mínimo 3 años excluyentes sigue siendo rechazo, inglés avanzado excluyente sigue siendo rechazo, y ubicación fuera de zona sigue las reglas habituales.');
 
     if (zonas.length > 0) {
         partes.push(`Zonas preferidas para trabajo presencial: ${zonas.join(', ')}.`);

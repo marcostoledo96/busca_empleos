@@ -50,8 +50,9 @@ Un sistema automatizado de uso personal que:
 
 - Nivel: Trainee / Junior.
 - Modalidad: Cualquiera (Remoto, Híbrido, Presencial).
-- Stack: HTML, CSS, JavaScript, TypeScript, C#, SQL, Angular, React, React Native, Node.js, Express, ASP.NET, PostgreSQL, SQL Server.
+- Stack: HTML, CSS, JavaScript, TypeScript, C#, SQL, Angular, React, React Native, Next.js, Node.js, Express, ASP.NET, PostgreSQL, SQL Server.
 - **Excluir ofertas que requieran Java** (regla estricta).
+- **Bonus para ofertas que valoren uso de IA** (Claude Code, Codex, OpenCode, Antigravity, Copilot, ChatGPT, LLM, IA generativa, prompt engineering, AI tools) — es un diferencial fuerte del perfil, pero NO compensa exclusiones por Java, Senior/SR/Lead, >3 años excluyentes, idioma o ubicación.
 
 **Stack del proyecto:**
 
@@ -64,6 +65,8 @@ Un sistema automatizado de uso personal que:
 | Frontend            | Angular                        |
 
 **Estado:** Proyecto nuevo, construyéndose desde cero paso a paso.
+
+**Bonus IA en evaluación:** El sistema otorga un bonus acotado a ofertas que valoren uso competente de herramientas de IA (Claude Code, Codex, OpenCode, Antigravity, Copilot, ChatGPT, LLM, IA generativa, prompt engineering, AI tools) y Next.js. El bonus NO compensa exclusiones por Java, Senior/SR/Lead, >3 años excluyentes, idioma o ubicación. Ver `docs/evaluacion-ia.md` para detalles.
 
 ---
 
@@ -166,9 +169,8 @@ Ejemplo: `feat(scraping): agregar servicio de extracción para LinkedIn`
 
 ### Commits y deploy
 
-El agente puede ejecutar `git commit` si Marcos lo pide.
-**NUNCA** ejecutar `git push` ni ningún comando de deploy.
-El push lo hace Marcos.
+El agente puede ejecutar `git commit` y `git push` si Marcos lo pide explícitamente.
+**NUNCA** ejecutar ningún comando de deploy sin autorización explícita.
 
 ---
 
@@ -522,9 +524,8 @@ y MCP servers. Las reglas de delegación aplican SIEMPRE.
 
 ### Commits y deploy
 
-El agente puede ejecutar `git commit` si Marcos lo pide.
-**NUNCA** ejecutar `git push` ni ningún comando de deploy.
-El push lo hace Marcos.
+El agente puede ejecutar `git commit` y `git push` si Marcos lo pide explícitamente.
+**NUNCA** ejecutar ningún comando de deploy sin autorización explícita.
 
 ---
 

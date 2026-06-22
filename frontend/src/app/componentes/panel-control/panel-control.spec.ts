@@ -308,8 +308,9 @@ describe('PanelControl — Polling defensivo', () => {
         autoSpy.obtenerEstado.and.returnValue(
             of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
         );
+        // Sin ciclo activo por defecto — los tests de polling lo configuran manualmente.
         autoSpy.obtenerProgreso.and.returnValue(
-            of({ exito: true, datos: { activo: true, porcentaje: 30, pasos: [] } })
+            of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } })
         );
 
         await TestBed.configureTestingModule({
@@ -328,6 +329,7 @@ describe('PanelControl — Polling defensivo', () => {
         // Reseteo el contador del spy después del ngOnInit para que los tests que
         // verifican conteos exactos no sean afectados por la llamada de rehidratación.
         evalSpy.obtenerProgreso.calls.reset();
+        autoSpy.obtenerProgreso.calls.reset();
     });
 
     afterEach(() => {
@@ -797,6 +799,228 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         const llamadasError = mensajesSpy.calls.all().filter(c => (c.args[0] as { severity?: string })?.severity === 'error');
         expect(llamadasError.length).toBe(1);
         expect(component.evaluando()).toBeFalse();
+
+        discardPeriodicTasks();
+    }));
+});
+
+// ============================================================
+// Suite de tests: ejecutarCicloCompleto() — 202 y 409
+// ============================================================
+
+describe('PanelControl — Ciclo completo: 202 Accepted y 409 Conflict', () => {
+
+    let component: PanelControl;
+    let fixture: ComponentFixture<PanelControl>;
+    let autoSpy: jasmine.SpyObj<AutomatizacionService>;
+
+    beforeEach(async () => {
+        autoSpy = jasmine.createSpyObj('AutomatizacionService', [
+            'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
+        ]);
+
+        autoSpy.obtenerEstado.and.returnValue(
+            of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
+        );
+        // Sin ciclo activo por defecto en el ngOnInit.
+        autoSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } })
+        );
+
+        await TestBed.configureTestingModule({
+            imports: [PanelControl],
+            providers: [
+                { provide: ScrapingService, useValue: {} },
+                { provide: EvaluacionService, useValue: {
+                    ejecutarEvaluacion: () => of({ exito: true }),
+                    cancelarEvaluacion: () => of({ exito: true }),
+                    obtenerProgreso: () => of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } }),
+                }},
+                { provide: AutomatizacionService, useValue: autoSpy },
+                MessageService,
+            ],
+        }).compileComponents();
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+    });
+
+    afterEach(() => {
+        fixture.destroy();
+    });
+
+    // --- 202 Accepted: inicio exitoso, NO cierre del overlay ---
+
+    it('al recibir 202, ejecutandoCiclo sigue en true (no se pone en false)', fakeAsync(() => {
+        // Simulo que el backend responde 202 (Observable next sin datos especiales).
+        autoSpy.ejecutarCiclo.and.returnValue(of({ exito: true, datos: {} }));
+
+        component.ejecutarCicloCompleto();
+        tick(600); // Espero el setTimeout de 500ms del polling
+
+        // El ciclo sigue activo: no se cerró al recibir el 202.
+        expect(component.ejecutandoCiclo()).toBeTrue();
+    }));
+
+    it('al recibir 202, mostrarOverlayCiclo sigue en true', fakeAsync(() => {
+        autoSpy.ejecutarCiclo.and.returnValue(of({ exito: true, datos: {} }));
+
+        component.ejecutarCicloCompleto();
+        tick(600);
+
+        expect(component.mostrarOverlayCiclo()).toBeTrue();
+    }));
+
+    it('al recibir 202, NO se emite accionCompletada', fakeAsync(() => {
+        autoSpy.ejecutarCiclo.and.returnValue(of({ exito: true, datos: {} }));
+
+        const emitSpy = spyOn(component.accionCompletada, 'emit');
+
+        component.ejecutarCicloCompleto();
+        tick(600);
+
+        // No se debe emitir accionCompletada hasta que el polling detecte el fin.
+        expect(emitSpy).not.toHaveBeenCalled();
+    }));
+
+    it('al recibir 202, el polling se inicia para seguir el progreso', fakeAsync(() => {
+        autoSpy.ejecutarCiclo.and.returnValue(of({ exito: true, datos: {} }));
+        // El polling consulta obtenerProgreso periódicamente.
+        // Reseteo los calls del ngOnInit para contar solo los del polling post-202.
+        autoSpy.obtenerProgreso.calls.reset();
+        // Devuelvo activo:false para que el polling no cierre el ciclo prematuramente.
+        autoSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: true, porcentaje: 10, pasos: [] } })
+        );
+
+        component.ejecutarCicloCompleto();
+        tick(501);  // Dispara setTimeout(() => iniciarPolling(), 500)
+        tick(2000); // Primer tick del intervalo de polling
+
+        // El polling debe haber consultado al menos una vez.
+        expect(autoSpy.obtenerProgreso).toHaveBeenCalled();
+
+        discardPeriodicTasks();
+    }));
+
+    // --- Polling detecta fin del ciclo y cierra overlay ---
+
+    it('el polling cierra overlay y emite accionCompletada cuando activo=false y porcentaje=100', fakeAsync(() => {
+        autoSpy.ejecutarCiclo.and.returnValue(of({ exito: true, datos: {} }));
+
+        // Configuro el progreso para que primero responda activo y luego terminado.
+        // El primer call es del setTimeout de 500ms (iniciarPolling no llama obtenerProgreso,
+        // solo arranca el setInterval). Los siguientes calls son del interval de 2000ms.
+        let llamada = 0;
+        autoSpy.obtenerProgreso.and.callFake(() => {
+            llamada++;
+            if (llamada <= 1) {
+                // Primer tick del polling: ciclo activo al 50%.
+                return of({ exito: true, datos: { activo: true, porcentaje: 50, pasos: [] } });
+            }
+            // Segundo tick: ciclo completado.
+            return of({ exito: true, datos: { activo: false, porcentaje: 100, pasos: [] } });
+        });
+        autoSpy.obtenerProgreso.calls.reset();
+
+        const emitSpy = spyOn(component.accionCompletada, 'emit');
+
+        component.ejecutarCicloCompleto();
+        tick(501);   // Dispara setTimeout(() => iniciarPolling(), 500)
+        tick(2000);  // Primer tick del polling: activo=true, porcentaje=50
+        tick(2000);  // Segundo tick: activo=false, porcentaje=100 → detiene polling, programa cierre en 1200ms
+        tick(1200);  // Se ejecuta el setTimeout de cierre del overlay
+
+        // El overlay y el ciclo deben estar cerrados.
+        expect(component.mostrarOverlayCiclo()).toBeFalse();
+        expect(component.ejecutandoCiclo()).toBeFalse();
+        expect(emitSpy).toHaveBeenCalledTimes(1);
+
+        discardPeriodicTasks();
+    }));
+
+    // --- 409 Conflict: rehidratación en vez de error ---
+
+    it('al recibir 409, se rehidrata el ciclo activo sin mostrar error', fakeAsync(() => {
+        // Simulo 409 del backend.
+        autoSpy.ejecutarCiclo.and.returnValue(
+            throwError(() => ({ status: 409, error: { error: 'Ya hay un ciclo en ejecución' } }))
+        );
+        // La rehidratación consulta obtenerProgreso y recibe ciclo activo.
+        let llamadaProgreso = 0;
+        autoSpy.obtenerProgreso.and.callFake(() => {
+            llamadaProgreso++;
+            if (llamadaProgreso <= 1) {
+                // ngOnInit: sin ciclo.
+                return of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } });
+            }
+            // Rehidratación tras 409: ciclo activo.
+            return of({ exito: true, datos: { activo: true, porcentaje: 40, pasos: [] } });
+        });
+        autoSpy.obtenerProgreso.calls.reset();
+
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+
+        component.ejecutarCicloCompleto();
+        tick(600);
+
+        // Se rehidrata: overlay sigue visible, ciclo sigue activo.
+        expect(component.ejecutandoCiclo()).toBeTrue();
+        expect(component.mostrarOverlayCiclo()).toBeTrue();
+
+        // Se muestra un toast info, no error.
+        const llamadasError = mensajesSpy.calls.all().filter(c => (c.args[0] as { severity?: string })?.severity === 'error');
+        expect(llamadasError.length).toBe(0);
+
+        // Se muestra toast info sobre ciclo ya en ejecución.
+        const llamadasInfo = mensajesSpy.calls.all().filter(c => (c.args[0] as { severity?: string })?.severity === 'info');
+        expect(llamadasInfo.length).toBeGreaterThan(0);
+
+        discardPeriodicTasks();
+    }));
+
+    it('al recibir 409, se reanuda el polling del ciclo', fakeAsync(() => {
+        autoSpy.ejecutarCiclo.and.returnValue(
+            throwError(() => ({ status: 409, error: { error: 'Ya hay un ciclo en ejecución' } }))
+        );
+        let llamadaProgreso = 0;
+        autoSpy.obtenerProgreso.and.callFake(() => {
+            llamadaProgreso++;
+            if (llamadaProgreso <= 1) {
+                return of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } });
+            }
+            return of({ exito: true, datos: { activo: true, porcentaje: 40, pasos: [] } });
+        });
+        autoSpy.obtenerProgreso.calls.reset();
+
+        component.ejecutarCicloCompleto();
+        tick(600); // setTimeout + rehidratación
+
+        // El polling debe estar activo.
+        expect((component as any).intervalIdPolling).not.toBeNull();
+
+        discardPeriodicTasks();
+    }));
+
+    // --- Errores que NO son 409 siguen siendo fatales ---
+
+    it('al recibir error 500, se cierra overlay y se muestra error', fakeAsync(() => {
+        autoSpy.ejecutarCiclo.and.returnValue(
+            throwError(() => ({ status: 500, error: { error: 'Error interno' } }))
+        );
+        autoSpy.obtenerProgreso.calls.reset();
+
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+
+        component.ejecutarCicloCompleto();
+        tick(600);
+
+        expect(component.ejecutandoCiclo()).toBeFalse();
+        expect(component.mostrarOverlayCiclo()).toBeFalse();
+
+        const llamadasError = mensajesSpy.calls.all().filter(c => (c.args[0] as { severity?: string })?.severity === 'error');
+        expect(llamadasError.length).toBe(1);
 
         discardPeriodicTasks();
     }));

@@ -273,6 +273,25 @@ describe('Servicio de evaluación con IA', () => {
             expect(instrucciones).toContain('trainee');
             expect(instrucciones).toMatch(/junior.*experiencia comprobable|semi-senior/i);
         });
+
+        test('menciona Next.js como tecnología aceptada en el perfil', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toMatch(/Next\.?js/i);
+        });
+
+        test('menciona herramientas de IA como diferencial en el perfil', () => {
+            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
+            expect(perfil).toMatch(/Claude Code/i);
+            expect(perfil).toMatch(/Codex/i);
+            expect(perfil).toMatch(/OpenCode/i);
+            expect(perfil).toMatch(/Antigravity/i);
+        });
+
+        test('declara que bonus IA NO compensa exclusiones', () => {
+            const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
+            expect(instrucciones).toMatch(/bonus.*IA.*NO.*compensa|NO.*anula.*exclusiones/i);
+            expect(instrucciones).toMatch(/Java.*rechazo|excluir.*Java/i);
+        });
     });
 
     describe('evaluarOferta()', () => {

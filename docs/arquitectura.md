@@ -2,24 +2,31 @@
 
 ## Descripción general
 
-Sistema automatizado de uso personal que extrae ofertas de empleo de múltiples plataformas (LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor, GetOnBrd, Jooble y Google Jobs), las evalúa con IA (DeepSeek) para determinar si hacen match con mi perfil, y muestra los resultados en un dashboard web.
+Sistema automatizado de uso personal que extrae ofertas de empleo de múltiples plataformas (LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor, GetOnBrd, Jooble, Remotive, RemoteOK, Adzuna, y más), las evalúa con IA (DeepSeek) para determinar si hacen match con mi perfil, y muestra los resultados en un dashboard web. Al finalizar cada ciclo, envía un resumen por email si las variables SMTP están configuradas.
 
 ## Diagrama de flujo general
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ 8 Plataformas│────▶│  Scraping    │────▶│ Normalización│────▶│ PostgreSQL  │
-│ (Apify + APIs│     │  Service     │     │  Service     │     │   (ofertas) │
-│  libres)     │     └─────────────┘     └─────────────┘     └──────┬──────┘
+│ 12 Platafor-│────▶│  Scraping    │────▶│ Normalización│────▶│ PostgreSQL  │
+│ mas (Apify +│     │  Service     │     │  Service     │     │   (ofertas) │
+│  APIs libres│     └─────────────┘     └─────────────┘     └──────┬──────┘
 └─────────────┘                                                     │
-                                                                    ▼
+                                                                     ▼
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
 │  Dashboard   │◀────│   API REST   │◀────│  Evaluación  │◀────│  DeepSeek   │
 │  (Angular)   │     │  (Express)   │     │   Service    │     │    (IA)     │
 └─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
+                                               │
+                                               ▼
+                                    ┌─────────────────┐
+                                    │ Notificación     │
+                                    │ Email (nodemailer│
+                                    │  soft-disable)   │
+                                    └─────────────────┘
 ```
 
-**Ciclo completo:** Scraping → Normalización → Guardado en BD (con deduplicación) → Evaluación IA → Dashboard.
+**Ciclo completo:** Scraping → Normalización → Guardado en BD (con deduplicación y filtro de idioma) → Evaluación IA → Notificación email → Dashboard.
 
 ## Stack tecnológico
 
@@ -28,8 +35,10 @@ Sistema automatizado de uso personal que extrae ofertas de empleo de múltiples 
 | Backend / API | Node.js + Express | Express 5.2.1 |
 | Scraping externo | API de Apify (`apify-client`) | 2.22.3 |
 | Evaluación IA | API de DeepSeek (fetch nativo) | — |
+| Scoring previo | Reglas determinísticas + bonus IA/Next.js | — |
 | Base de datos | PostgreSQL (`pg` driver directo) | pg 8.20.0 |
 | Automatización | `node-cron` | 4.2.1 |
+| Notificación email | `nodemailer` | 7.x |
 | Seguridad HTTP | `helmet` | 8.1.0 |
 | Rate limiting | `express-rate-limit` | 8.3.2 |
 | Frontend | Angular + PrimeNG (tema Aura) | Angular 20.3, PrimeNG 20.4 |
@@ -44,7 +53,7 @@ Busca_empleos/
 │   ├── src/
 │   │   ├── config/          ← Configuración (BD, Apify, DeepSeek)
 │   │   ├── controladores/   ← Controladores de rutas Express (capa HTTP)
-│   │   ├── servicios/       ← Lógica de negocio (scraping, IA, automatización)
+│   │   ├── servicios/       ← Lógica de negocio (scraping, IA, automatización, notificación email)
 │   │   ├── modelos/         ← Queries SQL parametrizadas contra PostgreSQL
 │   │   ├── rutas/           ← Definición de rutas Express (Router)
 │   │   ├── utils/           ← Middlewares de errores
@@ -85,7 +94,7 @@ Request HTTP → Rutas → Controlador → Servicio → Modelo → PostgreSQL
 |------|----------------|---------|
 | **Rutas** | Mapean URLs a controladores | `router.get('/', controlador.listarOfertas)` |
 | **Controladores** | Traducen HTTP → llamada a servicio/modelo → respuesta JSON. Sin lógica de negocio. | `controlador-ofertas.js` |
-| **Servicios** | Lógica de negocio: scraping, normalización, evaluación, automatización. | `servicio-scraping.js` |
+| **Servicios** | Lógica de negocio: scraping, normalización, evaluación, automatización, notificación email. | `servicio-scraping.js` |
 | **Modelos** | Queries SQL parametrizadas. CRUD contra PostgreSQL. | `oferta.js` |
 | **Config** | Conexiones y clientes externos (pool de PG, cliente Apify, función DeepSeek). | `base-datos.js` |
 
@@ -130,6 +139,12 @@ Todas las credenciales se cargan desde `backend/.env` con `dotenv`. Nunca se har
 | `PUERTO` | Puerto del servidor Express (default: 3000) |
 | `CORS_ORIGEN` | Orígenes permitidos para CORS (default: `http://localhost:4200`) |
 | `NODE_ENV` | Entorno de ejecución (`development`, `test`, `production`) |
+| `SMTP_HOST` | Servidor SMTP para notificaciones por email (ej: `smtp.gmail.com`) |
+| `SMTP_PORT` | Puerto SMTP (465 SSL, 587 STARTTLS). Default: 587 |
+| `SMTP_USER` | Usuario SMTP para autenticación |
+| `SMTP_PASS` | Contraseña de aplicación SMTP |
+| `SMTP_FROM` | Email remitente (default: `SMTP_USER`) |
+| `EMAIL_NOTIFICACION_DESTINO` | Email destino para resúmenes de ciclo |
 
 ## Comandos principales
 

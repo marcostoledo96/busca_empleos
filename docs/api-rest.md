@@ -59,7 +59,8 @@ Todas las respuestas siguen este formato:
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
 | POST | `/api/automatizacion/detener` | Detener el cron | **Sí** | No |
-| POST | `/api/automatizacion/ejecutar` | Ejecutar ciclo completo manual | **Sí** | No |
+| GET | `/api/automatizacion/progreso` | Progreso del ciclo de automatización activo | **Sí** | No |
+| POST | `/api/automatizacion/ejecutar` | Ejecutar ciclo completo manual (asíncrono: 202/409) | **Sí** | No |
 
 ---
 
@@ -507,7 +508,7 @@ Retorna el estado actual del cron.
     "exito": true,
     "datos": {
         "activo": true,
-        "expresionCron": "0 0 */2 * *",
+        "expresionCron": "0 20 * * 2",
         "ultimaEjecucion": "2026-03-31T12:00:00.000Z",
         "ultimoResultado": { ... }
     }
@@ -525,14 +526,14 @@ Programa el cron. Si ya hay uno activo, lo reemplaza.
 
 | Campo | Tipo | Default | Descripción |
 |-------|------|---------|-------------|
-| `expresionCron` | string | `"0 0 */2 * *"` | Expresión cron (cada 48 horas por default). |
+| `expresionCron` | string | `"0 20 * * 2"` | Expresión cron (martes 20:00 ART por default). |
 
 **Ejemplo response (200):**
 ```json
 {
     "exito": true,
-    "mensaje": "Cron programado: \"0 0 */2 * *\"",
-    "datos": { "activo": true, "expresionCron": "0 0 */2 * *", ... }
+    "mensaje": "Cron programado: \"0 20 * * 2\"",
+    "datos": { "activo": true, "expresionCron": "0 20 * * 2", ... }
 }
 ```
 
@@ -561,35 +562,66 @@ Detiene el cron activo.
 { "exito": false, "error": "No hay ningún cron activo para detener." }
 ```
 
-### POST /api/automatizacion/ejecutar
+### GET /api/automatizacion/progreso
 
-Ejecuta un ciclo completo manual (scraping + guardado + evaluación). No requiere cron activo.
+Retorna el progreso del ciclo de automatización activo, si lo hay.
 
 **Body:** Ninguno.
 
-**Ejemplo response (200):**
+**Ejemplo response — ciclo activo (200):**
 ```json
 {
     "exito": true,
-    "mensaje": "Ciclo completo ejecutado.",
     "datos": {
-        "exito": true,
-        "scraping": {
-            "linkedin": 20,
-            "computrabajo": 15,
-            "indeed": 12,
-            "bumeran": 8,
-            "totalExtraidas": 55,
-            "guardadas": 40
-        },
-        "evaluacion": {
-            "total": 25,
-            "aprobadas": 10,
-            "rechazadas": 15,
-            "errores": 0
-        },
-        "errores": []
+        "enProgreso": true,
+        "pasoActual": 3,
+        "pasosTotales": 9,
+        "pasoDescripcion": "Scraping de Indeed",
+        "iniciadoEn": "2026-06-21T19:00:00.000Z"
     }
+}
+```
+
+**Ejemplo response — sin ciclo activo (200):**
+```json
+{
+    "exito": true,
+    "datos": {
+        "enProgreso": false,
+        "pasoActual": 0,
+        "pasosTotales": 9,
+        "pasoDescripcion": null,
+        "iniciadoEn": null
+    }
+}
+```
+
+### POST /api/automatizacion/ejecutar
+
+Ejecuta un ciclo completo manual (scraping + guardado + evaluación) de forma asíncrona. No requiere cron activo.
+
+**Comportamiento:**
+
+- Si **no hay** un ciclo activo, la API responde inmediatamente con `202 Accepted` y el ciclo se ejecuta en background (fire-and-forget).
+- Si **ya hay** un ciclo activo, la API responde `409 Conflict` y no inicia un segundo ciclo.
+
+El frontend debe consultar `GET /api/automatizacion/progreso` para seguir el avance del ciclo en background.
+
+**Body:** Ninguno.
+
+**Ejemplo response — aceptado (202):**
+```json
+{
+    "exito": true,
+    "mensaje": "Ciclo de automatización iniciado en background."
+}
+```
+
+**Ejemplo response — ciclo activo (409):**
+```json
+{
+    "exito": false,
+    "error": "Ya hay un ciclo de automatización en ejecución."
 }
 ```
 

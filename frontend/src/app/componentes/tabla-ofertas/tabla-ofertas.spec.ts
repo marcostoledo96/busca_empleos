@@ -124,6 +124,12 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
         expect(emitido).toHaveBeenCalledWith(oferta);
     });
 
+    // --- Paginación: filasPorPaginaCards debe ser 20 ---
+
+    it('filasPorPaginaCards debería ser 20', () => {
+        expect(component.filasPorPaginaCards).toBe(20);
+    });
+
     // --- nivelMatch ---
 
     it('nivelMatch retorna niveles correctos', () => {

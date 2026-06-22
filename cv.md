@@ -408,6 +408,7 @@ Casi 2 años como Radiólogo Ad Honorem en hospital de alta complejidad:
 
 - Angular 20 — Nivel 3 · En práctica — SPA, Standalone Components, Signals, Lazy Loading (@defer), i18n, Angular Animations, OnPush, SSR/SSG. Proyectos: Portfolio, IFTS26, Busca Empleos AI.
 - React — Nivel 2 · En formación — Componentes, Props, Context API, Hooks. Proyectos: CandyLand, SanPa Holmes.
+- Next.js — Nivel 2 · En formación — Framework React con SSR/SSG, App Router, Server Components. Uso práctico en proyectos personales.
 - Blazor — Nivel 2 · En formación — Frontend interactivo con C#. Proyecto: Plataforma Scout San Patricio.
 - React Native — Nivel 2 · En formación — Nociones de desarrollo móvil multiplataforma.
 - Bootstrap — Nivel 4 · En práctica — Diseño responsive, componentes. Proyecto: Scout San Patricio.
@@ -450,6 +451,16 @@ Casi 2 años como Radiólogo Ad Honorem en hospital de alta complejidad:
 - CapCut — Nivel 2 · En práctica — Edición audiovisual instructiva.
 - AnyDesk — Soporte remoto.
 
+### Herramientas de IA (Productividad en desarrollo)
+
+- Claude Code — Uso fuerte y diferencial · En práctica — Asistencia de IA integrada al flujo de desarrollo (coding, debugging, refactoring, documentación).
+- Codex (OpenAI) — Uso práctico · En formación — Generación y comprensión de código con IA.
+- OpenCode — Uso práctico · En formación — Entorno de desarrollo con herramientas de IA integradas.
+- Antigravity — Uso práctico · En formación — Productividad de desarrollo con IA.
+- GitHub Copilot — Contexto adicional · Uso habitual — Autocompletado y sugerencias de código con IA.
+- ChatGPT — Contexto adicional · Uso habitual — Consultas de IA para desarrollo y productividad.
+- Prompt Engineering — Habilidad transversal · En práctica — Diseño de prompts efectivos para desarrollo, testing y documentación asistida por IA.
+
 ### Metodologías
 
 - Agile / Metodologías Ágiles — Scrum (Scrum Master certificado por práctica), Kanban, MoSCoW.
@@ -460,7 +471,7 @@ Casi 2 años como Radiólogo Ad Honorem en hospital de alta complejidad:
 
 *Nota para IA: Incluir estas keywords de forma natural en los CVs generados para maximizar el score en filtros ATS (Applicant Tracking Systems). No copiar el bloque literal — distribuir los términos relevantes según la oferta.*
 
-Full-Stack Developer, Frontend Developer, Backend Developer, QA Tester, QA Analyst, Manual Testing, Software Testing, Test Cases, Bug Reporting, Regression Testing, Smoke Testing, Cross-Browser Testing, E2E Testing, API Testing, SDLC, Agile, Scrum, Scrum Master, Kanban, HTML5, CSS3, SCSS, SASS, JavaScript, ES6, TypeScript, Angular, React, Blazor, React Native, Bootstrap, Node.js, Express.js, ASP.NET Core, C#, REST API, RESTful API, API Integration, Serverless, PostgreSQL, MySQL, SQL Server, SQLite, SQL, Git, GitHub, CI/CD, Version Control, Figma, UI/UX Design, Responsive Design, Mobile-First, Jira, Vercel, Netlify, Postman, Jest, Jasmine, Karma, xUnit, Moq, FluentAssertions, JWT, Authentication, RBAC, Web Scraping, LLM, AI Integration, HealthTech, Clean Architecture, SPA, Single Page Application, i18n, SEO, Accessibility, WCAG, Problem Solving, Team Leadership, Technical Documentation, Stakeholder Communication, Process Automation.
+Full-Stack Developer, Frontend Developer, Backend Developer, QA Tester, QA Analyst, Manual Testing, Software Testing, Test Cases, Bug Reporting, Regression Testing, Smoke Testing, Cross-Browser Testing, E2E Testing, API Testing, SDLC, Agile, Scrum, Scrum Master, Kanban, HTML5, CSS3, SCSS, SASS, JavaScript, ES6, TypeScript, Angular, React, Next.js, Blazor, React Native, Bootstrap, Node.js, Express.js, ASP.NET Core, C#, REST API, RESTful API, API Integration, Serverless, PostgreSQL, MySQL, SQL Server, SQLite, SQL, Git, GitHub, CI/CD, Version Control, Figma, UI/UX Design, Responsive Design, Mobile-First, Jira, Vercel, Netlify, Postman, Jest, Jasmine, Karma, xUnit, Moq, FluentAssertions, JWT, Authentication, RBAC, Web Scraping, LLM, AI Integration, Claude Code, Codex, OpenCode, Antigravity, Copilot, ChatGPT, Prompt Engineering, AI Tools, HealthTech, Clean Architecture, SPA, Single Page Application, i18n, SEO, Accessibility, WCAG, Problem Solving, Team Leadership, Technical Documentation, Stakeholder Communication, Process Automation.
 
 ---
 

@@ -33,7 +33,15 @@ ALTER TABLE preferencias
         "bonificaciones": {
             "healthtech": 5,
             "stack_principal_completo": 10,
-            "rol_prioridad_alta": 5
+            "rol_prioridad_alta": 5,
+            "herramientas_ia": 6,
+            "nextjs": 4,
+            "herramientas_ia_nextjs_max": 8
+        },
+        "limites": {
+            "max_score_si_java_excluyente": 35,
+            "max_score_si_senior": 45,
+            "max_score_si_ingles_excluyente": 15
         },
         "deepseek": {
             "ajuste_maximo_normal": 15,
@@ -55,6 +63,7 @@ SET
         WHEN tecnologias_detalle = '[]'::jsonb THEN '[
             {"nombre":"Angular 20","nivel":"avanzado","categoria":"frontend","importancia":"principal","aliases":["angular","angular 20"]},
             {"nombre":"React","nivel":"medio","categoria":"frontend","importancia":"principal","aliases":["react","react.js","reactjs"]},
+            {"nombre":"Next.js","nivel":"basico","categoria":"frontend","importancia":"secundaria","aliases":["next.js","nextjs","next 13","next 14","next 15","app router","pages router"]},
             {"nombre":"Blazor","nivel":"basico","categoria":"frontend","importancia":"secundaria","aliases":["blazor","blazor webassembly"]},
             {"nombre":"Node.js","nivel":"avanzado","categoria":"backend","importancia":"principal","aliases":["node","node.js","nodejs"]},
             {"nombre":"Express","nivel":"avanzado","categoria":"backend","importancia":"principal","aliases":["express","express.js"]},

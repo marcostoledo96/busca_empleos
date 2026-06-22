@@ -30,6 +30,7 @@ ALTER TABLE preferencias ADD COLUMN IF NOT EXISTS temperatura_importacion NUMERI
 ALTER TABLE preferencias ADD COLUMN IF NOT EXISTS backup_preferencias JSONB DEFAULT NULL;
 
 -- Backfill: inicializar campos nuevos con defaults donde aplique.
+-- También actualizar scoring_config con nuevas claves de bonificación IA/Next.js y límites.
 UPDATE preferencias
 SET
     modelo_ia_evaluacion = COALESCE(modelo_ia_evaluacion, modelo_ia, 'deepseek-v4-flash'),
@@ -38,5 +39,31 @@ SET
     moneda_salarial = COALESCE(moneda_salarial, 'NO_FILTRAR'),
     max_caracteres_descripcion_ia = COALESCE(max_caracteres_descripcion_ia, 2500),
     temperatura_evaluacion = COALESCE(temperatura_evaluacion, 0),
-    temperatura_importacion = COALESCE(temperatura_importacion, 0)
+    temperatura_importacion = COALESCE(temperatura_importacion, 0),
+    scoring_config = CASE
+        WHEN scoring_config IS NOT NULL THEN
+            -- Merge: agregar claves nuevas de bonificación IA, límites y experiencia excluyente sin pisar existentes.
+            jsonb_set(
+                jsonb_set(
+                    jsonb_set(
+                        jsonb_set(
+                            -- Primero agregar limites si no existen.
+                            CASE
+                                WHEN scoring_config ? 'limites' THEN scoring_config
+                                ELSE jsonb_set(scoring_config, '{limites}', '{}'::jsonb)
+                            END,
+                            '{bonificaciones,herramientas_ia}',
+                            COALESCE(scoring_config->'bonificaciones'->>'herramientas_ia', '6')::jsonb
+                        ),
+                        '{bonificaciones,nextjs}',
+                        COALESCE(scoring_config->'bonificaciones'->>'nextjs', '4')::jsonb
+                    ),
+                    '{bonificaciones,herramientas_ia_nextjs_max}',
+                    COALESCE(scoring_config->'bonificaciones'->>'herramientas_ia_nextjs_max', '8')::jsonb
+                ),
+                '{limites,max_score_si_experiencia_excluyente}',
+                COALESCE(scoring_config->'limites'->>'max_score_si_experiencia_excluyente', '45')::jsonb
+            )
+        ELSE scoring_config
+    END
 WHERE id = 1;

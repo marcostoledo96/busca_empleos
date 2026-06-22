@@ -159,7 +159,8 @@ Archivo: `frontend/src/app/servicios/automatizacion.service.ts`
 | `obtenerEstado()` | GET | `/automatizacion/estado` | `Observable<RespuestaApi<EstadoAutomatizacion>>` |
 | `iniciarCron(expresionCron?)` | POST | `/automatizacion/iniciar` | `Observable<RespuestaApi<EstadoAutomatizacion>>` |
 | `detenerCron()` | POST | `/automatizacion/detener` | `Observable<RespuestaApi<EstadoAutomatizacion>>` |
-| `ejecutarCiclo()` | POST | `/automatizacion/ejecutar` | `Observable<RespuestaApi<Record<string, unknown>>>` |
+| `ejecutarCiclo()` | POST | `/automatizacion/ejecutar` | `Observable<RespuestaApi<Record<string, unknown>>>` (responde 202 si acepta, 409 si ya hay ciclo activo) |
+| `obtenerProgreso()` | GET | `/automatizacion/progreso` | `Observable<RespuestaApi<{ enProgreso: boolean, pasoActual: number, pasosTotales: number, ... }>>` |
 
 ### PersistenciaDashboardService
 
@@ -230,14 +231,17 @@ Archivo: `frontend/src/app/componentes/panel-control/`
 **Estado interno (signals):**
 - `scrapeandoLinkedin`, `scrapeandoComputrabajo`, `evaluando` — control de spinners.
 - `cronActivo`, `ultimaEjecucion` — estado del cron.
+- `automatizacionActiva`, `progresoAutomatizacion` — estado del ciclo de automatización.
 
 **Comportamiento:**
-- `ngOnInit()` → `consultarEstadoCron()`: consulta el estado del cron al montar.
+- `ngOnInit()` → `consultarEstadoCron()`: consulta el estado del cron al montar. También consulta `GET /api/automatizacion/progreso` para rehidratar el estado si hay un ciclo activo.
 - `toggleCron(activar)`: inicia o detiene el cron según el switch.
 - `scrapearLinkedin()` / `scrapearComputrabajo()`: ejecutan scraping con feedback toast.
 - `ejecutarEvaluacion()`: ejecuta evaluación con feedback toast.
+- `ejecutarAutomatizacion()`: envía `POST /api/automatizacion/ejecutar`. Si recibe `202`, inicia polling a `GET /api/automatizacion/progreso` y NO cierra el overlay de progreso hasta que el ciclo termine realmente. Si recibe `409`, rehidrata el progreso del ciclo existente en lugar de mostrar error fatal.
 - Durante el polling de evaluación, emite `evaluacionEnProgreso` en cada tick para que el `Dashboard` refresque contadores sin esperar al final.
-- Al completar cualquier acción, emite `accionCompletada` para que el Dashboard recargue datos.
+- Durante el polling de automatización, emite `accionCompletada` cuando el ciclo finaliza para que el Dashboard recargue datos.
+- Al completar cualquier otra acción, emite `accionCompletada` para que el Dashboard recargue datos.
 
 **Accesibilidad y responsive:**
 - Overlays de carga con `role="dialog"`, `aria-modal="true"`, `aria-live="assertive"` / `aria-live="polite"` para anuncios al lector de pantalla.
@@ -266,6 +270,7 @@ Archivo: `frontend/src/app/componentes/tabla-ofertas/`
 - Iconos por plataforma: LinkedIn (`pi-linkedin`), Computrabajo (`pi-globe`).
 - Botón "ver detalle" por fila que emite `ofertaSeleccionada`.
 - Vista cards en mobile (≤768px) con paginación propia y filtro por texto.
+- **Paginación de 20 elementos por página**: desktop muestra `[rows]="20"` en la p-table; mobile usa `filasPorPaginaCards = 20` para las cards. Anteriormente era 10.
 
 **Accesibilidad y responsive:**
 - Contenedores con `role="region"` y `aria-label` para la tabla y las cards.
