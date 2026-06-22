@@ -1,7 +1,7 @@
 // Servicio de automatización — ejecuta scraping + evaluación periódicamente.
 //
 // ¿Qué es un cron job? Pensalo como una alarma programada:
-// "Cada 48 horas, soná y hacé esto". En nuestro caso, la alarma dispara:
+// "Cada martes a las 20:00, soná y hacé esto". En nuestro caso, la alarma dispara:
 // 1. Scrapear LinkedIn, Computrabajo, Indeed, Bumeran y demás plataformas activas.
 // 2. Guardar las ofertas nuevas en la BD.
 // 3. Evaluar las pendientes con DeepSeek.
@@ -29,6 +29,7 @@ const { detectarIdioma } = require('./servicio-normalizacion');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const servicioNotificacionEmail = require('./servicio-notificacion-email');
+const { PLATAFORMAS_ACTIVAS, PLATAFORMAS, esPlataformaActiva } = require('../config/plataformas');
 
 // Expresión cron por defecto: todos los martes a las 20:00 (8 PM) hora Argentina (ART).
 // En sintaxis cron: minuto=0, hora=20, cualquier día del mes, cualquier mes, martes=2.
@@ -79,10 +80,11 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     paso.estado = nuevoEstado;
     if (extraidas !== undefined) paso.extraidas = extraidas;
 
-    // Porcentaje: 10 plataformas activas × 5.6% ≈ 56%, evaluación 15%, guardado 29%.
-    // InfoJobs desactivado temporalmente (registro de nuevas apps suspendido en el portal de developers).
-    // Para reactivarlo: agregar `infojobs: 5.09` y ajustar el peso de las demás plataformas.
-    const pesos = { linkedin: 5.2, computrabajo: 5.2, indeed: 5.2, bumeran: 5.2, glassdoor: 5.2, getonbrd: 5.2, jooble: 5.2, google_jobs: 5.2, remotive: 5.2, remoteok: 5.2, adzuna: 5.2, evaluacion: 15, guardado: 26 };
+    // Porcentaje: se distribuye entre plataformas activas y pasos fijos.
+    // Las plataformas inactivas (google_jobs, infojobs) suman 0% porque ya están completadas.
+    // Pesos: ~4.6% por plataforma activa (9 activas × 4.6 ≈ 41%), evaluación 15%, guardado 26%.
+    // Total: ~82% para scraping + 15% evaluación + 3% guardado ≈ 100% (se ajusta con Math.min).
+    const pesos = { linkedin: 4.6, computrabajo: 4.6, indeed: 4.6, bumeran: 4.6, glassdoor: 4.6, getonbrd: 4.6, jooble: 4.6, remotive: 4.6, remoteok: 4.6, adzuna: 4.6, google_jobs: 0, infojobs: 0, evaluacion: 15, guardado: 3 };
     const completadas = progreso.pasos
         .filter(p => p.estado === 'completada' || p.estado === 'error')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
@@ -106,23 +108,21 @@ async function ejecutarCicloCompleto() {
     const inicio = new Date();
 
     // Inicializo el progreso para este ciclo.
+    // Las plataformas activas se derivan del registry. Las inactivas (google_jobs, infojobs)
+    // se incluyen como paso completado en 0 sin invocar el servicio, para que el frontend
+    // muestre que existen pero están desactivadas.
     progreso = {
         activo: true,
         pasos: [
-            { nombre: 'linkedin', label: 'LinkedIn', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'computrabajo', label: 'Computrabajo', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'indeed', label: 'Indeed', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'bumeran', label: 'Bumeran', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'glassdoor', label: 'Glassdoor', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'getonbrd', label: 'GetOnBrd', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'jooble', label: 'Jooble', estado: 'pendiente', extraidas: 0 },
+            ...PLATAFORMAS_ACTIVAS.map(p => ({
+                nombre: p.id,
+                label: p.label,
+                estado: 'pendiente',
+                extraidas: 0,
+            })),
+            // Plataformas inactivas: aparecen como completadas en 0.
             { nombre: 'google_jobs', label: 'Google Jobs', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'remotive', label: 'Remotive', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'remoteok', label: 'RemoteOK', estado: 'pendiente', extraidas: 0 },
-            // InfoJobs desactivado temporalmente — registro de nuevas apps suspendido en el portal de developers.
-            // Para reactivarlo: descomentar la línea de abajo, el Paso 11 y la línea de todasLasOfertas.
-            // { nombre: 'infojobs', label: 'InfoJobs', estado: 'pendiente', extraidas: 0 },
-            { nombre: 'adzuna', label: 'Adzuna', estado: 'pendiente', extraidas: 0 },
+            { nombre: 'infojobs', label: 'InfoJobs', estado: 'pendiente', extraidas: 0 },
             { nombre: 'guardado', label: 'Guardando en BD', estado: 'pendiente', extraidas: 0 },
             { nombre: 'evaluacion', label: 'Evaluación IA', estado: 'pendiente', extraidas: 0 },
         ],
@@ -266,14 +266,18 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en Jooble: ${error.message}`);
     }
 
-    // --- Paso 8: Google Jobs — DESACTIVADO ---
-    // Google Jobs consumió USD 1.50 sin devolver resultados útiles.
-    // El servicio ya retorna [] sin llamar a Apify, pero lo excluimos del ciclo
-    // para no inflar los logs ni el contador de pasos de progreso.
-    // Para reactivarlo: descomentar el bloque original y eliminar esta sección.
+    // --- Paso: Plataformas inactivas ---
+    // Google Jobs e InfoJobs están desactivadas en el registry.
+    // No invocamos el servicio de scraping — solo registramos 0 ofertas y marcamos completado.
+    const googleJobsPlataforma = PLATAFORMAS.google_jobs;
+    const infojobsPlataforma = PLATAFORMAS.infojobs;
     const ofertasGoogleJobs = [];
     actualizarPasoPorgreso('google_jobs', 'completada', 0);
-    console.log('[Automatización] Google Jobs: desactivado, 0 ofertas.');
+    console.log(`[Automatización] ${googleJobsPlataforma.label}: desactivado (${googleJobsPlataforma.motivo}), 0 ofertas.`);
+
+    const ofertasInfojobs = [];
+    actualizarPasoPorgreso('infojobs', 'completada', 0);
+    console.log(`[Automatización] ${infojobsPlataforma.label}: desactivado (${infojobsPlataforma.motivo}), 0 ofertas.`);
 
     // --- Paso 9: Scraping de Remotive (API REST pública gratuita, solo remoto) ---
     let ofertasRemotive = [];
@@ -303,14 +307,7 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en RemoteOK: ${error.message}`);
     }
 
-    // --- Paso 11: InfoJobs — DESACTIVADO TEMPORALMENTE ---
-    // El registro de nuevas aplicaciones está suspendido en el portal de developers de InfoJobs.
-    // No es viable para proyectos nuevos hasta que reactiven el alta.
-    // El endpoint /api/scraping/infojobs y ejecutarScrapingInfojobs() se mantienen intactos
-    // para poder reactivar el scraping con un cambio mínimo cuando el portal lo permita.
-    // Para reactivar: descomentar el bloque original y eliminar esta sección.
-    const ofertasInfojobs = [];
-    console.log('[Automatización] InfoJobs: desactivado temporalmente, 0 ofertas.');
+
 
     // --- Paso 12: Scraping de Adzuna (API REST oficial, requiere ADZUNA_APP_ID y ADZUNA_APP_KEY) ---
     let ofertasAdzuna = [];
@@ -333,9 +330,8 @@ async function ejecutarCicloCompleto() {
         console.error(`[Automatización] Error en Adzuna: ${error.message}`);
     }
 
-    // --- Paso 13: Guardar ofertas en la BD ---
-    // ofertasInfojobs siempre es [] mientras InfoJobs esté desactivado (ver Paso 11).
-    // Para reactivar: restaurar el Paso 11 completo; esta línea no requiere cambios.
+    // --- Paso: Guardar ofertas en la BD ---
+    // ofertasInfojobs y ofertasGoogleJobs siempre son [] (plataformas inactivas en el registry).
     const todasLasOfertas = [...ofertasLinkedin, ...ofertasComputrabajo, ...ofertasIndeed, ...ofertasBumeran, ...ofertasGlassdoor, ...ofertasGetonbrd, ...ofertasJooble, ...ofertasGoogleJobs, ...ofertasRemotive, ...ofertasRemoteOK, ...ofertasInfojobs, ...ofertasAdzuna];
     resultado.scraping.totalExtraidas = todasLasOfertas.length;
 

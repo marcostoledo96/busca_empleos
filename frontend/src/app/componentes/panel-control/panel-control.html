@@ -196,11 +196,11 @@
                         [ngModel]="cronActivo()"
                         (ngModelChange)="toggleCron($event)"
                         [disabled]="modoDemo()"
-                        [pTooltip]="modoDemo() ? 'Activa un ciclo automático que se ejecuta cada 48 horas sin intervención manual.' : undefined"
+                        [pTooltip]="modoDemo() ? 'Activa un ciclo automático que se ejecuta cada martes a las 20:00 (ART) sin intervención manual.' : undefined"
                         tooltipPosition="top"
-                        aria-label="Activar automatización cada 48 horas" />
+                        aria-label="Activar automatización semanal los martes a las 20:00" />
                     <span class="cron-texto" [class.cron-activo]="cronActivo()" aria-live="polite">
-                        {{ cronActivo() ? 'Cada 48 hs' : 'Inactivo' }}
+                        {{ cronActivo() ? 'Martes 20:00' : 'Inactivo' }}
                     </span>
                 </div>
             </div>

@@ -138,19 +138,21 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(component.etiquetasPorPlataforma['linkedin']).toBe('LinkedIn');
     });
 
-    it('opcionesPlataforma no debería incluir Google Jobs', () => {
-        const opcion = component.opcionesPlataforma.find(o => o.value === 'googlejobs');
+    it('opcionesPlataforma no debería incluir Google Jobs (inactiva)', () => {
+        const opcion = component.opcionesPlataforma.find(o => o.value === 'google_jobs');
         expect(opcion).toBeUndefined();
-        expect(component.etiquetasPorPlataforma['googlejobs']).toBeUndefined();
     });
 
-    it('opcionesPlataforma no debería incluir InfoJobs (desactivado temporalmente)', () => {
+    it('opcionesPlataforma no debería incluir InfoJobs (inactiva)', () => {
         const opcion = component.opcionesPlataforma.find(o => o.value === 'infojobs');
         expect(opcion).toBeUndefined();
     });
 
-    it('etiquetasPorPlataforma no debería tener etiqueta para infojobs (desactivado temporalmente)', () => {
-        expect(component.etiquetasPorPlataforma['infojobs']).toBeUndefined();
+    it('etiquetasPorPlataforma debería tener etiqueta para infojobs (para overlays de scraping histórico)', () => {
+        // etiquetasPorPlataforma incluye TODAS las plataformas (activas e inactivas)
+        // porque puede usarse para mostrar labels en overlays o mensajes.
+        // Solo opcionesPlataforma (selector de scraping) excluye inactivas.
+        expect(component.etiquetasPorPlataforma['infojobs']).toBe('InfoJobs');
     });
 
     it('scrapearPlataformaSeleccionada() con infojobs no debería llamar a scrapearInfojobs()', () => {

@@ -11,6 +11,7 @@ import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
 import { ProgresoAutomatizacion, ProgresoEvaluacion } from '../../modelos/respuesta-api.model';
+import { obtenerOpcionesScrapingPlataforma, PLATAFORMAS_ACTIVAS, PLATAFORMAS } from '../../config/plataformas';
 
 @Component({
     selector: 'app-panel-control',
@@ -103,36 +104,15 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     // Opciones para el p-select mobile de plataformas de scraping.
-    // Google Jobs está excluido — desactivado por alto costo y 0 resultados útiles.
-    // InfoJobs está excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
-    readonly opcionesPlataforma = [
-        { value: 'linkedin',      label: 'LinkedIn'     },
-        { value: 'computrabajo',  label: 'Computrabajo' },
-        { value: 'indeed',        label: 'Indeed'       },
-        { value: 'bumeran',       label: 'Bumeran'      },
-        { value: 'glassdoor',     label: 'Glassdoor'    },
-        { value: 'getonbrd',      label: 'GetOnBrd'     },
-        { value: 'jooble',        label: 'Jooble'       },
-        { value: 'remotive',      label: 'Remotive'     },
-        { value: 'remoteok',      label: 'RemoteOK'     },
-        { value: 'adzuna',        label: 'Adzuna'       },
-    ];
+    // Solo plataformas activas (no ofrece inactivas como ejecutables).
+    // Sale del registry, usa el id interno como valor.
+    readonly opcionesPlataforma = obtenerOpcionesScrapingPlataforma();
 
     // Mapeo de valores del selector a etiquetas para mostrar en el overlay.
-    // Google Jobs excluido — ver opcionesPlataforma.
-    // InfoJobs excluido — ver opcionesPlataforma.
-    readonly etiquetasPorPlataforma: Record<string, string> = {
-        linkedin: 'LinkedIn',
-        computrabajo: 'Computrabajo',
-        indeed: 'Indeed',
-        bumeran: 'Bumeran',
-        glassdoor: 'Glassdoor',
-        getonbrd: 'GetOnBrd',
-        jooble: 'Jooble',
-        remotive: 'Remotive',
-        remoteok: 'RemoteOK',
-        adzuna: 'Adzuna',
-    };
+    // Derivado del registry para evitar hardcodear.
+    readonly etiquetasPorPlataforma: Record<string, string> = Object.fromEntries(
+        Object.values(PLATAFORMAS).map(p => [p.id, p.label])
+    );
 
     // Evento que emite cuando una acción completó para que el padre recargue datos.
     readonly accionCompletada = output<void>();
@@ -384,7 +364,7 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.mensajes.add({
                         severity: 'success',
                         summary: 'Cron activado',
-                        detail: 'Scraping automático cada 48 horas.',
+                        detail: 'Scraping automático semanal: martes 20:00.',
                         life: 4000
                     });
                 },
