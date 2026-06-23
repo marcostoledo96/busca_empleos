@@ -292,12 +292,12 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 | 006 | `migracion-006-actualizar-perfil.sql` | Actualiza perfil, idioma y stack del candidato. | Datos |
 | 007 | `migracion-007-modelo-deepseek-v4-flash.sql` | Cambia el modelo por defecto y migra preferencias existentes a `deepseek-v4-flash`. | Datos |
 | 008 | `migracion-008-preferencias-detalladas.sql` | Agrega columnas de preferencias detalladas a la tabla `preferencias`. | Aditiva |
-| 008b | `migracion-008-error-evaluacion.sql` | Agrega columna `error_evaluacion` a `ofertas`. | Aditiva |
+| 008b | `migracion-008-error-evaluacion.sql` | Agrega columna `evaluacion_error_mensaje` a `ofertas`. | Aditiva |
 | 009 | `migracion-009-cache-evaluaciones.sql` | Crea la tabla `evaluaciones_cache`. | Aditiva |
 | 009b | `migracion-009-scoring-previo.sql` | Agrega columnas `score_previo`, `analisis_previo`, `scoring_version` a `ofertas`. | Aditiva |
 | 010 | `migracion-010-lotes-evaluacion.sql` | Crea la tabla `evaluacion_lotes`. | Aditiva |
 | 010b | `migracion-010-preferencias-ui-completa.sql` | Agrega columnas de preferencias UI y `scoring_config`. | Aditiva |
-| 011 | `migracion-011-perfil-ampliado.sql` | Agrega columna `perfil_profesional` a `preferencias`. | Aditiva |
+| 011 | `migracion-011-perfil-ampliado.sql` | Agrega columnas `nivel_real_seniority`, `conocimientos_ausentes` y `limitaciones_explicitas` a `preferencias`. | Aditiva |
 | 012 | `migracion-012-anios-experiencia-reales.sql` | Agrega columna `anios_experiencia_reales` a `preferencias` (default: 1). | Aditiva |
 | 013 | `migracion-013-constraints-integridad.sql` | Constraints `chk_ofertas_estado_evaluacion`, `chk_ofertas_estado_postulacion`, `chk_ofertas_porcentaje_match`, `chk_ofertas_score_previo`. | Aditiva |
 | 014 | `migracion-014-schema-migrations.sql` | Crea la tabla `schema_migrations`. También creada automáticamente por el runner. | Aditiva |

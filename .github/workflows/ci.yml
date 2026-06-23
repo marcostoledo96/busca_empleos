@@ -2,9 +2,9 @@ name: CI — Busca Empleos
 
 on:
     push:
-        branches: [main, 'feature/**']
+        branches: [master, main, 'feature/**']
     pull_request:
-        branches: [main]
+        branches: [master, main]
 
 jobs:
     # ── Backend: unit tests ──
@@ -67,16 +67,17 @@ jobs:
             - name: Install dependencies
               run: npm ci
 
-            - name: Create database schema
+            - name: Apply database migrations
               env:
+                  DATABASE_URL: ''
                   PGHOST: localhost
                   PGPORT: 5432
                   PGUSER: busca_empleos_test
                   PGPASSWORD: test_password
                   PGDATABASE: busca_empleos_test
+                  PGSSLMODE: disable
               run: |
-                  psql -h localhost -U busca_empleos_test -d busca_empleos_test -f sql/crear-tablas.sql || true
-                  psql -h localhost -U busca_empleos_test -d busca_empleos_test -f sql/migracion-003-preferencias.sql || true
+                  npm run db:migrate:apply
 
             - name: Run DB integration tests
               env:
@@ -88,6 +89,7 @@ jobs:
                   PGUSER: busca_empleos_test
                   PGPASSWORD: test_password
                   PGDATABASE: busca_empleos_test
+                  PGSSLMODE: disable
               run: npm run test:db
 
     # ── Frontend: build + headless tests ──
