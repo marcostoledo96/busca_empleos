@@ -18,11 +18,21 @@ jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/utils/middleware-auth', () => ({
     verificarAuth: (req, res, next) => next(),
 }));
+// Mockeo el módulo de bloqueo concurrente para evitar que los tests abran
+// una conexión real a PostgreSQL (advisory lock). Sin este mock, Jest queda
+// con un handle abierto porque el pool de pg nunca se cierra.
+jest.mock('../../src/utils/bloqueo-concurrente', () => ({
+    CLAVES: { EVALUACION_OFERTAS: 10001 },
+    intentarAdquirirLock: jest.fn(),
+    liberarBloqueo: jest.fn(),
+    liberarBloqueoSeguro: jest.fn(),
+}));
 
 const request = require('supertest');
 const app = require('../../src/app');
 const servicioEvaluacion = require('../../src/servicios/servicio-evaluacion');
 const modeloOferta = require('../../src/modelos/oferta');
+const bloqueo = require('../../src/utils/bloqueo-concurrente');
 
 describe('Controlador de evaluación', () => {
     afterEach(() => jest.clearAllMocks());
@@ -31,6 +41,8 @@ describe('Controlador de evaluación', () => {
 
     describe('POST /api/evaluacion/ejecutar', () => {
         test('inicia la evaluación en segundo plano y responde de inmediato', async () => {
+            // Simulo que el advisory lock se adquiere correctamente.
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
             // Simulo que no hay evaluación en curso.
             servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
             // La evaluación corre en background — resuelve, pero el test no la espera.
@@ -54,7 +66,8 @@ describe('Controlador de evaluación', () => {
         });
 
         test('retorna 409 si ya hay una evaluación en curso', async () => {
-            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: true });
+            // Simulo que el advisory lock ya está tomado (otra evaluación en curso).
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: false });
 
             const res = await request(app)
                 .post('/api/evaluacion/ejecutar');
@@ -133,6 +146,8 @@ describe('Controlador de evaluación', () => {
         });
 
         test('el endpoint de progreso NO bloquea al ejecutar (mantienen cuotas separadas)', async () => {
+            // El lock debe adquirir para que /ejecutar no devuelva 409 por bloqueo.
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
             // Simulo estado: no hay evaluación en curso para que ejecutar funcione.
             servicioEvaluacion.obtenerProgresoEvaluacion
                 // Primeras 6 llamadas: para los GETs de progreso (activo: false para no bloquear ejecutar).
@@ -188,6 +203,7 @@ describe('Controlador de evaluación', () => {
     describe('Rate limit ACTIVO — regresión de routing', () => {
         let appConLimiter;
         let servicioEvaluacionAislado;
+        let bloqueoAislado;
 
         beforeAll(() => {
             // Aíslo el registro de módulos de Node para cargar la app de nuevo
@@ -201,12 +217,19 @@ describe('Controlador de evaluación', () => {
             jest.mock('../../src/utils/middleware-auth', () => ({
                 verificarAuth: (req, res, next) => next(),
             }));
+            jest.mock('../../src/utils/bloqueo-concurrente', () => ({
+                CLAVES: { EVALUACION_OFERTAS: 10001 },
+                intentarAdquirirLock: jest.fn(),
+                liberarBloqueo: jest.fn(),
+                liberarBloqueoSeguro: jest.fn(),
+            }));
 
             // Sobreescribo NODE_ENV para que la app cargue el rate limiter real.
             process.env.NODE_ENV = 'production_test';
 
             appConLimiter = require('../../src/app');
             servicioEvaluacionAislado = require('../../src/servicios/servicio-evaluacion');
+            bloqueoAislado = require('../../src/utils/bloqueo-concurrente');
         });
 
         afterAll(() => {
@@ -247,6 +270,8 @@ describe('Controlador de evaluación', () => {
         // --- /ejecutar SÍ debe quedar protegido por el rate limiter ---
 
         test('/ejecutar devuelve 429 al superar la cuota del rate limiter', async () => {
+            // El lock debe adquirir para que la request llegue al rate limiter.
+            bloqueoAislado.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
             servicioEvaluacionAislado.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
             servicioEvaluacionAislado.evaluarOfertasPendientes.mockResolvedValue({});
 
@@ -282,11 +307,21 @@ describe('Controlador de evaluación', () => {
             jest.mock('../../src/utils/middleware-auth', () => ({
                 verificarAuth: (req, res, next) => next(),
             }));
+            jest.mock('../../src/utils/bloqueo-concurrente', () => ({
+                CLAVES: { EVALUACION_OFERTAS: 10001 },
+                intentarAdquirirLock: jest.fn(),
+                liberarBloqueo: jest.fn(),
+                liberarBloqueoSeguro: jest.fn(),
+            }));
 
             process.env.NODE_ENV = 'production_test';
             const appFresca = require('../../src/app');
             const servicioAislado = require('../../src/servicios/servicio-evaluacion');
+            const bloqueoFresco = require('../../src/utils/bloqueo-concurrente');
             process.env.NODE_ENV = 'test';
+
+            // El lock debe adquirir para que /ejecutar no devuelva 409 por bloqueo.
+            bloqueoFresco.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
 
             servicioAislado.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
             servicioAislado.cancelarEvaluacionPendiente.mockImplementation(() => {});
