@@ -19,6 +19,7 @@
 
 const pool = require('../../src/config/base-datos');
 const modeloOferta = require('../../src/modelos/oferta');
+const { asegurarBaseDeDatosDeTest } = require('../helpers/test-db-guard');
 
 // Si no está el flag, todos los tests de este archivo se marcan como 'skipped'.
 // Esto protege la BD de producción cuando se corre el test suite normal.
@@ -61,12 +62,16 @@ contexto('Modelo de ofertas — CRUD', () => {
     // Antes de cada test, limpio la tabla para arrancar de cero.
     // TRUNCATE es como DELETE pero más rápido, y RESTART IDENTITY
     // resetea el contador del SERIAL (id vuelve a 1).
+    // Antes del TRUNCATE, verifico que la BD realmente termine en "_test".
+    // Esto previene que un DATABASE_URL mal configurado destruya datos de producción.
     beforeEach(async () => {
+        await asegurarBaseDeDatosDeTest(pool);
         await pool.query('TRUNCATE TABLE ofertas RESTART IDENTITY');
     });
 
-    // Al terminar todos los tests, cierro el pool.
+    // Al terminar todos los tests, limpio y cierro el pool.
     afterAll(async () => {
+        await asegurarBaseDeDatosDeTest(pool);
         await pool.query('TRUNCATE TABLE ofertas RESTART IDENTITY');
         await pool.end();
     });

@@ -17,6 +17,7 @@
 
 const pool = require('../../src/config/base-datos');
 const modeloPreferencia = require('../../src/modelos/preferencia');
+const { asegurarBaseDeDatosDeTest } = require('../helpers/test-db-guard');
 
 // Si no está el flag, todos los tests de este archivo se marcan como 'skipped'.
 // Además, verifico que NODE_ENV sea 'test' o que PGDATABASE contenga 'test'
@@ -29,7 +30,9 @@ const contexto = (dbTestsPermitidos && entornoSeguro) ? describe : describe.skip
 contexto('Modelo de preferencias — lectura y actualización', () => {
     // Antes de cada test, limpio la tabla y creo la fila por defecto.
     // Uso los mismos valores que la migración-003 para ser consistente.
+    // Antes del TRUNCATE, verifico que la BD realmente termine en "_test".
     beforeEach(async () => {
+        await asegurarBaseDeDatosDeTest(pool);
         await pool.query('TRUNCATE TABLE preferencias RESTART IDENTITY');
         await pool.query(`
             INSERT INTO preferencias (
@@ -51,6 +54,7 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
 
     // Al terminar todos los tests, limpio y cierro el pool.
     afterAll(async () => {
+        await asegurarBaseDeDatosDeTest(pool);
         await pool.query('TRUNCATE TABLE preferencias RESTART IDENTITY');
         await pool.end();
     });
@@ -89,6 +93,7 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
         });
 
         test('debería autocrearse si la tabla está vacía', async () => {
+            await asegurarBaseDeDatosDeTest(pool);
             await pool.query('TRUNCATE TABLE preferencias RESTART IDENTITY');
 
             const prefs = await modeloPreferencia.obtenerPreferencias();

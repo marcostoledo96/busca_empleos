@@ -110,6 +110,35 @@ La query se construye dinámicamente. Si vienen filtros, se agregan condiciones 
 - **Nunca se concatenan valores** en las queries (ni template literals ni string concatenation).
 - **Ordenamiento seguro:** `obtenerOfertas()` usa una whitelist de columnas permitidas para el ORDER BY. Si se recibe un nombre de columna no válido, se ignora y se usa el orden por defecto (`fecha_extraccion DESC`). Esto previene SQL injection en la cláusula ORDER BY.
 
+### Tests destructivos — Triple guarda
+
+Los tests que hacen `TRUNCATE` sobre tablas (modelos de oferta y preferencia) tienen **tres capas de protección** para evitar destruir datos de producción:
+
+| Guarda | Qué verifica | Dónde |
+|--------|--------------|-------|
+| `ALLOW_DB_TESTS=true` | Flag explícito para habilitar tests destructivos | Variable de entorno |
+| `NODE_ENV=test` o `PGDATABASE` contenga `test` | El entorno o el nombre de BD sugieren que es test | Variable de entorno |
+| `asegurarBaseDeDatosDeTest(pool)` | La BD **real** conectada termina en `_test` | Query `SELECT current_database()` en runtime |
+
+La tercera guarda es la más importante: si `DATABASE_URL` apunta a producción, las variables de entorno mienten. La verificación runtime consulta la BD real y lanza un error descriptivo antes de ejecutar cualquier `TRUNCATE`.
+
+**Cómo correr los tests destructivos:**
+
+```bash
+# Con npm script (recomendado):
+npm run test:db
+
+# Manual en Linux/Mac:
+ALLOW_DB_TESTS=true NODE_ENV=test npx jest tests/modelos --verbose --runInBand
+
+# Manual en PowerShell:
+$env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbose --runInBand
+```
+
+**Archivo de ejemplo:** `backend/.env.test.example` tiene las variables necesarias sin secretos reales.
+
+**Helper:** `backend/tests/helpers/test-db-guard.js` exporta `asegurarBaseDeDatosDeTest(pool)`.
+
 ## Migraciones
 
 | Script | Descripción |
