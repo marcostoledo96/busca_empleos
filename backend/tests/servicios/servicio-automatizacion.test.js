@@ -362,6 +362,8 @@ describe('Servicio de automatización', () => {
             expect(resultado.scraping.totalExtraidas).toBe(0);
             // 9 plataformas activas fallan → 9 errores (Google Jobs e InfoJobs son inactivas, no suman).
             expect(resultado.errores).toHaveLength(9);
+            // Sin ofertas, no hay errores de guardado.
+            expect(resultado.erroresGuardado).toBe(0);
         });
 
         test('InfoJobs desactivado temporalmente → ejecutarScrapingInfojobs NO se llama', async () => {
@@ -407,6 +409,69 @@ describe('Servicio de automatización', () => {
 
             expect(resultado.scraping.totalExtraidas).toBe(2);
             expect(resultado.scraping.guardadas).toBe(1); // Solo 1 nueva.
+        });
+
+        // === erroresGuardado — Spec: errores-guardado ===
+
+        test('erroresGuardado es 0 cuando no hay errores al guardar', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.erroresGuardado).toBe(0);
+            expect(resultado.errores).toHaveLength(0);
+        });
+
+        test('erroresGuardado incrementa cuando crearOferta falla', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+            // crearOferta lanza un error — la oferta no se guarda.
+            modeloOferta.crearOferta.mockRejectedValue(new Error('Constraint violation'));
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            // La oferta falló al guardar: erroresGuardado = 1.
+            expect(resultado.erroresGuardado).toBe(1);
+            expect(resultado.scraping.guardadas).toBe(0);
+            // El error también se agrega al array de errores.
+            expect(resultado.errores.length).toBeGreaterThanOrEqual(1);
+            expect(resultado.errores[0]).toContain('Error al guardar oferta');
+        });
+
+        test('erroresGuardado acumula múltiples errores de guardado', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+                { titulo: 'Dev React', url: 'https://linkedin.com/2' },
+                { titulo: 'Dev Node', url: 'https://linkedin.com/3' },
+            ]);
+            // Todas las ofertas fallan al guardar.
+            modeloOferta.crearOferta.mockRejectedValue(new Error('DB error'));
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.erroresGuardado).toBe(3);
+            expect(resultado.scraping.guardadas).toBe(0);
+            expect(resultado.errores.length).toBeGreaterThanOrEqual(3);
+        });
+
+        test('erroresGuardado se pasa al servicio de email en el resumen', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+            modeloOferta.crearOferta.mockRejectedValue(new Error('DB error'));
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            // Espero a que se procese el fire-and-forget del email.
+            await new Promise(resolve => setImmediate(resolve));
+
+            // Verifico que el resultado pasado al email incluye erroresGuardado.
+            const llamadoCon = servicioNotificacionEmail.enviarResumenCiclo.mock.calls[0][0];
+            expect(typeof llamadoCon.erroresGuardado).toBe('number');
+            expect(llamadoCon.erroresGuardado).toBe(1);
         });
 
         test('pasa términos de búsqueda de preferencias a los scrapers', async () => {

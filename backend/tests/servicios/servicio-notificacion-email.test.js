@@ -316,6 +316,55 @@ describe('Servicio de notificación por email', () => {
             expect(resultado.html).toContain('1');
             expect(resultado.texto).toContain('Errores de evaluación: 1');
         });
+
+        // Spec: errores-guardado — email muestra métrica de errores de guardado
+        test('incluye erroresGuardado en HTML y texto cuando hay errores de guardado', () => {
+            const resumen = {
+                exito: true,
+                scraping: {
+                    linkedin: 5, computrabajo: 0, indeed: 0, bumeran: 0, glassdoor: 0,
+                    getonbrd: 0, jooble: 0, google_jobs: 0, remotive: 0, remoteok: 0,
+                    infojobs: 0, adzuna: 0, totalExtraidas: 5, guardadas: 3,
+                    descartadasPorIdioma: 0,
+                },
+                evaluacion: { total: 3, aprobadas: 2, rechazadas: 1, errores: 0 },
+                errores: ['Error al guardar oferta "Dev": DB error'],
+                erroresGuardado: 2,
+                fechaEjecucion: '2026-06-23T20:00:00.000Z',
+                duracionSegundos: 45,
+            };
+
+            const resultado = servicioNotificacionEmail.armarResumenEmail(resumen);
+
+            // HTML contiene la métrica de errores de guardado.
+            expect(resultado.html).toContain('Errores al guardar en BD');
+            expect(resultado.html).toContain('2');
+            // Texto plano también.
+            expect(resultado.texto).toContain('Errores al guardar en BD: 2');
+        });
+
+        test('no muestra erroresGuardado en HTML/texto cuando es 0', () => {
+            const resumen = {
+                exito: true,
+                scraping: {
+                    linkedin: 5, computrabajo: 0, indeed: 0, bumeran: 0, glassdoor: 0,
+                    getonbrd: 0, jooble: 0, google_jobs: 0, remotive: 0, remoteok: 0,
+                    infojobs: 0, adzuna: 0, totalExtraidas: 5, guardadas: 5,
+                    descartadasPorIdioma: 0,
+                },
+                evaluacion: { total: 5, aprobadas: 3, rechazadas: 2, errores: 0 },
+                errores: [],
+                erroresGuardado: 0,
+                fechaEjecucion: '2026-06-23T20:00:00.000Z',
+                duracionSegundos: 30,
+            };
+
+            const resultado = servicioNotificacionEmail.armarResumenEmail(resumen);
+
+            // Cuando erroresGuardado es 0, NO se muestra en HTML ni texto.
+            expect(resultado.html).not.toContain('Errores al guardar en BD');
+            expect(resultado.texto).not.toContain('Errores al guardar en BD');
+        });
     });
 
     describe('enviarResumenCiclo()', () => {

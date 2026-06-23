@@ -1,48 +1,117 @@
-name: CI
+name: CI — Busca Empleos
 
 on:
-  push:
-    branches: [master, main]
-  pull_request:
-    branches: [master, main]
+    push:
+        branches: [main, 'feature/**']
+    pull_request:
+        branches: [main]
 
 jobs:
-  backend:
-    name: Backend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout del repositorio
-        uses: actions/checkout@v4
+    # ── Backend: unit tests ──
+    test-unit:
+        name: Backend unit tests
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: backend
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+                  cache-dependency-path: backend/package-lock.json
 
-      - name: Instalar dependencias y correr tests
-        run: |
-          cd backend
-          npm ci
-          npm test
+            - name: Install dependencies
+              run: npm ci
 
-  frontend:
-    name: Frontend
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout del repositorio
-        uses: actions/checkout@v4
+            - name: Run unit tests
+              env:
+                  NODE_ENV: test
+              run: npm test
 
-      - name: Setup Node.js 22
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+    # ── Backend: DB integration tests ──
+    test-db:
+        name: Backend DB tests
+        runs-on: ubuntu-latest
+        needs: test-unit
+        defaults:
+            run:
+                working-directory: backend
+        services:
+            postgres:
+                image: postgres:15-alpine
+                env:
+                    POSTGRES_USER: busca_empleos_test
+                    POSTGRES_PASSWORD: test_password
+                    POSTGRES_DB: busca_empleos_test
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd pg_isready
+                    --health-interval 10s
+                    --health-timeout 5s
+                    --health-retries 5
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Instalar dependencias y buildear
-        run: |
-          cd frontend
-          npm ci
-          npm run build
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+                  cache-dependency-path: backend/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Create database schema
+              env:
+                  PGHOST: localhost
+                  PGPORT: 5432
+                  PGUSER: busca_empleos_test
+                  PGPASSWORD: test_password
+                  PGDATABASE: busca_empleos_test
+              run: |
+                  psql -h localhost -U busca_empleos_test -d busca_empleos_test -f sql/crear-tablas.sql || true
+                  psql -h localhost -U busca_empleos_test -d busca_empleos_test -f sql/migracion-003-preferencias.sql || true
+
+            - name: Run DB integration tests
+              env:
+                  NODE_ENV: test
+                  ALLOW_DB_TESTS: 'true'
+                  DATABASE_URL: ''
+                  PGHOST: localhost
+                  PGPORT: '5432'
+                  PGUSER: busca_empleos_test
+                  PGPASSWORD: test_password
+                  PGDATABASE: busca_empleos_test
+              run: npm run test:db
+
+    # ── Frontend: build + headless tests ──
+    frontend:
+        name: Frontend build & test
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: frontend
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: 'npm'
+                  cache-dependency-path: frontend/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Build frontend
+              run: npm run build
+
+            - name: Run frontend tests (headless)
+              run: npm test -- --watch=false --browsers=ChromeHeadless

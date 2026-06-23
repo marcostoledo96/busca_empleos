@@ -260,6 +260,7 @@ async function ejecutarCicloCompleto() {
         scraping: inicializarResultadoScraping(),
         evaluacion: null,
         errores: [],
+        erroresGuardado: 0,  // Contador de ofertas que fallaron al guardar en BD.
     };
 
     // ── Paso 1: Scraping de plataformas activas ──
@@ -347,6 +348,8 @@ async function ejecutarCicloCompleto() {
             }
         } catch (error) {
             console.error(`[Automatización] Error al guardar oferta: ${error.message}`);
+            resultado.erroresGuardado++;
+            resultado.errores.push(`Error al guardar oferta "${oferta.titulo || 'sin título'}": ${error.message}`);
         }
     }
 

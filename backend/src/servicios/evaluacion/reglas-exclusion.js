@@ -36,7 +36,10 @@ const PATRON_JAVA_EXCLUYENTE = [
     /\bhibernate\b/i,
 ];
 
-// Seniority excluyente: Senior, SR, Lead (como rol de liderazgo).
+// Seniority excluyente: Senior, SR, y roles de liderazgo (Tech Lead, Team Lead, etc.).
+// Se elimina el patrón `\blead\b` genérico porque causa falsos positivos:
+// "lead initiatives", "lead generation" (marketing), etc. En su lugar, se
+// detectan solo los títulos de rol que implican seniority de liderazgo.
 const PATRON_SENIORITY_EXCLUYENTE = [
     /\bsenior\b/i,
     /\bsr\b(?!\.)[\s.,;:)]/i,  // "SR" seguido de espacio/puntación, no "Sr." como abreviatura
@@ -47,7 +50,7 @@ const PATRON_SENIORITY_EXCLUYENTE = [
     /\bengineering\s*lead\b/i,
     /\blead\s+developer\b/i,
     /\blead\s+engineer\b/i,
-    /\blead\b[\s,.;)]/i,
+    /\bl[ií]der\b/i,
 ];
 
 // Experiencia excluyente: 3+ años, >3 años, al menos 3, mínimo 3, at least 3, etc.
@@ -183,7 +186,7 @@ function detectarJavaExcluyente(oferta) {
 }
 
 /**
- * Detecta si la oferta pide nivel Senior, SR o Lead.
+ * Detecta si la oferta pide nivel Senior, SR o un rol de liderazgo (Lead, Líder).
  *
  * @param {Object} oferta - Fila de la tabla ofertas.
  * @returns {{ detectado: boolean, patron: string|null }}
@@ -192,14 +195,23 @@ function detectarSeniorityExcluyente(oferta) {
     const texto = extraerTextoOferta(oferta);
 
     // Verifico cada patrón de seniority.
-    for (const patron of PATRON_SENIORITY_EXCLUYENTE) {
-        if (patron.test(texto)) {
-            // Identifico qué tipo de seniority se detectó.
-            let tipo = 'senior';
-            if (/\bsr\b/i.test(texto.replace(/\bsr\.\s/gi, ''))) tipo = 'sr';
-            if (/\blead\b/i.test(texto)) tipo = 'lead';
+    // Mapeo el patrón que matcheó a un identificador específico.
+    const patronesConNombre = [
+        { patron: /\bsenior\b/i, nombre: 'senior' },
+        { patron: /\bsr\b(?!\.)[\s.,;:)]/i, nombre: 'sr' },
+        { patron: /\bsr[\s.,;:)]/i, nombre: 'sr' },
+        { patron: /\bsr$/im, nombre: 'sr' },
+        { patron: /\btech\s*lead\b/i, nombre: 'tech_lead' },
+        { patron: /\bteam\s*lead\b/i, nombre: 'team_lead' },
+        { patron: /\bengineering\s*lead\b/i, nombre: 'engineering_lead' },
+        { patron: /\blead\s+developer\b/i, nombre: 'lead_developer' },
+        { patron: /\blead\s+engineer\b/i, nombre: 'lead_engineer' },
+        { patron: /\bl[ií]der\b/i, nombre: 'lider' },
+    ];
 
-            return { detectado: true, patron: tipo };
+    for (const { patron, nombre } of patronesConNombre) {
+        if (patron.test(texto)) {
+            return { detectado: true, patron: nombre };
         }
     }
 
@@ -339,7 +351,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
         razon = `La oferta requiere Java${java.patron && java.patron !== 'java' ? ` (ecosistema: ${java.patron})` : ''} como tecnología principal o excluyente.`;
     }
 
-    // Regla 2: Seniority excluyente (Senior, SR, Lead).
+    // Regla 2: Seniority excluyente (Senior, SR, roles de liderazgo).
     // Solo verifico si no se activó Java (no se acumulan exclusiones,
     // pero registramos todas las reglas que se activaron).
     const seniority = detectarSeniorityExcluyente(oferta);
@@ -348,7 +360,18 @@ function evaluarReglasExclusion(oferta, preferencias) {
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.seniority;
-            razon = 'La oferta requiere nivel Senior, SR o Lead.';
+            // Mencionar el tipo de seniority detectado en la razón.
+            const detalleSeniority = {
+                senior: 'Senior',
+                sr: 'SR',
+                tech_lead: 'Tech Lead',
+                team_lead: 'Team Lead',
+                engineering_lead: 'Engineering Lead',
+                lead_developer: 'Lead Developer',
+                lead_engineer: 'Lead Engineer',
+                lider: 'Líder',
+            }[seniority.patron] || seniority.patron;
+            razon = `La oferta requiere nivel ${detalleSeniority}, incompatible con perfil junior/trainee.`;
         }
     }
 
@@ -359,7 +382,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.experiencia;
-            razon = 'La oferta requiere más de 3 años de experiencia como requisito excluyente.';
+            razon = 'La oferta requiere 3 o más años de experiencia como requisito excluyente (3+, >3, mínimo 3, más de 3), incompatible con perfil junior/trainee.';
         }
     }
 

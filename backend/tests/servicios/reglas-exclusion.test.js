@@ -174,6 +174,7 @@ describe('Reglas de exclusión determinísticas', () => {
             });
             const resultado = detectarSeniorityExcluyente(oferta);
             expect(resultado.detectado).toBe(true);
+            expect(resultado.patron).toBe('tech_lead');
         });
 
         test('detecta "Team Lead" en la oferta', () => {
@@ -182,6 +183,7 @@ describe('Reglas de exclusión determinísticas', () => {
             });
             const resultado = detectarSeniorityExcluyente(oferta);
             expect(resultado.detectado).toBe(true);
+            expect(resultado.patron).toBe('team_lead');
         });
 
         test('detecta "Lead Developer" en la oferta', () => {
@@ -190,6 +192,45 @@ describe('Reglas de exclusión determinísticas', () => {
             });
             const resultado = detectarSeniorityExcluyente(oferta);
             expect(resultado.detectado).toBe(true);
+            expect(resultado.patron).toBe('lead_developer');
+        });
+
+        test('detecta "Lead Engineer" en la oferta', () => {
+            const oferta = crearOferta({
+                descripcion: 'Lead Engineer para el equipo de backend.',
+            });
+            const resultado = detectarSeniorityExcluyente(oferta);
+            expect(resultado.detectado).toBe(true);
+            expect(resultado.patron).toBe('lead_engineer');
+        });
+
+        test('detecta "Líder" en la oferta', () => {
+            const oferta = crearOferta({
+                descripcion: 'Buscamos Líder de equipo.',
+            });
+            const resultado = detectarSeniorityExcluyente(oferta);
+            expect(resultado.detectado).toBe(true);
+            expect(resultado.patron).toBe('lider');
+        });
+
+        // Spec: lead FP — "lead initiatives" NO excluye (falso positivo corregido)
+        test('NO detecta "lead initiatives" como seniority (falso positivo corregido)', () => {
+            // Spec: reglas-exclusion-lead-FP
+            const oferta = crearOferta({
+                descripcion: 'You will lead initiatives across multiple teams.',
+            });
+            const resultado = detectarSeniorityExcluyente(oferta);
+            expect(resultado.detectado).toBe(false);
+        });
+
+        // Spec: lead FP — "lead generation" NO excluye (marketing, no rol)
+        test('NO detecta "lead generation" como seniority (falso positivo corregido)', () => {
+            // Spec: reglas-exclusion-lead-FP
+            const oferta = crearOferta({
+                descripcion: 'Experiencia en lead generation y marketing digital.',
+            });
+            const resultado = detectarSeniorityExcluyente(oferta);
+            expect(resultado.detectado).toBe(false);
         });
 
         test('NO detecta "junior" como seniority excluyente', () => {
@@ -301,6 +342,19 @@ describe('Reglas de exclusión determinísticas', () => {
             });
             const resultado = detectarExperienciaExcluyente(oferta);
             expect(resultado.detectado).toBe(true);
+        });
+
+        // Spec: regresión razón experiencia 3+ — la razón debe mencionar variantes comunes
+        test('la razón de exclusión por experiencia menciona variantes comunes', () => {
+            const oferta = crearOferta({
+                descripcion: 'Se requieren 3+ años de experiencia.',
+            });
+            const resultado = evaluarReglasExclusion(oferta, preferenciasBase);
+
+            expect(resultado.excluida).toBe(true);
+            expect(resultado.razon).toContain('3 o más años');
+            expect(resultado.razon).toContain('3+');
+            expect(resultado.razon).toContain('requisito excluyente');
         });
     });
 

@@ -13,7 +13,10 @@
  * Uso:
  *   node scripts/migrar.js         → muestra migraciones pendientes
  *   node scripts/migrar.js --apply → ejecuta las migraciones pendientes
- *   npm run db:migrate             → alias configurado en package.json
+ *   npm run db:migrate:apply       → alias configurado en package.json
+ *
+ * La tabla schema_migrations se crea automáticamente si no existe (DDL idéntico
+ * a migracion-014-schema-migrations.sql). No hace falta ejecutarla manualmente.
  *
  * Las migraciones deben ser idempotentes (usar IF NOT EXISTS, DO $$, etc.)
  * para ser seguras si alguien corre el script directo con psql.
@@ -32,24 +35,32 @@ require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const sqlDir = path.resolve(__dirname, '..', 'sql');
 const modoApply = process.argv.includes('--apply');
 
+/**
+ * Crea la tabla schema_migrations si no existe, usando el mismo DDL que
+ * migracion-014-schema-migrations.sql. Esto permite que el runner funcione
+ * desde cero sin necesidad de ejecutar la migración manualmente.
+ *
+ * @param {import('pg').Pool} pool - Pool de conexiones a PostgreSQL.
+ */
+async function asegurarTablaSchemaMigrations(pool) {
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            id          VARCHAR(255)    PRIMARY KEY,
+            aplicado_en TIMESTAMP       DEFAULT NOW(),
+            exitoso     BOOLEAN         DEFAULT true
+        );
+    `);
+    console.log('[Migración] Tabla schema_migrations verificada/creada.');
+}
+
 async function migrar() {
     const pool = new Pool();
 
     try {
-        // 1. Verificar que schema_migrations existe (la tabla fue creada manualmente
-        // con migracion-014-schema-migrations.sql o directo con psql).
-        const checkTabla = await pool.query(
-            `SELECT to_regclass('public.schema_migrations') IS NOT NULL AS existe;`
-        );
-
-        if (!checkTabla.rows[0].existe) {
-            console.error(
-                '[Migración] ERROR: La tabla schema_migrations no existe.\n' +
-                'Corré primero:\n' +
-                '  psql -d tu_bd -f backend/sql/migracion-014-schema-migrations.sql'
-            );
-            process.exit(1);
-        }
+        // 1. Asegurar que schema_migrations existe antes de consultarla.
+        // Si la tabla no existe, la creamos con el DDL de migracion-014.
+        // Esto evita que el runner falle en una BD nueva sin la tabla.
+        await asegurarTablaSchemaMigrations(pool);
 
         // 2. Obtener migraciones ya aplicadas.
         const aplicadasResult = await pool.query(
@@ -80,7 +91,7 @@ async function migrar() {
                 `\nPara aplicarlas, corré:\n` +
                 `  node scripts/migrar.js --apply\n` +
                 `o\n` +
-                `  npm run db:migrate`
+                `  npm run db:migrate:apply`
             );
             return;
         }

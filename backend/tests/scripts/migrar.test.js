@@ -45,6 +45,22 @@ describe('Runner de migraciones', () => {
         expect(contenidoMigrar).toContain('process.exit(1)');
     });
 
+    // Spec: runner-boostrap, runner-help
+    test('el runner bootstrappea schema_migrations con DDL equivalente a migración 014', () => {
+        // El runner debe tener la función asegurarTablaSchemaMigrations
+        // que crea la tabla si no existe con el mismo DDL que migración 014.
+        expect(contenidoMigrar).toContain('asegurarTablaSchemaMigrations');
+        expect(contenidoMigrar).toContain('CREATE TABLE IF NOT EXISTS schema_migrations');
+        expect(contenidoMigrar).toContain('id');
+        expect(contenidoMigrar).toContain('aplicado_en');
+        expect(contenidoMigrar).toContain('exitoso');
+    });
+
+    test('el runner muestra el alias npm run db:migrate:apply en la ayuda', () => {
+        // Spec: el texto de ayuda post-migración debe decir db:migrate:apply
+        expect(contenidoMigrar).toContain('db:migrate:apply');
+    });
+
     test('el runner lee migraciones del directorio sql/', () => {
         expect(contenidoMigrar).toContain('readdirSync');
         expect(contenidoMigrar).toContain('.sql');
@@ -215,5 +231,80 @@ describe('Migración 016 — Eliminar scoring legacy', () => {
         for (const linea of lineasSQL) {
             expect(linea.toUpperCase()).not.toContain('CASCADE');
         }
+    });
+});
+
+describe('Migración 017 — Constraint de rango salarial', () => {
+    const rutaMigracion = path.join(sqlDir, 'migracion-017-salario-rango.sql');
+    let contenido;
+
+    beforeAll(() => {
+        contenido = fs.readFileSync(rutaMigracion, 'utf-8');
+    });
+
+    test('el archivo de migración existe', () => {
+        expect(fs.existsSync(rutaMigracion)).toBe(true);
+    });
+
+    test('es idempotente: verifica si la constraint ya existe antes de agregarla', () => {
+        // PostgreSQL no soporta ADD CONSTRAINT IF NOT EXISTS, así que
+        // la migración usa un bloque DO $$ con pg_constraint.
+        expect(contenido).toContain('pg_constraint');
+        expect(contenido).toContain('chk_ofertas_salario_rango');
+        expect(contenido).toContain('IF EXISTS');
+        // Verifica que si ya existe, saltea sin error (RAISE NOTICE).
+        expect(contenido).toMatch(/RAISE NOTICE/i);
+    });
+
+    test('agrega la constraint chk_ofertas_salario_rango con CHECK de salario', () => {
+        expect(contenido).toContain('chk_ofertas_salario_rango');
+        expect(contenido).toContain('salario_min');
+        expect(contenido).toContain('salario_max');
+        expect(contenido).toContain('ADD CONSTRAINT');
+    });
+
+    test('hace preflight de filas inválidas antes de crear la constraint', () => {
+        // Verifica que cuenta filas donde salario_min > salario_max
+        // y falla si hay datos inválidos (sin tocar datos).
+        expect(contenido).toContain('salario_min > salario_max');
+        expect(contenido).toMatch(/RAISE EXCEPTION/i);
+    });
+
+    test('no contiene comandos destructivos (DROP TABLE, DELETE, TRUNCATE)', () => {
+        const lineasDestructivas = contenido
+            .split('\n')
+            .filter(linea => linea.trim() && !linea.trim().startsWith('--'))
+            .filter(linea => {
+                const upper = linea.toUpperCase().trim();
+                return upper.startsWith('DROP TABLE')
+                    || upper.startsWith('DELETE ')
+                    || upper.startsWith('TRUNCATE ');
+            });
+        expect(lineasDestructivas).toHaveLength(0);
+    });
+
+    test('no usa CONCURRENTLY en sentencias SQL (incompatible con transacciones)', () => {
+        const lineasSQL = contenido
+            .split('\n')
+            .map(linea => linea.trim())
+            .filter(linea => linea && !linea.startsWith('--'));
+        for (const linea of lineasSQL) {
+            expect(linea).not.toContain('CONCURRENTLY');
+        }
+    });
+
+    test('no usa CASCADE en sentencias SQL (destrucción sin restricción de dependencias)', () => {
+        const lineasSQL = contenido
+            .split('\n')
+            .map(linea => linea.trim())
+            .filter(linea => linea && !linea.startsWith('--'));
+        for (const linea of lineasSQL) {
+            expect(linea.toUpperCase()).not.toContain('CASCADE');
+        }
+    });
+
+    test('documenta rollback con DROP CONSTRAINT IF EXISTS', () => {
+        // El rollback documentado en el comentario debe incluir DROP CONSTRAINT.
+        expect(contenido).toMatch(/DROP CONSTRAINT IF EXISTS chk_ofertas_salario_rango/i);
     });
 });

@@ -91,6 +91,30 @@ El ciclo de automatización MUST aislar fallas por plataforma. Si un scraper fal
 - THEN el sistema MUST registrar `resultado.scraping.adzuna` como `0`
 - AND MUST continuar evaluación y guardado con las ofertas restantes.
 
+### Requirement: Errores de guardado visibles en ciclo
+
+El resultado del ciclo de automatización MUST incluir `erroresGuardado` y MUST incrementarlo cada vez que falle el guardado de una oferta. Los resúmenes operativos y notificaciones MUST exponer ese valor.
+
+#### Scenario: ciclo sin errores de guardado
+
+- GIVEN todas las ofertas evaluadas se guardan correctamente
+- WHEN finaliza el ciclo de automatización
+- THEN `resultado.erroresGuardado` MUST ser `0`
+- AND el resumen/notificación MUST mostrar ese valor o indicar ausencia de errores.
+
+#### Scenario: falla crearOferta incrementa contador
+
+- GIVEN `crearOferta` falla para una oferta durante guardado
+- WHEN el ciclo continúa o finaliza controladamente
+- THEN `resultado.erroresGuardado` MUST incrementarse en `1`
+- AND el error MUST reflejarse en el resumen/notificación.
+
+#### Scenario: múltiples fallas de guardado
+
+- GIVEN `crearOferta` falla para varias ofertas
+- WHEN finaliza el ciclo
+- THEN `erroresGuardado` MUST representar la cantidad total de fallas de guardado.
+
 ## Traceability to Tests
 
 | Scenario | Suggested test/build |
@@ -105,3 +129,7 @@ El ciclo de automatización MUST aislar fallas por plataforma. Si un scraper fal
 | progreso completa 100% | Test de ponderación con N activas |
 | falla de scraper no corta el ciclo | Test con un scraper rechazado y otro exitoso |
 | Adzuna deshabilitado se maneja como cero ofertas | Test con retorno `{ deshabilitado: true }` |
+| ciclo sin errores de guardado | `backend/tests/servicios/servicio-automatizacion.test.js` — assert `erroresGuardado === 0` |
+| falla crearOferta incrementa contador | `backend/tests/servicios/servicio-automatizacion.test.js` — assert `erroresGuardado === 1` con mock de falla |
+| múltiples fallas de guardado | `backend/tests/servicios/servicio-automatizacion.test.js` — assert `erroresGuardado > 1` |
+| errores en notificación | `backend/tests/servicios/servicio-notificacion-email.test.js` — assert HTML/texto incluye conteo de errores |

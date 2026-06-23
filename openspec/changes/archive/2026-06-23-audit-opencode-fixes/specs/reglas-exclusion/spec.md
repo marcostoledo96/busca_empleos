@@ -1,10 +1,6 @@
-# Reglas exclusión Specification
+# Delta for Reglas exclusión
 
-## Purpose
-
-Detectar exclusiones fuertes de ofertas laborales de forma determinística y sin depender de DeepSeek.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Exclusiones fuertes determinísticas
 
@@ -58,15 +54,3 @@ El sistema MUST NOT permitir que señales positivas como IA, Next.js o stack com
 - GIVEN una oferta que valora IA pero requiere Java excluyente
 - WHEN el sistema aplica reglas determinísticas
 - THEN la oferta queda rechazada por Java.
-
-## Traceability to Tests
-
-| Scenario | Suggested test |
-|---|---|
-| Java excluyente no confunde JavaScript | `backend/tests/servicios/reglas-exclusion.test.js` |
-| Senior SR Lead excluyente | `backend/tests/servicios/reglas-exclusion.test.js` |
-| lead verbal no excluyente | `backend/tests/servicios/reglas-exclusion.test.js` |
-| experiencia mayor a tres años excluyente | `backend/tests/servicios/reglas-exclusion.test.js` |
-| inglés excluyente | `backend/tests/servicios/reglas-exclusion.test.js` |
-| ubicación modalidad incompatible | `backend/tests/servicios/reglas-exclusion.test.js` |
-| bonus IA no compensa Java | `backend/tests/servicios/reglas-exclusion.test.js` |

@@ -112,6 +112,7 @@ function armarResumenEmail(resumenCiclo) {
     const totalExtraidas = s.totalExtraidas ?? 0;
     const guardadas = s.guardadas ?? 0;
     const descartadasPorIdioma = s.descartadasPorIdioma ?? 0;
+    const erroresGuardado = resumenCiclo.erroresGuardado ?? 0;
     const aprobadas = ev ? (ev.aprobadas ?? 0) : 0;
     const rechazadas = ev ? (ev.rechazadas ?? 0) : 0;
     const totalEvaluadas = ev ? (ev.total ?? 0) : 0;
@@ -168,6 +169,7 @@ ${duracionSegundos !== null ? `<p style="margin:0 0 12px;font-size:14px;"><stron
 <li><strong>Total extraídas:</strong> ${totalExtraidas}</li>
 <li><strong>Guardadas (nuevas):</strong> ${guardadas}</li>
 <li><strong>Descartadas por idioma:</strong> ${descartadasPorIdioma}</li>
+${erroresGuardado > 0 ? `<li><strong>Errores al guardar en BD:</strong> ${erroresGuardado}</li>` : ''}
 </ul>
 ${ev ? `
 <h3 style="margin:16px 0 8px;font-size:16px;color:#2563eb;">Evaluación IA (DeepSeek)</h3>
@@ -219,7 +221,8 @@ Busca Empleos — Notificación automática
         `Total extraídas: ${totalExtraidas}`,
         `Guardadas (nuevas): ${guardadas}`,
         `Descartadas por idioma: ${descartadasPorIdioma}`,
-        ``,
+        erroresGuardado > 0 ? `Errores al guardar en BD: ${erroresGuardado}` : '',
+        '',
     ];
 
     if (ev) {
