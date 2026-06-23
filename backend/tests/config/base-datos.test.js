@@ -4,6 +4,9 @@
 const { URL } = require('node:url');
 const pool = require('../../src/config/base-datos');
 
+const hayBaseConfigurada = Boolean(process.env.DATABASE_URL || process.env.PGDATABASE);
+const contexto = hayBaseConfigurada ? describe : describe.skip;
+
 function obtenerNombreBaseConfigurada() {
     if (process.env.DATABASE_URL) {
         try {
@@ -17,7 +20,7 @@ function obtenerNombreBaseConfigurada() {
     return process.env.PGDATABASE || null;
 }
 
-describe('Módulo de conexión a PostgreSQL', () => {
+contexto('Módulo de conexión a PostgreSQL', () => {
     // Después de todos los tests, cierro el pool para que Jest no quede colgado.
     afterAll(async () => {
         await pool.end();
