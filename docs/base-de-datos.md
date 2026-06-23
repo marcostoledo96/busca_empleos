@@ -6,7 +6,7 @@
 - **Driver:** `pg` (sin ORM — queries SQL directas).
 - **Archivo de configuración:** `backend/src/config/base-datos.js`.
 - **Pool de conexiones:** Se usa `Pool` de `pg` que mantiene varias conexiones abiertas y las reutiliza. Cada `pool.query()` toma una conexión libre, ejecuta y la devuelve.
-- **Credenciales:** Se cargan desde `.env` con las variables `PG*` (PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE). El driver `pg` las lee automáticamente.
+- **Credenciales:** Se cargan desde `.env` con las variables `PG*` (PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE). El driver `pg` las lee automáticamente. **Nota:** el runner de migraciones (`scripts/migrar.js`) carga `.env` con `path.resolve(__dirname, '../.env')` (un nivel arriba desde `backend/scripts/`), mientras que `base-datos.js` usa `path.resolve(__dirname, '../../.env')` (dos niveles arriba desde `backend/src/config/`). Ambos paths resuelven a `backend/.env`.
 - **SSL en entornos remotos:** Si existe `DATABASE_URL`, si `PGSSLMODE=require` o si `PGHOST` apunta a un host no local, el backend fuerza SSL con `rejectUnauthorized: false` para ser compatible con Railway y otros PaaS.
 
 ### Eventos del pool
@@ -151,6 +151,18 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 | `backend/sql/migracion-006-actualizar-perfil.sql` | Actualiza perfil, idioma y stack del candidato. |
 | `backend/sql/migracion-007-modelo-deepseek-v4-flash.sql` | Cambia el modelo por defecto y migra preferencias existentes a `deepseek-v4-flash`. |
 | `backend/sql/migracion-015-indices-ofertas-ultimos-30-dias.sql` | Agrega índices para acelerar consultas que filtran por `fecha_extraccion` (ventana de 30 días) y `estado_evaluacion`. Índices: `idx_ofertas_fecha_extraccion_desc` y `idx_ofertas_estado_fecha_extraccion`. Idempotente. |
+| `backend/sql/migracion-016-eliminar-scoring-legacy.sql` | ⚠️ **Destructiva** — Elimina objetos legacy de scoring previo: índice `idx_ofertas_score_previo`, constraint `chk_ofertas_score_previo`, columnas `score_previo`, `analisis_previo`, `scoring_version` (tabla `ofertas`) y `scoring_config` (tabla `preferencias`). Usa `IF EXISTS` en todos los drops. **No contiene `DROP TABLE`, `DELETE` ni `TRUNCATE`**. |
+
+### Migración 016 — Advertencia de destrucción y rollback
+
+La migración 016 **destruye físicamente** columnas e índice legacy. Los datos contenidos en `score_previo`, `analisis_previo`, `scoring_version` y `scoring_config` se pierden de forma irreversible al ejecutarse.
+
+**Rollback limitado:** `DROP COLUMN` no tiene undo. Restaurar esos objetos requiere:
+1. Backup previo a la ejecución de la migración, o
+2. Recreación manual de columnas/constraint/índice con una migración compensatoria, o
+3. Restaurar la base completa desde backup.
+
+No hay rollback automático.
 
 ## Documentos relacionados
 

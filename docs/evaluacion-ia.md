@@ -175,6 +175,12 @@ const jsonLimpio = respuestaTexto
 > ya no se configuran desde la UI de preferencias. DeepSeek + reglas-exclusion son el
 > único flujo de evaluación. Los bonus por IA se manejan directamente en el prompt de
 > DeepSeek como parte de los criterios de evaluación.
+>
+> La migración 016 elimina físicamente del esquema las columnas legacy de scoring previo
+> (`score_previo`, `analisis_previo`, `scoring_version` en `ofertas` y `scoring_config`
+> en `preferencias`), el índice `idx_ofertas_score_previo` y el constraint
+> `chk_ofertas_score_previo`. Esta eliminación es irreversible; ver
+> [Base de datos](base-de-datos.md) para detalles de rollback.
 
 El prompt de DeepSeek incluye un **bonus acotado** para ofertas que valoren el uso competente de herramientas de IA y Next.js.
 

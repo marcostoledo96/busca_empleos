@@ -24,7 +24,10 @@ const path = require('path');
 const { Pool } = require('pg');
 
 // Cargo .env del backend para obtener conexion a PostgreSQL.
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+// El script está en backend/scripts/, así que el .env está un nivel arriba
+// en backend/.env. Uso el mismo criterio que base-datos.js: resolver desde
+// __dirname relativo a la ubicación del archivo.
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 const sqlDir = path.resolve(__dirname, '..', 'sql');
 const modoApply = process.argv.includes('--apply');
