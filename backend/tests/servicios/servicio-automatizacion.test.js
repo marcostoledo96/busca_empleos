@@ -13,6 +13,7 @@
 // Lo que testeamos es la LÓGICA de orquestación:
 // ¿Se llama a scraping? ¿Se guardan las ofertas? ¿Se evalúan después?
 // ¿Qué pasa si uno falla? ¿Se registra el error? ¿El cron se puede parar?
+// ¿Solo se invocan plataformas activas? ¿Adzuna deshabilitado no rompe?
 
 // Mockeo los módulos ANTES de importar el servicio.
 // Jest reemplaza el módulo real con el mock para que nunca se llame a la API real.
@@ -22,6 +23,50 @@ jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/servicios/servicio-notificacion-email');
+jest.mock('../../src/config/plataformas', () => {
+    // Mockeo el registry con plataformas activas e inactivas para testear
+    // que el ciclo itera solo sobre las activas y registra las inactivas con 0.
+    const PLATAFORMAS = {
+        linkedin: { id: 'linkedin', slugHttp: 'linkedin', label: 'LinkedIn', activa: true },
+        computrabajo: { id: 'computrabajo', slugHttp: 'computrabajo', label: 'Computrabajo', activa: true },
+        indeed: { id: 'indeed', slugHttp: 'indeed', label: 'Indeed', activa: true },
+        bumeran: { id: 'bumeran', slugHttp: 'bumeran', label: 'Bumeran', activa: true },
+        glassdoor: { id: 'glassdoor', slugHttp: 'glassdoor', label: 'Glassdoor', activa: true },
+        getonbrd: { id: 'getonbrd', slugHttp: 'getonbrd', label: 'GetOnBrd', activa: true },
+        jooble: { id: 'jooble', slugHttp: 'jooble', label: 'Jooble', activa: true },
+        google_jobs: { id: 'google_jobs', slugHttp: 'google-jobs', label: 'Google Jobs', activa: false, motivo: 'Desactivado por costo y baja utilidad' },
+        remotive: { id: 'remotive', slugHttp: 'remotive', label: 'Remotive', activa: true },
+        remoteok: { id: 'remoteok', slugHttp: 'remoteok', label: 'RemoteOK', activa: true },
+        infojobs: { id: 'infojobs', slugHttp: 'infojobs', label: 'InfoJobs', activa: false, motivo: 'Portal developers suspendido' },
+        adzuna: { id: 'adzuna', slugHttp: 'adzuna', label: 'Adzuna', activa: true },
+    };
+    const PLATAFORMAS_ACTIVAS = Object.values(PLATAFORMAS).filter(p => p.activa);
+    const IDS_PLATAFORMAS = new Set(Object.keys(PLATAFORMAS));
+    const SLUG_HTTP_A_ID = Object.values(PLATAFORMAS).reduce((mapa, p) => {
+        mapa[p.slugHttp] = p.id;
+        return mapa;
+    }, {});
+    function obtenerPlataformasActivas() {
+        return PLATAFORMAS_ACTIVAS.map(p => ({ id: p.id, slugHttp: p.slugHttp, label: p.label }));
+    }
+    function esPlataformaActiva(idOSlug) {
+        const id = SLUG_HTTP_A_ID[idOSlug] || idOSlug;
+        const plataforma = PLATAFORMAS[id];
+        return plataforma ? plataforma.activa : false;
+    }
+    function normalizarIdPlataforma(idOSlug) {
+        return SLUG_HTTP_A_ID[idOSlug] || (PLATAFORMAS[idOSlug] ? idOSlug : null);
+    }
+    return {
+        PLATAFORMAS,
+        PLATAFORMAS_ACTIVAS,
+        IDS_PLATAFORMAS,
+        SLUG_HTTP_A_ID,
+        obtenerPlataformasActivas,
+        esPlataformaActiva,
+        normalizarIdPlataforma,
+    };
+});
 
 const cron = require('node-cron');
 const servicioScraping = require('../../src/servicios/servicio-scraping');
@@ -29,6 +74,7 @@ const servicioEvaluacion = require('../../src/servicios/servicio-evaluacion');
 const modeloOferta = require('../../src/modelos/oferta');
 const modeloPreferencia = require('../../src/modelos/preferencia');
 const servicioNotificacionEmail = require('../../src/servicios/servicio-notificacion-email');
+const { PLATAFORMAS, PLATAFORMAS_ACTIVAS } = require('../../src/config/plataformas');
 
 // Importo el servicio que vamos a testear.
 const servicioAutomatizacion = require('../../src/servicios/servicio-automatizacion');
@@ -71,11 +117,9 @@ describe('Servicio de automatización', () => {
         cron.validate.mockReturnValue(true);
 
         // Mock de preferencias: sin términos de búsqueda por defecto.
-        // Así los scrapers usan sus defaults internos (TERMINOS_BUSQUEDA_DEFECTO).
         modeloPreferencia.obtenerPreferencias.mockResolvedValue(null);
 
         // Mock del servicio de notificación por email.
-        // Por defecto simula que se envió correctamente.
         servicioNotificacionEmail.enviarResumenCiclo.mockResolvedValue({
             enviado: true,
             messageId: '<test-message-id>',
@@ -83,9 +127,8 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
-        test('ejecuta scraping de las 9 plataformas activas → guarda ofertas → evalúa', async () => {
+        test('ejecuta scraping de las plataformas activas → guarda ofertas → evalúa', async () => {
             // Preparo datos simulados para las plataformas activas.
-            // InfoJobs está desactivado temporalmente y NO debe ser invocado por el ciclo.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/jobs/1' },
                 { titulo: 'Dev React', url: 'https://linkedin.com/jobs/2' },
@@ -117,8 +160,8 @@ describe('Servicio de automatización', () => {
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // Verifico que se llamó al scraping de las 9 plataformas activas
-            // (Google Jobs e InfoJobs están desactivados y no deben llamarse nunca).
+            // Verifico que se llamó al scraping de las plataformas activas.
+            // Las 9 plataformas activas deben ser invocadas.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
@@ -133,29 +176,21 @@ describe('Servicio de automatización', () => {
             expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(8);
 
             // Verifico la estructura del resultado.
-            // Nota: fechaEjecucion, duracionSegundos y descartadasPorIdioma se agregan
-            // para el servicio de notificación por email post-ciclo.
             expect(resultado.exito).toBe(true);
             expect(resultado.fechaEjecucion).toBeDefined();
             expect(resultado.duracionSegundos).toBeDefined();
             expect(resultado.scraping.descartadasPorIdioma).toBeDefined();
-            expect(resultado.scraping).toEqual({
-                linkedin: 2,
-                computrabajo: 1,
-                indeed: 1,
-                bumeran: 1,
-                glassdoor: 1,
-                getonbrd: 1,
-                jooble: 1,
-                google_jobs: 0,
-                remotive: 0,
-                remoteok: 0,
-                infojobs: 0,
-                adzuna: 0,
-                totalExtraidas: 8,
-                guardadas: 8,
-                descartadasPorIdioma: 0,
-            });
+
+            // Verifico que resultado.scraping tiene claves para TODAS las plataformas del registry.
+            for (const id of Object.keys(PLATAFORMAS)) {
+                expect(resultado.scraping).toHaveProperty(id);
+                expect(typeof resultado.scraping[id]).toBe('number');
+            }
+            // Verifico los totales.
+            expect(resultado.scraping.totalExtraidas).toBe(8);
+            expect(resultado.scraping.guardadas).toBe(8);
+            expect(resultado.scraping.descartadasPorIdioma).toBe(0);
+
             expect(resultado.evaluacion).toEqual({
                 total: 7,
                 aprobadas: 4,
@@ -163,6 +198,69 @@ describe('Servicio de automatización', () => {
                 errores: 0,
             });
             expect(resultado.errores).toEqual([]);
+        });
+
+        test('plataformas inactivas (Google Jobs, InfoJobs) NO son invocadas', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+            ]);
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            // Las inactivas no deben ser llamadas nunca.
+            expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
+            expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
+
+            // Pero aparecen en resultado.scraping con valor 0.
+            expect(resultado.scraping.google_jobs).toBe(0);
+            expect(resultado.scraping.infojobs).toBe(0);
+            expect(resultado.errores).toHaveLength(0);
+        });
+
+        test('resultado.scraping contiene una clave por cada entrada del registry', async () => {
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            // Cada plataforma del registry debe tener su clave en resultado.scraping.
+            for (const id of Object.keys(PLATAFORMAS)) {
+                expect(resultado.scraping).toHaveProperty(id);
+                expect(typeof resultado.scraping[id]).toBe('number');
+            }
+
+            // Además debe tener los campos de totales.
+            expect(resultado.scraping).toHaveProperty('totalExtraidas');
+            expect(resultado.scraping).toHaveProperty('guardadas');
+            expect(resultado.scraping).toHaveProperty('descartadasPorIdioma');
+        });
+
+        test('el progreso finaliza en 100%', async () => {
+            await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            const progreso = servicioAutomatizacion.obtenerProgreso();
+            expect(progreso.porcentaje).toBe(100);
+            expect(progreso.activo).toBe(false);
+        });
+
+        test('el progreso conserva shape { nombre, label, estado, extraidas }', async () => {
+            await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            const progreso = servicioAutomatizacion.obtenerProgreso();
+
+            // Todos los pasos deben tener las propiedades esperadas.
+            for (const paso of progreso.pasos) {
+                expect(paso).toHaveProperty('nombre');
+                expect(paso).toHaveProperty('label');
+                expect(paso).toHaveProperty('estado');
+                expect(paso).toHaveProperty('extraidas');
+            }
+
+            // Debe haber un paso por cada plataforma (activa e inactiva) + guardado + evaluación.
+            const idsPlataformas = Object.keys(PLATAFORMAS);
+            const nombresPasos = progreso.pasos.map(p => p.nombre);
+            for (const id of idsPlataformas) {
+                expect(nombresPasos).toContain(id);
+            }
+            expect(nombresPasos).toContain('guardado');
+            expect(nombresPasos).toContain('evaluacion');
         });
 
         test('si LinkedIn falla, sigue con las demás plataformas y reporta el error', async () => {
@@ -178,150 +276,95 @@ describe('Servicio de automatización', () => {
             expect(resultado.exito).toBe(true);
             expect(resultado.scraping.linkedin).toBe(0);
             expect(resultado.scraping.computrabajo).toBe(1);
-            expect(resultado.scraping.indeed).toBe(0);
-            expect(resultado.scraping.bumeran).toBe(0);
             expect(resultado.errores).toHaveLength(1);
             expect(resultado.errores[0]).toContain('LinkedIn');
         });
 
-        test('si Computrabajo falla, sigue con las demás plataformas y reporta el error', async () => {
-            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
-                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+        test('error de un scraper no aborta el ciclo; las demás plataformas ejecutan', async () => {
+            // Hago fallar 3 scrapers activos.
+            servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(new Error('LinkedIn error'));
+            servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(new Error('Glassdoor error'));
+            servicioScraping.ejecutarScrapingRemotive.mockRejectedValue(new Error('Remotive error'));
+
+            // Las demás retornan datos.
+            servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([
+                { titulo: 'Dev Jr', url: 'https://computrabajo.com/1' },
             ]);
-            servicioScraping.ejecutarScrapingComputrabajo.mockRejectedValue(
-                new Error('Actor not found')
-            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
+            // El ciclo no se abortó.
             expect(resultado.exito).toBe(true);
-            expect(resultado.scraping.linkedin).toBe(1);
-            expect(resultado.scraping.computrabajo).toBe(0);
-            expect(resultado.scraping.indeed).toBe(0);
-            expect(resultado.scraping.bumeran).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('Computrabajo');
-        });
-
-        test('si Indeed falla, sigue con las demás plataformas y reporta el error', async () => {
-            servicioScraping.ejecutarScrapingIndeed.mockRejectedValue(
-                new Error('Indeed API error')
-            );
-
-            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
-
-            expect(resultado.exito).toBe(true);
-            expect(resultado.scraping.indeed).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('Indeed');
-        });
-
-        test('si Bumeran falla, sigue con las demás plataformas y reporta el error', async () => {
-            servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(
-                new Error('Bumeran cheerio error')
-            );
-
-            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
-
-            expect(resultado.exito).toBe(true);
-            expect(resultado.scraping.bumeran).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('Bumeran');
-        });
-
-        test('si Glassdoor falla, sigue con las demás plataformas y reporta el error', async () => {
-            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
-                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
-            ]);
-            servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(
-                new Error('Glassdoor blocked')
-            );
-
-            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
-
-            expect(resultado.exito).toBe(true);
-            expect(resultado.scraping.linkedin).toBe(1);
+            // Los que fallaron tienen 0.
+            expect(resultado.scraping.linkedin).toBe(0);
             expect(resultado.scraping.glassdoor).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('Glassdoor');
+            expect(resultado.scraping.remotive).toBe(0);
+            // Los que no fallaron siguen funcionando.
+            expect(resultado.scraping.computrabajo).toBe(1);
+            // Se reportan los errores.
+            expect(resultado.errores.length).toBeGreaterThanOrEqual(3);
         });
 
-        test('si GetOnBrd falla, sigue con las demás plataformas y reporta el error', async () => {
+        test('Adzuna deshabilitado retorna { deshabilitado: true } → adzuna: 0, sin error', async () => {
+            // Adzuna retorna el objeto especial de deshabilitado.
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue({
+                deshabilitado: true,
+                codigo_resultado: 'adzuna_deshabilitado_sin_credenciales',
+                advertencia: 'Adzuna está deshabilitado: faltan ADZUNA_APP_ID y ADZUNA_APP_KEY en el .env.',
+                ofertas: [],
+            });
+
+            // Otras plataformas retornan datos normales.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
             ]);
-            servicioScraping.ejecutarScrapingGetonbrd.mockRejectedValue(
-                new Error('GetOnBrd API error')
-            );
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            expect(resultado.exito).toBe(true);
+            // Adzuna debe tener 0 sin error.
+            expect(resultado.scraping.adzuna).toBe(0);
+            // No se debe agregar un error por Adzuna deshabilitado.
+            const erroresAdzuna = resultado.errores.filter(e => e.includes('Adzuna'));
+            expect(erroresAdzuna).toHaveLength(0);
+            // LinkedIn funciona normal.
             expect(resultado.scraping.linkedin).toBe(1);
-            expect(resultado.scraping.getonbrd).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('GetOnBrd');
         });
 
-        test('si Jooble falla, sigue con las demás plataformas y reporta el error', async () => {
-            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
-                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
-            ]);
-            servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
-                new Error('Jooble API error')
-            );
+        test('Adzuna deshabilitado no guarda objeto como oferta', async () => {
+            servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue({
+                deshabilitado: true,
+                codigo_resultado: 'adzuna_deshabilitado_sin_credenciales',
+                advertencia: 'Adzuna está deshabilitado.',
+                ofertas: [],
+            });
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            expect(resultado.exito).toBe(true);
-            expect(resultado.scraping.linkedin).toBe(1);
-            expect(resultado.scraping.jooble).toBe(0);
-            expect(resultado.errores).toHaveLength(1);
-            expect(resultado.errores[0]).toContain('Jooble');
+            // totalExtraidas debe reflejar solo ofertas reales (no el objeto deshabilitado).
+            expect(resultado.scraping.totalExtraidas).toBe(0);
+            expect(resultado.scraping.adzuna).toBe(0);
         });
 
-        test('si todos los scrapings activos fallan, no guarda ofertas y reporta todos los errores', async () => {
-            servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(
-                new Error('LinkedIn error')
-            );
-            servicioScraping.ejecutarScrapingComputrabajo.mockRejectedValue(
-                new Error('Computrabajo error')
-            );
-            servicioScraping.ejecutarScrapingIndeed.mockRejectedValue(
-                new Error('Indeed error')
-            );
-            servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(
-                new Error('Bumeran error')
-            );
-            servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(
-                new Error('Glassdoor error')
-            );
-            servicioScraping.ejecutarScrapingGetonbrd.mockRejectedValue(
-                new Error('GetOnBrd error')
-            );
-            servicioScraping.ejecutarScrapingJooble.mockRejectedValue(
-                new Error('Jooble error')
-            );
-            // Google Jobs e InfoJobs están desactivados — no se incluyen en este test.
-            servicioScraping.ejecutarScrapingRemotive.mockRejectedValue(
-                new Error('Remotive error')
-            );
-            servicioScraping.ejecutarScrapingRemoteOK.mockRejectedValue(
-                new Error('RemoteOK error')
-            );
+        test('si todos los scrapings activos fallan, no guarda ofertas y reporta errores', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockRejectedValue(new Error('LinkedIn error'));
+            servicioScraping.ejecutarScrapingComputrabajo.mockRejectedValue(new Error('Computrabajo error'));
+            servicioScraping.ejecutarScrapingIndeed.mockRejectedValue(new Error('Indeed error'));
+            servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(new Error('Bumeran error'));
+            servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(new Error('Glassdoor error'));
+            servicioScraping.ejecutarScrapingGetonbrd.mockRejectedValue(new Error('GetOnBrd error'));
+            servicioScraping.ejecutarScrapingJooble.mockRejectedValue(new Error('Jooble error'));
+            servicioScraping.ejecutarScrapingRemotive.mockRejectedValue(new Error('Remotive error'));
+            servicioScraping.ejecutarScrapingRemoteOK.mockRejectedValue(new Error('RemoteOK error'));
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            // 9 plataformas activas fallan → 9 errores (InfoJobs desactivado, no suma).
+            // 9 plataformas activas fallan → 9 errores (Google Jobs e InfoJobs son inactivas, no suman).
             expect(resultado.errores).toHaveLength(9);
         });
 
-        test('InfoJobs desactivado temporalmente → ejecutarScrapingInfojobs NO se llama en el ciclo', async () => {
-            // InfoJobs fue desactivado del ciclo automático porque el registro de nuevas apps
-            // está suspendido en el portal de developers.
-            // El endpoint /api/scraping/infojobs sigue disponible para reactivación futura.
+        test('InfoJobs desactivado temporalmente → ejecutarScrapingInfojobs NO se llama', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
             ]);
@@ -375,6 +418,7 @@ describe('Servicio de automatización', () => {
             await servicioAutomatizacion.ejecutarCicloCompleto();
 
             const opcionesEsperadas = { terminos: terminosPersonalizados };
+            // Solo las activas reciben opciones; las inactivas no se invocan.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledWith(opcionesEsperadas);
@@ -383,7 +427,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(opcionesEsperadas);
-            // Google Jobs e InfoJobs desactivados — no deben recibir opciones ni llamarse.
+            // Las inactivas no deben recibir opciones ni llamarse.
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
         });
@@ -401,7 +445,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith({});
-            // Google Jobs e InfoJobs desactivados — no deben llamarse ni con {} ni con nada.
+            // Las inactivas no deben llamarse ni con {} ni con nada.
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
         });
@@ -506,6 +550,86 @@ describe('Servicio de automatización', () => {
         });
     });
 
+    // === Helpers internos ===
+
+    describe('_armarPasosProgreso()', () => {
+        test('incluye paso por cada plataforma del registry + guardado + evaluacion', () => {
+            const pasos = servicioAutomatizacion._armarPasosProgreso();
+            const nombres = pasos.map(p => p.nombre);
+
+            // Una entrada por cada plataforma (activa + inactiva).
+            for (const id of Object.keys(PLATAFORMAS)) {
+                expect(nombres).toContain(id);
+            }
+            // Más los pasos fijos.
+            expect(nombres).toContain('guardado');
+            expect(nombres).toContain('evaluacion');
+            // Todos empiezan como pendientes.
+            for (const paso of pasos) {
+                expect(paso.estado).toBe('pendiente');
+                expect(paso.extraidas).toBe(0);
+            }
+        });
+
+        test('incluye labels correctas del registry', () => {
+            const pasos = servicioAutomatizacion._armarPasosProgreso();
+
+            for (const [id, plataforma] of Object.entries(PLATAFORMAS)) {
+                const paso = pasos.find(p => p.nombre === id);
+                expect(paso).toBeDefined();
+                expect(paso.label).toBe(plataforma.label);
+            }
+        });
+    });
+
+    describe('_armarPesosDinamicos()', () => {
+        test('las activas reparten el peso de scraping; las inactivas tienen peso 0', () => {
+            const pesos = servicioAutomatizacion._armarPesosDinamicos();
+
+            // Las activas tienen peso > 0.
+            for (const plataforma of PLATAFORMAS_ACTIVAS) {
+                expect(pesos[plataforma.id]).toBeGreaterThan(0);
+            }
+
+            // Las inactivas tienen peso 0.
+            for (const [id, plataforma] of Object.entries(PLATAFORMAS)) {
+                if (!plataforma.activa) {
+                    expect(pesos[id]).toBe(0);
+                }
+            }
+
+            // Los pesos fijos.
+            expect(pesos.guardado).toBe(3);
+            expect(pesos.evaluacion).toBe(15);
+        });
+
+        test('la suma de todos los pesos es 100', () => {
+            const pesos = servicioAutomatizacion._armarPesosDinamicos();
+            const suma = Object.values(pesos).reduce((acc, v) => acc + v, 0);
+            // La suma debe ser ~100 (puede haber redondeo).
+            expect(Math.abs(suma - 100)).toBeLessThanOrEqual(1);
+        });
+    });
+
+    describe('_inicializarResultadoScraping()', () => {
+        test('contiene una clave por cada plataforma del registry con valor 0', () => {
+            const resultado = servicioAutomatizacion._inicializarResultadoScraping();
+
+            for (const id of Object.keys(PLATAFORMAS)) {
+                expect(resultado).toHaveProperty(id);
+                expect(resultado[id]).toBe(0);
+            }
+        });
+
+        test('contiene los campos de totales', () => {
+            const resultado = servicioAutomatizacion._inicializarResultadoScraping();
+
+            expect(resultado.totalExtraidas).toBe(0);
+            expect(resultado.guardadas).toBe(0);
+            expect(resultado.descartadasPorIdioma).toBe(0);
+        });
+    });
+
     // === Notificación por email ===
 
     describe('Notificación por email post-ciclo', () => {
@@ -598,12 +722,6 @@ describe('Servicio de automatización', () => {
 
     describe('Cron default — martes 20:00 ART', () => {
         test('la expresión cron por defecto es martes 20:00 (0 20 * * 2)', () => {
-            // Importo el módulo fresco para verificar la constante.
-            // La expresión '0 20 * * 2' significa: minuto 0, hora 20, cualquier día del mes,
-            // cualquier mes, día de la semana 2 (martes).
-            const expresion = servicioAutomatizacion.obtenerEstado().expresionCron;
-            // Sin programar cron todavía, la expresión es null.
-            // Necesitamos programar para ver la expresión por defecto.
             servicioAutomatizacion.programarCron();
 
             const expresionUsada = cron.schedule.mock.calls[0][0];

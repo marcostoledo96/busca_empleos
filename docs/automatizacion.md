@@ -50,78 +50,59 @@ Este estado es consultable desde la API (`GET /api/automatizacion/estado`) y lo 
 
 Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara, o manualmente desde la API.
 
+**Arquitectura registry-driven:** Las plataformas se iteran desde `PLATAFORMAS_ACTIVAS` (fuente de verdad en `config/plataformas.js`), no desde bloques hardcodeados. Los scrapers se vinculan por id en el mapa local `SCRAPERS`. Las inactivas se registran con 0 sin invocar el scraper.
+
 ```
- 1. Scraping de LinkedIn
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 2
+ 1. Para cada plataforma activa (PLATAFORMAS_ACTIVAS):
+    ├─ Buscar SCRAPERS[id] → invocar scraper
+    ├─ Si retorna { deshabilitado: true } → registrar 0, sin error
+    ├─ Éxito → acumular ofertas normalizadas
+    └─ Error → loguear, seguir con siguiente plataforma
 
- 2. Scraping de Computrabajo
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 3
+ 2. Para cada plataforma inactiva (PLATAFORMAS donde activa=false):
+    └─ Registrar 0 ofertas, marcar paso completado, NO invocar scraper
 
- 3. Scraping de Indeed
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 4
-
- 4. Scraping de Bumeran
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 5
-
- 5. Scraping de Glassdoor
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 6
-
- 6. Scraping de GetOnBrd (API pública gratuita, sin Apify)
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 7
-
- 7. Scraping de Jooble (API REST oficial gratuita, requiere API key)
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 8
-
- 8. Google Jobs — DESACTIVADO (consumió USD sin resultados útiles)
-
- 9. Scraping de Remotive (API REST pública gratuita, solo remoto)
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 10
-
-10. Scraping de RemoteOK (API REST pública gratuita, solo remoto)
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 11
-
-11. InfoJobs — DESACTIVADO TEMPORALMENTE (registro de apps suspendido)
-
-12. Scraping de Adzuna (API REST oficial, requiere credenciales)
-    ├─ Éxito → guardar ofertas normalizadas
-    └─ Error → loguear, seguir con paso 13
-
-13. Filtrar ofertas en inglés (detectarIdioma) y guardar en BD
+ 3. Filtrar ofertas en inglés (detectarIdioma) y guardar en BD
     ├─ Descartar ofertas con título/descripción en inglés
     ├─ Por cada oferta: crearOferta() → null si duplicada
     └─ Contar nuevas vs. duplicadas, descartadas por idioma
 
-14. Evaluar ofertas pendientes con DeepSeek
+ 4. Evaluar ofertas pendientes con DeepSeek
     ├─ Éxito → resumen de aprobadas/rechazadas
     └─ Error → loguear
 
-15. Enviar notificación por email (soft-disable si SMTP no configurado)
+ 5. Enviar notificación por email (soft-disable si SMTP no configurado)
     └─ Fire-and-forget: no bloquea el ciclo si falla
 
-16. Registrar resultado en estado del servicio
+ 6. Registrar resultado en estado del servicio
 ```
+
+### Plataformas actuales (definidas en `config/plataformas.js`)
+
+| Plataforma | id | Activa | Scraper |
+|---|---|---|---|
+| LinkedIn | `linkedin` | Sí | `ejecutarScrapingLinkedin` |
+| Computrabajo | `computrabajo` | Sí | `ejecutarScrapingComputrabajo` |
+| Indeed | `indeed` | Sí | `ejecutarScrapingIndeed` |
+| Bumeran | `bumeran` | Sí | `ejecutarScrapingBumeran` |
+| Glassdoor | `glassdoor` | Sí | `ejecutarScrapingGlassdoor` |
+| GetOnBrd | `getonbrd` | Sí | `ejecutarScrapingGetonbrd` |
+| Jooble | `jooble` | Sí | `ejecutarScrapingJooble` |
+| Remotive | `remotive` | Sí | `ejecutarScrapingRemotive` |
+| RemoteOK | `remoteok` | Sí | `ejecutarScrapingRemoteOK` |
+| Adzuna | `adzuna` | Sí | `ejecutarScrapingAdzuna` (puede retornar `{deshabilitado:true}`) |
+| Google Jobs | `google_jobs` | No | — (no se invoca) |
+| InfoJobs | `infojobs` | No | — (no se invoca) |
+
+Para activar/desactivar una plataforma, solo hay que cambiar `activa: true/false` en `config/plataformas.js`. El ciclo se adapta automáticamente sin tocar `servicio-automatizacion.js`.
 
 ### Diseño resiliente
 
-- Si LinkedIn falla, sigue con Computrabajo.
-- Si Computrabajo falla, sigue con Indeed.
-- Si Indeed falla, sigue con Bumeran.
-- Si Bumeran falla, sigue con Glassdoor.
-- Si Glassdoor falla, sigue con GetOnBrd.
-- Si GetOnBrd falla, sigue con Jooble.
-- Si Jooble falla, sigue con Remotive.
-- Si Remotive falla, sigue con RemoteOK.
-- Si RemoteOK falla, sigue con Adzuna.
-- Si Adzuna falla, sigue con el guardado.
+- Cada plataforma activa se ejecuta en un `try/catch` independiente dentro de un loop.
+- Si una plataforma falla, el ciclo sigue con la siguiente.
+- Las plataformas inactivas se registran con 0 ofertas sin invocar scraper.
+- Adzuna puede retornar `{ deshabilitado: true }` si faltan credenciales → se registra como 0 sin error.
+- Si una plataforma activa no tiene función en `SCRAPERS`, se reporta error de configuración y se continúa.
 - Si la evaluación falla, el scraping ya se guardó.
 - Si el email falla, el ciclo se completa igual (soft-disable).
 - **Un error parcial nunca tira abajo todo el ciclo.**
@@ -132,6 +113,8 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
 {
     exito: true,
     scraping: {
+        // Una clave por cada plataforma del registry (activa e inactiva).
+        // Derivado automáticamente de PLATAFORMAS en config/plataformas.js.
         linkedin: 20,              // Ofertas extraídas de LinkedIn
         computrabajo: 15,          // Ofertas extraídas de Computrabajo
         indeed: 12,                // Ofertas extraídas de Indeed
@@ -139,10 +122,10 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
         glassdoor: 11,             // Ofertas extraídas de Glassdoor
         getonbrd: 9,               // Ofertas extraídas de GetOnBrd
         jooble: 5,                 // Ofertas extraídas de Jooble
-        google_jobs: 0,            // Desactivado (siempre 0)
+        google_jobs: 0,            // Desactivado (siempre 0, no se invoca)
         remotive: 7,               // Ofertas extraídas de Remotive
         remoteok: 4,              // Ofertas extraídas de RemoteOK
-        infojobs: 0,               // Desactivado temporalmente (siempre 0)
+        infojobs: 0,               // Desactivado (siempre 0, no se invoca)
         adzuna: 6,                 // Ofertas extraídas de Adzuna (o 0 si deshabilitado)
         totalExtraidas: 97,        // Total extraído
         guardadas: 55,             // Nuevas (sin duplicadas)
