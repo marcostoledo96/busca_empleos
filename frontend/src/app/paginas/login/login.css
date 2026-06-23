@@ -5,9 +5,6 @@
  * Usa los design tokens globales de styles.css — dark/light automático.
  */
 
-/* === Fuentes === */
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&display=swap');
-
 /* === Reset local === */
 :host {
     display: block;
