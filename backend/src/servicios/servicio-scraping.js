@@ -537,6 +537,7 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
         termino: opciones.checkpointInicial?.termino || null,
         pagina_confirmada: opciones.checkpointInicial?.pagina_confirmada || 0,
         pagina_siguiente: opciones.checkpointInicial?.pagina_siguiente || 1,
+        item_offset: opciones.checkpointInicial?.item_offset || 0,
     };
     const resultado = {
         run_id: randomUUID(), estado: guardia.permitido ? 'completado' : 'bloqueado',
@@ -555,6 +556,7 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
     const urlsVistas = new Set();
     const limiteFecha = ahora.getTime() - 30 * 24 * 60 * 60 * 1000;
     const inicio = Date.now();
+    let paginasProcesadas = 0;
     const terminar = (estado, motivo) => {
         resultado.estado = estado;
         resultado.motivo_terminacion = motivo;
@@ -566,7 +568,6 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
         const termino = terminos[indice];
         let pagina = indice === checkpoint.termino_indice ? checkpoint.pagina_siguiente : 1;
         let techoTotalPaginas = Infinity;
-        let paginasProcesadas = 0;
 
         while (pagina <= techoTotalPaginas && paginasProcesadas < limitePaginas) {
             if (opciones.signal?.aborted) return terminar('cancelado', 'cancelacion');
@@ -584,16 +585,36 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
                 opciones.signal?.removeEventListener('abort', cancelarExterno);
                 return terminar(opciones.signal?.aborted ? 'cancelado' : 'parcial', opciones.signal?.aborted ? 'cancelacion' : 'timeout');
             }
-            clearTimeout(temporizador);
-            opciones.signal?.removeEventListener('abort', cancelarExterno);
-            if (opciones.signal?.aborted) return terminar('cancelado', 'cancelacion');
-            if (!respuesta?.ok) return terminar('parcial', 'error_http');
+            if (opciones.signal?.aborted) {
+                clearTimeout(temporizador);
+                opciones.signal.removeEventListener('abort', cancelarExterno);
+                return terminar('cancelado', 'cancelacion');
+            }
+            if (!respuesta?.ok) {
+                clearTimeout(temporizador);
+                opciones.signal?.removeEventListener('abort', cancelarExterno);
+                return terminar('parcial', 'error_http');
+            }
             let cuerpo;
             try {
-                cuerpo = await respuesta.json();
+                cuerpo = await Promise.race([
+                    respuesta.json(),
+                    new Promise((_, rechazar) => abortador.signal.addEventListener(
+                        'abort',
+                        () => rechazar(new Error('Solicitud GetOnBrd abortada.')),
+                        { once: true }
+                    )),
+                ]);
             } catch (error) {
+                clearTimeout(temporizador);
+                opciones.signal?.removeEventListener('abort', cancelarExterno);
+                if (abortador.signal.aborted) {
+                    return terminar(opciones.signal?.aborted ? 'cancelado' : 'parcial', opciones.signal?.aborted ? 'cancelacion' : 'timeout');
+                }
                 return terminar('parcial', 'respuesta_invalida');
             }
+            clearTimeout(temporizador);
+            opciones.signal?.removeEventListener('abort', cancelarExterno);
             if (!Array.isArray(cuerpo?.data)) return terminar('parcial', 'respuesta_invalida');
 
             const items = cuerpo.data;
@@ -601,7 +622,12 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
             resultado.metricas.paginas++;
             resultado.metricas.recibidas += items.length;
             techoTotalPaginas = Math.max(1, Number(cuerpo.meta?.total_pages) || 1);
-            for (const item of items) {
+            const itemOffset = indice === checkpoint.termino_indice && pagina === checkpoint.pagina_siguiente
+                ? checkpoint.item_offset
+                : 0;
+            for (let itemIndice = itemOffset; itemIndice < items.length; itemIndice++) {
+                const item = items[itemIndice];
+                checkpoint.item_offset = itemIndice + 1;
                 const [oferta] = normalizarLote([item], 'getonbrd');
                 if (!oferta || !oferta.fecha_publicacion || Number.isNaN(new Date(oferta.fecha_publicacion).getTime())) {
                     resultado.metricas.invalidas++;
@@ -613,15 +639,15 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
                     resultado.metricas.invalidas++;
                     continue;
                 }
+                if (new Date(oferta.fecha_publicacion).getTime() < limiteFecha) {
+                    resultado.metricas.fuera_ventana++;
+                    continue;
+                }
                 if (urlsVistas.has(urlCanonica)) {
                     resultado.metricas.duplicadas_intra_run++;
                     continue;
                 }
                 urlsVistas.add(urlCanonica);
-                if (new Date(oferta.fecha_publicacion).getTime() < limiteFecha) {
-                    resultado.metricas.fuera_ventana++;
-                    continue;
-                }
                 oferta.url = urlCanonica;
                 resultado.ofertas.push(oferta);
                 resultado.metricas.dentro_ventana++;
@@ -629,14 +655,20 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
             }
             checkpoint.termino_indice = indice;
             checkpoint.termino = termino;
-            checkpoint.pagina_confirmada = pagina;
-            checkpoint.pagina_siguiente = pagina + 1;
+            if (checkpoint.item_offset >= items.length) {
+                checkpoint.pagina_confirmada = pagina;
+                checkpoint.pagina_siguiente = pagina + 1;
+                checkpoint.item_offset = 0;
+            }
             if (opciones.alConfirmarCheckpoint) await opciones.alConfirmarCheckpoint({ ...checkpoint });
+            if (resultado.ofertas.length >= limiteItems) return terminar('parcial', 'limite_items');
+            if (paginasProcesadas >= limitePaginas && (pagina < techoTotalPaginas || indice < terminos.length - 1)) {
+                return terminar('parcial', 'limite_paginas');
+            }
             if (items.length === 0) {
                 if (indice < terminos.length - 1) continue terminosPendientes;
                 return terminar('completado', 'pagina_vacia');
             }
-            if (resultado.ofertas.length >= limiteItems) return terminar('parcial', 'limite_items');
             pagina++;
         }
         if (pagina <= techoTotalPaginas) return terminar('parcial', 'limite_paginas');

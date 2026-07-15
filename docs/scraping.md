@@ -37,8 +37,8 @@ no habilita nada.
   páginas, ítems, normalización, ventana, duplicados, inválidos y latencia.
 - Motivos: `paginas_agotadas`, `pagina_vacia`, `limite_items`, `limite_paginas`, `timeout`,
   `cancelacion`, `error_http`, `respuesta_invalida` o `politica_destino`.
-- El checkpoint avanza solo al confirmar una página procesada; timeout, cancelación y error
-  conservan el último checkpoint confirmado.
+- El checkpoint incluye `item_offset` para reanudar exactamente dentro de una página cuando se
+  alcanza el límite de ítems. Timeout, cancelación y error conservan el último avance procesado.
 
 ### Rollout y rollback
 

@@ -469,7 +469,7 @@ el registry esté inactivo.
         "motivo_terminacion": "politica_destino",
         "destino": "bloqueado",
         "ofertas": [],
-        "checkpoint": { "termino_indice": 0, "termino": null, "pagina_confirmada": 0, "pagina_siguiente": 1 },
+        "checkpoint": { "termino_indice": 0, "termino": null, "pagina_confirmada": 0, "pagina_siguiente": 1, "item_offset": 0 },
         "metricas": { "requests": 0, "paginas": 0, "recibidas": 0, "normalizadas": 0, "dentro_ventana": 0, "fuera_ventana": 0, "duplicadas_intra_run": 0, "invalidas": 0, "latencia_ms": 0 }
     }
 }
