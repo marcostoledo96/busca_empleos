@@ -35,11 +35,6 @@ export class ScrapingService {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/glassdoor`, {});
     }
 
-    // Ejecuta el scraping de GetOnBrd usando su API pública gratuita y guarda en BD.
-    scrapearGetonbrd(): Observable<RespuestaApi<RespuestaScraping>> {
-        return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/getonbrd`, {});
-    }
-
     // Ejecuta el scraping de Jooble usando su API REST oficial y guarda en BD.
     scrapearJooble(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/jooble`, {});

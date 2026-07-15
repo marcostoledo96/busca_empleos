@@ -17,14 +17,35 @@ Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) e
 | Bumeran | apify/web-scraper (genérico + Puppeteer) | `apify/web-scraper` | GRATIS (actor genérico) | — |
 | Glassdoor | cheap_scraper/glassdoor-jobs-scraper-remove-duplicate-jobs | `bYSAbQqxwImLaf2nb` | ~$0.001/resultado + $0.05 fijo | 5.0 (187 usuarios) |
 
-## GetOnBrd — API pública gratuita (sin Apify)
+## GetOnBrd — piloto API-only bloqueado
 
-GetOnBrd es un portal de empleos tech de América Latina que expone una API REST pública y sin autenticación.
+El adaptador está **deshabilitado**: no hace scraping HTML, no usa Apify, no descarga
+producción, no guarda en PostgreSQL y no figura como fuente activa de UI ni cron. El único
+contrato implementado procesa sandbox/fixtures inyectables para validar el flujo.
 
-**URL base:** `https://www.getonbrd.com/api/v0`
-**Endpoint:** `GET /search/jobs?query={termino}&page={n}`
-**Costo:** Gratuito, sin API key, sin Apify.
-**Paginación:** `meta.total_pages` indica el total de páginas; 120 items por página.
+La guarda acepta únicamente `https://sandbox.getonbrd.test/api/v0`. Cualquier otro host se
+deniega antes de invocar al cliente. La producción requerirá en el futuro `GETONBRD_ENABLED=true`
+**y** evidencia auditable con `evidence_id`, `received_at`, `allowed_host`, `scope` que incluya
+`GET /api/v0/search/jobs`, `valid_until` vigente y `document_sha256` válido. El booleano aislado
+no habilita nada.
+
+### Límites y resultado del piloto
+
+- `per_page=120`, hasta 10 páginas, 1.200 ítems y 5 segundos por solicitud.
+- Ventana de 30 días; la URL pública canónica deduplica dentro de la corrida.
+- El resultado incluye `run_id`, estado, motivo, checkpoint serializable y métricas de requests,
+  páginas, ítems, normalización, ventana, duplicados, inválidos y latencia.
+- Motivos: `paginas_agotadas`, `pagina_vacia`, `limite_items`, `limite_paginas`, `timeout`,
+  `cancelacion`, `error_http`, `respuesta_invalida` o `politica_destino`.
+- El checkpoint incluye `item_offset` para reanudar exactamente dentro de una página cuando se
+  alcanza el límite de ítems. Timeout, cancelación y error conservan el último avance procesado.
+
+### Rollout y rollback
+
+No habilitar producción sin autorización escrita verificable revisada fuera del código. El rollout
+debe empezar con sandbox y conservar la evidencia junto al cambio de configuración. Para rollback,
+mantener `activa: false`, retirar cualquier configuración de evidencia y deshabilitar el endpoint;
+no hay datos productivos que borrar.
 
 ### Estructura de la respuesta
 
@@ -74,28 +95,20 @@ Cada item de búsqueda devuelve objetos con esta estructura:
 | `"4"` / `"5"` | `'senior'` |
 | Otro | `null` |
 
-### Flujo del scraping (`ejecutarScrapingGetonbrd`)
+### Flujo del piloto (`ejecutarScrapingGetonbrd`)
 
-```
-1. Por cada término de búsqueda:
-   a. Página 1: GET /search/jobs?query={termino}&page=1
-   b. Leer meta.total_pages para saber cuántas páginas hay
-   c. Paginar mientras haya más páginas Y no se llegue a maxResultados
-2. Acumular todos los items crudos
-3. Normalizar con normalizarLote(items, 'getonbrd')
-4. Retornar ofertas normalizadas
-```
-
-**Diferencia clave con los otros scrapers:** No usa Apify ni `apify-client`. Usa `fetch()` nativo de Node.js 22.
+El servicio valida el destino antes de invocar el cliente inyectado. Cada página válida se
+normaliza, se filtra por 30 días, se deduplica por URL canónica y confirma el checkpoint. Nunca
+llama a `crearOferta`; el endpoint actual permanece bloqueado y responde el contrato vacío.
 
 ## Archivos involucrados
 
 | Archivo | Responsabilidad |
 |---------|----------------|
-| `backend/src/config/apify.js` | Cliente Apify, IDs de actores, términos de búsqueda, construcción de URLs. |
-| `backend/src/servicios/servicio-scraping.js` | Orquesta scraping: llama al actor, espera resultados, pasa a normalización. |
+| `backend/src/config/getonbrd.js` | Guarda deny-by-default, límites y evidencia de autorización. |
+| `backend/src/servicios/servicio-scraping.js` | Procesa cliente inyectable, normalización, checkpoints y métricas sin persistencia. |
 | `backend/src/servicios/servicio-normalizacion.js` | Transforma datos crudos de cada plataforma al formato de la tabla `ofertas`. |
-| `backend/src/controladores/controlador-scraping.js` | Recibe request HTTP, llama al servicio, guarda en BD, responde con resumen. |
+| `backend/src/controladores/controlador-scraping.js` | Responde el contrato bloqueado de GetOnBrd sin invocar cliente ni BD. |
 
 ## Términos de búsqueda
 
@@ -350,6 +363,7 @@ El registry de plataformas (`backend/src/config/plataformas.js`) define qué pla
 |------------|-----|-----------|--------|
 | Google Jobs | `google_jobs` | `google-jobs` | Desactivado por costo y baja utilidad |
 | InfoJobs | `infojobs` | `infojobs` | Portal developers suspendido |
+| GetOnBrd | `getonbrd` | `getonbrd` | Piloto API-only sin autorización verificable |
 
 **Comportamiento cuando se invoca una plataforma inactiva:**
 

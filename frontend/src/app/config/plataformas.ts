@@ -81,7 +81,8 @@ export const PLATAFORMAS: Record<string, PlataformaConfig> = {
         id: 'getonbrd',
         slugHttp: 'getonbrd',
         label: 'GetOnBrd',
-        activa: true,
+        activa: false,
+        motivo: 'Piloto API-only deshabilitado hasta contar con autorización escrita verificable',
     },
     jooble: {
         id: 'jooble',

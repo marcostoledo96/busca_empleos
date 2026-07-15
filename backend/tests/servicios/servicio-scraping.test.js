@@ -629,7 +629,8 @@ describe('Servicio de scraping', () => {
             await ejecutarScrapingGetonbrd({ terminos: ['qa tester'] });
 
             expect(global.fetch).toHaveBeenCalledWith(
-                expect.stringContaining('qa%20tester')
+                expect.stringContaining('qa%20tester'),
+                expect.objectContaining({ signal: expect.any(Object) })
             );
         });
 
@@ -641,11 +642,10 @@ describe('Servicio de scraping', () => {
 
             const resultado = await ejecutarScrapingGetonbrd({ terminos: ['frontend'] });
 
-            expect(resultado).toBeInstanceOf(Array);
-            expect(resultado.length).toBe(1);
-            expect(resultado[0].plataforma).toBe('getonbrd');
-            expect(resultado[0].titulo).toBe('Frontend Developer Junior');
-            expect(resultado[0].modalidad).toBe('remoto');
+            expect(resultado.ofertas).toHaveLength(1);
+            expect(resultado.ofertas[0].plataforma).toBe('getonbrd');
+            expect(resultado.ofertas[0].titulo).toBe('Frontend Developer Junior');
+            expect(resultado.ofertas[0].modalidad).toBe('remoto');
         });
 
         test('pagina hasta llegar a maxResultados', async () => {
@@ -666,9 +666,8 @@ describe('Servicio de scraping', () => {
             // Con maxResultados=50, debe procesar las 3 páginas (1 item c/u).
             const resultado = await ejecutarScrapingGetonbrd({ terminos: ['qa'], maxResultados: 50 });
 
-            // 3 páginas × 1 item = 3 items (aunque la URL puede estar duplicada).
-            // El servicio normaliza todos; la deduplicación real es por BD.
-            expect(resultado.length).toBeGreaterThanOrEqual(1);
+            // El contrato del piloto retiene ofertas únicas y devuelve métricas.
+            expect(resultado.ofertas.length).toBeGreaterThanOrEqual(1);
             expect(global.fetch).toHaveBeenCalledTimes(3);
         });
 
@@ -684,16 +683,17 @@ describe('Servicio de scraping', () => {
                 terminos: ['termino-que-falla', 'frontend'],
             });
 
-            // El primer término falló, el segundo dio 1 oferta.
-            expect(resultado.length).toBe(1);
+            expect(resultado).toMatchObject({ estado: 'parcial', motivo_terminacion: 'error_http' });
+            expect(global.fetch).toHaveBeenCalledTimes(1);
         });
 
         test('tira error descriptivo si fetch lanza excepción', async () => {
             global.fetch.mockRejectedValue(new Error('Network error'));
 
-            await expect(ejecutarScrapingGetonbrd()).rejects.toThrow(
-                'Error al ejecutar scraping de GetOnBrd'
-            );
+            await expect(ejecutarScrapingGetonbrd()).resolves.toMatchObject({
+                estado: 'parcial',
+                motivo_terminacion: 'timeout',
+            });
         });
     });
 

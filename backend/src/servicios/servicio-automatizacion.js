@@ -46,7 +46,6 @@ const SCRAPERS = {
     indeed: servicioScraping.ejecutarScrapingIndeed,
     bumeran: servicioScraping.ejecutarScrapingBumeran,
     glassdoor: servicioScraping.ejecutarScrapingGlassdoor,
-    getonbrd: servicioScraping.ejecutarScrapingGetonbrd,
     jooble: servicioScraping.ejecutarScrapingJooble,
     remotive: servicioScraping.ejecutarScrapingRemotive,
     remoteok: servicioScraping.ejecutarScrapingRemoteOK,

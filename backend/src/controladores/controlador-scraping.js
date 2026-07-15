@@ -222,41 +222,23 @@ async function scrapearGlassdoor(req, res) {
 
 /**
  * POST /api/scraping/getonbrd
- * Ejecuto el scraping de GetOnBrd usando su API pública y guardo las ofertas en la BD.
- *
- * A diferencia de los otros endpoints, este no usa Apify: llama directo a la API
- * REST de GetOnBrd (gratuita, sin autenticación).
- *
- * Body opcional:
- * - maxResultados: número máximo de ofertas a extraer (default: 50)
- * - terminos: array de términos de búsqueda personalizados
+ * Devuelvo el contrato bloqueado mientras el piloto permanece sin autorización.
+ * No invoco cliente externo ni persisto ofertas.
  */
 async function scrapearGetonbrd(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
-
-    const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGetonbrd(opciones);
-
-    let guardadas = 0;
-    let duplicadas = 0;
-
-    for (const oferta of ofertasNormalizadas) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
-
     res.json({
         exito: true,
         datos: {
-            mensaje: `Scraping de GetOnBrd completado: ${guardadas} ofertas nuevas.`,
-            plataforma: 'getonbrd',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
+            run_id: null,
+            estado: 'bloqueado',
+            motivo_terminacion: 'politica_destino',
+            destino: 'bloqueado',
+            ofertas: [],
+            checkpoint: { termino_indice: 0, termino: null, pagina_confirmada: 0, pagina_siguiente: 1 },
+            metricas: {
+                requests: 0, paginas: 0, recibidas: 0, normalizadas: 0, dentro_ventana: 0,
+                fuera_ventana: 0, duplicadas_intra_run: 0, invalidas: 0, latencia_ms: 0,
+            },
         },
     });
 }

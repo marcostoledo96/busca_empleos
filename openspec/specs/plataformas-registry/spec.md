@@ -8,14 +8,14 @@ Centralizar las plataformas soportadas y su estado operativo para evitar diverge
 
 ### Requirement: Registry como fuente de verdad
 
-El sistema MUST definir una fuente de verdad de plataformas con, como mínimo, identificador interno, slug público, nombre visible y flag `activa`. Google Jobs e InfoJobs MUST permanecer registradas con `activa=false` y MUST NOT eliminarse del dominio.
+El sistema MUST definir una fuente de verdad de plataformas con, como mínimo, identificador interno, slug público, nombre visible y flag `activa`. Google Jobs, InfoJobs y GetOnBrd MUST permanecer registradas con `activa=false` y MUST NOT eliminarse del dominio.
 
 #### Scenario: plataformas desactivadas preservadas
 
 - GIVEN se consulta el registry de plataformas
 - WHEN se listan todas las plataformas conocidas
-- THEN Google Jobs e InfoJobs MUST existir
-- AND ambas MUST tener `activa=false`.
+- THEN Google Jobs, InfoJobs y GetOnBrd MUST existir
+- AND las tres MUST tener `activa=false`.
 
 #### Scenario: metadata mínima completa
 
@@ -42,7 +42,7 @@ El backend y el frontend MUST usar el mismo identificador interno para persisten
 
 ### Requirement: Plataformas inactivas no disponibles para scraping activo
 
-La UI y el backend MUST NOT ofrecer plataformas con `activa=false` como opciones activas para iniciar scraping. El sistema MAY mostrarlas como desactivadas si queda claro que no ejecutan scraping.
+La UI y el backend MUST NOT ofrecer plataformas con `activa=false` como opciones activas para iniciar scraping. GetOnBrd MUST NOT ejecutarse si está inactiva o sin autorización escrita verificable. El sistema MAY mostrarla como desactivada si queda claro que no ejecuta scraping.
 
 #### Scenario: UI oculta o deshabilita inactivas
 

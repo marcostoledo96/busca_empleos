@@ -55,6 +55,17 @@ El servicio de automatización MUST derivar plataformas ejecutables, pasos de pr
 - THEN `resultado.scraping` MUST incluir una clave por plataforma registrada
 - AND cada clave MUST contener la cantidad extraída o `0` si no ejecutó o falló.
 
+### Requirement: GetOnBrd excluido del ciclo operativo
+
+GetOnBrd MUST permanecer fuera de las plataformas activas, del cron y de los ciclos reales hasta contar con autorización escrita verificable. El ciclo MUST registrar `getonbrd: 0` sin realizar scraping externo cuando permanezca inactiva.
+
+#### Scenario: GetOnBrd no se ejecuta
+
+- GIVEN GetOnBrd está inactiva o no tiene autorización válida
+- WHEN se ejecuta el ciclo de automatización
+- THEN MUST NOT invocar su scraper
+- AND `resultado.scraping.getonbrd` MUST ser `0`.
+
 ### Requirement: Progreso compatible y ponderado por plataformas activas
 
 El progreso expuesto por automatización MUST conservar la forma actual de cada paso: identificador, etiqueta, estado y cantidad extraída cuando corresponda. Los pesos de scraping MUST distribuirse entre las plataformas activas ejecutables, preservando los pasos fijos de evaluación y guardado para completar 100%.
