@@ -61,6 +61,8 @@ export interface Preferencias {
     nivel_real_seniority?: string | null;
     conocimientos_ausentes?: string[];
     limitaciones_explicitas?: string | null;
+    priorizar_ofertas_ia?: boolean;
+    bonus_maximo_prioridad_ia?: number;
 }
 
 // Campos actualizables. Excluyo id, fecha_creacion y fecha_actualizacion

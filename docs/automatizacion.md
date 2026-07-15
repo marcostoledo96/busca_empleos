@@ -254,3 +254,9 @@ El email se envía en formato HTML con fallback a texto plano. Los datos dinámi
 - [Evaluación IA](evaluacion-ia.md) — Paso 14 del ciclo completo.
 - [API REST](api-rest.md) — Endpoints de automatización.
 - [Frontend](frontend.md) — Cómo el dashboard controla el cron.
+
+## Cobertura de scraping diferida
+
+El piloto de cobertura GetOnBrd, la migración 019 y sus checkpoints/métricas quedan fuera de
+esta entrega por falta de evidencia contractual registrada. No se modificó el cron semanal
+`0 20 * * 2`, no se habilitó ningún piloto y no se declara cobertura externa absoluta.

@@ -310,6 +310,7 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 - **Números duplicados:** Hay dos migraciones 008 (`migracion-008-preferencias-detalladas.sql` y `migracion-008-error-evaluacion.sql`) y dos migraciones 009 (`migracion-009-cache-evaluaciones.sql` y `migracion-009-scoring-previo.sql`). El runner las procesa en orden alfabético, que coincide con el orden cronológico porque los sufijos desambiguan. **No renombrar migraciones ya aplicadas** — rompería el tracking en `schema_migrations`.
 - **Migración 016 — Destructiva:** Elimina columnas e índices legacy de scoring. Los datos contenidos en `score_previo`, `analisis_previo`, `scoring_version` y `scoring_config` se pierden de forma irreversible. No hay rollback automático para `DROP COLUMN`.
 - **Migración 017 — Preflight:** Antes de crear la constraint de rango salarial, la migración cuenta filas donde `salario_min > salario_max` (ambos no NULL). Si hay filas inválidas, la migración falla con un mensaje descriptivo indicando cuántas filas hay que corregir. No modifica datos.
+- **Migración 018 — Prioridad IA:** Es aditiva e idempotente. Agrega campos de señal y evidencia a `ofertas`, y la preferencia desactivada por defecto en `preferencias`; no reescribe match, porcentajes ni exclusiones.
 
 ### Rollback
 
@@ -319,6 +320,7 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 | 016 | No hay rollback automático. Restaurar desde backup o recrear columnas manualmente. |
 | 014-015 | Los índices y tablas se pueden eliminar con `DROP INDEX IF EXISTS` / `DROP TABLE IF EXISTS`. |
 | Runner | Revertir `migrar.js` al commit anterior. La tabla `schema_migrations` creada por bootstrap es compatible y esperada. |
+| 018 | Desactivar `priorizar_ofertas_ia`; las columnas y evidencias se conservan. |
 
 ## Documentos relacionados
 

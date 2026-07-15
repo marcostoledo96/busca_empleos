@@ -38,6 +38,9 @@ export interface Oferta {
     fecha_publicacion: string | null;
     fecha_extraccion: string;
     datos_crudos: Record<string, unknown> | null;
+    prioridad_ia?: boolean;
+    puntaje_prioridad_ia?: number;
+    evidencias_prioridad_ia?: string[];
 }
 
 // Estadísticas agregadas del total de ofertas.

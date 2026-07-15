@@ -132,11 +132,20 @@ function parsearRespuestaEvaluacionIa(respuestaTexto) {
             : RAZON_FALLBACK_NO_MATCH;
     }
 
+    const prioridadValida = typeof respuesta.prioridad_ia === 'boolean';
+    const evidenciasValidas = Array.isArray(respuesta.evidencias_prioridad_ia)
+        && respuesta.evidencias_prioridad_ia.length <= 3
+        && respuesta.evidencias_prioridad_ia.every((evidencia) => typeof evidencia === 'string');
+
     // Paso 6: Retornar resultado validado y normalizado.
     return {
         match: respuesta.match,
         porcentaje,
         razon,
+        prioridad_ia: prioridadValida ? respuesta.prioridad_ia : false,
+        evidencias_prioridad_ia: evidenciasValidas
+            ? respuesta.evidencias_prioridad_ia.map((evidencia) => evidencia.slice(0, 120))
+            : [],
     };
 }
 

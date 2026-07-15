@@ -221,6 +221,19 @@ mostrar búsquedas previas aunque el backend no pueda responder en ese momento.
 | `guardarCache(cache)` | Persiste ofertas + fecha de guardado en `localStorage` (las estadísticas se recalculan desde las ofertas) |
 | `leerCache()` | Rehidrata el dashboard con la última carga válida |
 
+Para la sincronización por cursor, el servicio conserva bloques confirmados por ID usando
+IndexedDB nativo. Si IndexedDB no existe, falla la transacción o se agota la cuota, usa un
+`Map` en memoria y muestra el fallback. El dashboard informa progreso, permite cancelar y
+reanuda desde los bloques confirmados sin duplicarlos. Para cada snapshot mantiene en memoria
+un estado operativo con `en_progreso`, `cancelada`, `completada` o `fallida`, más `fecha_corte`,
+`max_id`, `total_inicial`, IDs únicos recibidos y duplicados. La cancelación conserva el cursor
+confirmado y esos conteos; solo pasa a `completada` cuando los únicos igualan el total inicial.
+El bloque accesible del dashboard anuncia esos valores y nunca comunica éxito para `cancelada`.
+
+El badge `PRIORIDAD_IA` y sus evidencias se muestran como texto seguro en tabla y detalle. Solo
+se aplica su bonus de orden cuando la API devuelve `priorizar_ofertas_ia: true`; ante fallo de
+esa lectura conserva el orden habitual.
+
 ## Componentes
 
 ### Patrón container-presentational

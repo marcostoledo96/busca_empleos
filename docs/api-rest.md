@@ -144,6 +144,34 @@ Retorna contadores agrupados por estado de evaluación **de los últimos 30 día
 }
 ```
 
+### GET /api/ofertas/sincronizacion
+
+Transfiere una proyección liviana de las ofertas de los últimos 30 días por bloques. Requiere
+`limite` entero entre 100 y 500 (default 500) y un `cursor` opaco opcional retornado por el
+bloque previo.
+
+```json
+{
+  "exito": true,
+  "datos": [{ "id": 42, "titulo": "...", "prioridad_ia": true }],
+  "total": 10000,
+  "fecha_corte": "2026-06-15T00:00:00.000Z",
+  "max_id": 10000,
+  "total_inicial": 10000,
+  "cursor_siguiente": "cursor-opaco-o-null",
+  "completada": false
+}
+```
+
+El primer bloque fija `fecha_corte`, `max_id` y `total_inicial` (igual a `total` por compatibilidad)
+para todo el snapshot. El cursor es opaco: la respuesta nunca expone su `firma`, `ultimo_id`,
+expiración ni otros datos internos. Inserciones
+posteriores quedan fuera; si un borrado o actualización invalida la firma, responde `409` con
+`exito: false` y `codigo: "SINCRONIZACION_INVALIDADA"`. Cursor inválido o vencido responde `400`
+con `exito: false`. El cliente
+debe descartar ese snapshot y reiniciarlo; el endpoint histórico `GET /api/ofertas` permanece
+como fallback.
+
 ### GET /api/ofertas/diagnostico/persistencia
 
 Retorna un diagnóstico mínimo de la conexión PostgreSQL visible desde la API.

@@ -4,8 +4,9 @@ import { PersistenciaDashboardService } from './persistencia-dashboard.service';
 describe('PersistenciaDashboardService', () => {
     let servicio: PersistenciaDashboardService;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         servicio = new PersistenciaDashboardService();
+        await servicio.limpiarSincronizacion();
         localStorage.clear();
     });
 
@@ -105,5 +106,48 @@ describe('PersistenciaDashboardService', () => {
         const cache = servicio.leerCache();
         expect(cache).not.toBeNull();
         expect(cache?.ofertas.length).toBe(1);
+    });
+
+    it('deduplica bloques en memoria cuando IndexedDB no está disponible', async () => {
+        const original = (globalThis as { indexedDB?: IDBFactory }).indexedDB;
+        Object.defineProperty(globalThis, 'indexedDB', { value: undefined, configurable: true });
+        const oferta = { id: 7, titulo: 'Oferta IA' } as Oferta;
+
+        const resultado = await servicio.guardarBloqueSincronizacion([oferta, oferta]);
+
+        expect(resultado.fallback).toBeTrue();
+        expect(resultado.total).toBe(1);
+        expect(await servicio.obtenerOfertasSincronizadas()).toEqual([oferta]);
+        Object.defineProperty(globalThis, 'indexedDB', { value: original, configurable: true });
+    });
+
+    it('rehidrata desde IndexedDB después de recrear el servicio sin duplicar ofertas', async () => {
+        const oferta = { id: 8, titulo: 'Oferta persistida' } as Oferta;
+        await servicio.guardarBloqueSincronizacion([oferta, oferta]);
+
+        const servicioRecargado = new PersistenciaDashboardService();
+        const ofertas = await servicioRecargado.obtenerOfertasSincronizadas();
+
+        expect(ofertas).toEqual([oferta]);
+    });
+
+    it('limpia IndexedDB antes de guardar y rehidratar un snapshot nuevo', async () => {
+        const ofertaAnterior = { id: 801, titulo: 'Snapshot anterior' } as Oferta;
+        const ofertaNueva = { id: 802, titulo: 'Snapshot nuevo' } as Oferta;
+        await servicio.guardarBloqueSincronizacion([ofertaAnterior]);
+
+        await servicio.limpiarSincronizacion();
+        await servicio.guardarBloqueSincronizacion([ofertaNueva]);
+
+        const servicioRecargado = new PersistenciaDashboardService();
+        expect(await servicioRecargado.obtenerOfertasSincronizadas()).toEqual([ofertaNueva]);
+    });
+
+    it('conserva el Map si falla la lectura de IndexedDB', async () => {
+        const oferta = { id: 9, titulo: 'Oferta en memoria' } as Oferta;
+        await servicio.guardarBloqueSincronizacion([oferta]);
+        spyOn(servicio as any, 'abrirBaseSincronizacion').and.rejectWith(new Error('IndexedDB no disponible'));
+
+        expect(await servicio.obtenerOfertasSincronizadas()).toEqual([oferta]);
     });
 });

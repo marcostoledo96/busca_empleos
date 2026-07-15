@@ -3,7 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Oferta, Estadisticas, PlataformaId } from '../modelos/oferta.model';
-import { RespuestaApi } from '../modelos/respuesta-api.model';
+import { RespuestaApi, RespuestaSincronizacionOfertas } from '../modelos/respuesta-api.model';
 
 // Filtros opcionales para la consulta de ofertas.
 // El campo `plataforma` usa el id interno del registry (snake_case),
@@ -51,6 +51,12 @@ export class OfertasService {
     // Obtiene una oferta por su ID.
     obtenerOfertaPorId(id: number): Observable<RespuestaApi<Oferta>> {
         return this.http.get<RespuestaApi<Oferta>>(`${this.urlBase}/${id}`);
+    }
+
+    obtenerBloqueSincronizacion(limite = 500, cursor?: string | null): Observable<RespuestaSincronizacionOfertas<Oferta>> {
+        let params = new HttpParams().set('limite', limite);
+        if (cursor) params = params.set('cursor', cursor);
+        return this.http.get<RespuestaSincronizacionOfertas<Oferta>>(`${this.urlBase}/sincronizacion`, { params });
     }
 
     // Actualiza el estado de postulación de una oferta.

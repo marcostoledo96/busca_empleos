@@ -179,6 +179,67 @@ describe('Controlador de ofertas', () => {
         });
     });
 
+    describe('GET /api/ofertas/sincronizacion', () => {
+        test('valida el límite y retorna el bloque con cursor', async () => {
+            modeloOferta.obtenerBloqueSincronizacion.mockResolvedValue({
+                datos: [{ id: 3, titulo: 'Oferta liviana' }],
+                total: 1,
+                fecha_corte: '2026-06-15T00:00:00.000Z',
+                max_id: 3,
+                total_inicial: 1,
+                cursor_siguiente: null,
+                completada: true,
+            });
+
+            const res = await request(app).get('/api/ofertas/sincronizacion?limite=500');
+
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual(expect.objectContaining({
+                exito: true,
+                total: 1,
+                fecha_corte: '2026-06-15T00:00:00.000Z',
+                max_id: 3,
+                total_inicial: 1,
+                completada: true,
+            }));
+            expect(res.body).not.toHaveProperty('firma');
+            expect(res.body).not.toHaveProperty('ultimo_id');
+            expect(modeloOferta.obtenerBloqueSincronizacion).toHaveBeenCalledWith({ limite: 500, cursor: undefined });
+        });
+
+        test('rechaza límites fuera del contrato 100 a 500', async () => {
+            const res = await request(app).get('/api/ofertas/sincronizacion?limite=20');
+            expect(res.status).toBe(400);
+            expect(modeloOferta.obtenerBloqueSincronizacion).not.toHaveBeenCalled();
+        });
+
+        test('mapea una mutación concurrente a 409 controlado', async () => {
+            const error = new Error('La sincronización fue invalidada por cambios concurrentes.');
+            error.codigo = 'SINCRONIZACION_INVALIDADA';
+            modeloOferta.obtenerBloqueSincronizacion.mockRejectedValue(error);
+
+            const res = await request(app).get('/api/ofertas/sincronizacion?limite=500&cursor=cursor');
+
+            expect(res.status).toBe(409);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.codigo).toBe('SINCRONIZACION_INVALIDADA');
+        });
+
+        test('retorna error sin éxito para un cursor inválido', async () => {
+            const error = new Error('Cursor de sincronización inválido o vencido.');
+            error.codigo = 'CURSOR_SINCRONIZACION_INVALIDO';
+            modeloOferta.obtenerBloqueSincronizacion.mockRejectedValue(error);
+
+            const res = await request(app).get('/api/ofertas/sincronizacion?limite=500&cursor=invalido');
+
+            expect(res.status).toBe(400);
+            expect(res.body).toEqual(expect.objectContaining({
+                exito: false,
+                codigo: 'CURSOR_SINCRONIZACION_INVALIDO',
+            }));
+        });
+    });
+
     describe('GET /api/ofertas/diagnostico/persistencia', () => {
         test('retorna el diagnostico sanitizado cuando está habilitado', async () => {
             // Simulamos que el diagnóstico está habilitado

@@ -281,3 +281,16 @@ También se aplican al leer resultados cacheados en `evaluarOfertasPendientes()`
 - [Base de datos](base-de-datos.md) — Columnas `estado_evaluacion` y `razon_evaluacion`.
 - [API REST](api-rest.md) — Endpoint POST `/api/evaluacion/ejecutar`.
 - [Automatización](automatizacion.md) — Cómo el cron dispara evaluación después del scraping.
+
+## Prioridad IA explicable
+
+La migración 018 agrega una señal de ranking separada de la evaluación: `prioridad_ia`,
+`puntaje_prioridad_ia` (0 a 6), hasta tres evidencias textuales y la versión de política.
+El detector local reconoce términos concretos como Claude Code, Copilot, LLM, IA generativa,
+prompt engineering y Next.js; ignora `ai` aislado y menciones negadas. Esta señal nunca cambia
+`match`, `porcentaje_match`, exclusiones ni la razón de rechazo.
+
+La preferencia `priorizar_ofertas_ia` está desactivada por defecto. Al activarla solo ordena
+ofertas por `porcentaje_match + min(puntaje_prioridad_ia, bonus_maximo_prioridad_ia)`; al
+desactivarla se restaura el orden existente sin borrar datos. El cache incluye
+`prioridad-ia-v1`, por lo que no reutiliza una política anterior.

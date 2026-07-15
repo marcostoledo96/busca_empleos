@@ -24,6 +24,7 @@ const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
 const { evaluarReglasExclusion } = require('./evaluacion/reglas-exclusion');
+const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
 
 // Progreso de la evaluación en curso.
 // ¿Por qué un objeto en memoria y no en la BD? Porque el progreso es efímero:
@@ -428,10 +429,12 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         // Si la IA dijo match:false con porcentaje bajo, las reglas también
         // pueden enriquecer la razón si detectan algo que la IA no mencionó.
         // Pero no sobreescribimos si ya fue rechazada — dejamos la razón de la IA.
+        const prioridadIa = respuesta.match ? detectarPrioridadIa(oferta) : null;
         return {
             match: respuesta.match,
             razon: respuesta.razon,
             porcentaje: respuesta.porcentaje,
+            prioridad_ia: prioridadIa,
         };
 
     } catch (error) {
@@ -582,7 +585,15 @@ async function evaluarOfertasPendientes() {
             const errorMensaje = resultado.error ? resultado.razon : null;
 
             // Actualizo el estado, el porcentaje y el error (si hubo) en la base de datos.
-            await modeloOferta.actualizarEvaluacion(oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje);
+            if (resultado.prioridad_ia?.detectada) {
+                await modeloOferta.actualizarEvaluacion(
+                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje, resultado.prioridad_ia
+                );
+            } else {
+                await modeloOferta.actualizarEvaluacion(
+                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje
+                );
+            }
 
             // Actualizo los contadores del resumen y del progreso.
             progresoEvaluacion.evaluadas++;

@@ -55,6 +55,9 @@
                 @if (o.nivel_requerido) {
                     <span class="tag-detalle">{{ o.nivel_requerido | uppercase }}</span>
                 }
+                @if (o.prioridad_ia) {
+                    <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
+                }
             </div>
 
             <div class="detalle-separador"></div>
@@ -80,6 +83,15 @@
                 <div class="detalle-seccion">
                     <span class="seccion-label">EVALUACIÓN_IA</span>
                     <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
+                </div>
+            }
+
+            @if (o.prioridad_ia && o.evidencias_prioridad_ia?.length) {
+                <div class="detalle-seccion">
+                    <span class="seccion-label">EVIDENCIA_PRIORIDAD_IA</span>
+                    @for (evidencia of o.evidencias_prioridad_ia; track evidencia) {
+                        <p class="detalle-razon">{{ evidencia }}</p>
+                    }
                 </div>
             }
 

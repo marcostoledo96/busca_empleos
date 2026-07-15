@@ -80,7 +80,7 @@ describe('Runner de migraciones', () => {
         // El path relativo debe ser '../.env', no '../../.env'.
         // '../.env' desde backend/scripts/ → backend/.env ✓
         // '../../.env' desde backend/scripts/ → raíz del repo ✗
-        expect(dotenvLinea).toContain("'../.env'");
+        expect(contenidoMigrar).toContain("esEntornoTest ? '.env.test' : '.env'");
         expect(dotenvLinea).not.toContain("'../../.env'");
 
         // Verificación adicional: el path resuelto debe existir como archivo.

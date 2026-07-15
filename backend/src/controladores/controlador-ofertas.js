@@ -69,6 +69,31 @@ async function listarOfertas(req, res) {
     });
 }
 
+async function sincronizarOfertas(req, res) {
+    const limite = Number(req.query.limite ?? 500);
+    if (!Number.isInteger(limite) || limite < 100 || limite > 500) {
+        return res.status(400).json({
+            exito: false,
+            error: 'limite debe ser un entero entre 100 y 500.',
+        });
+    }
+
+    try {
+        const resultado = await modeloOferta.obtenerBloqueSincronizacion({
+            limite,
+            cursor: req.query.cursor,
+        });
+        return res.json({ exito: true, ...resultado });
+    } catch (error) {
+        const status = error.codigo === 'SINCRONIZACION_INVALIDADA' ? 409 : 400;
+        return res.status(status).json({
+            exito: false,
+            codigo: error.codigo || 'SINCRONIZACION_INVALIDA',
+            error: error.message,
+        });
+    }
+}
+
 /**
  * GET /api/ofertas/estadisticas
  * Retorno el conteo de ofertas agrupado por estado de evaluación.
@@ -243,6 +268,7 @@ async function actualizarPostulacionMasiva(req, res) {
 
 module.exports = {
     listarOfertas,
+    sincronizarOfertas,
     obtenerEstadisticas,
     obtenerDiagnosticoPersistencia,
     obtenerOferta,

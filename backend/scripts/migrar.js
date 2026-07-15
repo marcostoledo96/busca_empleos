@@ -26,11 +26,19 @@ const fs = require('fs');
 const path = require('path');
 const { Pool } = require('pg');
 
-// Cargo .env del backend para obtener conexion a PostgreSQL.
-// El script está en backend/scripts/, así que el .env está un nivel arriba
-// en backend/.env. Uso el mismo criterio que base-datos.js: resolver desde
-// __dirname relativo a la ubicación del archivo.
-require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
+// Cargo el archivo de entorno correspondiente antes de abrir la conexión.
+// En tests uso .env.test para no aplicar migraciones sobre la base remota.
+const esEntornoTest = process.env.NODE_ENV === 'test';
+const archivoEntorno = esEntornoTest ? '.env.test' : '.env';
+
+if (esEntornoTest) {
+    delete process.env.DATABASE_URL;
+}
+
+require('dotenv').config({
+    path: path.resolve(__dirname, '..', archivoEntorno),
+    override: esEntornoTest,
+});
 
 const sqlDir = path.resolve(__dirname, '..', 'sql');
 const modoApply = process.argv.includes('--apply');

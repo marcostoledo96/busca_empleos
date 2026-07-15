@@ -21,6 +21,7 @@ const router = Router();
 // controlador equivocado. Es un gotcha clásico de Express.
 router.get('/estadisticas', controlador.obtenerEstadisticas);
 router.get('/diagnostico/persistencia', controlador.obtenerDiagnosticoPersistencia);
+router.get('/sincronizacion', controlador.sincronizarOfertas);
 router.get('/:id', controlador.obtenerOferta);
 router.get('/', controlador.listarOfertas);
 

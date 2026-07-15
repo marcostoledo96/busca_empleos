@@ -113,6 +113,7 @@ async function actualizarPreferencias(datos) {
         'max_caracteres_descripcion_ia',
         'temperatura_evaluacion', 'temperatura_importacion',
         'anios_experiencia_reales',
+        'priorizar_ofertas_ia', 'bonus_maximo_prioridad_ia',
         'nivel_real_seniority', 'conocimientos_ausentes', 'limitaciones_explicitas',
         'fecha_importacion_cv',
     ];

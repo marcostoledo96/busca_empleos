@@ -9,6 +9,7 @@
 
 const crypto = require('crypto');
 const pool = require('../config/base-datos');
+const { VERSION_PRIORIDAD_IA } = require('../servicios/evaluacion/detector-prioridad-ia');
 
 /**
  * Normaliza un texto para hashing: minúsculas, sin acentos, sin espacios extra.
@@ -57,6 +58,7 @@ function crearHashOferta(oferta) {
  */
 function crearHashPreferencias(preferencias) {
     const base = JSON.stringify({
+        politica_evaluacion: VERSION_PRIORIDAD_IA,
         // Campos originales.
         nivel_experiencia: preferencias.nivel_experiencia,
         stack_tecnologico: preferencias.stack_tecnologico,

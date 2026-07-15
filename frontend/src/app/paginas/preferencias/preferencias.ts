@@ -79,6 +79,8 @@ export class Preferencias implements OnInit {
     modeloIa: PreferenciasModel['modelo_ia'] = 'deepseek-v4-flash';
     modeloIaEvaluacion: 'deepseek-v4-flash' | 'deepseek-v4-pro' = 'deepseek-v4-flash';
     modeloIaImportacion: 'deepseek-v4-flash' | 'deepseek-v4-pro' = 'deepseek-v4-pro';
+    priorizarOfertasIa = false;
+    bonusMaximoPrioridadIa = 6;
     disponibilidad: 'full_time' | 'part_time' | 'freelance' | 'a_coordinar' = 'full_time';
     expectativaSalarialMin: number | null = null;
     expectativaSalarialMax: number | null = null;
@@ -339,6 +341,8 @@ export class Preferencias implements OnInit {
             prompt_personalizado: this.promptPersonalizado,
             usar_prompt_personalizado: this.usarPromptPersonalizado,
             modelo_ia: this.modeloIa,
+            priorizar_ofertas_ia: this.priorizarOfertasIa,
+            bonus_maximo_prioridad_ia: this.bonusMaximoPrioridadIa,
             tecnologias_detalle: this.tecnologiasDetalle as any,
             roles_objetivo_detalle: this.rolesObjetivoDetalle as any,
             // scoring_config eliminado en B1: ya no se envía al backend.
@@ -407,6 +411,8 @@ export class Preferencias implements OnInit {
         this.modeloIa = prefs.modelo_ia ?? 'deepseek-v4-flash';
         this.modeloIaEvaluacion = prefs.modelo_ia_evaluacion ?? 'deepseek-v4-flash';
         this.modeloIaImportacion = prefs.modelo_ia_importacion ?? 'deepseek-v4-pro';
+        this.priorizarOfertasIa = prefs.priorizar_ofertas_ia ?? false;
+        this.bonusMaximoPrioridadIa = prefs.bonus_maximo_prioridad_ia ?? 6;
         this.disponibilidad = prefs.disponibilidad ?? 'full_time';
         this.expectativaSalarialMin = prefs.expectativa_salarial_min ?? null;
         this.expectativaSalarialMax = prefs.expectativa_salarial_max ?? null;

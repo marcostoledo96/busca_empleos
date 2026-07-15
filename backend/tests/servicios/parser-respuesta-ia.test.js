@@ -328,6 +328,26 @@ describe('Parser respuesta IA', () => {
 
     describe('casos edge', () => {
 
+        test('acepta extensión válida de prioridad IA sin alterar el contrato legacy', () => {
+            const resultado = parsearRespuestaEvaluacionIa(
+                '```json\n{"match":true,"porcentaje":80,"razon":"Compatible","prioridad_ia":true,"evidencias_prioridad_ia":["Usa Copilot"]}\n```'
+            );
+
+            expect(resultado.match).toBe(true);
+            expect(resultado.prioridad_ia).toBe(true);
+            expect(resultado.evidencias_prioridad_ia).toEqual(['Usa Copilot']);
+        });
+
+        test('normaliza extensiones inválidas a una ausencia segura', () => {
+            const resultado = parsearRespuestaEvaluacionIa(
+                '{"match":true,"porcentaje":80,"razon":"Compatible","prioridad_ia":"si","evidencias_prioridad_ia":[1]}'
+            );
+
+            expect(resultado.match).toBe(true);
+            expect(resultado.prioridad_ia).toBe(false);
+            expect(resultado.evidencias_prioridad_ia).toEqual([]);
+        });
+
         test('respuesta con campos extra los ignora', () => {
             const respuesta = '{"match": true, "porcentaje": 70, "razon": "OK", "campo_extra": "ignorado"}';
             const resultado = parsearRespuestaEvaluacionIa(respuesta);

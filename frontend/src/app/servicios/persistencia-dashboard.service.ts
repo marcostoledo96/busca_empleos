@@ -19,6 +19,8 @@ const TTL_HORAS = 48;
 export class PersistenciaDashboardService {
 
     private readonly claveStorage = 'busca-empleos.dashboard.cache';
+    private readonly ofertasSincronizadas = new Map<number, Oferta>();
+    private usandoFallbackMemoria = false;
 
     guardarCache(cache: CacheDashboard): void {
         if (!this.storageDisponible()) {
@@ -90,6 +92,89 @@ export class PersistenciaDashboardService {
         if (this.storageDisponible()) {
             localStorage.removeItem(this.claveStorage);
         }
+    }
+
+    async guardarBloqueSincronizacion(ofertas: Oferta[]): Promise<{ fallback: boolean; total: number }> {
+        for (const oferta of ofertas) this.ofertasSincronizadas.set(oferta.id, oferta);
+        if (this.usandoFallbackMemoria || typeof indexedDB === 'undefined') {
+            this.usandoFallbackMemoria = true;
+            return { fallback: true, total: this.ofertasSincronizadas.size };
+        }
+
+        try {
+            const base = await this.abrirBaseSincronizacion();
+            await new Promise<void>((resolve, reject) => {
+                const transaccion = base.transaction('ofertas', 'readwrite');
+                for (const oferta of ofertas) transaccion.objectStore('ofertas').put(oferta);
+                transaccion.oncomplete = () => resolve();
+                transaccion.onerror = () => reject(transaccion.error);
+                transaccion.onabort = () => reject(transaccion.error);
+            });
+            base.close();
+        } catch {
+            this.usandoFallbackMemoria = true;
+        }
+        return { fallback: this.usandoFallbackMemoria, total: this.ofertasSincronizadas.size };
+    }
+
+    async obtenerOfertasSincronizadas(): Promise<Oferta[]> {
+        if (this.usandoFallbackMemoria || typeof indexedDB === 'undefined') {
+            return [...this.ofertasSincronizadas.values()];
+        }
+
+        try {
+            const base = await this.abrirBaseSincronizacion();
+            const ofertasPersistidas = await new Promise<Oferta[]>((resolve, reject) => {
+                const solicitud = base.transaction('ofertas', 'readonly').objectStore('ofertas').getAll();
+                solicitud.onsuccess = () => resolve(solicitud.result as Oferta[]);
+                solicitud.onerror = () => reject(solicitud.error);
+            });
+            base.close();
+            for (const oferta of ofertasPersistidas) this.ofertasSincronizadas.set(oferta.id, oferta);
+        } catch {
+            this.usandoFallbackMemoria = true;
+        }
+
+        return [...this.ofertasSincronizadas.values()];
+    }
+
+    async limpiarSincronizacion(): Promise<void> {
+        this.ofertasSincronizadas.clear();
+        this.usandoFallbackMemoria = false;
+        if (typeof indexedDB === 'undefined') {
+            this.usandoFallbackMemoria = true;
+            return;
+        }
+
+        let base: IDBDatabase | undefined;
+        try {
+            const baseAbierta = await this.abrirBaseSincronizacion();
+            base = baseAbierta;
+            await new Promise<void>((resolve, reject) => {
+                const transaccion = baseAbierta.transaction('ofertas', 'readwrite');
+                transaccion.objectStore('ofertas').clear();
+                transaccion.oncomplete = () => resolve();
+                transaccion.onerror = () => reject(transaccion.error);
+                transaccion.onabort = () => reject(transaccion.error);
+            });
+        } catch {
+            this.usandoFallbackMemoria = true;
+        } finally {
+            base?.close();
+        }
+    }
+
+    private abrirBaseSincronizacion(): Promise<IDBDatabase> {
+        return new Promise((resolve, reject) => {
+            const solicitud = indexedDB.open('busca-empleos-sincronizacion', 1);
+            solicitud.onupgradeneeded = () => {
+                if (!solicitud.result.objectStoreNames.contains('ofertas')) {
+                    solicitud.result.createObjectStore('ofertas', { keyPath: 'id' });
+                }
+            };
+            solicitud.onsuccess = () => resolve(solicitud.result);
+            solicitud.onerror = () => reject(solicitud.error);
+        });
     }
 
     private storageDisponible(): boolean {

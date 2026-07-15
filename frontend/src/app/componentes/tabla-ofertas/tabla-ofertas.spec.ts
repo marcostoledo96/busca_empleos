@@ -51,6 +51,7 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
     ];
 
     let component: TablaOfertas;
+    let fixture: ComponentFixture<TablaOfertas>;
 
     beforeEach(async () => {
         const mockOfertasService = {
@@ -64,7 +65,7 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
             ],
         }).compileComponents();
 
-        const fixture = TestBed.createComponent(TablaOfertas);
+        fixture = TestBed.createComponent(TablaOfertas);
         component = fixture.componentInstance;
     });
 
@@ -136,6 +137,21 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
         expect(component.nivelMatch(80)).toBe('alto');
         expect(component.nivelMatch(55)).toBe('medio');
         expect(component.nivelMatch(20)).toBe('bajo');
+    });
+
+    it('renderiza evidencia de prioridad IA con etiqueta accesible sin cambiar el estado de rechazo', () => {
+        const ofertaConPrioridad = {
+            ...mockOfertas[0],
+            estado_evaluacion: 'rechazada',
+            prioridad_ia: true,
+            evidencias_prioridad_ia: ['Claude Code'],
+        };
+        fixture.componentRef.setInput('ofertas', [ofertaConPrioridad] as any);
+        fixture.detectChanges();
+
+        const etiqueta = fixture.nativeElement.querySelector('[aria-label="Prioridad IA: Claude Code"]');
+        expect(etiqueta?.textContent).toContain('IA');
+        expect(fixture.nativeElement.textContent).toContain('RECHAZADA');
     });
 
     // --- paginasVisiblesCards: paginador acotado para evitar overflow en mobile ---

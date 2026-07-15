@@ -360,6 +360,12 @@ async function actualizarPreferencias(req, res) {
     const errorAniosExperiencia = validarNumeroEnRango(datos.anios_experiencia_reales, 'anios_experiencia_reales', 0, 50);
     if (errorAniosExperiencia) errores.push(errorAniosExperiencia);
 
+    if (datos.priorizar_ofertas_ia !== undefined && typeof datos.priorizar_ofertas_ia !== 'boolean') {
+        errores.push('priorizar_ofertas_ia debe ser true o false.');
+    }
+    const errorBonusPrioridad = validarNumeroEnRango(datos.bonus_maximo_prioridad_ia, 'bonus_maximo_prioridad_ia', 0, 6);
+    if (errorBonusPrioridad) errores.push(errorBonusPrioridad);
+
     // Si hay errores de validación, respondo 400 con todos los errores juntos.
     if (errores.length > 0) {
         return res.status(400).json({

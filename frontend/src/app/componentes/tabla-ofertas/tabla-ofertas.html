@@ -130,6 +130,9 @@
                     <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
                         {{ oferta.estado_evaluacion | uppercase }}
                     </span>
+                    @if (oferta.prioridad_ia) {
+                        <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA: ' + (oferta.evidencias_prioridad_ia || []).join(', ')">IA</span>
+                    }
                 </td>
                 <td class="columna-match">
                     @if (oferta.porcentaje_match !== null) {
@@ -227,6 +230,9 @@
                             <span class="card-oferta__match" [attr.data-nivel]="nivelMatch(oferta.porcentaje_match)">
                                 {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
                             </span>
+                        }
+                        @if (oferta.prioridad_ia) {
+                            <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA'">IA</span>
                         }
                     </div>
 

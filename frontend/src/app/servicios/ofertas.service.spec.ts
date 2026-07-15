@@ -87,6 +87,30 @@ describe('OfertasService', () => {
         req.flush({ exito: true, datos: { id: 1, titulo: 'Dev' } });
     });
 
+    it('debería pedir un bloque de sincronización con cursor', () => {
+        servicio.obtenerBloqueSincronizacion(500, 'cursor-firmado').subscribe((resp) => {
+            expect(resp.completada).toBeFalse();
+            expect(resp.fecha_corte).toBe('2026-06-15T00:00:00.000Z');
+            expect(resp.max_id).toBe(100);
+            expect(resp.total_inicial).toBe(100);
+        });
+
+        const req = httpMock.expectOne((request) => request.url === `${urlBase}/sincronizacion`
+            && request.params.get('limite') === '500'
+            && request.params.get('cursor') === 'cursor-firmado');
+        expect(req.request.method).toBe('GET');
+        req.flush({
+            exito: true,
+            datos: [],
+            total: 100,
+            fecha_corte: '2026-06-15T00:00:00.000Z',
+            max_id: 100,
+            total_inicial: 100,
+            cursor_siguiente: 'siguiente',
+            completada: false,
+        });
+    });
+
     it('debería actualizar postulación (PATCH)', () => {
         servicio.actualizarPostulacion(1, 'cv_enviado').subscribe((resp) => {
             expect(resp.exito).toBeTrue();

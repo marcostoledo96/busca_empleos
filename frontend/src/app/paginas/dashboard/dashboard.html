@@ -9,6 +9,23 @@
     <!-- Encabezado con estadísticas -->
     <div class="dashboard-encabezado">
         <h1 class="dashboard-titulo">OFERTAS_DISPONIBLES</h1>
+        @if (sincronizando()) {
+            <div class="dashboard__mensaje" role="status" aria-live="polite">
+                Sincronizando ofertas: {{ progresoSincronizacion() }}%
+                @if (fallbackSincronizacion()) { (usando memoria temporal) }
+                <button type="button" (click)="cancelarSincronizacion()">CANCELAR</button>
+            </div>
+        }
+        @if (estadoOperativoSincronizacion(); as estado) {
+            <div class="dashboard__mensaje" role="status" aria-live="polite">
+                Estado de sincronización: {{ estado.estado }}. Fecha de corte: {{ estado.fecha_corte }}.
+                Máximo ID: {{ estado.max_id }}. Total inicial: {{ estado.total_inicial }}.
+                Recibidos únicos: {{ estado.recibidos }}. Duplicados: {{ estado.duplicados }}.
+                @if (estado.estado === 'cancelada') {
+                    <button type="button" (click)="cargarDatos()">REANUDAR</button>
+                }
+            </div>
+        }
         <div class="dashboard-stats" role="list" aria-label="Resumen de estadísticas">
             <div class="dashboard-stat" role="listitem">
                 <span class="dashboard-stat__label" id="stat-label-total">Total</span>

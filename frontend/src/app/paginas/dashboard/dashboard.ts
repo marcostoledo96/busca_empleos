@@ -7,9 +7,12 @@ import { TablaOfertas } from '../../componentes/tabla-ofertas/tabla-ofertas';
 import { DetalleOferta } from '../../componentes/detalle-oferta/detalle-oferta';
 import { OfertasService } from '../../servicios/ofertas.service';
 import { PersistenciaDashboardService } from '../../servicios/persistencia-dashboard.service';
+import { PreferenciasService } from '../../servicios/preferencias.service';
 import { Oferta } from '../../modelos/oferta.model';
 import { DemoService } from '../../servicios/demo.service';
 import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
+import { EstadoOperativoSincronizacion } from '../../modelos/respuesta-api.model';
+import { firstValueFrom } from 'rxjs';
 
 @Component({
     selector: 'app-dashboard',
@@ -28,6 +31,7 @@ export class Dashboard implements OnInit {
 
     private readonly ofertasService = inject(OfertasService);
     private readonly persistenciaDashboard = inject(PersistenciaDashboardService);
+    private readonly preferenciasService = inject(PreferenciasService);
     private readonly demoService = inject(DemoService);
 
     // Expone el estado del modo demo al template para pasarlo a los hijos.
@@ -40,6 +44,15 @@ export class Dashboard implements OnInit {
     readonly dialogoVisible = signal(false);
     readonly mensajeEstado = signal<string | null>(null);
     readonly datosDesdeCache = signal(false);
+    readonly sincronizando = signal(false);
+    readonly progresoSincronizacion = signal(0);
+    readonly fallbackSincronizacion = signal(false);
+    readonly estadoOperativoSincronizacion = signal<EstadoOperativoSincronizacion | null>(null);
+    readonly priorizarOfertasIa = signal(false);
+    private readonly bonusMaximoPrioridadIa = signal(0);
+    private cursorSincronizacion: string | null = null;
+    private cancelarSincronizacionSolicitada = false;
+    private readonly idsSincronizacion = new Set<number>();
 
     // Guarda para evitar requests superpuestos durante el refresh de polling.
     private refrescandoEnSegundoPlano = false;
@@ -66,44 +79,40 @@ export class Dashboard implements OnInit {
 
     // Tab 1: aprobadas por la IA y todavía no postuladas.
     readonly ofertasAprobadas = computed(() =>
-        this.ofertasFiltradas()
+        this.ordenarOfertas(this.ofertasFiltradas()
             .filter(o =>
                 o.estado_evaluacion === 'aprobada' &&
                 o.estado_postulacion === 'no_postulado'
-            )
-            .sort((a, b) => (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0))
+            ))
     );
 
     // Tab 2: las que ya mandé CV o están en proceso.
     readonly ofertasPostuladas = computed(() =>
-        this.ofertasFiltradas()
+        this.ordenarOfertas(this.ofertasFiltradas()
             .filter(o =>
                 o.estado_postulacion === 'cv_enviado' ||
                 o.estado_postulacion === 'en_proceso'
-            )
-            .sort((a, b) => (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0))
+            ))
     );
 
     // Tab 3: rechazadas por la IA o descartadas manualmente.
     readonly ofertasRechazadas = computed(() =>
-        this.ofertasFiltradas()
+        this.ordenarOfertas(this.ofertasFiltradas()
             .filter(o =>
                 o.estado_evaluacion === 'rechazada' ||
                 o.estado_postulacion === 'descartada'
-            )
-            .sort((a, b) => (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0))
+            ))
     );
 
     // Tab 4: pendientes de evaluación (no postuladas ni descartadas).
     readonly ofertasPendientes = computed(() =>
-        this.ofertasFiltradas()
+        this.ordenarOfertas(this.ofertasFiltradas()
             .filter(o =>
                 o.estado_evaluacion === 'pendiente' &&
                 o.estado_postulacion !== 'cv_enviado' &&
                 o.estado_postulacion !== 'en_proceso' &&
                 o.estado_postulacion !== 'descartada'
-            )
-            .sort((a, b) => new Date(b.fecha_extraccion).getTime() - new Date(a.fecha_extraccion).getTime())
+            ))
     );
 
     // Cards superiores: derivadas de los mismos computed que las tabs,
@@ -121,12 +130,88 @@ export class Dashboard implements OnInit {
             return;
         }
         this.restaurarUltimaCargaGuardada();
+        this.cargarPreferenciaPrioridadIa();
         this.cargarDatos();
     }
 
     // Carga ofertas del backend. Las estadísticas se derivan de las ofertas
     // en computed signals, así que no necesita llamar a /estadisticas.
     cargarDatos(): void {
+        void this.sincronizarOfertas();
+    }
+
+    cancelarSincronizacion(): void {
+        if (this.estadoOperativoSincronizacion()?.estado === 'completada') return;
+        this.cancelarSincronizacionSolicitada = true;
+    }
+
+    private async sincronizarOfertas(): Promise<void> {
+        this.sincronizando.set(true);
+        this.cancelarSincronizacionSolicitada = false;
+        if (!this.cursorSincronizacion) {
+            await this.persistenciaDashboard.limpiarSincronizacion();
+            this.idsSincronizacion.clear();
+            this.estadoOperativoSincronizacion.set(null);
+            this.progresoSincronizacion.set(0);
+            this.fallbackSincronizacion.set(false);
+        }
+
+        try {
+            do {
+                if (this.cancelarSincronizacionSolicitada) {
+                    this.estadoOperativoSincronizacion.update(estado => estado && estado.estado !== 'completada'
+                        ? { ...estado, estado: 'cancelada' }
+                        : estado);
+                    this.mensajeEstado.set('Sincronización cancelada. Podés reanudarla sin duplicar los bloques ya confirmados.');
+                    return;
+                }
+                const respuesta = await firstValueFrom(
+                    this.ofertasService.obtenerBloqueSincronizacion(500, this.cursorSincronizacion)
+                );
+                if (!respuesta.exito) throw new Error(respuesta.error || 'No se pudo sincronizar.');
+                const duplicados = (this.estadoOperativoSincronizacion()?.duplicados ?? 0)
+                    + respuesta.datos.filter(oferta => this.idsSincronizacion.has(oferta.id)).length;
+                respuesta.datos.forEach(oferta => this.idsSincronizacion.add(oferta.id));
+                const persistencia = await this.persistenciaDashboard.guardarBloqueSincronizacion(respuesta.datos);
+                this.fallbackSincronizacion.set(persistencia.fallback);
+                const ofertasSincronizadas = await this.persistenciaDashboard.obtenerOfertasSincronizadas();
+                this.ofertas.set(this.ordenarOfertas(ofertasSincronizadas));
+                this.cursorSincronizacion = respuesta.cursor_siguiente;
+                this.estadoOperativoSincronizacion.set({
+                    estado: 'en_progreso',
+                    fecha_corte: respuesta.fecha_corte,
+                    max_id: respuesta.max_id,
+                    total_inicial: respuesta.total_inicial,
+                    recibidos: this.idsSincronizacion.size,
+                    duplicados,
+                });
+                this.progresoSincronizacion.set(respuesta.total_inicial
+                    ? Math.round((this.idsSincronizacion.size / respuesta.total_inicial) * 100)
+                    : 100);
+                if (respuesta.completada) {
+                    if (this.idsSincronizacion.size !== respuesta.total_inicial) {
+                        throw new Error('La sincronización no coincide con el total declarado.');
+                    }
+                    this.cursorSincronizacion = null;
+                    this.estadoOperativoSincronizacion.update(estado => estado && { ...estado, estado: 'completada' });
+                    this.guardarCacheActual();
+                    this.datosDesdeCache.set(false);
+                    this.mensajeEstado.set(persistencia.fallback
+                        ? 'Sincronización completada usando memoria temporal porque IndexedDB no estuvo disponible.'
+                        : null);
+                    return;
+                }
+            } while (this.cursorSincronizacion);
+        } catch (error) {
+            console.error('Error al sincronizar dashboard:', error);
+            this.estadoOperativoSincronizacion.update(estado => estado && { ...estado, estado: 'fallida' });
+            this.cargarDatosLegacy();
+        } finally {
+            this.sincronizando.set(false);
+        }
+    }
+
+    private cargarDatosLegacy(): void {
         this.cargando.set(true);
 
         this.ofertasService.obtenerOfertas().subscribe({
@@ -139,12 +224,7 @@ export class Dashboard implements OnInit {
                 }
 
                 this.ofertas.set(respuesta.datos);
-                this.persistenciaDashboard.guardarCache({
-                    ofertas: respuesta.datos,
-                    estadisticas: null,
-                    fechaGuardado: new Date().toISOString(),
-                    version: 1,
-                });
+                this.guardarCacheActual();
                 this.datosDesdeCache.set(false);
                 this.mensajeEstado.set(null);
             },
@@ -197,6 +277,42 @@ export class Dashboard implements OnInit {
                 this.refrescandoEnSegundoPlano = false;
                 // Silencioso — no interrumpimos la UI por un fallo de polling.
             }
+        });
+    }
+
+    private ordenarOfertas(ofertas: Oferta[]): Oferta[] {
+        return [...ofertas].sort((a, b) => {
+            const bonusA = this.priorizarOfertasIa() ? Math.min(this.bonusMaximoPrioridadIa(), Number(a.puntaje_prioridad_ia) || 0) : 0;
+            const bonusB = this.priorizarOfertasIa() ? Math.min(this.bonusMaximoPrioridadIa(), Number(b.puntaje_prioridad_ia) || 0) : 0;
+            const puntajeA = (a.porcentaje_match ?? 0) + bonusA;
+            const puntajeB = (b.porcentaje_match ?? 0) + bonusB;
+            return puntajeB - puntajeA
+                || (b.porcentaje_match ?? 0) - (a.porcentaje_match ?? 0)
+                || new Date(b.fecha_extraccion).getTime() - new Date(a.fecha_extraccion).getTime()
+                || b.id - a.id;
+        });
+    }
+
+    private cargarPreferenciaPrioridadIa(): void {
+        this.preferenciasService.obtenerPreferencias().subscribe({
+            next: (respuesta) => {
+                this.priorizarOfertasIa.set(Boolean(respuesta.exito && respuesta.datos.priorizar_ofertas_ia));
+                this.bonusMaximoPrioridadIa.set(Math.min(6, Math.max(0, Number(respuesta.datos.bonus_maximo_prioridad_ia) || 0)));
+            },
+            error: () => {
+                this.priorizarOfertasIa.set(false);
+                this.bonusMaximoPrioridadIa.set(0);
+                this.mensajeEstado.set('No pude leer la preferencia de prioridad IA; conservé el orden habitual.');
+            },
+        });
+    }
+
+    private guardarCacheActual(): void {
+        this.persistenciaDashboard.guardarCache({
+            ofertas: this.ofertas(),
+            estadisticas: null,
+            fechaGuardado: new Date().toISOString(),
+            version: 1,
         });
     }
 

@@ -7,6 +7,23 @@ export interface RespuestaApi<T> {
     error?: string;
 }
 
+export interface RespuestaSincronizacionOfertas<T> extends RespuestaApi<T[]> {
+    fecha_corte: string;
+    max_id: number;
+    total_inicial: number;
+    cursor_siguiente: string | null;
+    completada: boolean;
+}
+
+export interface EstadoOperativoSincronizacion {
+    estado: 'en_progreso' | 'cancelada' | 'completada' | 'fallida';
+    fecha_corte: string;
+    max_id: number;
+    total_inicial: number;
+    recibidos: number;
+    duplicados: number;
+}
+
 // Respuesta específica de los endpoints de scraping.
 export interface RespuestaScraping {
     mensaje: string;

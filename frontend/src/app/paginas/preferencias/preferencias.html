@@ -105,6 +105,17 @@
                                     </div>
                                 </div>
                             </div>
+                            <div class="campo-fila campo-fila--2">
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="priorizar-ofertas-ia">Priorizar ofertas con evidencia IA</label>
+                                    <input id="priorizar-ofertas-ia" type="checkbox" [(ngModel)]="priorizarOfertasIa" />
+                                    <small class="campo-ayuda">Solo modifica el orden; no aprueba ofertas ni anula exclusiones.</small>
+                                </div>
+                                <div class="campo">
+                                    <label class="campo-etiqueta" for="bonus-prioridad-ia">Bonus máximo de prioridad IA</label>
+                                    <input id="bonus-prioridad-ia" type="number" min="0" max="6" [(ngModel)]="bonusMaximoPrioridadIa" [disabled]="!priorizarOfertasIa" />
+                                </div>
+                            </div>
 
                             <div class="campo">
                                 <label class="campo-etiqueta" for="zonas">Zonas presenciales aceptadas</label>

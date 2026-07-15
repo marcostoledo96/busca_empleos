@@ -14,10 +14,20 @@ const { Pool } = require('pg');
 const path = require('path');
 const logger = require('../utils/logger');
 
-// Cargo las variables de entorno desde el .env del backend.
-// El path.resolve garantiza que encuentre el archivo sin importar
-// desde dónde ejecute el script (raíz del proyecto o carpeta tests).
-require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
+// Cargo el archivo de entorno correspondiente antes de crear el pool.
+// En tests uso la configuración aislada para que DATABASE_URL de .env no redirija
+// las pruebas destructivas hacia una base remota.
+const esEntornoTest = process.env.NODE_ENV === 'test';
+const archivoEntorno = esEntornoTest ? '.env.test' : '.env';
+
+if (esEntornoTest) {
+    delete process.env.DATABASE_URL;
+}
+
+require('dotenv').config({
+    path: path.resolve(__dirname, '../../', archivoEntorno),
+    override: esEntornoTest,
+});
 
 // En producción (Railway, Render, etc.) el PaaS provee DATABASE_URL automáticamente.
 // Esa variable ya incluye host, puerto, usuario y contraseña en una sola cadena.
@@ -62,6 +72,7 @@ function esHostLocal(host) {
         '127.0.0.1',
         '::1',
         'host.docker.internal',
+        '/var/run/postgresql',
     ].includes(hostNormalizado);
 }
 

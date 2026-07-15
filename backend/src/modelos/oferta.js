@@ -8,6 +8,46 @@
 // que es el ataque más común contra bases de datos.
 
 const pool = require('../config/base-datos');
+const crypto = require('crypto');
+
+const DURACION_CURSOR_SINCRONIZACION_MS = 30 * 60 * 1000;
+const secretoCursorSincronizacion = process.env.CURSOR_SINCRONIZACION_SECRETO
+    || crypto.randomBytes(32).toString('hex');
+
+function firmarCursor(payload) {
+    const cuerpo = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    const firma = crypto.createHmac('sha256', secretoCursorSincronizacion).update(cuerpo).digest('base64url');
+    return `${cuerpo}.${firma}`;
+}
+
+function leerCursor(cursor) {
+    if (typeof cursor !== 'string' || cursor.length > 2000) return null;
+    const [cuerpo, firma] = cursor.split('.');
+    if (!cuerpo || !firma) return null;
+    const firmaEsperada = crypto.createHmac('sha256', secretoCursorSincronizacion).update(cuerpo).digest('base64url');
+    if (firma.length !== firmaEsperada.length || !crypto.timingSafeEqual(Buffer.from(firma), Buffer.from(firmaEsperada))) return null;
+    try {
+        const payload = JSON.parse(Buffer.from(cuerpo, 'base64url').toString('utf8'));
+        return payload.version === 1 && Number.isInteger(payload.max_id) && Number.isInteger(payload.ultimo_id)
+            && typeof payload.fecha_corte === 'string' && typeof payload.firma === 'string'
+            && Number(payload.expira_en) > Date.now()
+            ? payload
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+async function obtenerFirmaSnapshot(cliente, fechaCorte, maxId) {
+    const resultado = await cliente.query(
+        `SELECT COUNT(*)::integer AS total,
+                COALESCE(md5(string_agg(id::text || ':' || xmin::text, ',' ORDER BY id DESC)), md5('')) AS firma
+         FROM ofertas
+         WHERE fecha_extraccion >= $1 AND id <= $2`,
+        [fechaCorte, maxId]
+    );
+    return resultado.rows[0];
+}
 
 /**
  * Inserto una nueva oferta en la base de datos.
@@ -185,6 +225,86 @@ async function obtenerOfertas(filtros = {}) {
 }
 
 /**
+ * Retorno una proyección liviana de ofertas recientes con un cursor firmado.
+ * El snapshot es lógico: detecto mutaciones del universo fijo y respondo error
+ * controlado en vez de afirmar una sincronización completa que ya no existe.
+ */
+async function obtenerBloqueSincronizacion({ limite, cursor }) {
+    const cliente = await pool.connect();
+    try {
+        await cliente.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+        let snapshot = cursor ? leerCursor(cursor) : null;
+        if (cursor && !snapshot) {
+            const error = new Error('Cursor de sincronización inválido o vencido.');
+            error.codigo = 'CURSOR_SINCRONIZACION_INVALIDO';
+            throw error;
+        }
+
+        if (!snapshot) {
+            const fechaCorte = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+            const maximo = await cliente.query(
+                `SELECT COALESCE(MAX(id), 0)::integer AS max_id
+                 FROM ofertas WHERE fecha_extraccion >= $1`,
+                [fechaCorte]
+            );
+            const maxId = maximo.rows[0].max_id;
+            const firma = await obtenerFirmaSnapshot(cliente, fechaCorte, maxId);
+            snapshot = {
+                version: 1,
+                fecha_corte: fechaCorte,
+                max_id: maxId,
+                ultimo_id: maxId + 1,
+                total: firma.total,
+                firma: firma.firma,
+                expira_en: Date.now() + DURACION_CURSOR_SINCRONIZACION_MS,
+            };
+        } else {
+            const firmaActual = await obtenerFirmaSnapshot(cliente, snapshot.fecha_corte, snapshot.max_id);
+            if (firmaActual.total !== snapshot.total || firmaActual.firma !== snapshot.firma) {
+                const error = new Error('La sincronización fue invalidada por cambios concurrentes.');
+                error.codigo = 'SINCRONIZACION_INVALIDADA';
+                throw error;
+            }
+        }
+
+        const resultado = await cliente.query(
+            `SELECT id, titulo, empresa, ubicacion, modalidad, descripcion, url, plataforma,
+                    nivel_requerido, salario_min, salario_max, moneda,
+                    estado_evaluacion, razon_evaluacion, porcentaje_match,
+                    estado_postulacion, fecha_publicacion, fecha_extraccion,
+                    prioridad_ia, puntaje_prioridad_ia, evidencias_prioridad_ia
+             FROM ofertas
+             WHERE fecha_extraccion >= $1 AND id <= $2 AND id < $3
+             ORDER BY id DESC
+             LIMIT $4`,
+            [snapshot.fecha_corte, snapshot.max_id, snapshot.ultimo_id, limite]
+        );
+
+        const datos = resultado.rows;
+        const completada = datos.length < limite;
+        const cursorSiguiente = completada ? null : firmarCursor({
+            ...snapshot,
+            ultimo_id: datos[datos.length - 1].id,
+        });
+        await cliente.query('COMMIT');
+        return {
+            datos,
+            total: snapshot.total,
+            fecha_corte: snapshot.fecha_corte,
+            max_id: snapshot.max_id,
+            total_inicial: snapshot.total,
+            cursor_siguiente: cursorSiguiente,
+            completada,
+        };
+    } catch (error) {
+        await cliente.query('ROLLBACK').catch(() => {});
+        throw error;
+    } finally {
+        cliente.release();
+    }
+}
+
+/**
  * Obtengo una oferta específica por su ID.
  *
  * @param {number} id - El ID de la oferta.
@@ -223,14 +343,17 @@ async function obtenerOfertasPendientes() {
  * @param {string|null} [errorMensaje] - Mensaje de error si la API falló.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null) {
+    const prioridad = prioridadIa || { detectada: false, puntaje: 0, evidencias: [], version: null };
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3,
-             fecha_evaluacion = NOW(), evaluacion_error_mensaje = $5
+              fecha_evaluacion = NOW(), evaluacion_error_mensaje = $5,
+              prioridad_ia = $6, puntaje_prioridad_ia = $7,
+              evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9
          WHERE id = $4
          RETURNING *`,
-        [estado, razon, porcentaje, id, errorMensaje]
+        [estado, razon, porcentaje, id, errorMensaje, Boolean(prioridad.detectada), prioridad.puntaje || 0, JSON.stringify(prioridad.evidencias || []), prioridad.version]
     );
 
     return resultado.rows.length > 0 ? resultado.rows[0] : null;
@@ -352,6 +475,7 @@ async function resetearEvaluacionesPorDias(dias) {
 module.exports = {
     crearOferta,
     obtenerOfertas,
+    obtenerBloqueSincronizacion,
     obtenerOfertaPorId,
     obtenerOfertasPendientes,
     obtenerEstadisticas,
@@ -359,4 +483,5 @@ module.exports = {
     actualizarPostulacion,
     actualizarPostulacionMasiva,
     resetearEvaluacionesPorDias,
+    _internas: { firmarCursor, leerCursor },
 };

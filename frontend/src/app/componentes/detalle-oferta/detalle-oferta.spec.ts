@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { DetalleOferta } from './detalle-oferta';
 import { OfertasService } from '../../servicios/ofertas.service';
 import { of } from 'rxjs';
@@ -36,6 +37,7 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
             imports: [DetalleOferta],
             providers: [
                 { provide: OfertasService, useValue: mockOfertasService },
+                provideNoopAnimations(),
             ],
         }).compileComponents();
 
@@ -98,5 +100,22 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         fixture.componentRef.setInput('oferta', { ...mockOferta, url: null } as any);
         component.abrirEnPagina();
         expect(window.open).not.toHaveBeenCalled();
+    });
+
+    it('renderiza evidencia de prioridad IA accesible sin presentarla como aprobación', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'rechazada',
+            prioridad_ia: true,
+            evidencias_prioridad_ia: ['Claude Code'],
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const etiqueta = fixture.nativeElement.querySelector('[aria-label="Oferta con prioridad por evidencia de IA"]');
+        expect(etiqueta?.textContent).toContain('PRIORIDAD_IA');
+        expect(fixture.nativeElement.textContent).toContain('Claude Code');
+        expect(fixture.nativeElement.textContent).toContain('RECHAZADA');
     });
 });
