@@ -85,10 +85,15 @@ async function sincronizarOfertas(req, res) {
         });
         return res.json({ exito: true, ...resultado });
     } catch (error) {
-        const status = error.codigo === 'SINCRONIZACION_INVALIDADA' ? 409 : 400;
+        const statusPorCodigo = {
+            CURSOR_SINCRONIZACION_INVALIDO: 400,
+            SINCRONIZACION_INVALIDADA: 409,
+        };
+        const status = statusPorCodigo[error.codigo];
+        if (!status) throw error;
         return res.status(status).json({
             exito: false,
-            codigo: error.codigo || 'SINCRONIZACION_INVALIDA',
+            codigo: error.codigo,
             error: error.message,
         });
     }

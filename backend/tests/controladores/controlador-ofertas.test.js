@@ -238,6 +238,20 @@ describe('Controlador de ofertas', () => {
                 codigo: 'CURSOR_SINCRONIZACION_INVALIDO',
             }));
         });
+
+        test('delega un error operativo inesperado al middleware global como 500 genérico', async () => {
+            modeloOferta.obtenerBloqueSincronizacion.mockRejectedValue(
+                new Error('PostgreSQL: relación ofertas no existe')
+            );
+
+            const res = await request(app).get('/api/ofertas/sincronizacion?limite=500');
+
+            expect(res.status).toBe(500);
+            expect(res.body).toEqual({
+                exito: false,
+                error: 'Error interno del servidor.',
+            });
+        });
     });
 
     describe('GET /api/ofertas/diagnostico/persistencia', () => {

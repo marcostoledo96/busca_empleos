@@ -165,12 +165,11 @@ bloque previo.
 
 El primer bloque fija `fecha_corte`, `max_id` y `total_inicial` (igual a `total` por compatibilidad)
 para todo el snapshot. El cursor es opaco: la respuesta nunca expone su `firma`, `ultimo_id`,
-expiración ni otros datos internos. Inserciones
-posteriores quedan fuera; si un borrado o actualización invalida la firma, responde `409` con
-`exito: false` y `codigo: "SINCRONIZACION_INVALIDADA"`. Cursor inválido o vencido responde `400`
-con `exito: false`. El cliente
-debe descartar ese snapshot y reiniciarlo; el endpoint histórico `GET /api/ofertas` permanece
-como fallback.
+expiración ni otros datos internos. Inserciones posteriores quedan fuera. La clasificación de
+errores es parte del contrato: límite o cursor inválido responden `400`; un snapshot invalidado
+por cambios concurrentes responde `409` con `codigo: "SINCRONIZACION_INVALIDADA"`; y un fallo
+operativo inesperado responde `500` genérico sin exponer detalles de PostgreSQL. El cliente debe
+descartar únicamente un snapshot invalidado y reiniciarlo.
 
 ### GET /api/ofertas/diagnostico/persistencia
 
