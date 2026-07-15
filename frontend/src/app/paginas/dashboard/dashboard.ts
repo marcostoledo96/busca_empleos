@@ -155,7 +155,14 @@ export class Dashboard implements OnInit {
         if (!this.cursorSincronizacion) {
             await this.persistenciaDashboard.limpiarSincronizacion();
             this.idsSincronizacion.clear();
-            this.estadoOperativoSincronizacion.set(null);
+            this.estadoOperativoSincronizacion.set({
+                estado: 'en_progreso',
+                fecha_corte: '',
+                max_id: 0,
+                total_inicial: 0,
+                recibidos: 0,
+                duplicados: 0,
+            });
             this.progresoSincronizacion.set(0);
             this.fallbackSincronizacion.set(false);
         }

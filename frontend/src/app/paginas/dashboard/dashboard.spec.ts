@@ -239,6 +239,31 @@ describe('Dashboard', () => {
         expect(mockOfertasService.obtenerOfertas).not.toHaveBeenCalled();
     });
 
+    it('cancela el primer bloque pendiente y permite reanudar desde cero', async () => {
+        let abortada = false;
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(new Observable(() => () => {
+            abortada = true;
+        }));
+
+        const sincronizacion = (componente as any).sincronizarOfertas();
+        await Promise.resolve();
+        componente.cancelarSincronizacion();
+        await sincronizacion;
+
+        expect(abortada).toBeTrue();
+        expect(componente.estadoOperativoSincronizacion()).toEqual({
+            estado: 'cancelada',
+            fecha_corte: '',
+            max_id: 0,
+            total_inicial: 0,
+            recibidos: 0,
+            duplicados: 0,
+        });
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('REANUDAR');
+        expect(mockOfertasService.obtenerOfertas).not.toHaveBeenCalled();
+    });
+
     it('no reemplaza el estado completada por cancelada', async () => {
         mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(of({
             exito: true,
