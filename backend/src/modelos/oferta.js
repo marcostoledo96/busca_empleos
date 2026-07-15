@@ -9,10 +9,20 @@
 
 const pool = require('../config/base-datos');
 const crypto = require('crypto');
+const logger = require('../utils/logger');
 
 const DURACION_CURSOR_SINCRONIZACION_MS = 30 * 60 * 1000;
-const secretoCursorSincronizacion = process.env.CURSOR_SINCRONIZACION_SECRETO
-    || crypto.randomBytes(32).toString('hex');
+const secretoConfigurado = (process.env.CURSOR_SINCRONIZACION_SECRETO || '').trim();
+
+if (process.env.NODE_ENV === 'production' && !secretoConfigurado) {
+    throw new Error('CURSOR_SINCRONIZACION_SECRETO es obligatorio en producción.');
+}
+
+const secretoCursorSincronizacion = secretoConfigurado || crypto.randomBytes(32).toString('hex');
+
+if (!secretoConfigurado && ['development', 'test'].includes(process.env.NODE_ENV)) {
+    logger.warn('CURSOR_SINCRONIZACION_SECRETO no está configurado; uso un secreto efímero y los cursores se invalidarán al reiniciar.');
+}
 
 function firmarCursor(payload) {
     const cuerpo = Buffer.from(JSON.stringify(payload)).toString('base64url');

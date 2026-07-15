@@ -3,6 +3,20 @@ jest.mock('../../src/config/base-datos', () => ({ connect: jest.fn() }));
 const pool = require('../../src/config/base-datos');
 const { obtenerBloqueSincronizacion } = require('../../src/modelos/oferta');
 
+function cargarModeloConEntorno(entorno, secreto) {
+    jest.resetModules();
+    const advertir = jest.fn();
+    process.env.NODE_ENV = entorno;
+    if (secreto === undefined) {
+        delete process.env.CURSOR_SINCRONIZACION_SECRETO;
+    } else {
+        process.env.CURSOR_SINCRONIZACION_SECRETO = secreto;
+    }
+    jest.doMock('../../src/config/base-datos', () => ({ connect: jest.fn() }));
+    jest.doMock('../../src/utils/logger', () => ({ warn: advertir }));
+    return { modelo: require('../../src/modelos/oferta'), advertir };
+}
+
 function crearClienteSnapshot({ mutar = false } = {}) {
     let verificaciones = 0;
     return {
@@ -37,6 +51,7 @@ describe('sincronización de ofertas por cursor', () => {
 
         const consultaOfertas = cliente.query.mock.calls.find(([sql]) => sql.includes('SELECT id, titulo'))[0];
         expect(consultaOfertas).toMatch(/\bdescripcion\b/);
+        expect(cliente.release).toHaveBeenCalledTimes(1);
     });
 
     test('recorre 10.000 IDs únicos y coincide con el total del snapshot', async () => {
@@ -90,5 +105,63 @@ describe('sincronización de ofertas por cursor', () => {
 
         await expect(obtenerBloqueSincronizacion({ limite: 500, cursor: primero.cursor_siguiente }))
             .rejects.toMatchObject({ codigo: 'SINCRONIZACION_INVALIDADA' });
+    });
+
+    describe('secreto de firma por ambiente', () => {
+        const entornoOriginal = process.env.NODE_ENV;
+        const secretoOriginal = process.env.CURSOR_SINCRONIZACION_SECRETO;
+
+        afterEach(() => {
+            process.env.NODE_ENV = entornoOriginal;
+            if (secretoOriginal === undefined) {
+                delete process.env.CURSOR_SINCRONIZACION_SECRETO;
+            } else {
+                process.env.CURSOR_SINCRONIZACION_SECRETO = secretoOriginal;
+            }
+            jest.resetModules();
+        });
+
+        test('rechaza iniciar en producción sin CURSOR_SINCRONIZACION_SECRETO', () => {
+            expect(() => cargarModeloConEntorno('production')).toThrow(
+                'CURSOR_SINCRONIZACION_SECRETO es obligatorio en producción.'
+            );
+        });
+
+        test('usa un secreto efímero y advierte fuera de producción', () => {
+            const { modelo, advertir } = cargarModeloConEntorno('test');
+
+            expect(modelo._internas.firmarCursor({ version: 1 })).toEqual(expect.any(String));
+            expect(advertir).toHaveBeenCalledWith(expect.stringContaining('CURSOR_SINCRONIZACION_SECRETO'));
+        });
+
+        test('acepta un cursor tras recargar el módulo con el mismo secreto', () => {
+            const primerModelo = cargarModeloConEntorno('test', 'secreto-estable').modelo;
+            const cursor = primerModelo._internas.firmarCursor({
+                version: 1,
+                fecha_corte: '2026-06-15T00:00:00.000Z',
+                max_id: 10,
+                ultimo_id: 9,
+                firma: 'estable',
+                expira_en: Date.now() + 60_000,
+            });
+            const segundoModelo = cargarModeloConEntorno('test', 'secreto-estable').modelo;
+
+            expect(segundoModelo._internas.leerCursor(cursor)).toEqual(expect.objectContaining({ max_id: 10 }));
+        });
+
+        test('rechaza un cursor si el secreto cambia', () => {
+            const primerModelo = cargarModeloConEntorno('test', 'secreto-a').modelo;
+            const cursor = primerModelo._internas.firmarCursor({
+                version: 1,
+                fecha_corte: '2026-06-15T00:00:00.000Z',
+                max_id: 10,
+                ultimo_id: 9,
+                firma: 'estable',
+                expira_en: Date.now() + 60_000,
+            });
+            const segundoModelo = cargarModeloConEntorno('test', 'secreto-b').modelo;
+
+            expect(segundoModelo._internas.leerCursor(cursor)).toBeNull();
+        });
     });
 });

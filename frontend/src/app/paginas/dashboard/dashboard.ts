@@ -12,7 +12,7 @@ import { Oferta } from '../../modelos/oferta.model';
 import { DemoService } from '../../servicios/demo.service';
 import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 import { EstadoOperativoSincronizacion } from '../../modelos/respuesta-api.model';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 
 @Component({
     selector: 'app-dashboard',
@@ -52,6 +52,7 @@ export class Dashboard implements OnInit {
     private readonly bonusMaximoPrioridadIa = signal(0);
     private cursorSincronizacion: string | null = null;
     private cancelarSincronizacionSolicitada = false;
+    private cancelacionSincronizacion: Subject<void> | null = null;
     private readonly idsSincronizacion = new Set<number>();
 
     // Guarda para evitar requests superpuestos durante el refresh de polling.
@@ -143,15 +144,25 @@ export class Dashboard implements OnInit {
     cancelarSincronizacion(): void {
         if (this.estadoOperativoSincronizacion()?.estado === 'completada') return;
         this.cancelarSincronizacionSolicitada = true;
+        this.cancelacionSincronizacion?.next();
     }
 
     private async sincronizarOfertas(): Promise<void> {
         this.sincronizando.set(true);
         this.cancelarSincronizacionSolicitada = false;
+        const cancelacion = new Subject<void>();
+        this.cancelacionSincronizacion = cancelacion;
         if (!this.cursorSincronizacion) {
             await this.persistenciaDashboard.limpiarSincronizacion();
             this.idsSincronizacion.clear();
-            this.estadoOperativoSincronizacion.set(null);
+            this.estadoOperativoSincronizacion.set({
+                estado: 'en_progreso',
+                fecha_corte: '',
+                max_id: 0,
+                total_inicial: 0,
+                recibidos: 0,
+                duplicados: 0,
+            });
             this.progresoSincronizacion.set(0);
             this.fallbackSincronizacion.set(false);
         }
@@ -167,6 +178,7 @@ export class Dashboard implements OnInit {
                 }
                 const respuesta = await firstValueFrom(
                     this.ofertasService.obtenerBloqueSincronizacion(500, this.cursorSincronizacion)
+                        .pipe(takeUntil(cancelacion))
                 );
                 if (!respuesta.exito) throw new Error(respuesta.error || 'No se pudo sincronizar.');
                 const duplicados = (this.estadoOperativoSincronizacion()?.duplicados ?? 0)
@@ -203,10 +215,21 @@ export class Dashboard implements OnInit {
                 }
             } while (this.cursorSincronizacion);
         } catch (error) {
+            if (this.cancelarSincronizacionSolicitada) {
+                this.estadoOperativoSincronizacion.update(estado => estado && estado.estado !== 'completada'
+                    ? { ...estado, estado: 'cancelada' }
+                    : estado);
+                this.mensajeEstado.set('Sincronización cancelada. Podés reanudarla sin duplicar los bloques ya confirmados.');
+                return;
+            }
             console.error('Error al sincronizar dashboard:', error);
             this.estadoOperativoSincronizacion.update(estado => estado && { ...estado, estado: 'fallida' });
             this.cargarDatosLegacy();
         } finally {
+            cancelacion.complete();
+            if (this.cancelacionSincronizacion === cancelacion) {
+                this.cancelacionSincronizacion = null;
+            }
             this.sincronizando.set(false);
         }
     }

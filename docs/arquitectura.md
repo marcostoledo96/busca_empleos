@@ -140,6 +140,7 @@ Todas las credenciales se cargan desde `backend/.env` con `dotenv`. Nunca se har
 | `PUERTO` | Puerto del servidor Express (default: 3000) |
 | `CORS_ORIGEN` | Orígenes permitidos para CORS (default: `http://localhost:4200`) |
 | `NODE_ENV` | Entorno de ejecución (`development`, `test`, `production`) |
+| `CURSOR_SINCRONIZACION_SECRETO` | Secreto HMAC de los cursores de sincronización; obligatorio en producción. Si falta en desarrollo/test se usa uno efímero con warning, por lo que los cursores se invalidan al reiniciar. Al rotarlo, descarto el cursor pendiente y reinicio la sincronización. |
 | `SMTP_HOST` | Servidor SMTP para notificaciones por email (ej: `smtp.gmail.com`) |
 | `SMTP_PORT` | Puerto SMTP (465 SSL, 587 STARTTLS). Default: 587 |
 | `SMTP_USER` | Usuario SMTP para autenticación |

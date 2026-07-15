@@ -111,6 +111,15 @@ describe('OfertasService', () => {
         });
     });
 
+    it('debería abortar el bloque de sincronización cuando se desuscribe', () => {
+        const suscripcion = servicio.obtenerBloqueSincronizacion().subscribe();
+        const req = httpMock.expectOne(`${urlBase}/sincronizacion?limite=500`);
+
+        suscripcion.unsubscribe();
+
+        expect(req.cancelled).toBeTrue();
+    });
+
     it('debería actualizar postulación (PATCH)', () => {
         servicio.actualizarPostulacion(1, 'cv_enviado').subscribe((resp) => {
             expect(resp.exito).toBeTrue();

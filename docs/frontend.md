@@ -226,9 +226,11 @@ IndexedDB nativo. Si IndexedDB no existe, falla la transacción o se agota la cu
 `Map` en memoria y muestra el fallback. El dashboard informa progreso, permite cancelar y
 reanuda desde los bloques confirmados sin duplicarlos. Para cada snapshot mantiene en memoria
 un estado operativo con `en_progreso`, `cancelada`, `completada` o `fallida`, más `fecha_corte`,
-`max_id`, `total_inicial`, IDs únicos recibidos y duplicados. La cancelación conserva el cursor
-confirmado y esos conteos; solo pasa a `completada` cuando los únicos igualan el total inicial.
-El bloque accesible del dashboard anuncia esos valores y nunca comunica éxito para `cancelada`.
+`max_id`, `total_inicial`, IDs únicos recibidos y duplicados. La cancelación desuscribe la petición
+HTTP del bloque activo, lo aborta y conserva el cursor confirmado y esos conteos; no ejecuta el
+listado histórico `GET /api/ofertas` como fallback. Solo pasa a `completada` cuando los únicos
+igualan el total inicial. El bloque accesible del dashboard anuncia esos valores y nunca comunica
+éxito para `cancelada`.
 
 El badge `PRIORIDAD_IA` y sus evidencias se muestran como texto seguro en tabla y detalle. Solo
 se aplica su bonus de orden cuando la API devuelve `priorizar_ofertas_ia: true`; ante fallo de

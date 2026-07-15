@@ -8,7 +8,7 @@ import { PersistenciaDashboardService } from '../../servicios/persistencia-dashb
 import { PreferenciasService } from '../../servicios/preferencias.service';
 import { RespuestaApi } from '../../modelos/respuesta-api.model';
 import { Oferta } from '../../modelos/oferta.model';
-import { of, throwError } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 
 const crearOferta = (id: number, porcentaje: number, bonus: number): Oferta => ({
     id,
@@ -207,6 +207,61 @@ describe('Dashboard', () => {
             recibidos: 2,
             duplicados: 1,
         }));
+    });
+
+    it('aborta el bloque pendiente, conserva el cursor confirmado y no usa el listado legacy', async () => {
+        let abortada = false;
+        const ofertaConfirmada = crearOferta(15, 80, 0);
+        (componente as any).cursorSincronizacion = 'cursor-confirmado';
+        (componente as any).idsSincronizacion.add(ofertaConfirmada.id);
+        componente.estadoOperativoSincronizacion.set({
+            estado: 'en_progreso',
+            fecha_corte: '2026-06-15T00:00:00.000Z',
+            max_id: 16,
+            total_inicial: 2,
+            recibidos: 1,
+            duplicados: 0,
+        });
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(new Observable(() => () => {
+            abortada = true;
+        }));
+
+        const sincronizacion = (componente as any).sincronizarOfertas();
+        componente.cancelarSincronizacion();
+
+        expect(abortada).toBeTrue();
+        await sincronizacion;
+        expect((componente as any).cursorSincronizacion).toBe('cursor-confirmado');
+        expect(componente.estadoOperativoSincronizacion()).toEqual(jasmine.objectContaining({
+            estado: 'cancelada',
+            recibidos: 1,
+        }));
+        expect(mockOfertasService.obtenerOfertas).not.toHaveBeenCalled();
+    });
+
+    it('cancela el primer bloque pendiente y permite reanudar desde cero', async () => {
+        let abortada = false;
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(new Observable(() => () => {
+            abortada = true;
+        }));
+
+        const sincronizacion = (componente as any).sincronizarOfertas();
+        await Promise.resolve();
+        componente.cancelarSincronizacion();
+        await sincronizacion;
+
+        expect(abortada).toBeTrue();
+        expect(componente.estadoOperativoSincronizacion()).toEqual({
+            estado: 'cancelada',
+            fecha_corte: '',
+            max_id: 0,
+            total_inicial: 0,
+            recibidos: 0,
+            duplicados: 0,
+        });
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('REANUDAR');
+        expect(mockOfertasService.obtenerOfertas).not.toHaveBeenCalled();
     });
 
     it('no reemplaza el estado completada por cancelada', async () => {
