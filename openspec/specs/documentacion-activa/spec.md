@@ -6,6 +6,17 @@ Mantener documentación vigente alineada con la deprecación funcional de scorin
 
 ## Requirements
 
+### Requirement: Piloto GetOnBrd documentado y bloqueado
+
+La documentación activa MUST declarar GetOnBrd API-only, sandbox/fixtures-only y excluida de cron, UI y producción. MUST definir evidencia de autorización, límites, métricas, checkpoints, terminaciones, rollout y rollback por deshabilitación. La producción MUST permanecer bloqueada hasta autorización escrita verificable.
+
+#### Scenario: rollout sin autorización
+
+- GIVEN no existe autorización escrita válida
+- WHEN se revisa el rollout de GetOnBrd
+- THEN la producción MUST permanecer denegada
+- AND el rollback MUST consistir en deshabilitar el piloto sin borrar datos de producción.
+
 ### Requirement: Docs activas advierten eliminación física de scoring previo en B2
 
 La documentación activa MUST NOT describir scoring previo como feature disponible. Para B2, cuando mencione la migración de eliminación legacy, MUST advertir que se destruyen objetos de esquema `score_previo`, `analisis_previo`, `scoring_version`, `scoring_config`, índice y constraint legacy. También MUST aclarar que no se eliminan tablas ni filas, y que el rollback es limitado: recuperar esos objetos requiere backup, recreación manual o una migración compensatoria.

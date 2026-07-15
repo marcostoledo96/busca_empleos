@@ -52,7 +52,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/glassdoor` | Ejecutar scraping de Glassdoor | **Sí** | **Sí** (5/min) |
-| POST | `/api/scraping/getonbrd` | Ejecutar scraping de GetOnBrd | **Sí** | **Sí** (5/min) |
+| POST | `/api/scraping/getonbrd` | Consultar estado bloqueado del piloto GetOnBrd | **Sí** | **Inactivo** |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
@@ -456,36 +456,28 @@ Ejecuta el scraping de Glassdoor Argentina usando el actor de Apify, normaliza y
 
 ### POST /api/scraping/getonbrd
 
-Ejecuta el scraping de GetOnBrd usando su API pública gratuita (sin Apify), normaliza y guarda en BD.
+El endpoint es un **shadow endpoint**: devuelve un Result Contract bloqueado y no llama a red,
+servicios externos ni `crearOferta`. Acepta autenticación normal, pero no body operativo mientras
+el registry esté inactivo.
 
-**Body (opcional):**
-```json
-{
-    "maxResultados": 50,
-    "terminos": ["angular developer"]
-}
-```
-
-| Campo | Tipo | Default | Descripción |
-|-------|------|---------|-------------|
-| `maxResultados` | number | 50 | Cantidad máxima de ofertas a extraer por término. |
-| `terminos` | string[] | 9 términos predefinidos | Términos de búsqueda personalizados. |
-
-**Ejemplo response (200):**
 ```json
 {
     "exito": true,
     "datos": {
-        "mensaje": "Scraping de GetOnBrd completado: 9 ofertas nuevas.",
-        "plataforma": "getonbrd",
-        "ofertas_nuevas": 9,
-        "ofertas_duplicadas": 2,
-        "total_extraidas": 11
+        "run_id": null,
+        "estado": "bloqueado",
+        "motivo_terminacion": "politica_destino",
+        "destino": "bloqueado",
+        "ofertas": [],
+        "checkpoint": { "termino_indice": 0, "termino": null, "pagina_confirmada": 0, "pagina_siguiente": 1 },
+        "metricas": { "requests": 0, "paginas": 0, "recibidas": 0, "normalizadas": 0, "dentro_ventana": 0, "fuera_ventana": 0, "duplicadas_intra_run": 0, "invalidas": 0, "latencia_ms": 0 }
     }
 }
 ```
 
-**Nota:** El campo `empresa` siempre es `null` en GetOnBrd porque el endpoint de búsqueda no devuelve el nombre de la empresa. El salario viene en USD cuando está disponible.
+La activación futura requiere API oficial con sandbox/fixtures, evidencia escrita auditable y
+rollout explícito. El rollback es deshabilitar el registry y retirar la evidencia; no hay datos
+productivos generados por este piloto.
 
 ---
 

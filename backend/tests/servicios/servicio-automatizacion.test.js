@@ -32,7 +32,7 @@ jest.mock('../../src/config/plataformas', () => {
         indeed: { id: 'indeed', slugHttp: 'indeed', label: 'Indeed', activa: true },
         bumeran: { id: 'bumeran', slugHttp: 'bumeran', label: 'Bumeran', activa: true },
         glassdoor: { id: 'glassdoor', slugHttp: 'glassdoor', label: 'Glassdoor', activa: true },
-        getonbrd: { id: 'getonbrd', slugHttp: 'getonbrd', label: 'GetOnBrd', activa: true },
+        getonbrd: { id: 'getonbrd', slugHttp: 'getonbrd', label: 'GetOnBrd', activa: false, motivo: 'Piloto deshabilitado' },
         jooble: { id: 'jooble', slugHttp: 'jooble', label: 'Jooble', activa: true },
         google_jobs: { id: 'google_jobs', slugHttp: 'google-jobs', label: 'Google Jobs', activa: false, motivo: 'Desactivado por costo y baja utilidad' },
         remotive: { id: 'remotive', slugHttp: 'remotive', label: 'Remotive', activa: true },
@@ -145,9 +145,6 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingGlassdoor.mockResolvedValue([
                 { titulo: 'QA Engineer', url: 'https://www.glassdoor.com.ar/job-listing/qa.htm?jl=1' },
             ]);
-            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([
-                { titulo: 'Frontend Junior', url: 'https://www.getonbrd.com/jobs/programming/frontend-1' },
-            ]);
             servicioScraping.ejecutarScrapingJooble.mockResolvedValue([
                 { titulo: 'Dev TypeScript', url: 'https://jooble.org/desc/1234567890' },
             ]);
@@ -161,19 +158,19 @@ describe('Servicio de automatización', () => {
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
             // Verifico que se llamó al scraping de las plataformas activas.
-            // Las 9 plataformas activas deben ser invocadas.
+            // Las plataformas activas del registry deben ser invocadas.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledTimes(1);
-            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledTimes(1);
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
 
-            // Verifico que se guardaron las 8 ofertas activas (2+1+1+1+1+1+1 + 0 Remotive/RemoteOK vacíos).
-            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(8);
+            // Verifico que se guardaron las 7 ofertas de plataformas activas.
+            expect(modeloOferta.crearOferta).toHaveBeenCalledTimes(7);
 
             // Verifico la estructura del resultado.
             expect(resultado.exito).toBe(true);
@@ -187,8 +184,8 @@ describe('Servicio de automatización', () => {
                 expect(typeof resultado.scraping[id]).toBe('number');
             }
             // Verifico los totales.
-            expect(resultado.scraping.totalExtraidas).toBe(8);
-            expect(resultado.scraping.guardadas).toBe(8);
+            expect(resultado.scraping.totalExtraidas).toBe(7);
+            expect(resultado.scraping.guardadas).toBe(7);
             expect(resultado.scraping.descartadasPorIdioma).toBe(0);
 
             expect(resultado.evaluacion).toEqual({
@@ -200,7 +197,7 @@ describe('Servicio de automatización', () => {
             expect(resultado.errores).toEqual([]);
         });
 
-        test('plataformas inactivas (Google Jobs, InfoJobs) NO son invocadas', async () => {
+        test('plataformas inactivas (Google Jobs, InfoJobs y GetOnBrd) NO son invocadas', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
             ]);
@@ -210,10 +207,12 @@ describe('Servicio de automatización', () => {
             // Las inactivas no deben ser llamadas nunca.
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
+            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
 
             // Pero aparecen en resultado.scraping con valor 0.
             expect(resultado.scraping.google_jobs).toBe(0);
             expect(resultado.scraping.infojobs).toBe(0);
+            expect(resultado.scraping.getonbrd).toBe(0);
             expect(resultado.errores).toHaveLength(0);
         });
 
@@ -351,7 +350,6 @@ describe('Servicio de automatización', () => {
             servicioScraping.ejecutarScrapingIndeed.mockRejectedValue(new Error('Indeed error'));
             servicioScraping.ejecutarScrapingBumeran.mockRejectedValue(new Error('Bumeran error'));
             servicioScraping.ejecutarScrapingGlassdoor.mockRejectedValue(new Error('Glassdoor error'));
-            servicioScraping.ejecutarScrapingGetonbrd.mockRejectedValue(new Error('GetOnBrd error'));
             servicioScraping.ejecutarScrapingJooble.mockRejectedValue(new Error('Jooble error'));
             servicioScraping.ejecutarScrapingRemotive.mockRejectedValue(new Error('Remotive error'));
             servicioScraping.ejecutarScrapingRemoteOK.mockRejectedValue(new Error('RemoteOK error'));
@@ -360,8 +358,8 @@ describe('Servicio de automatización', () => {
 
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
             expect(resultado.scraping.totalExtraidas).toBe(0);
-            // 9 plataformas activas fallan → 9 errores (Google Jobs e InfoJobs son inactivas, no suman).
-            expect(resultado.errores).toHaveLength(9);
+            // 8 plataformas activas fallan; GetOnBrd, Google Jobs e InfoJobs son inactivas.
+            expect(resultado.errores).toHaveLength(8);
             // Sin ofertas, no hay errores de guardado.
             expect(resultado.erroresGuardado).toBe(0);
         });
@@ -489,7 +487,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingIndeed).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith(opcionesEsperadas);
-            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(opcionesEsperadas);
+            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingJooble).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(opcionesEsperadas);
             // Las inactivas no deben recibir opciones ni llamarse.
@@ -508,7 +506,7 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
-            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({});
+            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
             expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith({});
             // Las inactivas no deben llamarse ni con {} ni con nada.
             expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();

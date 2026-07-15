@@ -439,64 +439,18 @@ describe('Controlador de scraping', () => {
     // === POST /api/scraping/getonbrd ===
 
     describe('POST /api/scraping/getonbrd', () => {
-        test('ejecuta el scraping, guarda ofertas, y retorna resumen', async () => {
-            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([
-                { titulo: 'Frontend Developer Junior', url: 'https://www.getonbrd.com/jobs/programming/frontend-1' },
-                { titulo: 'QA Tester', url: 'https://www.getonbrd.com/jobs/programming/qa-2' },
-            ]);
-            modeloOferta.crearOferta
-                .mockResolvedValueOnce({ id: 1 })
-                .mockResolvedValueOnce(null);
-
-            const res = await request(app)
-                .post('/api/scraping/getonbrd')
-                .send({ maxResultados: 30 });
+        test('retorna Result Contract bloqueado sin invocar servicio ni BD', async () => {
+            const res = await request(app).post('/api/scraping/getonbrd').send({});
 
             expect(res.status).toBe(200);
-            expect(res.body.exito).toBe(true);
-            expect(res.body.datos.plataforma).toBe('getonbrd');
-            expect(res.body.datos.total_extraidas).toBe(2);
-            expect(res.body.datos.ofertas_nuevas).toBe(1);
-            expect(res.body.datos.ofertas_duplicadas).toBe(1);
-            expect(res.body.datos.mensaje).toContain('GetOnBrd');
-        });
-
-        test('pasa maxResultados y terminos al servicio', async () => {
-            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([]);
-
-            await request(app)
-                .post('/api/scraping/getonbrd')
-                .send({ maxResultados: 20, terminos: ['react junior'] });
-
-            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({
-                maxResultados: 20,
-                terminos: ['react junior'],
+            expect(res.body.datos).toMatchObject({
+                estado: 'bloqueado',
+                motivo_terminacion: 'politica_destino',
+                destino: 'bloqueado',
+                ofertas: [],
             });
-        });
-
-        test('usa maxResultados=50 por defecto si no se envía', async () => {
-            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([]);
-
-            await request(app)
-                .post('/api/scraping/getonbrd')
-                .send({});
-
-            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith({
-                maxResultados: 50,
-                terminos: undefined,
-            });
-        });
-
-        test('retorna éxito aunque no haya resultados', async () => {
-            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue([]);
-
-            const res = await request(app)
-                .post('/api/scraping/getonbrd')
-                .send({});
-
-            expect(res.status).toBe(200);
-            expect(res.body.datos.total_extraidas).toBe(0);
-            expect(res.body.datos.ofertas_nuevas).toBe(0);
+            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
+            expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
         });
     });
 });

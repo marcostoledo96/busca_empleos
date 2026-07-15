@@ -182,10 +182,6 @@ function construirUrlsBumeran(opciones = {}) {
     return urls;
 }
 
-// URL base de la API pública y gratuita de GetOnBrd.
-// No requiere autenticación ni actor de Apify — usamos fetch() nativo de Node 22.
-const GETONBRD_API_BASE = 'https://www.getonbrd.com/api/v0';
-
 // URL base de la API pública y gratuita de Remotive (sin auth).
 // Documentación: https://remotive.com/api/remote-jobs
 const REMOTIVE_API_BASE = 'https://remotive.com/api';
@@ -203,32 +199,10 @@ const JOOBLE_API_URL = 'https://jooble.org/api/';
 // Guardada en .env para no exponerla en el código.
 const JOOBLE_API_KEY = process.env.JOOBLE_API_KEY;
 
-/**
- * Construyo las URLs de búsqueda de la API de GetOnBrd a partir de los términos.
- *
- * GetOnBrd expone una API REST pública (sin auth) en:
- * GET /search/jobs?query={termino}&page={n}
- *
- * La paginación devuelve hasta 120 ítems por página.
- * La cantidad total de páginas viene en `meta.total_pages`.
- *
- * @param {string[]} terminos - Términos de búsqueda.
- * @returns {string[]} Array de URLs de la primera página por cada término.
- */
-function construirUrlsGetonbrd(terminos) {
-    const terminosBase = terminos || TERMINOS_BUSQUEDA_DEFECTO;
-
-    return terminosBase.map(termino => {
-        const terminoEncoded = encodeURIComponent(termino);
-        return `${GETONBRD_API_BASE}/search/jobs?query=${terminoEncoded}&page=1`;
-    });
-}
-
 module.exports = {
     clienteApify,
     ACTORES,
     TERMINOS_BUSQUEDA_DEFECTO,
-    GETONBRD_API_BASE,
     REMOTIVE_API_BASE,
     REMOTEOK_API_BASE,
     JOOBLE_API_URL,
@@ -236,5 +210,4 @@ module.exports = {
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
     construirUrlsBumeran,
-    construirUrlsGetonbrd,
 };

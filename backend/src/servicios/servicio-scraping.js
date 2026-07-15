@@ -18,7 +18,6 @@ const {
     clienteApify,
     ACTORES,
     TERMINOS_BUSQUEDA_DEFECTO,
-    GETONBRD_API_BASE,
     REMOTIVE_API_BASE,
     REMOTEOK_API_BASE,
     JOOBLE_API_URL,
@@ -26,11 +25,12 @@ const {
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
     construirUrlsBumeran,
-    construirUrlsGetonbrd,
 } = require('../config/apify');
 
 const { normalizarLote } = require('./servicio-normalizacion');
 const cheerio = require('cheerio');
+const { randomUUID } = require('crypto');
+const { DESTINO_SANDBOX, LIMITES_GETONBRD, validarDestinoGetonbrd } = require('../config/getonbrd');
 
 // Headers comunes para las requests de scraping directo (sin Apify).
 // Simulan un navegador real para evitar bloqueos por User-Agent genérico.
@@ -522,88 +522,136 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
 }
 
 /**
- * Ejecuto el scraping de GetOnBrd usando su API REST pública (gratuita, sin auth).
- *
- * A diferencia del resto de las plataformas, GetOnBrd NO usa Apify.
- * Su API pública devuelve JSON directamente:
- * GET https://www.getonbrd.com/api/v0/search/jobs?query={termino}&page={n}
- *
- * La paginación trae hasta 120 ítems por página. El campo `meta.total_pages`
- * indica cuántas páginas existen para ese término.
- *
- * El flujo por cada término:
- * 1. Pido la página 1 para obtener el total de páginas.
- * 2. Si hay más páginas, las pido secuencialmente hasta llegar a maxResultados.
- * 3. Acumulo todos los ítems de todos los términos.
- * 4. Normalizo al formato de nuestra tabla.
- *
- * @param {Object} opciones - Opciones de ejecución.
- * @param {number} [opciones.maxResultados=50] - Máximo total de ofertas a extraer.
- * @param {string[]} [opciones.terminos] - Términos de búsqueda personalizados.
- * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
+ * Ejecuto el piloto GetOnBrd solo sobre un cliente inyectable y destino validado.
  */
 async function ejecutarScrapingGetonbrd(opciones = {}) {
-    const maxResultados = opciones.maxResultados || 50;
-    const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    const ahora = opciones.ahora instanceof Date ? opciones.ahora : new Date();
+    const guardia = validarDestinoGetonbrd({
+        destino: opciones.destino || DESTINO_SANDBOX,
+        evidencia: opciones.evidencia,
+        habilitado: opciones.habilitado,
+        ahora,
+    });
+    const checkpoint = {
+        termino_indice: opciones.checkpointInicial?.termino_indice || 0,
+        termino: opciones.checkpointInicial?.termino || null,
+        pagina_confirmada: opciones.checkpointInicial?.pagina_confirmada || 0,
+        pagina_siguiente: opciones.checkpointInicial?.pagina_siguiente || 1,
+    };
+    const resultado = {
+        run_id: randomUUID(), estado: guardia.permitido ? 'completado' : 'bloqueado',
+        motivo_terminacion: guardia.permitido ? 'paginas_agotadas' : guardia.motivo,
+        destino: guardia.destino, ofertas: [], checkpoint,
+        metricas: { requests: 0, paginas: 0, recibidas: 0, normalizadas: 0, dentro_ventana: 0, fuera_ventana: 0, duplicadas_intra_run: 0, invalidas: 0, latencia_ms: 0 },
+    };
+    if (!guardia.permitido) return resultado;
 
-    try {
-        console.log(`Scraping GetOnBrd: buscando ${terminos.length} término(s) con la API pública...`);
-        let itemsCrudos = [];
+    const destino = opciones.destino || DESTINO_SANDBOX;
+    const limitePaginas = Math.max(1, Math.min(opciones.limitePaginas || LIMITES_GETONBRD.paginas, LIMITES_GETONBRD.paginas));
+    const limiteItems = Math.max(1, Math.min(opciones.maxResultados || opciones.limiteItems || LIMITES_GETONBRD.items, LIMITES_GETONBRD.items));
+    const timeoutMs = Math.max(1, Math.min(opciones.timeoutMs || LIMITES_GETONBRD.timeoutMs, LIMITES_GETONBRD.timeoutMs));
+    const terminos = Array.isArray(opciones.terminos) && opciones.terminos.length ? opciones.terminos : TERMINOS_BUSQUEDA_DEFECTO;
+    const cliente = opciones.cliente || fetch;
+    const urlsVistas = new Set();
+    const limiteFecha = ahora.getTime() - 30 * 24 * 60 * 60 * 1000;
+    const inicio = Date.now();
+    const terminar = (estado, motivo) => {
+        resultado.estado = estado;
+        resultado.motivo_terminacion = motivo;
+        resultado.metricas.latencia_ms = Date.now() - inicio;
+        return resultado;
+    };
 
-        for (const termino of terminos) {
-            if (itemsCrudos.length >= maxResultados) break;
+    terminosPendientes: for (let indice = checkpoint.termino_indice; indice < terminos.length; indice++) {
+        const termino = terminos[indice];
+        let pagina = indice === checkpoint.termino_indice ? checkpoint.pagina_siguiente : 1;
+        let techoTotalPaginas = Infinity;
+        let paginasProcesadas = 0;
 
-            console.log(`Scraping GetOnBrd: buscando "${termino}"...`);
-
-            // Pido la primera página para saber cuántas páginas hay en total.
-            const urlPrimeraPagina = `${GETONBRD_API_BASE}/search/jobs?query=${encodeURIComponent(termino)}&page=1`;
-            const respuestaPrimeraPagina = await fetch(urlPrimeraPagina);
-
-            if (!respuestaPrimeraPagina.ok) {
-                console.warn(`Scraping GetOnBrd: error HTTP ${respuestaPrimeraPagina.status} para "${termino}". Saltando.`);
-                continue;
+        while (pagina <= techoTotalPaginas && paginasProcesadas < limitePaginas) {
+            if (opciones.signal?.aborted) return terminar('cancelado', 'cancelacion');
+            if (resultado.ofertas.length >= limiteItems) return terminar('parcial', 'limite_items');
+            const abortador = new AbortController();
+            const cancelarExterno = () => abortador.abort();
+            opciones.signal?.addEventListener('abort', cancelarExterno, { once: true });
+            const temporizador = setTimeout(() => abortador.abort(), timeoutMs);
+            let respuesta;
+            try {
+                resultado.metricas.requests++;
+                respuesta = await cliente(`${destino}/search/jobs?query=${encodeURIComponent(termino)}&page=${pagina}&per_page=${LIMITES_GETONBRD.porPagina}`, { signal: abortador.signal });
+            } catch (error) {
+                clearTimeout(temporizador);
+                opciones.signal?.removeEventListener('abort', cancelarExterno);
+                return terminar(opciones.signal?.aborted ? 'cancelado' : 'parcial', opciones.signal?.aborted ? 'cancelacion' : 'timeout');
             }
+            clearTimeout(temporizador);
+            opciones.signal?.removeEventListener('abort', cancelarExterno);
+            if (opciones.signal?.aborted) return terminar('cancelado', 'cancelacion');
+            if (!respuesta?.ok) return terminar('parcial', 'error_http');
+            let cuerpo;
+            try {
+                cuerpo = await respuesta.json();
+            } catch (error) {
+                return terminar('parcial', 'respuesta_invalida');
+            }
+            if (!Array.isArray(cuerpo?.data)) return terminar('parcial', 'respuesta_invalida');
 
-            const jsonPrimeraPagina = await respuestaPrimeraPagina.json();
-            const totalPaginas = jsonPrimeraPagina.meta?.total_pages || 1;
-
-            // Acumulo los ítems de la primera página.
-            const itemsPrimeraPagina = jsonPrimeraPagina.data || [];
-            itemsCrudos = itemsCrudos.concat(itemsPrimeraPagina);
-            console.log(`Scraping GetOnBrd: página 1/${totalPaginas} → ${itemsPrimeraPagina.length} ítem(s) para "${termino}".`);
-
-            // Si hay más páginas y no llegué al máximo, las pido.
-            for (let pagina = 2; pagina <= totalPaginas; pagina++) {
-                if (itemsCrudos.length >= maxResultados) break;
-
-                const urlPagina = `${GETONBRD_API_BASE}/search/jobs?query=${encodeURIComponent(termino)}&page=${pagina}`;
-                const respuestaPagina = await fetch(urlPagina);
-
-                if (!respuestaPagina.ok) {
-                    console.warn(`Scraping GetOnBrd: error HTTP ${respuestaPagina.status} en página ${pagina} para "${termino}". Deteniendo paginación.`);
-                    break;
+            const items = cuerpo.data;
+            paginasProcesadas++;
+            resultado.metricas.paginas++;
+            resultado.metricas.recibidas += items.length;
+            techoTotalPaginas = Math.max(1, Number(cuerpo.meta?.total_pages) || 1);
+            for (const item of items) {
+                const [oferta] = normalizarLote([item], 'getonbrd');
+                if (!oferta || !oferta.fecha_publicacion || Number.isNaN(new Date(oferta.fecha_publicacion).getTime())) {
+                    resultado.metricas.invalidas++;
+                    continue;
                 }
-
-                const jsonPagina = await respuestaPagina.json();
-                const itemsPagina = jsonPagina.data || [];
-                itemsCrudos = itemsCrudos.concat(itemsPagina);
-                console.log(`Scraping GetOnBrd: página ${pagina}/${totalPaginas} → ${itemsPagina.length} ítem(s) para "${termino}".`);
+                resultado.metricas.normalizadas++;
+                const urlCanonica = normalizarUrlGetonbrd(oferta.url);
+                if (!urlCanonica) {
+                    resultado.metricas.invalidas++;
+                    continue;
+                }
+                if (urlsVistas.has(urlCanonica)) {
+                    resultado.metricas.duplicadas_intra_run++;
+                    continue;
+                }
+                urlsVistas.add(urlCanonica);
+                if (new Date(oferta.fecha_publicacion).getTime() < limiteFecha) {
+                    resultado.metricas.fuera_ventana++;
+                    continue;
+                }
+                oferta.url = urlCanonica;
+                resultado.ofertas.push(oferta);
+                resultado.metricas.dentro_ventana++;
+                if (resultado.ofertas.length >= limiteItems) break;
             }
+            checkpoint.termino_indice = indice;
+            checkpoint.termino = termino;
+            checkpoint.pagina_confirmada = pagina;
+            checkpoint.pagina_siguiente = pagina + 1;
+            if (opciones.alConfirmarCheckpoint) await opciones.alConfirmarCheckpoint({ ...checkpoint });
+            if (items.length === 0) {
+                if (indice < terminos.length - 1) continue terminosPendientes;
+                return terminar('completado', 'pagina_vacia');
+            }
+            if (resultado.ofertas.length >= limiteItems) return terminar('parcial', 'limite_items');
+            pagina++;
         }
+        if (pagina <= techoTotalPaginas) return terminar('parcial', 'limite_paginas');
+    }
+    return terminar('completado', 'paginas_agotadas');
+}
 
-        console.log(`Scraping GetOnBrd: ${itemsCrudos.length} ofertas crudas en total.`);
-
-        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'getonbrd');
-        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
-        console.log(`Scraping GetOnBrd: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
-
-        return ofertasFiltradas;
-
+function normalizarUrlGetonbrd(url) {
+    try {
+        const canonica = new URL(url);
+        canonica.hash = '';
+        canonica.pathname = canonica.pathname.replace(/\/$/, '');
+        return canonica.toString();
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de GetOnBrd: ${error.message}`,
-            { cause: error }
-        );
+        return null;
     }
 }
 
@@ -1251,4 +1299,5 @@ module.exports = {
     ejecutarScrapingAdzuna,
     // Exporto el helper para poder testearlo directamente.
     _filtrarPorUltimasDosemanas: filtrarPorUltimasDosemanas,
+    _normalizarUrlGetonbrd: normalizarUrlGetonbrd,
 };

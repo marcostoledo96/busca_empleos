@@ -92,10 +92,6 @@
                     <i class="pi pi-star" aria-hidden="true"></i>
                     {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
                 </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="scrapeandoGetonbrd() || modoDemo()" (click)="scrapearGetonbrd()" [pTooltip]="modoDemo() ? 'Extrae ofertas de GetOnBrd usando su API REST pública oficial (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear GetOnBrd">
-                    <i class="pi pi-globe" aria-hidden="true"></i>
-                    {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
-                </button>
                 <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoJooble()" [disabled]="scrapeandoJooble() || modoDemo()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top" aria-label="Scrapear Jooble">
                     <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoJooble() ? '...' : 'Jooble' }}

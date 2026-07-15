@@ -33,7 +33,6 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoIndeed = signal(false);
     readonly scrapeandoBumeran = signal(false);
     readonly scrapeandoGlassdoor = signal(false);
-    readonly scrapeandoGetonbrd = signal(false);
     readonly scrapeandoJooble = signal(false);
     readonly scrapeandoGoogleJobs = signal(false);
     readonly scrapeandoRemotive = signal(false);
@@ -50,7 +49,6 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoIndeed() ||
         this.scrapeandoBumeran() ||
         this.scrapeandoGlassdoor() ||
-        this.scrapeandoGetonbrd() ||
         this.scrapeandoJooble() ||
         this.scrapeandoRemotive() ||
         this.scrapeandoRemoteOK() ||
@@ -411,7 +409,6 @@ export class PanelControl implements OnInit, OnDestroy {
             case 'indeed':        this.scrapearIndeed();        break;
             case 'bumeran':       this.scrapearBumeran();       break;
             case 'glassdoor':     this.scrapearGlassdoor();     break;
-            case 'getonbrd':      this.scrapearGetonbrd();      break;
             case 'jooble':        this.scrapearJooble();        break;
             // googlejobs eliminado del selector — plataforma desactivada.
             case 'remotive':      this.scrapearRemotive();      break;
@@ -565,36 +562,6 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'error',
                     summary: 'Error en Glassdoor',
-                    detail: error.error?.error || 'Error al conectar con el servidor',
-                    life: 5000
-                });
-            }
-        });
-    }
-
-    scrapearGetonbrd(): void {
-        this.scrapeandoGetonbrd.set(true);
-        this.plataformaEnProceso.set('GetOnBrd');
-        this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearGetonbrd().subscribe({
-            next: (respuesta) => {
-                this.scrapeandoGetonbrd.set(false);
-                this.mostrarOverlayIndividual.set(false);
-                const datos = respuesta.datos;
-                this.mensajes.add({
-                    severity: 'success',
-                    summary: 'GetOnBrd completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
-                    life: 5000
-                });
-                this.accionCompletada.emit();
-            },
-            error: (error) => {
-                this.scrapeandoGetonbrd.set(false);
-                this.mostrarOverlayIndividual.set(false);
-                this.mensajes.add({
-                    severity: 'error',
-                    summary: 'Error en GetOnBrd',
                     detail: error.error?.error || 'Error al conectar con el servidor',
                     life: 5000
                 });

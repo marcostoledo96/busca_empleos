@@ -17,7 +17,6 @@ describe('PanelControl — Selector mobile de scraping', () => {
         scrapearIndeed:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0 } }),
         scrapearBumeran:      () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearGlassdoor:    () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
-        scrapearGetonbrd:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearJooble:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearGoogleJobs:   () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearRemotive:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
@@ -83,8 +82,8 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     // --- opciones del p-select ---
 
-    it('opcionesPlataforma debería contener las 10 plataformas activas', () => {
-        expect(component.opcionesPlataforma.length).toBe(10);
+    it('opcionesPlataforma debería contener las 9 plataformas activas', () => {
+        expect(component.opcionesPlataforma.length).toBe(9);
     });
 
     it('opcionesPlataforma debería incluir LinkedIn con valor linkedin', () => {
@@ -245,7 +244,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     it('los botones .scraping-solo-desktop deberían existir en el template', () => {
         const botones = fixture.nativeElement.querySelectorAll('.scraping-solo-desktop');
-        expect(botones.length).toBe(10);
+        expect(botones.length).toBe(9);
     });
 
     it('el p-select del selector mobile debería existir en el template', () => {

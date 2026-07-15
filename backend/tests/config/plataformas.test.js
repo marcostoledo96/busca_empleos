@@ -80,16 +80,17 @@ describe('Registry de plataformas', () => {
             }
         });
 
-        test('no incluye Google Jobs ni InfoJobs', () => {
+        test('no incluye Google Jobs, InfoJobs ni GetOnBrd', () => {
             const ids = PLATAFORMAS_ACTIVAS.map(p => p.id);
             expect(ids).not.toContain('google_jobs');
             expect(ids).not.toContain('infojobs');
+            expect(ids).not.toContain('getonbrd');
         });
 
         test('incluye todas las plataformas activas esperadas', () => {
             const idsEsperados = [
                 'linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor',
-                'getonbrd', 'jooble', 'remotive', 'remoteok', 'adzuna',
+                'jooble', 'remotive', 'remoteok', 'adzuna',
             ];
             const idsActivos = PLATAFORMAS_ACTIVAS.map(p => p.id).sort();
             expect(idsActivos).toEqual(idsEsperados.sort());

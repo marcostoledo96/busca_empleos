@@ -71,12 +71,13 @@ describe('Registry de plataformas (frontend)', () => {
         expect(ij.motivo).toBeTruthy();
     });
 
-    it('las plataformas inactivas deberían ser exactamente Google Jobs e InfoJobs', () => {
+    it('las plataformas inactivas deberían incluir Google Jobs, InfoJobs y GetOnBrd', () => {
         const inactivas = Object.values(PLATAFORMAS).filter(p => !p.activa);
         const idsInactivas = inactivas.map(p => p.id);
         expect(idsInactivas).toContain('google_jobs');
         expect(idsInactivas).toContain('infojobs');
-        expect(idsInactivas.length).toBe(2);
+        expect(idsInactivas).toContain('getonbrd');
+        expect(idsInactivas.length).toBe(3);
     });
 
     // === Id vs slugHttp ===
@@ -105,10 +106,11 @@ describe('Registry de plataformas (frontend)', () => {
             expect(p.slugHttp).toBeTruthy();
             expect(p.label).toBeTruthy();
         }
-        // Google Jobs e InfoJobs NO deberían estar
+        // Google Jobs, InfoJobs y GetOnBrd NO deberían estar
         const ids = activas.map(p => p.id);
         expect(ids).not.toContain('google_jobs');
         expect(ids).not.toContain('infojobs');
+        expect(ids).not.toContain('getonbrd');
     });
 
     it('esPlataformaActiva debería retornar true para activas', () => {
@@ -119,6 +121,7 @@ describe('Registry de plataformas (frontend)', () => {
     it('esPlataformaActiva debería retornar false para inactivas', () => {
         expect(esPlataformaActiva('google_jobs')).toBeFalse();
         expect(esPlataformaActiva('infojobs')).toBeFalse();
+        expect(esPlataformaActiva('getonbrd')).toBeFalse();
     });
 
     it('esPlataformaActiva debería aceptar slug HTTP y normalizarlo', () => {
@@ -159,6 +162,7 @@ describe('Registry de plataformas (frontend)', () => {
         const ids = opciones.map(o => o.value);
         expect(ids).not.toContain('google_jobs');
         expect(ids).not.toContain('infojobs');
+        expect(ids).not.toContain('getonbrd');
         expect(opciones.length).toBe(PLATAFORMAS_ACTIVAS.length);
     });
 
@@ -167,6 +171,7 @@ describe('Registry de plataformas (frontend)', () => {
         const values = opciones.map(o => o.value);
         expect(values).not.toContain('google_jobs');
         expect(values).not.toContain('infojobs');
+        expect(values).not.toContain('getonbrd');
         expect(opciones.length).toBe(PLATAFORMAS_ACTIVAS.length);
     });
 
