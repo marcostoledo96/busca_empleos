@@ -2,20 +2,31 @@ name: CI — Busca Empleos
 
 on:
     push:
-        branches: [master, main, 'feature/**']
+        branches: [master, main]
     pull_request:
         branches: [master, main]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
 
 jobs:
     # ── Backend: unit tests ──
     test-unit:
         name: Backend unit tests
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         defaults:
             run:
                 working-directory: backend
         steps:
             - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -36,6 +47,7 @@ jobs:
     test-db:
         name: Backend DB tests
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         needs: test-unit
         defaults:
             run:
@@ -56,6 +68,8 @@ jobs:
                     --health-retries 5
         steps:
             - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -96,11 +110,14 @@ jobs:
     frontend:
         name: Frontend build & test
         runs-on: ubuntu-latest
+        timeout-minutes: 20
         defaults:
             run:
                 working-directory: frontend
         steps:
             - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
