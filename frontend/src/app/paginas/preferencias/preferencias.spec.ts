@@ -5,6 +5,7 @@ import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { DemoService } from '../../servicios/demo.service';
 import { MessageService } from 'primeng/api';
 import { of } from 'rxjs';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 describe('Preferencias — Accesibilidad aria-live dinámico', () => {
 
@@ -40,6 +41,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
             providers: [
+                provideNoopAnimations(),
                 { provide: PreferenciasService, useValue: mockPrefService },
                 { provide: EvaluacionService, useValue: mockEvaluacionService },
                 { provide: DemoService, useValue: mockDemoService },
@@ -55,6 +57,116 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
     it('debería crear el componente', async () => {
         const { component } = await crearComponente();
         expect(component).toBeTruthy();
+    });
+
+    it('conserva listas eliminadas y no completa hechos ausentes al recargar', async () => {
+        const { component } = await crearComponente();
+        component.cargarPreferencias();
+        expect(component.tecnologiasDetalle).toEqual([]);
+        expect(component.rolesObjetivoDetalle).toEqual([]);
+        expect(component.aniosExperienciaReales).toBeNull();
+        expect(component.nivelInglesDetalle as object).toEqual({});
+        expect(component.nivelRealSeniority).toBe('');
+    });
+
+    it('guarda vacío y ninguno sin recuperar el stack anterior y conserva cero y texto exacto', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const guardar = spyOn(servicio, 'actualizarPreferencias').and.returnValue(of(mockPreferencias as any));
+        component.stackTecnologico = ['Angular'];
+        component.tecnologiasDetalle = [];
+        component.rolesObjetivoDetalle = [];
+        component.aniosExperienciaReales = 0;
+        component.promptPersonalizado = '  Criterio adicional\n\n';
+        component.guardar();
+        expect(guardar.calls.mostRecent().args[0]).toEqual(jasmine.objectContaining({
+            stack_tecnologico: [], tecnologias_detalle: [], roles_objetivo_detalle: [],
+            anios_experiencia_reales: 0, prompt_personalizado: '  Criterio adicional\n\n',
+        }));
+        component.tecnologiasDetalle = [{ nombre: 'Java', nivel: 'ninguno', categoria: 'lenguaje', importancia: 'penalizable', aliases: [] }];
+        component.guardar();
+        expect(guardar.calls.mostRecent().args[0].stack_tecnologico).toEqual([]);
+        expect(guardar.calls.mostRecent().args[0].tecnologias_detalle?.[0].nivel).toBe('ninguno');
+    });
+
+    it('aplicar CV no sobrescribe reglas ni preferencias laborales confirmadas', async () => {
+        const { component } = await crearComponente();
+        component.modalidadAceptada = 'remoto';
+        component.zonasPreferidas = ['CABA'];
+        component.terminosBusqueda = ['QA'];
+        component.reglasExclusion = ['SAP'];
+        component.resultadoImportacion = {
+            nombre: 'Candidato CV', modalidad_aceptada: 'presencial', zonas_preferidas: ['Interior'],
+            terminos_busqueda: ['Java'], reglas_exclusion: ['Python'], tecnologias_detalle: [],
+            roles_objetivo_detalle: [], preguntas: [], advertencias: [],
+        } as any;
+        component.aplicarImportacion();
+        expect(component.nombre).toBe('Candidato CV');
+        expect(component.modalidadAceptada).toBe('remoto');
+        expect(component.zonasPreferidas).toEqual(['CABA']);
+        expect(component.terminosBusqueda).toEqual(['QA']);
+        expect(component.reglasExclusion).toEqual(['SAP']);
+    });
+
+    it('muestra el perfil retornado, mantiene la vista guardada al editar y recarga sin derivarla', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const perfil = {
+            version: 1, candidato: {
+                nombre: 'Persistido', nivel_real_seniority: null, anios_experiencia_reales: 0,
+                perfil_profesional: 'Proyecto confirmado', tecnologias_detalle: [], stack_tecnologico: [],
+                nivel_ingles_detalle: { reading: 'C1' }, idioma_candidato: null,
+                conocimientos_ausentes: [], limitaciones_explicitas: null,
+            }, restricciones: { preferencias: { roles_objetivo_detalle: [], modalidad_aceptada: 'remoto',
+                zonas_preferidas: ['CABA'], reglas_exclusion: [], disponibilidad: null,
+                expectativa_salarial_min: null, expectativa_salarial_max: null, moneda_salarial: null,
+                keywords_positivas: [], keywords_negativas: [], plataformas_preferidas: [], plataformas_excluidas: [],
+            }, politicas_sistema: ['Política íntegra de prueba: Java obligatorio excluido.'] },
+            secciones: [{ id: 'candidato', titulo: 'Candidato', texto: 'Texto técnico del proveedor' }],
+            texto: 'Texto técnico del proveedor',
+        };
+        const respuesta = { exito: true, datos: { ...mockPreferencias.datos, nombre: 'Persistido',
+            tecnologias_detalle: [], roles_objetivo_detalle: [], anios_experiencia_reales: 0,
+            perfil_efectivo: perfil, prompt_personalizado: '  criterio\n',
+        } };
+        let respuestaPersistida = { ...respuesta, datos: { ...respuesta.datos, nombre: 'Inicial',
+            perfil_efectivo: { ...perfil, candidato: { ...perfil.candidato, nombre: 'Inicial' } },
+        } };
+        spyOn(servicio, 'obtenerPreferencias').and.callFake(() => of(respuestaPersistida as any));
+        const guardar = spyOn(servicio, 'actualizarPreferencias').and.callFake(() => {
+            respuestaPersistida = respuesta;
+            return of(respuesta as any);
+        });
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        const vista = () => fixture.nativeElement.querySelector('[aria-labelledby="perfil-ia-titulo"]') as HTMLElement;
+        expect(vista()).not.toBeNull();
+        expect(vista()?.textContent).toContain('Inicial');
+        const entradaNombre = fixture.nativeElement.querySelector('#nombre') as HTMLInputElement;
+        entradaNombre.value = 'Borrador';
+        entradaNombre.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+        expect(vista()?.textContent).toContain('Cambios sin guardar');
+        expect(vista()?.textContent).not.toContain('Borrador');
+        expect(vista()?.textContent).toContain('Inicial');
+        component.guardar();
+        await fixture.whenStable();
+        expect(component.nombre).toBe('Persistido');
+        expect(component.promptPersonalizado).toBe('  criterio\n');
+        expect(component.aniosExperienciaReales).toBe(0);
+        expect(vista()?.textContent).toContain('Persistido');
+        expect(vista()?.textContent).not.toContain('Inicial');
+        expect(guardar.calls.mostRecent().args[0]).not.toEqual(jasmine.objectContaining({ perfil_efectivo: jasmine.anything() }));
+        expect(vista()?.textContent).not.toContain('Cambios sin guardar');
+        component.cargarPreferencias();
+        fixture.changeDetectorRef.markForCheck();
+        await fixture.whenStable();
+        expect(vista()?.textContent).toContain('Proyecto confirmado');
+        expect(vista()?.textContent).toContain('C1');
+        expect(vista()?.textContent).toContain('Política íntegra de prueba: Java obligatorio excluido.');
+        expect(vista()?.textContent).not.toContain('Texto técnico del proveedor');
+        expect(component.rolesObjetivoDetalle).toEqual([]);
+        expect(component.tecnologiasDetalle).toEqual([]);
     });
 
     // --- Task 5.1: aria-live recibe contenido dinámico ---

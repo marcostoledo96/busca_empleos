@@ -101,6 +101,24 @@ describe('PreferenciasService', () => {
         });
     });
 
+    it('conserva sin transformar el perfil efectivo recibido por GET y PUT', () => {
+        const perfil = {
+            version: 1, candidato: { nombre: 'Confirmado', anios_experiencia_reales: 0,
+                tecnologias_detalle: [], stack_tecnologico: [], nivel_ingles_detalle: null },
+            restricciones: { preferencias: { roles_objetivo_detalle: [] }, politicas_sistema: ['Política completa'] },
+            secciones: [{ id: 'perfil', titulo: 'Perfil', texto: 'Representación autoritativa' }],
+            texto: 'Representación autoritativa',
+        };
+        servicio.obtenerPreferencias().subscribe(resp => expect(resp.datos.perfil_efectivo).toEqual(perfil as any));
+        httpMock.expectOne(urlBase).flush({ exito: true, datos: { perfil_efectivo: perfil } });
+        const datos = { tecnologias_detalle: [], roles_objetivo_detalle: [], anios_experiencia_reales: 0,
+            prompt_personalizado: '  Criterio adicional\n\n' };
+        servicio.actualizarPreferencias(datos).subscribe(resp => expect(resp.datos.perfil_efectivo).toEqual(perfil as any));
+        const peticion = httpMock.expectOne(urlBase);
+        expect(peticion.request.body).toEqual(datos);
+        peticion.flush({ exito: true, datos: { ...datos, perfil_efectivo: perfil } });
+    });
+
     it('debería analizar CV Markdown (POST) con FormData', () => {
         const archivoMock = new File(['contenido cv'], 'cv.md', { type: 'text/markdown' });
 
