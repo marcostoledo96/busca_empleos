@@ -71,12 +71,39 @@ describe('Contexto de los requisitos reales', () => {
         'No se exige Java, inglés avanzado ni experiencia.',
         'Desarrollador junior para empresa líder del mercado.',
         'Somos una empresa líder y buscamos desarrollador junior',
+        'Buscamos desarrollador junior para nuestro equipo senior',
+        'Junior developer for our senior team',
+        'Requirements:\n- Java optional\n- Angular',
+        '<h2>Requirements optional</h2><ul><li>Java</li></ul>',
+        'Buscamos desarrollador junior en una empresa con 5+ años de experiencia',
+        'Requisitos deseables:\n- Java\nRequisitos obligatorios:\n- Angular',
+        'Requisitos obligatorios:\n- Angular\nDeseables:\n- Java',
+        'Requisitos obligatorios:<ul><li>Angular</li></ul><h2>Deseables:</h2><ul><li>Java</li></ul>',
+        'Requisitos obligatorios:\n- Angular\nBeneficios:\n- Nuestro producto utiliza Java',
+        'Requisitos obligatorios:\n- Angular\nNuestro producto utiliza Java',
     ])('no excluyo menciones incidentales, opcionales o ambiguas: %s', descripcion => {
         expect(evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase).excluida).toBe(false);
     });
 
     test.each([
         ['Java obligatorio.', 'java'],
+        ['Requirements:\n- Java\n- Angular', 'java'],
+        ['<h2>Requirements:</h2><ul><li>Java</li></ul>', 'java'],
+        ['Requisitos obligatorios:\n• Java', 'java'],
+        ['<h2>Requisitos obligatorios</h2><ul><li>Java</li></ul>', 'java'],
+        ['Senior developer for our junior team', 'seniority'],
+        ['Java deseable y se requiere inglés avanzado', 'idioma'],
+        ['Java deseable, se requiere inglés avanzado', 'idioma'],
+        ['No se requiere Java y se exige inglés avanzado', 'idioma'],
+        ['Java obligatorio con inglés avanzado deseable', 'java'],
+        ['Inglés avanzado deseable y se requiere Java', 'java'],
+        ['Inglés avanzado obligatorio con Java deseable', 'idioma'],
+        ['Requisitos obligatorios:<ul><li>Java</li></ul>', 'java'],
+        ['Requisitos obligatorios:\n- Java\n- Angular', 'java'],
+        ['Deseables:\n- Angular\nRequisitos obligatorios:\n- Java', 'java'],
+        ['Deseables:<ul><li>Angular</li></ul><h2>Requisitos obligatorios:</h2><ul><li>Java</li></ul>', 'java'],
+        ['Empresa con 5+ años de experiencia y candidato con al menos 6 años de experiencia obligatorios', 'experiencia'],
+        ['Candidato con al menos 6 años de experiencia obligatorios en empresa con 5+ años de trayectoria', 'experiencia'],
         ['Buscamos desarrollador Senior que acompañará a juniors', 'seniority'],
         ['Java: deseable, inglés avanzado obligatorio', 'idioma'],
         ['No se requiere Java y inglés avanzado obligatorio.', 'idioma'],
@@ -111,6 +138,17 @@ describe('Contexto de los requisitos reales', () => {
         expect(resultado.reglas).toEqual(['experiencia']);
         expect(resultado.razon).toContain('6 anos de experiencia obligatorios');
         expect(resultado.razon).not.toContain('senior');
+    });
+
+    test.each([['Java', true], ['Java deseable', false], ['Nuestro producto utiliza Java', false]])('conservo procedencia de requirements: %s', (requirements, excluida) => {
+        expect(evaluarReglasExclusion(crearOferta({ datos_crudos: { requirements } }), preferenciasBase).excluida).toBe(excluida);
+    });
+
+    test('acoto evidencia sin perder activador', () => {
+        const resultado = detectarJavaExcluyente(crearOferta({ descripcion: `${'texto '.repeat(500)}Java obligatorio ${'texto '.repeat(500)}` }));
+        expect(resultado.evidencia.length).toBeLessThanOrEqual(243);
+        expect(resultado.evidencia).toContain('java');
+        expect(resultado.evidencia).toContain('…');
     });
 
     test('respeto límites HTML y datos crudos', () => {

@@ -168,22 +168,37 @@ function extraerClausulas(oferta) {
         [oferta.titulo, true],
         [oferta.descripcion, false],
         ...['description', 'descriptionHtml', 'jobDescription', 'job_description', 'requirements', 'requisitos']
-            .map(campo => [crudos[campo], false]),
+            .map(campo => [crudos[campo], false, /^(?:requirements|requisitos)$/.test(campo)]),
     ];
-    return fuentes.flatMap(([texto, titulo]) => {
+    return fuentes.flatMap(([texto, titulo, campoRequisitos = false]) => {
+        let seccion = null;
         // Conservo límites de párrafos/listas antes de normalizar espacios.
-        const conLimites = String(texto || '').replace(/<\/?(?:p|div|li|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n');
-        return conLimites.split(/[.!?;\n•]+|\b(?:pero|but|sin embargo)\b|\b[ye]\s+(?=(?:buscamos|somos|se\s+busca)\b)/i)
+        const conLimites = String(texto || '').replace(/•|<li\b[^>]*>/gi, '\n- ')
+            .replace(/<\/?(?:p|div|li|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n');
+        return conLimites.split(/[.!?;\n]+|\b(?:pero|but|sin embargo)\b|\b[ye]\s+(?=(?:buscamos|somos|se\s+busca)\b)/i)
             .flatMap(oracion => {
-                let modificadorCompartido = false;
-                return oracion.split(/(?:,|\b[ye]\b|\band\b)(?=\s*(?:java\b|spring\b|ingl[eé]s\b|english\b|experiencia\b|senior\b))/i)
+                const encabezado = normalizarTexto(oracion);
+                if (!encabezado) return [];
+                const encabezadoRequisitos = /^(?:requisitos|requirements)(?:\s+(?:obligatorios?|excluyentes?|mandatory|required|deseables?|opcionales?|optional|preferred|nice\s+to\s+have))?:?$/.test(encabezado);
+                if (encabezadoRequisitos || /^[\w\s-]+:$/.test(encabezado)) {
+                    seccion = PATRON_OPCIONAL.test(encabezado) ? 'opcional'
+                        : encabezadoRequisitos ? 'obligatoria' : null;
+                    return [];
+                }
+                // Heredo encabezados solamente en ítems; la narrativa corta la sección.
+                const item = /^\s*-/.test(oracion);
+                if (!item) seccion = null;
+                let modificadorCompartido = seccion === 'opcional';
+                const coordinada = oracion.replace(/\bcon\b/gi, (con, indice) =>
+                    PATRON_OBLIGATORIO.test(normalizarTexto(oracion.slice(0, indice))) || PATRON_OPCIONAL.test(normalizarTexto(oracion.slice(0, indice))) ? ',' : con);
+                return coordinada.split(/(?:,|\b[ye]\b|\band\b)(?=\s*(?:(?:no\s+)?se\s+(?:requiere\w*|exige\w*)\s+)?(?:java\b|spring\b|ingl[eé]s\b|english\b|experiencia\b|senior\b|candidat\w*\b))/i)
                     .map(fragmento => {
-                        const texto = normalizarTexto(fragmento);
+                        const texto = normalizarTexto(fragmento).replace(/^[-\s]+/, '');
                         const opcional = PATRON_OPCIONAL.test(texto) || PATRON_NEGACION.test(texto);
                         // Una lista comparte su modificador, salvo requisito propio explícito.
                         const omitida = opcional || (modificadorCompartido && !PATRON_OBLIGATORIO.test(texto));
                         modificadorCompartido = omitida;
-                        return { texto, titulo, omitida };
+                        return { texto, titulo, omitida, obligatorioHeredado: seccion === 'obligatoria', campoRequisitos };
                     });
             })
             .filter(clausula => clausula.texto);
@@ -198,29 +213,32 @@ const PATRON_MENTORIA = /\b(?:mentor\w*|aprend\w*|junto\s+a|acompan\w*|guiad\w*|
 const PATRON_EMPRESA = /\b(?:empresa|compania|organizacion|mercado|trayectoria|company|founded)\b/;
 
 function esRequisito(clausula, tipo, coincidencia) {
-    const { texto, titulo, omitida } = clausula;
+    const { texto, titulo, omitida, obligatorioHeredado, campoRequisitos } = clausula;
     if (omitida) return false;
 
-    const obligatorio = PATRON_OBLIGATORIO.test(texto);
+    const obligatorio = obligatorioHeredado || PATRON_OBLIGATORIO.test(texto);
+    const antes = texto.slice(0, coincidencia.index);
+    const ultimoRol = [...antes.matchAll(new RegExp(PATRON_ROL.source, 'g'))].at(-1)?.index ?? -1;
+    const ultimaEmpresa = [...antes.matchAll(new RegExp(PATRON_EMPRESA.source, 'g'))].at(-1)?.index ?? -1;
     const rol = PATRON_ROL.test(texto);
     if (tipo === 'experiencia') {
         // La antigüedad empresarial no describe experiencia del postulante.
-        if (PATRON_EMPRESA.test(texto) && !rol && !obligatorio) return false;
+        if (ultimaEmpresa > ultimoRol) return false;
         return /\b(?:experiencia|experience)\b/.test(texto) || obligatorio;
     }
     if (tipo === 'seniority') {
         // El sujeto anterior a la señal distingue candidato de empresa/mentor;
         // acompañar juniors DESPUÉS del nivel no vuelve opcional el puesto Senior.
-        const antes = texto.slice(0, coincidencia.index);
         const despues = texto.slice(coincidencia.index + coincidencia[0].length);
-        const ultimoRol = [...antes.matchAll(new RegExp(PATRON_ROL.source, 'g'))].at(-1)?.index ?? -1;
-        const ultimaEmpresa = [...antes.matchAll(new RegExp(PATRON_EMPRESA.source, 'g'))].at(-1)?.index ?? -1;
+        if (/^\s+(?:equipo|team|profesionales)\b/.test(despues)) return false;
+        const ultimoEquipo = [...antes.matchAll(/\b(?:equipo|team|profesionales)\b/g)].at(-1)?.index ?? -1;
+        if (ultimoEquipo > ultimoRol) return false;
         const ultimaMentoria = [...antes.matchAll(new RegExp(PATRON_MENTORIA.source, 'g'))].at(-1)?.index ?? -1;
         if (ultimaMentoria > ultimoRol || ultimaEmpresa > ultimoRol) return false;
         const rolLocal = ultimoRol >= 0 || /^\s+(?:developer|engineer|desarrollador\w*)\b/.test(despues);
         return titulo || obligatorio || rolLocal || /^(?:buscamos\s+|se\s+busca\s+)?(?:senior|sr|tech\s+lead|team\s+lead|lider\s+de\s+equipo|lead\s+(?:developer|engineer))\b/.test(texto);
     }
-    if (tipo === 'java') return titulo || obligatorio || rol || /\b(?:experiencia|conocimientos)\s+(?:en|con|de)\b/.test(texto);
+    if (tipo === 'java') return titulo || obligatorio || (campoRequisitos && /^(?:java|spring\s*boot|j2ee|jee|jakarta\s*ee|hibernate)\b/.test(texto)) || rol || /\b(?:experiencia|conocimientos)\s+(?:en|con|de)\b/.test(texto);
     // Un nivel lingüístico declarado sin condición opcional es un requisito;
     // las menciones narrativas sin evidencia quedan para IA.
     return obligatorio || rol || /^(?:ingles|english|fluent|conversational|upper.?intermediate|bilingual|bilingue)\b/.test(texto)
@@ -233,7 +251,10 @@ function detectarRequisito(oferta, patrones, nombres, tipo) {
             // Evalúo cada aparición: un mentor anterior no define otro puesto.
             for (const coincidencia of clausula.texto.matchAll(new RegExp(patron.source, 'gi'))) {
                 if (esRequisito(clausula, tipo, coincidencia)) {
-                    return { detectado: true, patron: nombres[indice] || nombres[0], evidencia: clausula.texto };
+                    const inicio = Math.max(0, coincidencia.index - 100);
+                    const fin = Math.min(clausula.texto.length, inicio + 240);
+                    const evidencia = `${inicio ? '…' : ''}${clausula.texto.slice(inicio, fin)}${fin < clausula.texto.length ? '…' : ''}`;
+                    return { detectado: true, patron: nombres[indice] || nombres[0], evidencia };
                 }
             }
         }
