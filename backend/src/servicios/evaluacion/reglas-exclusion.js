@@ -176,22 +176,23 @@ function extraerClausulas(oferta) {
         // Conservo límites de párrafos/listas antes de normalizar espacios.
         const conLimites = String(texto || '').replace(/•|<li\b[^>]*>/gi, '\n- ')
             .replace(/<\/?(?:p|div|li|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n');
-        return conLimites.split(/[.!?;\n]+|\b(?:pero|but|sin embargo)\b|\b[ye]\s+(?=(?:buscamos|somos|se\s+busca)\b)/i)
+        return conLimites.split(/[.!?;\n]+|\b(?:pero|but|sin embargo|aunque|en cambio|mientras que)\b|\b[ye]\s+(?=(?:buscamos|somos|se\s+busca)\b)/i)
             .flatMap(oracion => {
                 const encabezado = normalizarTexto(oracion);
                 if (!encabezado) return [];
                 const encabezadoRequisitos = /^(?:requisitos|requirements)(?:\s+(?:obligatorios?|excluyentes?|mandatory|required|deseables?|opcionales?|optional|preferred|nice\s+to\s+have))?:?$/.test(encabezado);
-                if (encabezadoRequisitos || /^[\w\s-]+:$/.test(encabezado)) {
+                const encabezadoCompacto = /^(?:deseables|opcionales|obligatorios):?$/.test(encabezado);
+                if (encabezadoRequisitos || encabezadoCompacto || /^[\w\s-]+:$/.test(encabezado)) {
                     seccion = PATRON_OPCIONAL.test(encabezado) ? 'opcional'
-                        : encabezadoRequisitos ? 'obligatoria' : null;
-                    requisitosActivos = encabezadoRequisitos;
+                        : encabezadoRequisitos || encabezadoCompacto ? 'obligatoria' : null;
+                    requisitosActivos = encabezadoRequisitos || encabezadoCompacto;
                     return [];
                 }
                 // Heredo filas breves de requisitos, no párrafos narrativos.
                 const sujetoNarrativo = PATRON_EMPRESA.test(encabezado) || PATRON_MENTORIA.test(encabezado)
                     || /\b(?:producto|product|equipo|team)\b/.test(encabezado);
                 const item = !sujetoNarrativo && (/^\s*-/.test(oracion) || (encabezado.split(' ').length <= 12
-                    && /^(?:java|spring|j2ee|jee|jakarta|hibernate|angular|typescript|ingles|english|experiencia|puesto|senior|\d)\b/.test(encabezado)));
+                    && /^(?:conocimientos\s+(?:en|de)|java|spring|j2ee|jee|jakarta|hibernate|angular|typescript|ingles|english|experiencia|puesto|senior|\d)\b/.test(encabezado)));
                 if (!item) {
                     seccion = null;
                     requisitosActivos = false;
@@ -209,11 +210,24 @@ function extraerClausulas(oferta) {
                         fragmentos.push(parte);
                     }
                 }
-                return fragmentos.map(fragmento => {
+                // Comparto hacia atrás el sufijo opcional de la lista; una
+                // obligación propia corta el alcance, no se vuelve deseable.
+                const opcionalesColectivos = new Set();
+                for (let indice = fragmentos.length - 1; indice >= 0; indice--) {
+                    const texto = normalizarTexto(fragmentos[indice]);
+                    const sufijo = texto.match(PATRON_OPCIONAL_FINAL);
+                    if (!sufijo || PATRON_OBLIGATORIO.test(texto.slice(0, sufijo.index))) continue;
+                    for (let anterior = indice - 1; anterior >= 0; anterior--) {
+                        const previo = normalizarTexto(fragmentos[anterior]);
+                        if (PATRON_OBLIGATORIO.test(previo) || PATRON_OPCIONAL.test(previo) || PATRON_NEGACION.test(previo)) break;
+                        opcionalesColectivos.add(anterior);
+                    }
+                }
+                return fragmentos.map((fragmento, indice) => {
                         const texto = normalizarTexto(fragmento).replace(/^[-\s]+/, '');
                         const opcional = PATRON_OPCIONAL.test(texto) || PATRON_NEGACION.test(texto);
                         // Una lista comparte su modificador, salvo requisito propio explícito.
-                        const omitida = opcional || (modificadorCompartido && !PATRON_OBLIGATORIO.test(texto));
+                        const omitida = opcional || opcionalesColectivos.has(indice) || (modificadorCompartido && !PATRON_OBLIGATORIO.test(texto));
                         modificadorCompartido = omitida;
                         return { texto, titulo, omitida, obligatorioHeredado: seccion === 'obligatoria', campoRequisitos: requisitosActivos };
                     });
@@ -225,6 +239,7 @@ function extraerClausulas(oferta) {
 const PATRON_SENAL = /\b(?:java|spring|j2ee|jee|jakarta|hibernate|ingles|english|bilingual|bilingue|senior|sr|lead|lider|experiencia|experience|candidat\w*|\d+\s*\+?\s*(?:anos?|years?))\b/;
 const PATRON_OPCIONAL = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice\s+to\s+have|optional|preferred)\b|\bno\s+(?:es\s+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/;
 const PATRON_NEGACION = /\b(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b/;
+const PATRON_OPCIONAL_FINAL = new RegExp(`(?:${PATRON_OPCIONAL.source}|${PATRON_NEGACION.source})\\s*$`);
 const PATRON_OBLIGATORIO = /\b(?:requiere\w*|requerid\w*|requisito\w*|obligatori\w*|excluyente\w*|exige\w*|imprescindible\w*|required|mandatory|must|need)\b/;
 const PATRON_ROL = /\b(?:desarrollador\w*|developer|engineer|ingenier\w*|puesto|posicion|rol|perfil|candidat\w*)\b/;
 const PATRON_MENTORIA = /\b(?:mentor\w*|aprend\w*|junto\s+a|acompan\w*|guiad\w*|reportar\w*|report\s+to)\b/;

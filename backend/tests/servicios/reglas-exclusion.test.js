@@ -22,6 +22,32 @@ const {
     },
 } = require('../../src/servicios/evaluacion/reglas-exclusion');
 
+describe('Auditoría de opcionalidad colectiva y conocimientos', () => {
+    test.each([
+        ...['opcional', 'no excluyente', 'no es obligatorio', 'not required'].map(sufijo => `Conocimientos en Java y Spring Boot ${sufijo}`),
+        'Deseables\nConocimientos en Java',
+        '<h2>Deseables</h2><p>Conocimientos en Java</p>',
+        'Conocimientos en Java y Spring Boot deseables',
+        'Conocimientos de Java, Hibernate deseables',
+        'Experiencia en Java y Spring Boot es un plus',
+        'Requisitos deseables:\nConocimientos en Java',
+        '<h2>Requisitos deseables</h2><p>Conocimientos en Java</p>',
+    ])('no excluyo una condición opcional: %s', descripcion => {
+        expect(evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase).excluida).toBe(false);
+    });
+    test.each([
+        ...['aunque', 'en cambio', 'mientras que'].map(contraste => [`Conocimientos en Java y Spring Boot, ${contraste} Hibernate es deseable`, 'java']),
+        ...['opcional', 'no excluyente', 'no es obligatorio', 'not required'].map(sufijo => [`Conocimientos en Java obligatorios y Spring Boot ${sufijo}`, 'java']),
+        ['Conocimientos en Java obligatorios y Spring Boot deseable', 'java'],
+        ['Java deseable y es obligatorio inglés avanzado', 'idioma'],
+        ['Conocimientos en Java y Spring Boot deseables, inglés avanzado obligatorio', 'idioma'],
+    ])('conservo la obligación local: %s', (descripcion, tipo) => {
+        const resultado = evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase);
+        expect(resultado.excluida).toBe(true);
+        expect(resultado.reglas).toEqual([tipo]);
+    });
+});
+
 // ──────────────────────────────────────────────────────────────
 // Helpers para crear ofertas y preferencias de test
 // ──────────────────────────────────────────────────────────────
