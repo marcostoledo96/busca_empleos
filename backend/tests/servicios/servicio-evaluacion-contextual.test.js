@@ -19,6 +19,12 @@ const { evaluarOferta, evaluarOfertasPendientes } = require('../../src/servicios
 const preferencias = { zonas_preferidas: ['Buenos Aires'], stack_tecnologico: ['Angular'], modelo_ia: 'simulado' };
 const crearOferta = descripcion => ({ id: 1, titulo: 'Frontend Junior', descripcion, modalidad: 'remoto', ubicacion: 'Buenos Aires, Argentina' });
 const incidentales = [
+    'Somos una empresa líder en salud. Buscamos alguien sin experiencia.',
+    'Vas a aprender junto a nuestro desarrollador senior.',
+    'Aprenderás junto a nuestro desarrollador senior',
+    'Angular y TypeScript obligatorios. Java deseable, no excluyente.',
+    'Inglés avanzado es un plus, no excluyente. Toda la comunicación se realiza en español.',
+    'Empresa con más de 3 años en el mercado. No se requiere experiencia.',
     'Somos una empresa líder. No se requiere experiencia previa.',
     'Podrás aprender junto a un senior.',
     'Angular y TypeScript obligatorios; Java deseable, no excluyente.',
@@ -33,6 +39,35 @@ const incidentales = [
     'Requirements:\n- Java optional\n- Angular',
     'Buscamos desarrollador junior en una empresa con 5+ años de experiencia',
 ];
+
+const casosEstado = [
+    [crearOferta('Requisitos obligatorios:\nJava es la tecnología de nuestro producto'), false],
+    ...['requirements', 'requisitos'].flatMap(campo => [
+        'Requisitos deseables:\nNuestro producto utiliza Java\nJava',
+        'Requisitos deseables:\nAngular\nTypeScript es la tecnología de nuestro producto\nJava',
+    ].map(texto => [{ ...crearOferta(''), datos_crudos: { [campo]: texto } }, false])),
+    ...[2, 3, 6].flatMap(empresa => [2, 3, 6].flatMap(candidato => ['considera obligatorio', 'es obligatorio tener'].map(condicion => [
+        crearOferta(`Empresa con ${empresa}+ años de trayectoria ${condicion} ${candidato}+ años de experiencia`), candidato >= 3,
+    ]))),
+];
+
+describe('Servicio y cache con estado narrativo real', () => {
+    test.each(casosEstado.flatMap(([oferta, excluida]) => [true, false].map(match => [oferta, excluida, match])))('respeto reglas y respuesta para %j: %s/%s', async (oferta, excluida, match) => {
+        consultarDeepSeek.mockResolvedValue(JSON.stringify({ match, porcentaje: match ? 80 : 25, razon: 'Respuesta simulada' }));
+        const resultado = await evaluarOferta(oferta, 'Prueba', 'simulado', preferencias);
+        expect(resultado.match).toBe(excluida ? false : match);
+        expect(consultarDeepSeek).toHaveBeenCalledTimes(excluida ? 0 : 1);
+    });
+    test.each(casosEstado)('revalido cache para %j: %s', async (oferta, excluida) => {
+        modeloOferta.obtenerOfertasPendientes.mockResolvedValue([oferta]);
+        cache.buscarCache.mockResolvedValue({ match: true, porcentaje: 80, razon: 'Cache' });
+        const resultado = await evaluarOfertasPendientes();
+        expect(resultado.aprobadas).toBe(excluida ? 0 : 1);
+        expect(resultado.rechazadas).toBe(excluida ? 1 : 0);
+        expect(consultarDeepSeek).not.toHaveBeenCalled();
+        expect(cache.guardarCache).not.toHaveBeenCalled();
+    });
+});
 
 beforeEach(() => {
     jest.clearAllMocks();
@@ -57,7 +92,7 @@ describe('Servicio con reglas reales y proveedor simulado', () => {
         expect(consultarDeepSeek).toHaveBeenCalledTimes(aprobada ? 1 : 0);
     });
 
-    test.each(['Requirements:\n- Java\n- Angular', '<h2>Requirements:</h2><ul><li>Java</li></ul>', 'Requisitos obligatorios:\n• Java', '<h2>Requisitos obligatorios</h2><ul><li>Java</li></ul>', 'Senior developer for our junior team', 'Empresa con 5+ años de experiencia y candidato con al menos 6 años de experiencia obligatorios', 'Java deseable y se requiere inglés avanzado', 'Java deseable, se requiere inglés avanzado', 'No se requiere Java y se exige inglés avanzado', 'Java obligatorio con inglés avanzado deseable', 'Requisitos obligatorios:<ul><li>Java</li></ul>', 'Requisitos obligatorios:\n- Java\n- Angular', 'Java obligatorio.', 'Puesto Senior excluyente.', 'Inglés avanzado obligatorio.', 'Al menos 6 años de experiencia obligatorios.', 'Java deseable pero inglés avanzado obligatorio.', 'Aprender junto a senior; Java obligatorio.', 'Buscamos desarrollador Senior que acompañará a juniors', 'Java: deseable, inglés avanzado obligatorio'])('rechazo antes del proveedor: %s', async descripcion => {
+    test.each(['Java deseable y es obligatorio inglés avanzado', 'Java obligatorio, preferentemente inglés avanzado', '<h2>Requisitos obligatorios</h2><p>Java</p>', 'Requisitos obligatorios:\nJava', 'Empresa con más de 3 años de trayectoria exige 6+ años de experiencia', 'Somos empresa líder y se requieren al menos 6 años de experiencia', 'Requirements:\n- Java\n- Angular', '<h2>Requirements:</h2><ul><li>Java</li></ul>', 'Requisitos obligatorios:\n• Java', '<h2>Requisitos obligatorios</h2><ul><li>Java</li></ul>', 'Senior developer for our junior team', 'Empresa con 5+ años de experiencia y candidato con al menos 6 años de experiencia obligatorios', 'Java deseable y se requiere inglés avanzado', 'Java deseable, se requiere inglés avanzado', 'No se requiere Java y se exige inglés avanzado', 'Java obligatorio con inglés avanzado deseable', 'Requisitos obligatorios:<ul><li>Java</li></ul>', 'Requisitos obligatorios:\n- Java\n- Angular', 'Java obligatorio.', 'Puesto Senior excluyente.', 'Inglés avanzado obligatorio.', 'Al menos 6 años de experiencia obligatorios.', 'Java deseable pero inglés avanzado obligatorio.', 'Aprender junto a senior; Java obligatorio.', 'Buscamos desarrollador Senior que acompañará a juniors', 'Java: deseable, inglés avanzado obligatorio'])('rechazo antes del proveedor: %s', async descripcion => {
         consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: true, porcentaje: 90, razon: 'Intento aprobar' }));
         const resultado = await evaluarOferta(crearOferta(descripcion), 'Instrucciones de prueba', 'simulado', preferencias);
         expect(resultado.match).toBe(false);
@@ -66,6 +101,11 @@ describe('Servicio con reglas reales y proveedor simulado', () => {
     });
 
     test.each([
+        ...incidentales.map(descripcion => [descripcion, true]),
+        ['Java deseable y es obligatorio inglés avanzado', false],
+        ['<h2>Requisitos obligatorios</h2><p>Java</p>', false],
+        ['Requisitos obligatorios:\nJava', false],
+        ['Empresa con más de 3 años de trayectoria exige 6+ años de experiencia', false],
         ['Junior developer for our senior team', true],
         ['Senior developer for our junior team', false],
         ['Requirements:\n- Java\n- Angular', false],

@@ -172,6 +172,7 @@ function extraerClausulas(oferta) {
     ];
     return fuentes.flatMap(([texto, titulo, campoRequisitos = false]) => {
         let seccion = null;
+        let requisitosActivos = campoRequisitos;
         // Conservo límites de párrafos/listas antes de normalizar espacios.
         const conLimites = String(texto || '').replace(/•|<li\b[^>]*>/gi, '\n- ')
             .replace(/<\/?(?:p|div|li|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n');
@@ -183,28 +184,45 @@ function extraerClausulas(oferta) {
                 if (encabezadoRequisitos || /^[\w\s-]+:$/.test(encabezado)) {
                     seccion = PATRON_OPCIONAL.test(encabezado) ? 'opcional'
                         : encabezadoRequisitos ? 'obligatoria' : null;
+                    requisitosActivos = encabezadoRequisitos;
                     return [];
                 }
-                // Heredo encabezados solamente en ítems; la narrativa corta la sección.
-                const item = /^\s*-/.test(oracion);
-                if (!item) seccion = null;
+                // Heredo filas breves de requisitos, no párrafos narrativos.
+                const sujetoNarrativo = PATRON_EMPRESA.test(encabezado) || PATRON_MENTORIA.test(encabezado)
+                    || /\b(?:producto|product|equipo|team)\b/.test(encabezado);
+                const item = !sujetoNarrativo && (/^\s*-/.test(oracion) || (encabezado.split(' ').length <= 12
+                    && /^(?:java|spring|j2ee|jee|jakarta|hibernate|angular|typescript|ingles|english|experiencia|puesto|senior|\d)\b/.test(encabezado)));
+                if (!item) {
+                    seccion = null;
+                    requisitosActivos = false;
+                }
                 let modificadorCompartido = seccion === 'opcional';
                 const coordinada = oracion.replace(/\bcon\b/gi, (con, indice) =>
                     PATRON_OBLIGATORIO.test(normalizarTexto(oracion.slice(0, indice))) || PATRON_OPCIONAL.test(normalizarTexto(oracion.slice(0, indice))) ? ',' : con);
-                return coordinada.split(/(?:,|\b[ye]\b|\band\b)(?=\s*(?:(?:no\s+)?se\s+(?:requiere\w*|exige\w*)\s+)?(?:java\b|spring\b|ingl[eé]s\b|english\b|experiencia\b|senior\b|candidat\w*\b))/i)
-                    .map(fragmento => {
+                // Separo coordinaciones por señales, no por frases de prefijos.
+                // Los sufijos sin señal ("no excluyente") siguen con su requisito.
+                const fragmentos = [];
+                for (const parte of coordinada.split(/,|\b[ye]\b|\band\b/i)) {
+                    if (fragmentos.length && !PATRON_SENAL.test(normalizarTexto(parte))) {
+                        fragmentos[fragmentos.length - 1] += `, ${parte}`;
+                    } else {
+                        fragmentos.push(parte);
+                    }
+                }
+                return fragmentos.map(fragmento => {
                         const texto = normalizarTexto(fragmento).replace(/^[-\s]+/, '');
                         const opcional = PATRON_OPCIONAL.test(texto) || PATRON_NEGACION.test(texto);
                         // Una lista comparte su modificador, salvo requisito propio explícito.
                         const omitida = opcional || (modificadorCompartido && !PATRON_OBLIGATORIO.test(texto));
                         modificadorCompartido = omitida;
-                        return { texto, titulo, omitida, obligatorioHeredado: seccion === 'obligatoria', campoRequisitos };
+                        return { texto, titulo, omitida, obligatorioHeredado: seccion === 'obligatoria', campoRequisitos: requisitosActivos };
                     });
             })
             .filter(clausula => clausula.texto);
     });
 }
 
+const PATRON_SENAL = /\b(?:java|spring|j2ee|jee|jakarta|hibernate|ingles|english|bilingual|bilingue|senior|sr|lead|lider|experiencia|experience|candidat\w*|\d+\s*\+?\s*(?:anos?|years?))\b/;
 const PATRON_OPCIONAL = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice\s+to\s+have|optional|preferred)\b|\bno\s+(?:es\s+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/;
 const PATRON_NEGACION = /\b(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b/;
 const PATRON_OBLIGATORIO = /\b(?:requiere\w*|requerid\w*|requisito\w*|obligatori\w*|excluyente\w*|exige\w*|imprescindible\w*|required|mandatory|must|need)\b/;
@@ -223,7 +241,10 @@ function esRequisito(clausula, tipo, coincidencia) {
     const rol = PATRON_ROL.test(texto);
     if (tipo === 'experiencia') {
         // La antigüedad empresarial no describe experiencia del postulante.
-        if (ultimaEmpresa > ultimoRol) return false;
+        const despuesCantidad = texto.slice(coincidencia.index + coincidencia[0].length);
+        if (/^\s+(?:de\s+trayectoria|en\s+el\s+mercado|de\s+(?:la\s+)?empresa)\b/.test(despuesCantidad)) return false;
+        const ultimaExigencia = [...antes.matchAll(new RegExp(PATRON_OBLIGATORIO.source, 'g'))].at(-1)?.index ?? -1;
+        if (ultimaEmpresa > Math.max(ultimoRol, ultimaExigencia)) return false;
         return /\b(?:experiencia|experience)\b/.test(texto) || obligatorio;
     }
     if (tipo === 'seniority') {
@@ -234,7 +255,9 @@ function esRequisito(clausula, tipo, coincidencia) {
         const ultimoEquipo = [...antes.matchAll(/\b(?:equipo|team|profesionales)\b/g)].at(-1)?.index ?? -1;
         if (ultimoEquipo > ultimoRol) return false;
         const ultimaMentoria = [...antes.matchAll(new RegExp(PATRON_MENTORIA.source, 'g'))].at(-1)?.index ?? -1;
-        if (ultimaMentoria > ultimoRol || ultimaEmpresa > ultimoRol) return false;
+        const rolMentor = ultimaMentoria >= 0 && ultimoRol > ultimaMentoria
+            && /^(?:junto\s+a|report\s+to|reportar\w*\s+a|guiad\w*\s+por)\b/.test(antes.slice(ultimaMentoria));
+        if (rolMentor || ultimaMentoria > ultimoRol || ultimaEmpresa > ultimoRol) return false;
         const rolLocal = ultimoRol >= 0 || /^\s+(?:developer|engineer|desarrollador\w*)\b/.test(despues);
         return titulo || obligatorio || rolLocal || /^(?:buscamos\s+|se\s+busca\s+)?(?:senior|sr|tech\s+lead|team\s+lead|lider\s+de\s+equipo|lead\s+(?:developer|engineer))\b/.test(texto);
     }

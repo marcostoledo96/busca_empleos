@@ -48,6 +48,79 @@ const preferenciasBase = {
     idioma_candidato: 'Español nativo, Inglés básico oral / intermedio escrito',
 };
 
+describe('Estado narrativo y vocabulario obligatorio compartido', () => {
+    test.each(['requirements', 'requisitos'])('B2 corto también la procedencia de %s', campo => {
+        for (const texto of [
+            'Requisitos obligatorios:\nJava es la tecnología de nuestro producto',
+            'Requisitos deseables:\nNuestro producto utiliza Java\nJava',
+            'Requisitos deseables:\nAngular\nTypeScript es la tecnología de nuestro producto\nJava',
+        ]) {
+            expect(evaluarReglasExclusion(crearOferta({ descripcion: texto }), preferenciasBase).excluida).toBe(false);
+            expect(evaluarReglasExclusion(crearOferta({ descripcion: '', datos_crudos: { [campo]: texto } }), preferenciasBase).excluida).toBe(false);
+            expect(evaluarReglasExclusion(crearOferta({ descripcion: '', datos_crudos: { [campo]: `${texto}\nRequisitos obligatorios:\nJava` } }), preferenciasBase).reglas).toEqual(['java']);
+        }
+    });
+    test.each([2, 3, 6].flatMap(empresa => [2, 3, 6].flatMap(candidato => ['considera obligatorio', 'es obligatorio tener'].map(condicion => [
+        `Empresa con ${empresa}+ años de trayectoria ${condicion} ${candidato}+ años de experiencia`, candidato >= 3,
+    ]))))('B4 reabro obligación sin cambiar umbral: %s', (descripcion, excluida) => {
+        expect(evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase).excluida).toBe(excluida);
+    });
+    test.each(['Empresa con 6+ años de trayectoria', 'Empresa con 2+ años de trayectoria no es obligatorio tener 6+ años de experiencia', 'Empresa con 2+ años de trayectoria considera opcional 6+ años de experiencia'])('B4 conservo negativos: %s', descripcion => {
+        expect(evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase).excluida).toBe(false);
+    });
+});
+
+describe('Residuos B1–B4 con alcance local', () => {
+    const dominios = [['Java', 'java'], ['inglés avanzado', 'idioma'], ['puesto Senior', 'seniority'], ['6+ años de experiencia', 'experiencia']];
+    const casos = dominios.flatMap(([senal, regla]) => dominios.filter(([, otraRegla]) => otraRegla !== regla).flatMap(([vecino]) => {
+        return [' y ', ', '].flatMap(separador => ['deseable', 'no excluyente', 'no se requiere'].flatMap(opcional => [
+            [`${vecino} ${opcional}${separador}es obligatorio ${senal}`, regla],
+            [`${senal} obligatorio${separador}preferentemente ${vecino}`, regla],
+            [`${vecino} ${opcional}${separador}${senal}, es requisito excluyente`, regla],
+            [`${senal}, es requisito excluyente${separador}${vecino} ${opcional}`, regla],
+        ]));
+    }));
+    test.each(casos)('B1 no traslado modificadores entre requisitos: %s', (descripcion, regla) => {
+        expect(evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase).reglas).toEqual([regla]);
+    });
+    test.each([
+        ['<h2>Requisitos obligatorios</h2><p>Java</p>', true],
+        ['Requisitos obligatorios:\nJava', true],
+        ['Requisitos deseables:\nJava\nRequisitos obligatorios:\nAngular', false],
+        ['Requisitos obligatorios:\nAngular\nRequisitos deseables:\nJava', false],
+        ['Requisitos deseables:\nAngular\nRequisitos obligatorios:\nJava', true],
+        ['Requisitos obligatorios:\nJava deseable', false],
+        ['Requisitos obligatorios:\nNuestro producto utiliza Java', false],
+        ['Requisitos obligatorios:\nBeneficios:\nJava', false],
+    ])('B2 conservo encabezados en filas simples: %s', (descripcion, excluida) => {
+        for (const oferta of [crearOferta({ descripcion }), crearOferta({ descripcion: '', datos_crudos: { requirements: descripcion } })]) {
+            expect(evaluarReglasExclusion(oferta, preferenciasBase).excluida).toBe(excluida);
+        }
+    });
+    test.each([
+        ['Aprenderás junto a nuestro desarrollador senior', false],
+        ['Vas a aprender junto a nuestro desarrollador senior.', false],
+        ['Senior developer for our junior team', true],
+        ['Desarrollador Senior que acompaña juniors', true],
+        ['Empresa con más de 3 años de trayectoria exige 6+ años de experiencia', true],
+        ['Somos empresa líder y se requieren al menos 6 años de experiencia', true],
+        ['Empresa con 5+ años de trayectoria exige 2+ años de experiencia', false],
+        ['5+ años de trayectoria de nuestra empresa exige 2+ años de experiencia', false],
+        ['2+ años de trayectoria de nuestra empresa exige 6+ años de experiencia', true],
+        ['Empresa con 2+ años exige 3+ años de experiencia', true],
+        ['Empresa con 6+ años de trayectoria exige 3 años de experiencia', false],
+        ['Empresa con 2+ años de trayectoria exige 6+ años de experiencia', true],
+        ['Empresa con 5+ años de trayectoria, 6+ años de experiencia deseables', false],
+        ['Se requieren 3+ años de experiencia en empresa con 2+ años de trayectoria', true],
+        ['Somos una empresa líder en salud. Buscamos alguien sin experiencia.', false],
+        ['Angular y TypeScript obligatorios. Java deseable, no excluyente.', false],
+        ['Inglés avanzado es un plus, no excluyente. Toda la comunicación se realiza en español.', false],
+        ['Empresa con más de 3 años en el mercado. No se requiere experiencia.', false],
+    ])('B3/B4 y originales: %s', (descripcion, excluida) => {
+        expect(evaluarReglasExclusion(crearOferta({ descripcion }), preferenciasBase).excluida).toBe(excluida);
+    });
+});
+
 describe('Contexto de los requisitos reales', () => {
     test.each([
         'Somos una empresa líder. No se requiere experiencia previa.',
