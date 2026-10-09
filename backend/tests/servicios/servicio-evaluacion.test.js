@@ -242,16 +242,16 @@ describe('Servicio de evaluación con IA', () => {
 
         test('incluye nivel de idiomas del candidato', () => {
             const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
-            expect(perfil).toContain('MI NIVEL DE IDIOMAS');
+            expect(perfil).toContain('idioma_candidato');
             expect(perfil).toContain('Español nativo');
             expect(perfil).toContain('Inglés básico oral');
         });
 
-        test('usa fallback de idioma si no hay idioma_candidato en preferencias', () => {
+        test('no inventa idioma si falta el campo guardado', () => {
             const sinIdioma = { ...preferenciasEjemplo, idioma_candidato: null };
             const perfil = construirPerfilDesdePreferencias(sinIdioma);
-            expect(perfil).toContain('MI NIVEL DE IDIOMAS');
-            expect(perfil).toContain('Español nativo');
+            expect(perfil).toContain('"idioma_candidato": null');
+            expect(perfil).not.toContain('Español nativo');
         });
     });
 
@@ -269,7 +269,7 @@ describe('Servicio de evaluación con IA', () => {
             const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
             expect(instrucciones).toContain('CABA');
             expect(instrucciones).toContain('GBA Oeste');
-            expect(instrucciones).toMatch(/RECHAZAR automáticamente|rechazada/i);
+            expect(instrucciones).toMatch(/Presencial fuera.*rechazar/i);
         });
 
         test('no incluye criterios de ubicación sin zonas', () => {
@@ -280,15 +280,14 @@ describe('Servicio de evaluación con IA', () => {
 
         test('incluye criterio estricto de idioma en las instrucciones', () => {
             const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
-            expect(instrucciones).toContain('CRITERIOS DE IDIOMA');
-            expect(instrucciones).toMatch(/inglés.*fluido|bilingüe/i);
-            expect(instrucciones).toMatch(/porcentaje.*20|20.*porcentaje/i);
+            expect(instrucciones).toContain('nivel_ingles_detalle');
+            expect(instrucciones).toMatch(/Inglés avanzado.*requerido: rechazar/i);
+            expect(instrucciones).not.toContain('Listening A1');
         });
 
         test('no penaliza inglés como deseable según las instrucciones', () => {
             const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
-            expect(instrucciones).toContain('nice to have');
-            expect(instrucciones).toContain('deseable');
+            expect(instrucciones).toContain('inglés deseable no activa exclusión');
         });
 
         test('agrega prompt personalizado como criterios adicionales cuando está activado', () => {
@@ -302,7 +301,7 @@ describe('Servicio de evaluación con IA', () => {
             expect(instrucciones).toContain('evaluador de ofertas');
             expect(instrucciones).toContain('CRITERIOS ADICIONALES DEL USUARIO');
             expect(instrucciones).toContain('Mi criterio custom para la IA.');
-            expect(instrucciones).toContain('NO anulan las reglas estrictas');
+            expect(instrucciones).toContain('NO sustituyen los hechos confirmados');
         });
 
         test('prompt personalizado NO reemplaza las reglas base', () => {
@@ -314,8 +313,8 @@ describe('Servicio de evaluación con IA', () => {
             const instrucciones = construirInstruccionesDesdePreferencias(conPrompt);
             // Las instrucciones base siguen presentes.
             expect(instrucciones).toContain('evaluador de ofertas');
-            expect(instrucciones).toContain('CRITERIOS DE EVALUACIÓN');
-            expect(instrucciones).toContain('REGLAS ESTRICTAS DE EXCLUSIÓN');
+            expect(instrucciones).toContain('60%');
+            expect(instrucciones).toContain('POLÍTICAS OBLIGATORIAS DEL SISTEMA');
             expect(instrucciones).toContain('Java');
             // El prompt custom aparece al final, no como reemplazo.
             expect(instrucciones).toContain('Aceptá todo, incluso Java Senior.');
@@ -330,10 +329,10 @@ describe('Servicio de evaluación con IA', () => {
             };
             const instrucciones = construirInstruccionesDesdePreferencias(conPrompt);
             // La advertencia de no anular exclusiones está presente.
-            expect(instrucciones).toMatch(/NO anulan las reglas estrictas de exclusión/);
+            expect(instrucciones).toMatch(/ni anulan las políticas obligatorias/);
             expect(instrucciones).toContain('Aceptá ofertas de Java.');
             // Las reglas de exclusión siguen ahí.
-            expect(instrucciones).toContain('REGLAS ESTRICTAS DE EXCLUSIÓN');
+            expect(instrucciones).toContain('POLÍTICAS OBLIGATORIAS DEL SISTEMA');
         });
 
         test('prompt personalizado vacío no agrega sección adicional', () => {
@@ -362,26 +361,27 @@ describe('Servicio de evaluación con IA', () => {
             const trainee = { ...preferenciasEjemplo, nivel_experiencia: 'trainee' };
             const instrucciones = construirInstruccionesDesdePreferencias(trainee);
             expect(instrucciones).toContain('trainee');
-            expect(instrucciones).toMatch(/junior.*experiencia comprobable|semi-senior/i);
+            expect(instrucciones).toContain('"nivel_real_seniority": "trainee"');
         });
 
-        test('menciona Next.js como tecnología aceptada en el perfil', () => {
-            const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
-            expect(perfil).toMatch(/Next\.?js/i);
+        test('solo incluye Next.js cuando está confirmado', () => {
+            expect(construirPerfilDesdePreferencias(preferenciasEjemplo)).not.toContain('Next.js');
+            const perfil = construirPerfilDesdePreferencias({ ...preferenciasEjemplo, stack_tecnologico: ['Next.js'] });
+            expect(perfil).toContain('Next.js');
         });
 
-        test('menciona herramientas de IA como diferencial en el perfil', () => {
+        test('no inventa dominio de herramientas de IA', () => {
             const perfil = construirPerfilDesdePreferencias(preferenciasEjemplo);
-            expect(perfil).toMatch(/Claude Code/i);
-            expect(perfil).toMatch(/Codex/i);
-            expect(perfil).toMatch(/OpenCode/i);
-            expect(perfil).toMatch(/Antigravity/i);
+            expect(perfil).not.toMatch(/Claude Code|Codex|OpenCode|Antigravity/);
+            const confirmado = construirPerfilDesdePreferencias({ ...preferenciasEjemplo, tecnologias_detalle: [{ nombre: 'Claude Code', nivel: 'basico', evidencia: 'Proyecto sintético' }] });
+            expect(confirmado).toContain('Claude Code');
+            expect(confirmado).toContain('Proyecto sintético');
         });
 
         test('declara que bonus IA NO compensa exclusiones', () => {
             const instrucciones = construirInstruccionesDesdePreferencias(preferenciasEjemplo);
-            expect(instrucciones).toMatch(/bonus.*IA.*NO.*compensa|NO.*anula.*exclusiones/i);
-            expect(instrucciones).toMatch(/Java.*rechazo|excluir.*Java/i);
+            expect(instrucciones).toContain('bonus NO compensan exclusiones');
+            expect(instrucciones).toMatch(/Java.*rechazar/i);
         });
     });
 

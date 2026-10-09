@@ -5,6 +5,7 @@
 // No hay creación ni eliminación porque la tabla tiene una sola fila fija.
 
 const modeloPreferencia = require('../modelos/preferencia');
+const { construirPerfilEfectivo } = require('../servicios/evaluacion/perfil-efectivo');
 const { consultarDeepSeek } = require('../config/deepseek');
 const { IDS_PLATAFORMAS, normalizarIdPlataforma } = require('../config/plataformas');
 
@@ -124,6 +125,12 @@ function validarTecnologiasDetalle(tecnologias) {
         const tech = tecnologias[i];
         const prefijo = `tecnologias_detalle[${i}]`;
 
+        if (!tech || typeof tech !== 'object' || Array.isArray(tech)) {
+            return `${prefijo}: debe ser un objeto.`;
+        }
+        if (tech.evidencia !== undefined && typeof tech.evidencia !== 'string') {
+            return `${prefijo}: evidencia debe ser string.`;
+        }
         if (!tech.nombre || typeof tech.nombre !== 'string' || tech.nombre.trim().length === 0) {
             return `${prefijo}: nombre es obligatorio.`;
         }
@@ -143,6 +150,9 @@ function validarTecnologiasDetalle(tecnologias) {
         if (tech.aliases !== undefined) {
             if (!Array.isArray(tech.aliases)) {
                 return `${prefijo}: aliases debe ser un array.`;
+            }
+            if (!tech.aliases.every(a => typeof a === 'string')) {
+                return `${prefijo}: aliases debe contener strings.`;
             }
             if (tech.aliases.length > 20) {
                 return `${prefijo}: aliases no puede superar 20.`;
@@ -169,6 +179,15 @@ function validarRolesObjetivoDetalle(roles) {
         const rol = roles[i];
         const prefijo = `roles_objetivo_detalle[${i}]`;
 
+        if (!rol || typeof rol !== 'object' || Array.isArray(rol)) {
+            return `${prefijo}: debe ser un objeto.`;
+        }
+        if (rol.evidencia !== undefined && typeof rol.evidencia !== 'string') {
+            return `${prefijo}: evidencia debe ser string.`;
+        }
+        if (rol.aliases !== undefined && (!Array.isArray(rol.aliases) || !rol.aliases.every(a => typeof a === 'string'))) {
+            return `${prefijo}: aliases debe ser un array de strings.`;
+        }
         if (!rol.rol || typeof rol.rol !== 'string' || rol.rol.trim().length === 0) {
             return `${prefijo}: rol es obligatorio.`;
         }
@@ -190,7 +209,7 @@ async function obtenerPreferencias(req, res) {
 
     res.json({
         exito: true,
-        datos: preferencias,
+        datos: { ...preferencias, perfil_efectivo: construirPerfilEfectivo(preferencias) },
     });
 }
 
@@ -206,6 +225,17 @@ async function actualizarPreferencias(req, res) {
     try {
     const datos = req.body;
     const errores = [];
+
+    for (const campo of ['nombre', 'perfil_profesional', 'prompt_personalizado', 'nivel_real_seniority', 'limitaciones_explicitas']) {
+        if (datos[campo] !== undefined && typeof datos[campo] !== 'string') {
+            errores.push(`${campo} debe ser un texto.`);
+        }
+    }
+    for (const campo of ['conocimientos_ausentes']) {
+        if (datos[campo] !== undefined && (!Array.isArray(datos[campo]) || !datos[campo].every(v => typeof v === 'string'))) {
+            errores.push(`${campo} debe ser un array de strings.`);
+        }
+    }
 
     // Valido nivel_experiencia si viene.
     if (datos.nivel_experiencia !== undefined) {
@@ -230,16 +260,11 @@ async function actualizarPreferencias(req, res) {
     if (errorModeloImport) errores.push(errorModeloImport);
 
     // Valido stack_tecnologico: debe ser un array de strings.
-    // Si tecnologias_detalle tiene al menos una entrada válida (nivel != ninguno),
-    // permito que stack_tecnologico esté vacío — el modelo lo deriva automáticamente.
-    const tieneTecnologiasValidas = Array.isArray(datos.tecnologias_detalle)
-        && datos.tecnologias_detalle.some(t => t && t.nombre && t.nivel !== 'ninguno');
-
+    // [] expresa eliminación; el detalle, si viene, deriva el stack persistido.
     if (datos.stack_tecnologico !== undefined) {
         if (!Array.isArray(datos.stack_tecnologico)) {
             errores.push('stack_tecnologico debe ser un array.');
-        } else if (!tieneTecnologiasValidas && datos.stack_tecnologico.length === 0) {
-            errores.push('stack_tecnologico debe tener al menos una tecnología si tecnologias_detalle está vacío o no tiene tecnologías con nivel distinto a ninguno.');
+
         } else if (datos.stack_tecnologico.length > 0 && !datos.stack_tecnologico.every(item => typeof item === 'string' && item.trim().length > 0)) {
             errores.push('stack_tecnologico debe contener solo strings no vacíos.');
         }
@@ -398,7 +423,7 @@ async function actualizarPreferencias(req, res) {
 
     res.json({
         exito: true,
-        datos: preferencias,
+        datos: { ...preferencias, perfil_efectivo: construirPerfilEfectivo(preferencias) },
         mensaje: 'Preferencias actualizadas correctamente.',
     });
 } catch (err) {
