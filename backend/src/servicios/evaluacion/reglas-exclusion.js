@@ -69,8 +69,10 @@ const PATRON_EXPERIENCIA_EXCLUYENTE = [
     /\bm[aá]s\s+de\s+3\s*(años?|anos?|years?|yr)\b/i,
     // "mayor a 3 años", "mayor de 3 años"
     /\bmayor\s+(a|de)\s+3\s*(años?|anos?|years?|yr)\b/i,
-    // "mayor a 4/5 años", "mayor de 4/5 años"
+    // Aplico el mismo umbral a cantidades mayores, no solamente 4/5.
     /\bmayor\s+(a|de)\s+[45]\s*(años?|anos?|years?|yr)\b/i,
+    /\b(?:[6-9]|\d{2,})\s*\+\s*(años?|anos?|years?|yr)\b/i,
+    /(?:>|\b(?:al\s+menos|minimo|at\s+least|minimum|mas\s+de|mayor\s+(?:a|de)))\s*(?:[4-9]|\d{2,})\s*(años?|anos?|years?|yr)\b/i,
 ];
 
 // Inglés excluyente: avanzado, fluido, bilingüe, conversational, upper-intermediate.
@@ -153,36 +155,149 @@ function extraerTextoOferta(oferta) {
  * @returns {{ detectado: boolean, patron: string|null }}
  */
 function detectarJavaExcluyente(oferta) {
-    const texto = extraerTextoOferta(oferta);
+    return detectarRequisito(oferta, PATRON_JAVA_EXCLUYENTE, ['java', 'spring_boot', 'j2ee', 'jee', 'jakarta_ee', 'hibernate'], 'java');
+}
 
-    // Primero verifico si hay mención a Java (sin JavaScript).
-    // La regex \bjava\b(?!\s*script) detecta "Java" como palabra completa
-    // que NO está seguida de "Script" o "script".
-    const javaSinScript = /\bjava\b(?!\s*script)/i.test(texto);
+/* Sustituyo las menciones globales por evidencia local del requisito.
+ * ponytail: uso cláusulas y vocabulario acotado; lo ambiguo sigue hacia IA,
+ * no intento resolver dependencias gramaticales generales.
+ */
+function extraerClausulas(oferta) {
+    const crudos = oferta.datos_crudos && typeof oferta.datos_crudos === 'object' ? oferta.datos_crudos : {};
+    const fuentes = [
+        [oferta.titulo, true],
+        [oferta.descripcion, false],
+        ...['description', 'descriptionHtml', 'jobDescription', 'job_description', 'requirements', 'requisitos']
+            .map(campo => [crudos[campo], false, /^(?:requirements|requisitos)$/.test(campo)]),
+    ];
+    return fuentes.flatMap(([texto, titulo, campoRequisitos = false]) => {
+        let seccion = null;
+        let requisitosActivos = campoRequisitos;
+        // Conservo límites de párrafos/listas antes de normalizar espacios.
+        const conLimites = String(texto || '').replace(/•|<li\b[^>]*>/gi, '\n- ')
+            .replace(/<\/?(?:p|div|li|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n');
+        return conLimites.split(/[.!?;\n]+|\b(?:pero|but|sin embargo|aunque|en cambio|mientras que)\b|\b[ye]\s+(?=(?:buscamos|somos|se\s+busca)\b)/i)
+            .flatMap(oracion => {
+                const encabezado = normalizarTexto(oracion);
+                if (!encabezado) return [];
+                const encabezadoRequisitos = /^(?:requisitos|requirements)(?:\s+(?:obligatorios?|excluyentes?|mandatory|required|deseables?|opcionales?|optional|preferred|nice\s+to\s+have))?:?$/.test(encabezado);
+                const encabezadoCompacto = /^(?:deseables|opcionales|obligatorios):?$/.test(encabezado);
+                if (encabezadoRequisitos || encabezadoCompacto || /^[\w\s-]+:$/.test(encabezado)) {
+                    seccion = PATRON_OPCIONAL.test(encabezado) ? 'opcional'
+                        : encabezadoRequisitos || encabezadoCompacto ? 'obligatoria' : null;
+                    requisitosActivos = encabezadoRequisitos || encabezadoCompacto;
+                    return [];
+                }
+                // Heredo filas breves de requisitos, no párrafos narrativos.
+                const sujetoNarrativo = PATRON_EMPRESA.test(encabezado) || PATRON_MENTORIA.test(encabezado)
+                    || /\b(?:producto|product|equipo|team)\b/.test(encabezado);
+                const item = !sujetoNarrativo && (/^\s*-/.test(oracion) || (encabezado.split(' ').length <= 12
+                    && /^(?:conocimientos\s+(?:en|de)|java|spring|j2ee|jee|jakarta|hibernate|angular|typescript|ingles|english|experiencia|puesto|senior|\d)\b/.test(encabezado)));
+                if (!item) {
+                    seccion = null;
+                    requisitosActivos = false;
+                }
+                let modificadorCompartido = seccion === 'opcional';
+                const coordinada = oracion.replace(/\bcon\b/gi, (con, indice) =>
+                    PATRON_OBLIGATORIO.test(normalizarTexto(oracion.slice(0, indice))) || PATRON_OPCIONAL.test(normalizarTexto(oracion.slice(0, indice))) ? ',' : con);
+                // Separo coordinaciones por señales, no por frases de prefijos.
+                // Los sufijos sin señal ("no excluyente") siguen con su requisito.
+                const fragmentos = [];
+                for (const parte of coordinada.split(/,|\b[ye]\b|\band\b/i)) {
+                    if (fragmentos.length && !PATRON_SENAL.test(normalizarTexto(parte))) {
+                        fragmentos[fragmentos.length - 1] += `, ${parte}`;
+                    } else {
+                        fragmentos.push(parte);
+                    }
+                }
+                // Comparto hacia atrás el sufijo opcional de la lista; una
+                // obligación propia corta el alcance, no se vuelve deseable.
+                const opcionalesColectivos = new Set();
+                for (let indice = fragmentos.length - 1; indice >= 0; indice--) {
+                    const texto = normalizarTexto(fragmentos[indice]);
+                    const sufijo = texto.match(PATRON_OPCIONAL_FINAL);
+                    if (!sufijo || PATRON_OBLIGATORIO.test(texto.slice(0, sufijo.index))) continue;
+                    for (let anterior = indice - 1; anterior >= 0; anterior--) {
+                        const previo = normalizarTexto(fragmentos[anterior]);
+                        if (PATRON_OBLIGATORIO.test(previo) || PATRON_OPCIONAL.test(previo) || PATRON_NEGACION.test(previo)) break;
+                        opcionalesColectivos.add(anterior);
+                    }
+                }
+                return fragmentos.map((fragmento, indice) => {
+                        const texto = normalizarTexto(fragmento).replace(/^[-\s]+/, '');
+                        const opcional = PATRON_OPCIONAL.test(texto) || PATRON_NEGACION.test(texto);
+                        // Una lista comparte su modificador, salvo requisito propio explícito.
+                        const omitida = opcional || opcionalesColectivos.has(indice) || (modificadorCompartido && !PATRON_OBLIGATORIO.test(texto));
+                        modificadorCompartido = omitida;
+                        return { texto, titulo, omitida, obligatorioHeredado: seccion === 'obligatoria', campoRequisitos: requisitosActivos };
+                    });
+            })
+            .filter(clausula => clausula.texto);
+    });
+}
 
-    // También verifico si hay frameworks del ecosistema Java que indican
-    // que Java es tecnología principal (Spring Boot, J2EE, Hibernate).
-    const ecosistemaJava = PATRON_JAVA_EXCLUYENTE.slice(1).some(p => p.test(texto));
+const PATRON_SENAL = /\b(?:java|spring|j2ee|jee|jakarta|hibernate|ingles|english|bilingual|bilingue|senior|sr|lead|lider|experiencia|experience|candidat\w*|\d+\s*\+?\s*(?:anos?|years?))\b/;
+const PATRON_OPCIONAL = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice\s+to\s+have|optional|preferred)\b|\bno\s+(?:es\s+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/;
+const PATRON_NEGACION = /\b(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b/;
+const PATRON_OPCIONAL_FINAL = new RegExp(`(?:${PATRON_OPCIONAL.source}|${PATRON_NEGACION.source})\\s*$`);
+const PATRON_OBLIGATORIO = /\b(?:requiere\w*|requerid\w*|requisito\w*|obligatori\w*|excluyente\w*|exige\w*|imprescindible\w*|required|mandatory|must|need)\b/;
+const PATRON_ROL = /\b(?:desarrollador\w*|developer|engineer|ingenier\w*|puesto|posicion|rol|perfil|candidat\w*)\b/;
+const PATRON_MENTORIA = /\b(?:mentor\w*|aprend\w*|junto\s+a|acompan\w*|guiad\w*|reportar\w*|report\s+to)\b/;
+const PATRON_EMPRESA = /\b(?:empresa|compania|organizacion|mercado|trayectoria|company|founded)\b/;
 
-    // Si menciona JavaScript pero no Java por separado, no es exclusión.
-    // Si menciona "Java" (no seguido de Script), es exclusión.
-    // Si menciona Spring Boot/J2EE/Hibernate, es exclusión.
-    const detectado = javaSinScript || ecosistemaJava;
+function esRequisito(clausula, tipo, coincidencia) {
+    const { texto, titulo, omitida, obligatorioHeredado, campoRequisitos } = clausula;
+    if (omitida) return false;
 
-    // Identificar qué patrón se activó para la razón.
-    let patron = null;
-    if (javaSinScript) {
-        patron = 'java';
-    } else if (ecosistemaJava) {
-        // Busco cuál ecosistema se mencionó.
-        if (/\bspring\s*boot\b/i.test(texto)) patron = 'spring_boot';
-        else if (/\bj2ee\b/i.test(texto)) patron = 'j2ee';
-        else if (/\bjee\b/i.test(texto)) patron = 'jee';
-        else if (/\bjakarta\s*ee\b/i.test(texto)) patron = 'jakarta_ee';
-        else if (/\bhibernate\b/i.test(texto)) patron = 'hibernate';
+    const obligatorio = obligatorioHeredado || PATRON_OBLIGATORIO.test(texto);
+    const antes = texto.slice(0, coincidencia.index);
+    const ultimoRol = [...antes.matchAll(new RegExp(PATRON_ROL.source, 'g'))].at(-1)?.index ?? -1;
+    const ultimaEmpresa = [...antes.matchAll(new RegExp(PATRON_EMPRESA.source, 'g'))].at(-1)?.index ?? -1;
+    const rol = PATRON_ROL.test(texto);
+    if (tipo === 'experiencia') {
+        // La antigüedad empresarial no describe experiencia del postulante.
+        const despuesCantidad = texto.slice(coincidencia.index + coincidencia[0].length);
+        if (/^\s+(?:de\s+trayectoria|en\s+el\s+mercado|de\s+(?:la\s+)?empresa)\b/.test(despuesCantidad)) return false;
+        const ultimaExigencia = [...antes.matchAll(new RegExp(PATRON_OBLIGATORIO.source, 'g'))].at(-1)?.index ?? -1;
+        if (ultimaEmpresa > Math.max(ultimoRol, ultimaExigencia)) return false;
+        return /\b(?:experiencia|experience)\b/.test(texto) || obligatorio;
     }
+    if (tipo === 'seniority') {
+        // El sujeto anterior a la señal distingue candidato de empresa/mentor;
+        // acompañar juniors DESPUÉS del nivel no vuelve opcional el puesto Senior.
+        const despues = texto.slice(coincidencia.index + coincidencia[0].length);
+        if (/^\s+(?:equipo|team|profesionales)\b/.test(despues)) return false;
+        const ultimoEquipo = [...antes.matchAll(/\b(?:equipo|team|profesionales)\b/g)].at(-1)?.index ?? -1;
+        if (ultimoEquipo > ultimoRol) return false;
+        const ultimaMentoria = [...antes.matchAll(new RegExp(PATRON_MENTORIA.source, 'g'))].at(-1)?.index ?? -1;
+        const rolMentor = ultimaMentoria >= 0 && ultimoRol > ultimaMentoria
+            && /^(?:junto\s+a|report\s+to|reportar\w*\s+a|guiad\w*\s+por)\b/.test(antes.slice(ultimaMentoria));
+        if (rolMentor || ultimaMentoria > ultimoRol || ultimaEmpresa > ultimoRol) return false;
+        const rolLocal = ultimoRol >= 0 || /^\s+(?:developer|engineer|desarrollador\w*)\b/.test(despues);
+        return titulo || obligatorio || rolLocal || /^(?:buscamos\s+|se\s+busca\s+)?(?:senior|sr|tech\s+lead|team\s+lead|lider\s+de\s+equipo|lead\s+(?:developer|engineer))\b/.test(texto);
+    }
+    if (tipo === 'java') return titulo || obligatorio || (campoRequisitos && /^(?:java|spring\s*boot|j2ee|jee|jakarta\s*ee|hibernate)\b/.test(texto)) || rol || /\b(?:experiencia|conocimientos)\s+(?:en|con|de)\b/.test(texto);
+    // Un nivel lingüístico declarado sin condición opcional es un requisito;
+    // las menciones narrativas sin evidencia quedan para IA.
+    return obligatorio || rol || /^(?:ingles|english|fluent|conversational|upper.?intermediate|bilingual|bilingue)\b/.test(texto)
+        || /\b(?:daily\s+(?:standups?|meetings?)\s+in\s+english|join\s+our\s+english.?speaking\s+team)\b/.test(texto);
+}
 
-    return { detectado, patron };
+function detectarRequisito(oferta, patrones, nombres, tipo) {
+    for (const clausula of extraerClausulas(oferta)) {
+        for (const [indice, patron] of patrones.entries()) {
+            // Evalúo cada aparición: un mentor anterior no define otro puesto.
+            for (const coincidencia of clausula.texto.matchAll(new RegExp(patron.source, 'gi'))) {
+                if (esRequisito(clausula, tipo, coincidencia)) {
+                    const inicio = Math.max(0, coincidencia.index - 100);
+                    const fin = Math.min(clausula.texto.length, inicio + 240);
+                    const evidencia = `${inicio ? '…' : ''}${clausula.texto.slice(inicio, fin)}${fin < clausula.texto.length ? '…' : ''}`;
+                    return { detectado: true, patron: nombres[indice] || nombres[0], evidencia };
+                }
+            }
+        }
+    }
+    return { detectado: false, patron: null };
 }
 
 /**
@@ -192,10 +307,6 @@ function detectarJavaExcluyente(oferta) {
  * @returns {{ detectado: boolean, patron: string|null }}
  */
 function detectarSeniorityExcluyente(oferta) {
-    const texto = extraerTextoOferta(oferta);
-
-    // Verifico cada patrón de seniority.
-    // Mapeo el patrón que matcheó a un identificador específico.
     const patronesConNombre = [
         { patron: /\bsenior\b/i, nombre: 'senior' },
         { patron: /\bsr\b(?!\.)[\s.,;:)]/i, nombre: 'sr' },
@@ -209,13 +320,7 @@ function detectarSeniorityExcluyente(oferta) {
         { patron: /\bl[ií]der\b/i, nombre: 'lider' },
     ];
 
-    for (const { patron, nombre } of patronesConNombre) {
-        if (patron.test(texto)) {
-            return { detectado: true, patron: nombre };
-        }
-    }
-
-    return { detectado: false, patron: null };
+    return detectarRequisito(oferta, patronesConNombre.map(item => item.patron), patronesConNombre.map(item => item.nombre), 'seniority');
 }
 
 /**
@@ -225,28 +330,7 @@ function detectarSeniorityExcluyente(oferta) {
  * @returns {{ detectado: boolean, patron: string|null }}
  */
 function detectarExperienciaExcluyente(oferta) {
-    const texto = extraerTextoOferta(oferta);
-
-    // Eliminar falsos positivos de seniority del texto antes de evaluar.
-    // Ejemplo: "3 meses" no es "3 años".
-    let textoLimpio = texto;
-    const falsosPositivos = [
-        /\b(3|tres)\s+(meses|months)\b/i,
-        /\b(3|tres)\s+(d[ií]as|days)\b/i,
-        /\b(3|tres)\s+(semanas|weeks)\b/i,
-        /\bcapacitaci[oó]n\s+de\s+(3|tres)\s+meses\b/i,
-    ];
-    for (const fp of falsosPositivos) {
-        textoLimpio = textoLimpio.replace(fp, '');
-    }
-
-    for (const patron of PATRON_EXPERIENCIA_EXCLUYENTE) {
-        if (patron.test(textoLimpio)) {
-            return { detectado: true, patron: 'experiencia_3_anios' };
-        }
-    }
-
-    return { detectado: false, patron: null };
+    return detectarRequisito(oferta, PATRON_EXPERIENCIA_EXCLUYENTE, ['experiencia_3_anios'], 'experiencia');
 }
 
 /**
@@ -257,15 +341,7 @@ function detectarExperienciaExcluyente(oferta) {
  * @returns {{ detectado: boolean, patron: string|null }}
  */
 function detectarInglesExcluyente(oferta) {
-    const texto = extraerTextoOferta(oferta);
-
-    for (const patron of PATRON_INGLES_EXCLUYENTE) {
-        if (patron.test(texto)) {
-            return { detectado: true, patron: 'ingles_avanzado' };
-        }
-    }
-
-    return { detectado: false, patron: null };
+    return detectarRequisito(oferta, PATRON_INGLES_EXCLUYENTE, ['ingles_avanzado'], 'idioma');
 }
 
 /**
@@ -348,7 +424,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
         reglasActivadas.push('java');
         excluida = true;
         porcentaje = PORCENTAJE_EXCLUSION.java;
-        razon = `La oferta requiere Java${java.patron && java.patron !== 'java' ? ` (ecosistema: ${java.patron})` : ''} como tecnología principal o excluyente.`;
+        razon = `La oferta requiere Java${java.patron && java.patron !== 'java' ? ` (ecosistema: ${java.patron})` : ''} como tecnología principal o excluyente. Evidencia: «${java.evidencia}».`;
     }
 
     // Regla 2: Seniority excluyente (Senior, SR, roles de liderazgo).
@@ -371,7 +447,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
                 lead_engineer: 'Lead Engineer',
                 lider: 'Líder',
             }[seniority.patron] || seniority.patron;
-            razon = `La oferta requiere nivel ${detalleSeniority}, incompatible con perfil junior/trainee.`;
+            razon = `La oferta requiere nivel ${detalleSeniority}, incompatible con perfil junior/trainee. Evidencia: «${seniority.evidencia}».`;
         }
     }
 
@@ -382,7 +458,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.experiencia;
-            razon = 'La oferta requiere 3 o más años de experiencia como requisito excluyente (3+, >3, mínimo 3, más de 3), incompatible con perfil junior/trainee.';
+            razon = `La oferta requiere 3 o más años de experiencia como requisito excluyente (3+, >3, mínimo 3, más de 3), incompatible con perfil junior/trainee. Evidencia: «${experiencia.evidencia}».`;
         }
     }
 
@@ -393,7 +469,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.idioma;
-            razon = 'La oferta requiere inglés avanzado, fluido o bilingüe como condición excluyente.';
+            razon = `La oferta requiere inglés avanzado, fluido o bilingüe como condición excluyente. Evidencia: «${ingles.evidencia}».`;
         }
     }
 
