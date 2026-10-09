@@ -80,6 +80,17 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
   - **0-49:** No es match. Requiere tecnologías o experiencia fuera del perfil.
 - El backend aplica un clamp `Math.max(0, Math.min(100, porcentaje))` para asegurar rango válido.
 
+## Requisitos contextuales (issue #7)
+
+Interpreto las señales de Java, seniority, experiencia e inglés dentro de cláusulas pequeñas, separando título, descripción y campos textuales de datos crudos. Conservo límites de párrafos HTML, listas, puntuación y contrastes; las condiciones deseables, opcionales o negadas afectan su cláusula y sus continuaciones de lista, no toda la oferta. Un requisito obligatorio explícito en otra entrada prevalece sobre el modificador compartido (por ejemplo, «Java: deseable, inglés avanzado obligatorio»).
+
+- No rechazo por «empresa líder», aprender junto a un senior, Java deseable, inglés avanzado como plus o antigüedad empresarial. Si Java es deseable pero inglés avanzado es obligatorio, rechazo por idioma.
+- Conservo exclusiones por tecnología principal del puesto, Senior/SR/roles de liderazgo, experiencia exigida e inglés requerido. Mantengo porcentajes y umbrales: `3+`, `>3`, mínimo/al menos 3 y cantidades mayores siguen excluyendo; 3 años sin esos calificadores no activa esa regla.
+- Incluyo la cláusula normalizada que sustenta el rechazo en la razón; no atribuyo al candidato la trayectoria de la empresa o el nivel de su mentor. Para seniority considero el sujeto anterior a cada aparición: «empresa líder y buscamos desarrollador junior» no excluye; «desarrollador Senior que acompañará a juniors» sí exige Senior.
+- Una mención ambigua **no es aprobación automática**: continúo con la IA y respeto su aprobación o rechazo. Uso el mismo evaluador antes/después de IA y para revalidar aprobaciones cacheadas.
+
+**Límite de la heurística:** no implemento un analizador gramatical general. Las condiciones distribuidas entre varias cláusulas, coordinaciones complejas o vocabulario no reconocido pueden quedar para IA; no garantizo interpretar cualquier redacción. No modifico invalidación de cache ni recupero rechazos históricos; un rechazo ya cacheado conserva el comportamiento anterior. Tampoco cambio perfil ni geografía.
+
 ## Flujo de evaluación
 
 ### Evaluación individual (`evaluarOferta`)
