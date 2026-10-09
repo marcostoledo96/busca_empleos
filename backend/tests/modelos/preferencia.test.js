@@ -99,9 +99,44 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
             const prefs = await modeloPreferencia.obtenerPreferencias();
 
             expect(prefs).not.toBeNull();
-            expect(prefs.id).toBe(1);
-            expect(prefs.nombre).toBe('Marcos Ezequiel Toledo');
-            expect(prefs.nivel_experiencia).toBe('junior');
+            expect(prefs.nivel_ingles_detalle).toEqual({});
+            expect(prefs).toMatchObject({
+                id: 1,
+                nombre: null,
+                nivel_experiencia: null,
+                perfil_profesional: null,
+                idioma_candidato: null,
+                nivel_real_seniority: null,
+                anios_experiencia_reales: null,
+                stack_tecnologico: [],
+                tecnologias_detalle: [],
+                roles_objetivo_detalle: [],
+                preguntas_perfil_pendientes: [],
+                conocimientos_ausentes: [],
+                limitaciones_explicitas: '',
+                modalidad_aceptada: 'cualquiera',
+                zonas_preferidas: ['CABA', 'GBA Oeste'],
+                terminos_busqueda: [
+                    'qa tester', 'soporte tecnico it', 'programador',
+                    'desarrollador junior c#', 'frontend developer angular', 'full stack node',
+                ],
+                reglas_exclusion: ['Java'],
+                disponibilidad: 'full_time',
+                expectativa_salarial_min: null,
+                expectativa_salarial_max: null,
+                moneda_salarial: 'NO_FILTRAR',
+                keywords_positivas: [],
+                keywords_negativas: [],
+                plataformas_preferidas: [],
+                plataformas_excluidas: [],
+                modelo_ia: 'deepseek-v4-flash',
+                modelo_ia_evaluacion: 'deepseek-v4-flash',
+                modelo_ia_importacion: 'deepseek-v4-pro',
+                prompt_personalizado: null,
+                usar_prompt_personalizado: false,
+                priorizar_ofertas_ia: false,
+                bonus_maximo_prioridad_ia: 6,
+            });
         });
     });
 
