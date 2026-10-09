@@ -225,7 +225,8 @@
                             </button>
                         </div>
                         <div class="seccion-cuerpo">
-                            <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología.</small>
+                            <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología. El detalle ausente no reemplaza el stack anterior hasta confirmar una edición.</small>
+                            <button class="btn-detalle-secundario" (click)="vaciarTecnologias()" [disabled]="modoDemo()">Vaciar tecnologías y stack</button>
                             @if (tecnologiasDetalle.length > 0) {
                                 <div class="tabla-tech tabla-tech--amplia">
                                     <div class="tabla-tech__header tabla-tech__header--amplia">
@@ -435,7 +436,7 @@
                                         <span>Modalidad: <strong>{{ resultadoImportacion.modalidad_aceptada || '—' }}</strong></span>
                                         <span>Disponibilidad: <strong>{{ resultadoImportacion.disponibilidad || '—' }}</strong></span>
                                         <span>Tecnologías detectadas: <strong>{{ resultadoImportacion.tecnologias_detalle.length }}</strong></span>
-                                        <span>Roles: <strong>{{ resultadoImportacion.roles_objetivo_detalle.length }}</strong></span>
+                                        <span>Roles detectados (no se aplican): <strong>{{ resultadoImportacion.roles_objetivo_detalle.length }}</strong></span>
                                     </div>
                                     <div class="campo-fila campo-fila--2 importar-preview-grid">
                                         <div class="campo">
@@ -471,7 +472,7 @@
                                             </div>
                                         </div>
                                         <div class="importar-mini-lista">
-                                            <label class="campo-etiqueta">Roles detectados</label>
+                                            <label class="campo-etiqueta">Roles detectados (no se aplican automáticamente)</label>
                                             <div class="importar-tags">
                                                 @for (rol of resultadoImportacion.roles_objetivo_detalle; track rol.rol) {
                                                     <span class="importar-adv">{{ rol.rol }} · {{ rol.prioridad }}</span>

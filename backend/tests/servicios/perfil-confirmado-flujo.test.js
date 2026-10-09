@@ -111,6 +111,37 @@ test.each(['English required', 'Inglés requerido', 'Inglés obligatorio'])('pre
     expect(politicas).toContain('sin nivel especificado');
 });
 
+test('guardo y recargo un perfil nuevo incompleto y puedo borrar explícitamente su idioma', async () => {
+    fila = { id: 1, nombre: null, idioma_candidato: null, tecnologias_detalle: null,
+        nivel_ingles_detalle: null, nivel_real_seniority: null };
+    const prefs = await guardar({ nombre: 'Perfil nuevo', idioma_candidato: null });
+    expect(prefs.perfil_efectivo.candidato.idioma_candidato).toBeNull();
+    expect(prefs.perfil_efectivo.candidato.nivel_real_seniority).toBeNull();
+    expect(await consultar()).toEqual(prefs);
+});
+
+test('editar solo nombre conserva compatibilidad legacy; eliminar explícitamente no activa fallback', async () => {
+    fila = { id: 1, nombre: 'Perfil anterior', stack_tecnologico: ['Rust'], idioma_candidato: 'Portugués C2',
+        nivel_experiencia: 'trainee', tecnologias_detalle: null, nivel_ingles_detalle: null, nivel_real_seniority: null };
+    const prefs = await guardar({ nombre: 'Nuevo nombre' });
+    expect(prefs.perfil_efectivo.candidato).toEqual(expect.objectContaining({
+        stack_tecnologico: ['Rust'], idioma_candidato: 'Portugués C2', nivel_real_seniority: 'trainee',
+    }));
+    expect(await consultar()).toEqual(prefs);
+    const borrado = await guardar({ tecnologias_detalle: [], stack_tecnologico: [], idioma_candidato: null, nivel_ingles_detalle: {}, anios_experiencia_reales: 0 });
+    expect(borrado.perfil_efectivo.candidato).toEqual(expect.objectContaining({
+        stack_tecnologico: [], idioma_candidato: null, nivel_ingles_detalle: {}, anios_experiencia_reales: 0,
+    }));
+    expect(await consultar()).toEqual(borrado);
+});
+
+test.each(['', '   ', 42, [], {}])('rechazo idioma inválido %j sin consultar pg', async idioma => {
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    await controlador.actualizarPreferencias({ body: { idioma_candidato: idioma } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(pool.query).not.toHaveBeenCalled();
+});
+
 test('perfil incompleto llega al proveedor sin completar hechos personales', async () => {
     fila = { id: 1 };
     const prefs = await consultar();

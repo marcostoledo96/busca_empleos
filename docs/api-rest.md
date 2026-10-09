@@ -70,6 +70,14 @@ interface PerfilEfectivo {
 }
 ```
 
+En PUT, omitir un campo conserva su valor persistido. El frontend envía solo controles
+modificados y acciones explícitas: no materializa detalles ausentes/null al editar un
+nombre ni elimina compatibilidad legacy de stack, idioma o nivel. `idioma_candidato: null`
+expresa borrado del resumen; una cadena vacía o un valor no textual sigue respondiendo
+400. Un detalle de inglés `{}` o con subcampos vacíos/null es una edición explícita,
+no se completa con niveles ni reactiva el resumen anterior. `[]` confirma eliminación,
+no ausencia. Aplicar CV no reemplaza roles objetivo ni los restantes criterios laborales.
+
 PUT acepta `stack_tecnologico: []`, `roles_objetivo_detalle: []` y
 `tecnologias_detalle: []` como eliminaciones explícitas. Si envío tecnologías
 detalladas, el modelo deriva el stack aunque también envíe el anterior; excluye

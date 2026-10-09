@@ -169,6 +169,92 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(component.tecnologiasDetalle).toEqual([]);
     });
 
+    it('solo modifica el nombre de un perfil legacy sin materializar detalle ausente o null', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const obtener = spyOn(servicio, 'obtenerPreferencias');
+        const actualizar = spyOn(servicio, 'actualizarPreferencias');
+        for (const detalle of [null, undefined]) {
+            const fila = { ...mockPreferencias.datos, nombre: 'Perfil anterior', stack_tecnologico: ['Rust'],
+                idioma_candidato: 'Portugués C2', nivel_experiencia: 'trainee', tecnologias_detalle: detalle,
+                roles_objetivo_detalle: detalle, nivel_ingles_detalle: null, nivel_real_seniority: null };
+            obtener.and.returnValue(of({ exito: true, datos: fila } as any));
+            actualizar.and.returnValue(of({ exito: true, datos: { ...fila, nombre: 'Nuevo nombre' } } as any));
+            component.cargarPreferencias();
+            component.nombre = 'Nuevo nombre';
+            component.guardar();
+            const payload = JSON.parse(JSON.stringify(actualizar.calls.mostRecent().args[0]));
+            expect(payload).toEqual({ nombre: 'Nuevo nombre' });
+            component.cargarPreferencias();
+            expect(component.stackTecnologico).toEqual(['Rust']);
+            expect(component.idiomaCandidato).toBe('Portugués C2');
+            expect(component.nivelExperiencia).toBe('trainee');
+
+        }
+    });
+
+    it('guarda un perfil incompleto sin enviar idiomas vacíos ni defaults del formulario', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const fila = { id: 1, nombre: null, idioma_candidato: null, tecnologias_detalle: null,
+            nivel_ingles_detalle: null, nivel_real_seniority: null, roles_objetivo_detalle: null };
+        spyOn(servicio, 'obtenerPreferencias').and.returnValue(of({ exito: true, datos: fila } as any));
+        const actualizar = spyOn(servicio, 'actualizarPreferencias').and.returnValue(of({ exito: true, datos: { ...fila, nombre: 'Perfil nuevo' } } as any));
+        component.cargarPreferencias();
+        component.nombre = 'Perfil nuevo';
+        component.guardar();
+        expect(JSON.parse(JSON.stringify(actualizar.calls.mostRecent().args[0]))).toEqual({ nombre: 'Perfil nuevo' });
+        expect(component.nombre).toBe('Perfil nuevo');
+        expect(component.mensajeAccesible()).toContain('correctamente');
+    });
+
+    it('vaciar explícitamente detalles ausentes envía eliminaciones y no omite la acción', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const fila = { ...mockPreferencias.datos, stack_tecnologico: ['Rust'], idioma_candidato: 'Portugués C2',
+            tecnologias_detalle: null, roles_objetivo_detalle: null, nivel_ingles_detalle: null };
+        spyOn(servicio, 'obtenerPreferencias').and.returnValue(of({ exito: true, datos: fila } as any));
+        const actualizar = spyOn(servicio, 'actualizarPreferencias').and.returnValue(of({ exito: false } as any));
+        component.cargarPreferencias();
+        // Agregar y quitar es una edición explícita, aunque vuelva a [] al final.
+        component.agregarTecnologia();
+        component.quitarTecnologia(0);
+        component.agregarRol();
+        component.quitarRol(0);
+        component.idiomaCandidato = '';
+        component.guardar();
+        const payload = JSON.parse(JSON.stringify(actualizar.calls.mostRecent().args[0]));
+        expect(payload).toEqual({ tecnologias_detalle: [], stack_tecnologico: [], roles_objetivo_detalle: [], idioma_candidato: null });
+    });
+
+    it('el borrado de inglés detallado no se omite y conserva cero confirmado', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const fila = { ...mockPreferencias.datos, nivel_ingles_detalle: { reading: 'C1' }, anios_experiencia_reales: 2 };
+        spyOn(servicio, 'obtenerPreferencias').and.returnValue(of({ exito: true, datos: fila } as any));
+        const actualizar = spyOn(servicio, 'actualizarPreferencias').and.returnValue(of({ exito: false } as any));
+        component.cargarPreferencias();
+        component.nivelInglesDetalle.reading = '';
+        component.aniosExperienciaReales = 0;
+        component.vaciarTecnologias();
+        expect(component.cambiosSinGuardar).toBeTrue();
+        component.guardar();
+        expect(actualizar.calls.mostRecent().args[0]).toEqual({
+            tecnologias_detalle: [], stack_tecnologico: [], nivel_ingles_detalle: { reading: '' }, anios_experiencia_reales: 0,
+        });
+        expect(component.cambiosSinGuardar).toBeTrue();
+    });
+
+    it('aplicar CV conserva los roles objetivo confirmados', async () => {
+        const { component } = await crearComponente();
+        component.rolesObjetivoDetalle = [{ rol: 'QA confirmado', prioridad: 'alta', aliases: [] }];
+        component.resultadoImportacion = { nombre: 'Perfil CV', tecnologias_detalle: [],
+            roles_objetivo_detalle: [{ rol: 'Backend detectado', prioridad: 'media', aliases: [] }],
+            preguntas: [], advertencias: [] } as any;
+        component.aplicarImportacion();
+        expect(component.rolesObjetivoDetalle).toEqual([{ rol: 'QA confirmado', prioridad: 'alta', aliases: [] }]);
+    });
+
     // --- Task 5.1: aria-live recibe contenido dinámico ---
 
     it('mensajeAccesible inicia vacío', async () => {

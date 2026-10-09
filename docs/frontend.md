@@ -392,11 +392,17 @@ guardar esta vista no llama a DeepSeek. El contrato tipado está en
 
 Conservo listas vacías, cero años y nivel tecnológico `ninguno`. No repueblo tecnologías
 ni roles al cargar o guardar: las sugerencias requieren un botón explícito. El stack
-se deriva del detalle incluso si queda vacío. No completo inglés, seniority o años
+se deriva del detalle editado incluso si queda vacío. Comparo los controles con su
+última carga para enviar solamente campos modificados: un detalle ausente/null no se
+convierte en `[]`/`{}` al editar otro campo, ni borro los datos legacy compatibles.
+Registro las acciones explícitas de tecnologías/roles aunque terminen nuevamente en
+`[]`; «Vaciar tecnologías y stack» confirma esa eliminación incluso sin detalle inicial.
+Borrar el resumen de idiomas envía `idioma_candidato: null`; los niveles detallados
+editados se envían aunque queden vacíos. No completo inglés, seniority o años
 ausentes con datos personales de ejemplo. Conservo el texto personalizado exactamente,
 incluidos espacios y saltos de línea, como criterio adicional que no reemplaza hechos.
-Al aplicar un CV conservo modalidad, zonas, disponibilidad, salario, términos, exclusiones,
-palabras clave y plataformas existentes; continúo con el mapeo acotado de hechos, sin
+Al aplicar un CV conservo roles objetivo, modalidad, zonas, disponibilidad, salario, términos,
+exclusiones, palabras clave y plataformas existentes; continúo con el mapeo acotado de hechos, sin
 agregar otro importador ni editor.
 
 Las pruebas de componente cubren edición, aviso, respuesta persistida de guardado y

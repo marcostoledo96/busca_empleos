@@ -66,9 +66,12 @@ export class Preferencias implements OnInit {
 
     perfilEfectivo: PerfilEfectivo | null = null;
     private formularioGuardado = '';
+    private tecnologiasEditadas = false;
+    private rolesEditados = false;
 
     get cambiosSinGuardar(): boolean {
-        return this.formularioGuardado !== '' && JSON.stringify(this.datosFormulario()) !== this.formularioGuardado;
+        return this.tecnologiasEditadas || this.rolesEditados ||
+            (this.formularioGuardado !== '' && JSON.stringify(this.datosFormulario()) !== this.formularioGuardado);
     }
 
     // Inicializo los hechos sin afirmar información personal no confirmada.
@@ -359,7 +362,22 @@ export class Preferencias implements OnInit {
 
     guardar(): void {
         this.guardando.set(true);
-        this.servicio.actualizarPreferencias(this.datosFormulario()).subscribe({
+        const formulario = this.datosFormulario();
+        const anterior = this.formularioGuardado ? JSON.parse(this.formularioGuardado) : null;
+        // Envío solo cambios: un control vacío no materializa un dato ausente persistido.
+        const datos: PreferenciasActualizar = Object.fromEntries(Object.entries(formulario).filter(([campo, valor]) =>
+            anterior === null || JSON.stringify(valor) !== JSON.stringify(anterior[campo]) ||
+            (this.tecnologiasEditadas && ['tecnologias_detalle', 'stack_tecnologico'].includes(campo)) ||
+            (this.rolesEditados && campo === 'roles_objetivo_detalle')
+        ));
+        if (datos.tecnologias_detalle !== undefined) {
+            datos.stack_tecnologico = formulario.stack_tecnologico;
+        }
+        // null expresa borrado explícito del resumen; una cadena vacía no es un idioma válido.
+        if (typeof datos.idioma_candidato === 'string' && !datos.idioma_candidato.trim()) {
+            datos.idioma_candidato = null;
+        }
+        this.servicio.actualizarPreferencias(datos).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos) {
                     this.mapearDesdeApi(respuesta.datos);
@@ -428,6 +446,8 @@ export class Preferencias implements OnInit {
         this.rolesObjetivoDetalle = structuredClone(rolesApi);
         this.perfilEfectivo = prefs.perfil_efectivo ?? null;
         this.formularioGuardado = JSON.stringify(this.datosFormulario());
+        this.tecnologiasEditadas = false;
+        this.rolesEditados = false;
         // scoring_config ya no se consume en el frontend (B1). Se ignora.
     }
 
@@ -470,6 +490,7 @@ export class Preferencias implements OnInit {
 
     // Agrega una tecnología vacía a la tabla de niveles.
     agregarTecnologia(): void {
+        this.tecnologiasEditadas = true;
         this.tecnologiasDetalle = [
             ...this.tecnologiasDetalle,
             { nombre: '', nivel: 'basico', categoria: 'lenguaje', importancia: 'secundaria', aliases: [] },
@@ -478,14 +499,22 @@ export class Preferencias implements OnInit {
 
     // Quita una tecnología de la tabla por índice.
     quitarTecnologia(idx: number): void {
+        this.tecnologiasEditadas = true;
         this.tecnologiasDetalle = this.tecnologiasDetalle.filter((_, i: number) => i !== idx);
     }
 
+    vaciarTecnologias(): void {
+        this.tecnologiasEditadas = true;
+        this.tecnologiasDetalle = [];
+    }
+
     cargarTecnologiasSugeridas(): void {
+        this.tecnologiasEditadas = true;
         this.tecnologiasDetalle = this.crearTecnologiasSugeridas();
     }
 
     agregarRol(): void {
+        this.rolesEditados = true;
         this.rolesObjetivoDetalle = [
             ...this.rolesObjetivoDetalle,
             { rol: '', prioridad: 'media', aliases: [] },
@@ -493,10 +522,12 @@ export class Preferencias implements OnInit {
     }
 
     quitarRol(idx: number): void {
+        this.rolesEditados = true;
         this.rolesObjetivoDetalle = this.rolesObjetivoDetalle.filter((_, i: number) => i !== idx);
     }
 
     cargarRolesSugeridos(): void {
+        this.rolesEditados = true;
         this.rolesObjetivoDetalle = this.crearRolesSugeridos();
     }
 
@@ -563,8 +594,11 @@ export class Preferencias implements OnInit {
                 ...r.nivel_ingles_detalle,
             };
         }
-        if (r.tecnologias_detalle?.length) this.tecnologiasDetalle = r.tecnologias_detalle;
-        if (r.roles_objetivo_detalle?.length) this.rolesObjetivoDetalle = r.roles_objetivo_detalle;
+        if (r.tecnologias_detalle?.length) {
+            this.tecnologiasDetalle = r.tecnologias_detalle;
+            this.tecnologiasEditadas = true;
+        }
+        // Los roles objetivo son preferencias de búsqueda, no hechos del CV.
         // Los términos de búsqueda y exclusiones continúan bajo edición explícita.
         // scoring_config ya no se aplica (B1): se ignora del resultado de importación.
         if (r.preguntas_perfil_pendientes?.length) {

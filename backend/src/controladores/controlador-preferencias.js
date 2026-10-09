@@ -307,8 +307,8 @@ async function actualizarPreferencias(req, res) {
         }
     }
 
-    // Valido idioma_candidato: si viene, debe ser string no vacío.
-    if (datos.idioma_candidato !== undefined) {
+    // Admito null como borrado explícito; si hay texto, exijo un idioma no vacío.
+    if (datos.idioma_candidato !== undefined && datos.idioma_candidato !== null) {
         if (typeof datos.idioma_candidato !== 'string' || datos.idioma_candidato.trim().length === 0) {
             errores.push('idioma_candidato debe ser un texto no vacío.');
         }
