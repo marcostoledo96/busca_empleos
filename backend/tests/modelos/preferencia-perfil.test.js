@@ -5,6 +5,23 @@ const { construirPerfilEfectivo } = require('../../src/servicios/evaluacion/perf
 
 beforeEach(() => jest.clearAllMocks());
 
+test('serializo identidad, estados, respuesta y nota sin transformar el JSONB revisado', async () => {
+    const preguntas = ['pendiente', 'respondida', 'aplicada', 'ignorada', 'nota'].map((estado, indice) => ({
+        id: `pregunta-${indice}`, campo: 'docker', pregunta: '¿Nivel?', estado,
+        ...(estado === 'ignorada' ? {} : { respuesta: 'Básico' }),
+        ...(estado === 'nota' ? { nota: 'Uso local confirmado' } : {}),
+    }));
+    pool.query.mockImplementation(async (sql, valores) => {
+        if (!sql.includes('RETURNING')) return { rows: [] };
+        const serializado = valores.find(valor => typeof valor === 'string' && valor.startsWith('[{'));
+        expect(JSON.parse(serializado)).toEqual(preguntas);
+        expect(sql).toContain('preguntas_perfil_pendientes = $');
+        return { rows: [{ id: 1, preguntas_perfil_pendientes: JSON.parse(serializado) }] };
+    });
+    const guardado = await modelo.actualizarPreferencias({ preguntas_perfil_pendientes: preguntas });
+    expect(guardado.preguntas_perfil_pendientes).toEqual(preguntas);
+});
+
 test('creo fila incompleta sin heredar defaults personales del esquema', async () => {
     pool.query.mockImplementation(async (sql, valores) => {
         if (sql.startsWith('SELECT')) return { rows: [] };
