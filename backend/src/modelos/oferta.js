@@ -282,7 +282,8 @@ async function obtenerBloqueSincronizacion({ limite, cursor }) {
                     nivel_requerido, salario_min, salario_max, moneda,
                     estado_evaluacion, razon_evaluacion, porcentaje_match,
                     estado_postulacion, fecha_publicacion, fecha_extraccion,
-                    prioridad_ia, puntaje_prioridad_ia, evidencias_prioridad_ia
+                    prioridad_ia, puntaje_prioridad_ia, evidencias_prioridad_ia,
+                    firma_criterios_evaluacion, evaluacion_error_mensaje, fecha_evaluacion
              FROM ofertas
              WHERE fecha_extraccion >= $1 AND id <= $2 AND id < $3
              ORDER BY id DESC
@@ -351,19 +352,22 @@ async function obtenerOfertasPendientes() {
  * @param {string} razon - La razón que dio la IA.
  * @param {number|null} porcentaje - Porcentaje de match (0–100) que asignó la IA.
  * @param {string|null} [errorMensaje] - Mensaje de error si la API falló.
+ * @param {Object|null} [prioridadIa] - Señal de ranking separada del match.
+ * @param {string|null} [firmaCriterios] - Criterios efectivos exitosos; borro la firma ante error.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null) {
     const prioridad = prioridadIa || { detectada: false, puntaje: 0, evidencias: [], version: null };
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3,
               fecha_evaluacion = NOW(), evaluacion_error_mensaje = $5,
               prioridad_ia = $6, puntaje_prioridad_ia = $7,
-              evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9
+              evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9,
+              firma_criterios_evaluacion = $10
          WHERE id = $4
          RETURNING *`,
-        [estado, razon, porcentaje, id, errorMensaje, Boolean(prioridad.detectada), prioridad.puntaje || 0, JSON.stringify(prioridad.evidencias || []), prioridad.version]
+        [estado, razon, porcentaje, id, errorMensaje, Boolean(prioridad.detectada), prioridad.puntaje || 0, JSON.stringify(prioridad.evidencias || []), prioridad.version, errorMensaje ? null : firmaCriterios]
     );
 
     return resultado.rows.length > 0 ? resultado.rows[0] : null;

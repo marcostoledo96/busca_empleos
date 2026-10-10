@@ -11,8 +11,16 @@
 // y te trae el plato. No cocina.
 
 const modeloOferta = require('../modelos/oferta');
+const modeloPreferencia = require('../modelos/preferencia');
+const { crearFirmaCriterios, obtenerVigenciaEvaluacion } = require('../servicios/evaluacion/identidad-evaluacion');
 const baseDatos = require('../config/base-datos');
 const { normalizarIdPlataforma } = require('../config/plataformas');
+
+async function agregarVigencia(ofertas) {
+    const prefs = await modeloPreferencia.obtenerPreferencias();
+    const firma = prefs ? crearFirmaCriterios(prefs) : null;
+    return ofertas.map(oferta => ({ ...oferta, vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma) }));
+}
 
 /**
  * GET /api/ofertas
@@ -62,7 +70,7 @@ async function listarOfertas(req, res) {
 
     res.json({
         exito: true,
-        datos: ofertas,
+        datos: await agregarVigencia(ofertas),
         total,
         pagina,
         limite_pagina: limitePagina,
@@ -83,7 +91,7 @@ async function sincronizarOfertas(req, res) {
             limite,
             cursor: req.query.cursor,
         });
-        return res.json({ exito: true, ...resultado });
+        return res.json({ exito: true, ...resultado, datos: await agregarVigencia(resultado.datos) });
     } catch (error) {
         const statusPorCodigo = {
             CURSOR_SINCRONIZACION_INVALIDO: 400,
@@ -175,7 +183,7 @@ async function obtenerOferta(req, res) {
 
     res.json({
         exito: true,
-        datos: oferta,
+        datos: (await agregarVigencia([oferta]))[0],
     });
 }
 

@@ -275,9 +275,44 @@ Se ejecutan antes de llamar a DeepSeek. Si alguna regla excluye, se retorna rech
 
 Se reaplican después de parsear la respuesta IA. Si DeepSeek aprueba una oferta que debió ser excluida, el resultado se sobrescribe con rechazo determinístico.
 
-### Cache defensivo
+### Caché defensiva e identidad vigente (issue #9, T1)
 
-También se aplican al leer resultados cacheados en `evaluarOfertasPendientes()`. Una oferta cacheada como aprobada pero que ahora es excluible se rechaza igual.
+Centralizo la caché en `evaluarOferta()`, compartida por llamadas individuales y
+lotes. Ejecuto las defensas actuales antes de cualquier hit, incluso si la caché
+contiene un rechazo; una aprobación compatible nunca anula una exclusión vigente.
+
+Extraigo los mensajes finales a `entradas-evaluacion.js` y calculo SHA-256 en
+`identidad-evaluacion.js` mediante serialización canónica (claves de objetos
+ordenadas recursivamente, arrays conservados). El sistema enviado contiene
+literalmente el perfil efectivo; ordeno sus objetos también al presentar esa vista.
+La firma de criterios incluye el mensaje de sistema real, modelo efectivo
+(`modelo_ia_evaluacion`, luego `modelo_ia`, luego el predeterminado), configuración
+efectiva del proveedor (URL y temperatura cero compartidas con el request) y
+versiones del contrato de reglas/parser y del detector de prioridad. No incluye claves
+API ni configuración visual. Incremento `VERSION_CONTRATO_EVALUACION` cuando cambio
+reglas o parser.
+
+La identidad por oferta incluye el mensaje de usuario real, con `nivel_requerido`
+y `plataforma`, más las seis fuentes crudas analizadas por las exclusiones:
+`description`, `descriptionHtml`, `jobDescription`, `job_description`, `requirements`
+y `requisitos`. No incluyo logos, tracking ni otros metadatos visuales. Conservo
+mayúsculas, espacios y acentos de los mensajes efectivos; no pruebo equivalencia
+con el hash normalizado anterior ni hago fallback a cachés legacy.
+
+Para T2 expongo `evaluarOferta(oferta, instrucciones, modelo, preferencias,
+{ forzar: true })`: omito la lectura de caché, mantengo exclusiones y espero el
+upsert que reemplaza resultado, hashes/modelo y `creado_en`. Una ejecución posterior
+reutiliza el resultado nuevo. Los errores de API/parser no se cachean ni reciben
+firma de éxito; una falla de almacenamiento de caché no invalida una evaluación.
+
+El lote persiste `firma_criterios_evaluacion` mediante el séptimo argumento de
+`actualizarEvaluacion()`, después de prioridad IA. La migración 019 agrega una
+columna TEXT nullable, sin reconstruir criterios históricos. Listado, detalle y
+sincronización derivan `vigencia_evaluacion` con el mismo helper puro: actual,
+anterior o desconocida; pendientes y errores nunca son actuales. La vigencia compara
+criterios, no cambios posteriores del contenido de la oferta. Guardar preferencias
+compara firmas antes/después usando la fila persistida y retorna `cambio_criterios`
+sin llamadas pagas. Ver [contrato API](api-rest.md#firma-y-vigencia-de-evaluaciones-issue-9-t1).
 
 ## Documentos relacionados
 

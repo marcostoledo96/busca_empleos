@@ -5,7 +5,8 @@
 // No hay creación ni eliminación porque la tabla tiene una sola fila fija.
 
 const modeloPreferencia = require('../modelos/preferencia');
-const { construirPerfilEfectivo } = require('../servicios/evaluacion/perfil-efectivo');
+const { construirPerfilEfectivoCanonico } = require('../servicios/evaluacion/entradas-evaluacion');
+const { crearFirmaCriterios } = require('../servicios/evaluacion/identidad-evaluacion');
 const { consultarDeepSeek } = require('../config/deepseek');
 const { IDS_PLATAFORMAS, normalizarIdPlataforma } = require('../config/plataformas');
 
@@ -209,7 +210,8 @@ async function obtenerPreferencias(req, res) {
 
     res.json({
         exito: true,
-        datos: { ...preferencias, perfil_efectivo: construirPerfilEfectivo(preferencias) },
+        datos: { ...preferencias, perfil_efectivo: construirPerfilEfectivoCanonico(preferencias) },
+        firma_criterios_evaluacion: crearFirmaCriterios(preferencias || {}),
     });
 }
 
@@ -412,6 +414,9 @@ async function actualizarPreferencias(req, res) {
     // para que la BD siempre reciba el id canónico.
     normalizarPlataformasEnDatos(datos);
 
+    const anteriores = await modeloPreferencia.obtenerPreferencias();
+    const firmaAnterior = crearFirmaCriterios(anteriores || {});
+    // RETURNING * entrega el perfil efectivamente guardado, no el formulario parcial.
     const preferencias = await modeloPreferencia.actualizarPreferencias(datos);
 
     if (!preferencias) {
@@ -421,9 +426,12 @@ async function actualizarPreferencias(req, res) {
         });
     }
 
+    const firmaActual = crearFirmaCriterios(preferencias);
     res.json({
         exito: true,
-        datos: { ...preferencias, perfil_efectivo: construirPerfilEfectivo(preferencias) },
+        datos: { ...preferencias, perfil_efectivo: construirPerfilEfectivoCanonico(preferencias) },
+        cambio_criterios: firmaAnterior !== firmaActual,
+        firma_criterios_evaluacion: firmaActual,
         mensaje: 'Preferencias actualizadas correctamente.',
     });
 } catch (err) {

@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS ofertas (
     -- NULL mientras la oferta esté en estado 'pendiente'.
     porcentaje_match    INTEGER,
 
+    -- Registro la firma efectiva al evaluar; no invento criterios para filas legacy.
+    firma_criterios_evaluacion TEXT,
+
     -- Estado de la postulación del usuario.
     -- Arranca en 'no_postulado' y el usuario lo actualiza manualmente desde el dashboard.
     -- Valores posibles: 'no_postulado', 'cv_enviado', 'en_proceso', 'descartada'.

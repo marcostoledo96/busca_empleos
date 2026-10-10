@@ -95,6 +95,32 @@ programática. El prompt personalizado sigue almacenado intacto y solo agrega
 criterios, no hechos ni permisos para quitar restricciones. Prioridad IA permanece
 un ajuste del ranking, no un bonus fijo sobre el match.
 
+## Firma y vigencia de evaluaciones (issue #9, T1)
+
+GET/PUT `/api/preferencias` agregan `firma_criterios_evaluacion: string` al
+envoltorio. PUT agrega `cambio_criterios: boolean`, comparando los criterios
+anteriores con la fila completa efectivamente persistida (`RETURNING *`), no con
+el formulario parcial. Guardar no evalúa ofertas, no hace scraping ni llama IA.
+Cambios visuales, términos de búsqueda o contenido personalizado inactivo no
+modifican la firma; los mensajes efectivos, modelo y contrato de reglas sí.
+Conservo las reglas de PUT parcial y los valores `null`, `[]`, `{}` y `0`.
+
+GET `/api/ofertas`, GET `/api/ofertas/:id` y GET `/api/ofertas/sincronizacion`
+agregan en cada oferta:
+
+- `firma_criterios_evaluacion: string | null`: firma guardada al evaluar con éxito;
+  las filas históricas permanecen en null (sin backfill).
+- `vigencia_evaluacion: 'actual' | 'anterior' | 'desconocida'`: comparación con
+  los criterios actualmente guardados. Una firma diferente es anterior; una
+  firma ausente, estado pendiente o error de evaluación es desconocido, nunca actual.
+
+La vigencia describe **criterios del perfil**, no certifica que el contenido de
+una oferta no haya cambiado desde su evaluación. La identidad de caché sí incluye
+las entradas efectivas de cada oferta. No modifico estados manuales de postulación
+ni el comportamiento existente de `fecha_evaluacion`. La migración 019 agrega
+únicamente la firma nullable. T1 no agrega un endpoint de reevaluación por IDs:
+la selección y confirmación corresponden a T2/T3.
+
 ## Base URL
 
 ```
