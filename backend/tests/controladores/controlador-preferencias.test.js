@@ -144,13 +144,15 @@ describe('Controlador de preferencias', () => {
 
         // --- Validación de arrays de strings ---
 
-        test('rechaza stack_tecnologico vacío', async () => {
+        test('acepta stack_tecnologico vacío como eliminación explícita', async () => {
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue({ ...preferenciasEjemplo, stack_tecnologico: [] });
             const res = await request(app)
                 .put('/api/preferencias')
                 .send({ stack_tecnologico: [] });
 
-            expect(res.status).toBe(400);
-            expect(res.body.error).toContain('stack_tecnologico');
+            expect(res.status).toBe(200);
+            expect(res.body.datos.perfil_efectivo.candidato.stack_tecnologico).toEqual([]);
+            expect(modeloPreferencia.actualizarPreferencias).toHaveBeenCalledWith({ stack_tecnologico: [] });
         });
 
         test('rechaza stack_tecnologico que no es array', async () => {
@@ -322,7 +324,7 @@ describe('Controlador de preferencias', () => {
                 .send({
                     nivel_experiencia: 'ceo',
                     modalidad_aceptada: 'espacial',
-                    stack_tecnologico: [],
+                    stack_tecnologico: [42],
                 });
 
             expect(res.status).toBe(400);

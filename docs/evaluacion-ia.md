@@ -31,25 +31,38 @@ Envía un request a la API de chat completions:
 
 ## Perfil del candidato
 
-Definido como constante `PERFIL_CANDIDATO` en `servicio-evaluacion.js`:
+Construyo el perfil mediante la función pura `construirPerfilEfectivo()` de
+`backend/src/servicios/evaluacion/perfil-efectivo.js`, compartida por GET/PUT de
+preferencias y el mensaje de sistema enviado al proveedor. Incorporo literalmente
+`perfil_efectivo.texto`, formado por sus secciones de candidato, preferencias y
+políticas obligatorias. El mensaje de usuario conserva los datos de la oferta.
 
-```
-Soy un candidato de nivel Trainee / Junior buscando empleo en tecnología.
+Uso únicamente campos persistidos: tecnologías con nivel/evidencia,
+idiomas, años reales, seniority, conocimientos ausentes, limitaciones y descripción
+profesional (incluye experiencia/proyectos confirmados). No invento herramientas,
+proyectos, idiomas ni años formales a partir de proyectos. `null` significa no
+declarado. Los criterios adicionales no sirven para reemplazar estos hechos.
+Ubico `roles_objetivo_detalle` en `restricciones.preferencias`: son objetivos de
+búsqueda (migración 008), no hechos de experiencia. Conservo eliminaciones `[]`.
+La vista de políticas refleja también el rechazo de inglés obligatorio genérico
+(«English required», «inglés requerido», «inglés obligatorio/excluyente»), incluso
+sin nivel especificado y aunque el candidato declare C1. Las menciones opcionales
+siguen sujetas a la interpretación contextual #7; no cambio sus reglas.
 
-Stack tecnológico:
-- Lenguajes: HTML, CSS, JavaScript, TypeScript, C#, SQL
-- Frontend: Angular, React, React Native
-- Backend: Node.js, Express, ASP.NET
-- Bases de datos: PostgreSQL, SQL Server
-- Otros: Git, API REST
+El detalle presente prevalece sobre el campo anterior: tecnologías sobre stack,
+inglés detallado sobre `idioma_candidato`, seniority real sobre `nivel_experiencia`.
+`[]`, `{}`, `0` y nivel `ninguno` no activan fallback. Derivo y persisto el stack
+cuando recibo tecnologías detalladas, incluso si también recibo un stack anterior.
+Si falta el detalle o es null, admito el campo anterior guardado, sin inventar niveles.
 
-Modalidad aceptada: Cualquiera (Remoto, Híbrido, Presencial).
-Ubicación: Buenos Aires, Argentina.
-
-REGLA ESTRICTA DE EXCLUSIÓN:
-- Si la oferta requiere Java como tecnología principal o excluyente, RECHAZAR.
-- Esta regla NO aplica a JavaScript. No confundir Java con JavaScript.
-```
+**Compatibilidad del esquema:** las migraciones 008/010/011/012 cargaron defaults y
+backfills (incluidos `[]`, inglés y un año de experiencia). No existe una marca de
+confirmación que permita distinguir un valor histórico de una eliminación explícita:
+respeto el valor persistido; `[]` nunca repuebla el perfil desde el stack anterior.
+No infiero hechos reales ni reescribo filas existentes. La creación de una fila desde
+el modelo declara hechos desconocidos e inglés `{}` explícitamente, evitando los
+defaults personales del esquema. No requiero migración. El contrato tipado está en
+[API REST](api-rest.md#perfil-efectivo-de-solo-lectura-issue-8).
 
 ## Instrucciones de sistema (prompt de sistema)
 
@@ -60,7 +73,7 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
 | Criterio | Resultado |
 |----------|----------|
 | Candidato cumple ≥60% de requisitos técnicos | `match: true` |
-| Nivel pedido es trainee, junior, o no especificado | `match: true` |
+| Nivel pedido compatible con seniority y evidencia declarados | Evaluación contextual, no aprobación automática |
 | Requiere Java (no JavaScript) como tecnología principal | `match: false` |
 | Requiere nivel Senior o >3 años de experiencia comprobable | `match: false` |
 | Requiere tecnologías fuera del stack (Kotlin, Swift, Rust, Go como principal) | `match: false` |
@@ -192,8 +205,8 @@ const jsonLimpio = respuestaTexto
 
 > **Nota:** El sistema de scoring previo fue deprecado en B1. Los bonus de IA/Next.js
 > ya no se configuran desde la UI de preferencias. DeepSeek + reglas-exclusion son el
-> único flujo de evaluación. Los bonus por IA se manejan directamente en el prompt de
-> DeepSeek como parte de los criterios de evaluación.
+> único flujo de evaluación. La prioridad IA vigente pertenece al ranking separado;
+> no equivale a un bonus fijo de match ni a una habilidad del candidato.
 >
 > La migración 016 elimina físicamente del esquema las columnas legacy de scoring previo
 > (`score_previo`, `analisis_previo`, `scoring_version` en `ofertas` y `scoring_config`
@@ -201,39 +214,11 @@ const jsonLimpio = respuestaTexto
 > `chk_ofertas_score_previo`. Esta eliminación es irreversible; ver
 > [Base de datos](base-de-datos.md) para detalles de rollback.
 
-El prompt de DeepSeek incluye un **bonus acotado** para ofertas que valoren el uso competente de herramientas de IA y Next.js.
-
-### Herramientas IA reconocidas
-
-Se detectan menciones de: Claude Code, Codex, OpenCode, Antigravity, Copilot, ChatGPT, GPT-4, LLM, IA generativa, agentes de IA, prompt engineering, automatización/integración con IA, y AI tools.
-
-### Magnitud del bonus
-
-| Señal | Bonus máximo |
-|-------|-------------|
-| Herramientas IA | +6 |
-| Next.js | +4 |
-| Combinado (IA + Next.js) | +8 (cap) |
-
-### Salvaguardas
-
-El bonus IA **NO compensa** las siguientes exclusiones:
-
-| Exclusión | Cap aplicado |
-|-----------|-------------|
-| Java como tecnología principal/excluyente | Score máximo 35 |
-| Senior / SR / Lead | Score máximo 45 |
-| Inglés avanzado excluyente | Score máximo 15 |
-
-Estos caps se aplican **después** de sumar el bonus, de modo que ninguna oferta excluida por Java, seniority o idioma pueda quedar aprobada por el bonus IA.
-
-### Detección de IA en evaluación
-
-Los patrones regex para IA están diseñados para evitar falsos positivos: no matchean "ai" suelto ni acrónimos irrelevantes. Solo detectan términos concretos de productividad con IA en desarrollo. La detección se ejecuta dentro del prompt de DeepSeek, no como scoring previo.
-
-### Next.js en el perfil
-
-Next.js se incluye como tecnología aceptada en el stack del candidato (nivel práctico). Los patrones `next.js`, `nextjs`, `next 13+`, `app router`, `pages router` se reconocen en la evaluación de IA.
+No declaro dominio fijo de IA o Next.js ni sumo un bonus fijo al porcentaje de match.
+Comparo estas tecnologías con sus niveles y evidencias guardadas. La preferencia
+`priorizar_ofertas_ia` y su máximo corresponden al ranking separado explicado abajo;
+no desactivan exclusiones ni certifican habilidades. El detector local sigue
+registrando la señal de prioridad de ofertas aprobadas, independientemente del orden.
 
 ## Criterios adicionales del usuario (antes "prompt personalizado")
 
@@ -242,7 +227,7 @@ El campo de texto libre en preferencias ahora se llama **"criterios adicionales 
 ### Comportamiento
 
 - Cuando `usar_prompt_personalizado === true`, el texto se agrega al final del prompt de sistema bajo un bloque `### CRITERIOS ADICIONALES DEL USUARIO`.
-- El texto NUNCA reemplaza las reglas base (exclusión Java, Senior/SR/Lead, 3+ años, inglés excluyente, ubicación/modalidad).
+- Conservo el texto almacenado intacto (incluidos espacios). El texto NUNCA reemplaza hechos del candidato ni reglas base (exclusión Java, Senior/SR/Lead, 3+ años, inglés excluyente, ubicación/modalidad).
 - Si el texto está vacío, no se agrega la sección adicional.
 
 ### UI

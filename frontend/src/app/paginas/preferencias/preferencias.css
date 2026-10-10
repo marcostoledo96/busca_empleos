@@ -9,6 +9,34 @@
     margin: 0 auto;
 }
 
+.perfil-ia dl {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 0.5rem 1rem;
+}
+
+.perfil-ia dt {
+    font-weight: 600;
+}
+
+.perfil-ia dd {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.perfil-ia li {
+    margin-bottom: 0.5rem;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+    .perfil-ia dl {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
 .preferencias-tabs-shell {
     border: 1px solid var(--outline-variant);
     background: var(--surface);

@@ -374,6 +374,42 @@ Archivo: `frontend/src/app/componentes/detalle-oferta/`
 - Mobile (≤768px): tipografía reducida, botones full-width, padding compacto, `max-height` reducido en descripción.
 - Tablet (769–1024px): ajustes menores de tipografía en salario.
 
+### Preferencias: perfil confirmado para IA (issue #8)
+
+En `paginas/preferencias/` muestro **Qué perfil usa la IA**, una vista de solo lectura
+recibida como `datos.perfil_efectivo` por GET/PUT `/api/preferencias`. Presento candidato,
+tecnologías/evidencia, idiomas, preferencias de búsqueda y políticas obligatorias
+por separado, con etiquetas legibles, sin reconstruir el prompt ni interpretar otros
+hechos. Los roles objetivo son preferencias, no experiencia acreditada. Conservo
+íntegras las políticas del backend: editar exclusiones adicionales o texto personalizado
+no las desactiva. Si falta la representación, informo su ausencia sin inventarla.
+
+Comparo el formulario con su última carga confirmada para anunciar **Cambios sin guardar**;
+la vista continúa mostrando el perfil persistido. Después de guardar reemplazo tanto
+los valores del formulario como la vista con la respuesta del servidor. Consultar o
+guardar esta vista no llama a DeepSeek. El contrato tipado está en
+`modelos/preferencia.model.ts`; excluyo `perfil_efectivo` del tipo actualizable.
+
+Conservo listas vacías, cero años y nivel tecnológico `ninguno`. No repueblo tecnologías
+ni roles al cargar o guardar: las sugerencias requieren un botón explícito. El stack
+se deriva del detalle editado incluso si queda vacío. Comparo los controles con su
+última carga para enviar solamente campos modificados: un detalle ausente/null no se
+convierte en `[]`/`{}` al editar otro campo, ni borro los datos legacy compatibles.
+Registro las acciones explícitas de tecnologías/roles aunque terminen nuevamente en
+`[]`; «Vaciar tecnologías y stack» confirma esa eliminación incluso sin detalle inicial.
+Borrar el resumen de idiomas envía `idioma_candidato: null`; los niveles detallados
+editados se envían aunque queden vacíos. No completo inglés, seniority o años
+ausentes con datos personales de ejemplo. Conservo el texto personalizado exactamente,
+incluidos espacios y saltos de línea, como criterio adicional que no reemplaza hechos.
+Al aplicar un CV conservo roles objetivo, modalidad, zonas, disponibilidad, salario, términos,
+exclusiones, palabras clave y plataformas existentes; continúo con el mapeo acotado de hechos, sin
+agregar otro importador ni editor.
+
+Las pruebas de componente cubren edición, aviso, respuesta persistida de guardado y
+recarga, eliminaciones, cero/ninguno, información ausente, texto exacto y conservación
+de criterios laborales al importar. Las pruebas HTTP verifican el transporte intacto
+de la representación autoritativa en GET/PUT.
+
 ## Flujo de datos
 
 ```

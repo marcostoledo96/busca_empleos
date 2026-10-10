@@ -48,19 +48,20 @@ async function crearPreferenciasPorDefecto() {
         `INSERT INTO preferencias (
             id, nombre, nivel_experiencia, perfil_profesional,
             idioma_candidato, stack_tecnologico, modalidad_aceptada, zonas_preferidas,
-            terminos_busqueda, reglas_exclusion, modelo_ia
+            terminos_busqueda, reglas_exclusion, modelo_ia, nivel_ingles_detalle,
+            nivel_real_seniority, anios_experiencia_reales
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, '{}'::jsonb, NULL, NULL
         )
         ON CONFLICT (id) DO UPDATE SET id = EXCLUDED.id
         RETURNING *`,
         [
             ID_PREFERENCIAS,
-            'Marcos Ezequiel Toledo',
-            'junior',
-            'QA Tester, Desarrollador Full Stack y Soporte IT. Estudiante en el último cuatrimestre de la Tecnicatura Superior en Desarrollo de Software (IFTS 16, promedio 9.19). Perfil híbrido con experiencia real en HealthTech (AeroTest): documenté +80 bugs críticos, desarrollé app de historias clínicas (Angular 20, Node.js, PostgreSQL) y automaticé flujos con chatbots reduciendo tiempos de atención un 80%. Dirigente Scout +15 años. Busco roles técnicos de Desarrollo, Testing o Soporte IT en Buenos Aires, Argentina.',
-            'Español nativo. Inglés: Reading A2 (lectura técnica elemental — documentación, código, APIs), Listening/Speaking A1 (básico, no conversacional)',
-            ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'C#', 'SQL', 'Angular 20', 'React', 'React Native', 'Next.js', 'Node.js', 'Express', 'ASP.NET', 'Blazor', 'PostgreSQL', 'SQL Server', 'Git', 'API REST', 'Figma', 'Jest', 'xUnit', 'Moq'],
+            null,
+            null,
+            null,
+            null,
+            [],
             'cualquiera',
             ['CABA', 'GBA Oeste'],
             ['qa tester', 'soporte tecnico it', 'programador', 'desarrollador junior c#', 'frontend developer angular', 'full stack node'],
@@ -86,9 +87,9 @@ async function crearPreferenciasPorDefecto() {
  * @returns {Object|null} Las preferencias actualizadas, o null si no existe la fila.
  */
 async function actualizarPreferencias(datos) {
-    // Si viene tecnologias_detalle pero no viene stack_tecnologico, lo derivo
-    // automáticamente para mantener compatibilidad con el prompt y código viejo.
-    if (datos.tecnologias_detalle !== undefined && datos.stack_tecnologico === undefined) {
+    // El detalle explícito prevalece sobre el stack anterior, incluso vacío.
+    datos = { ...datos };
+    if (datos.tecnologias_detalle !== undefined) {
         datos.stack_tecnologico = datos.tecnologias_detalle
             .filter(tech => tech && tech.nombre && tech.nivel !== 'ninguno')
             .map(tech => tech.nombre)

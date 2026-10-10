@@ -1,5 +1,100 @@
 # API REST — Busca Empleos
 
+## Perfil efectivo de solo lectura (issue #8)
+
+GET `/api/preferencias` y PUT `/api/preferencias` conservan su envoltorio
+`{ exito, datos, mensaje? }`. Agrego `datos.perfil_efectivo`, derivado de la fila
+persistida devuelta por el modelo, nunca del formulario sin guardar. PUT ignora
+este campo de solo lectura: no se almacena ni constituye una fuente alternativa.
+Después de guardar, uso los valores retornados y refresco la vista; cambios locales
+pendientes no están representados en ella.
+
+Contrato para el consumidor frontend (los tipos se documentan acá; no agrego archivos frontend):
+
+```typescript
+interface TecnologiaConfirmada {
+    nombre: string;
+    nivel: 'ninguno' | 'basico' | 'medio' | 'avanzado';
+    categoria: string;
+    importancia?: string;
+    aliases?: string[];
+    evidencia?: string;
+}
+interface RolConfirmado {
+    rol: string;
+    prioridad: 'alta' | 'media' | 'baja';
+    aliases?: string[];
+    evidencia?: string;
+}
+interface InglesConfirmado {
+    espanol?: string | null;
+    reading?: string | null;
+    writing?: string | null;
+    speaking?: string | null;
+    listening?: string | null;
+    regla?: string | null;
+}
+interface PerfilEfectivo {
+    version: 1;
+    candidato: {
+        nombre: string | null;
+        nivel_real_seniority: string | null;
+        anios_experiencia_reales: number | null;
+        perfil_profesional: string | null; // Experiencia y proyectos confirmados, sin inferir años.
+        tecnologias_detalle: TecnologiaConfirmada[];
+        stack_tecnologico: string[];
+        nivel_ingles_detalle: InglesConfirmado | null;
+        idioma_candidato: string | null; // Solo legacy cuando falta detalle de inglés.
+        conocimientos_ausentes: string[];
+        limitaciones_explicitas: string | null; // TEXT en el esquema, no array.
+    };
+    restricciones: {
+        preferencias: {
+            roles_objetivo_detalle: RolConfirmado[]; // Objetivos de búsqueda, no experiencia.
+            modalidad_aceptada: string | null;
+            zonas_preferidas: string[] | null;
+            reglas_exclusion: string[] | null;
+            disponibilidad: string | null;
+            expectativa_salarial_min: number | string | null; // pg NUMERIC puede devolver string.
+            expectativa_salarial_max: number | string | null;
+            moneda_salarial: string | null;
+            keywords_positivas: string[] | null;
+            keywords_negativas: string[] | null;
+            plataformas_preferidas: string[] | null;
+            plataformas_excluidas: string[] | null;
+        };
+        politicas_sistema: string[]; // Java, Senior/SR/Lead, 3+ años, inglés requerido y geografía.
+    };
+    secciones: { id: string; titulo: string; texto: string }[];
+    texto: string; // Exactamente secciones.map(s => s.texto).join('\n\n'), incluido en proveedor.
+}
+```
+
+En PUT, omitir un campo conserva su valor persistido. El frontend envía solo controles
+modificados y acciones explícitas: no materializa detalles ausentes/null al editar un
+nombre ni elimina compatibilidad legacy de stack, idioma o nivel. `idioma_candidato: null`
+expresa borrado del resumen; una cadena vacía o un valor no textual sigue respondiendo
+400. Un detalle de inglés `{}` o con subcampos vacíos/null es una edición explícita,
+no se completa con niveles ni reactiva el resumen anterior. `[]` confirma eliminación,
+no ausencia. Aplicar CV no reemplaza roles objetivo ni los restantes criterios laborales.
+
+PUT acepta `stack_tecnologico: []`, `roles_objetivo_detalle: []` y
+`tecnologias_detalle: []` como eliminaciones explícitas. Si envío tecnologías
+detalladas, el modelo deriva el stack aunque también envíe el anterior; excluye
+nivel `ninguno`. Los tipos/niveles/categorías y evidencia siguen validados en HTTP.
+Ubico los roles objetivo en `restricciones.preferencias.roles_objetivo_detalle`,
+no en `candidato`: querer un puesto no acredita haberlo desempeñado. Conservo `[]`.
+No cambio términos de búsqueda ni restricciones al editar hechos del candidato.
+Inglés C1 no desactiva la exclusión obligatoria de ofertas que requieran inglés
+avanzado ni menciones genéricas obligatorias («English required», «inglés requerido»,
+«inglés obligatorio/excluyente») sin nivel especificado: esa política no es una
+afirmación sobre la capacidad lingüística.
+`reglas_exclusion: []` tampoco desactiva políticas obligatorias. Preferencias
+laborales son criterios para IA salvo geografía presencial, que tiene defensa
+programática. El prompt personalizado sigue almacenado intacto y solo agrega
+criterios, no hechos ni permisos para quitar restricciones. Prioridad IA permanece
+un ajuste del ranking, no un bonus fijo sobre el match.
+
 ## Base URL
 
 ```

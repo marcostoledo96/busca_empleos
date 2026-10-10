@@ -2,7 +2,7 @@ import { Component, inject, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
-import { Preferencias as PreferenciasModel, PreferenciasActualizar } from '../../modelos/preferencia.model';
+import { Preferencias as PreferenciasModel, PreferenciasActualizar, PerfilEfectivo } from '../../modelos/preferencia.model';
 import { DemoService } from '../../servicios/demo.service';
 import { obtenerOpcionesPreferenciaPlataforma } from '../../config/plataformas';
 
@@ -64,11 +64,21 @@ export class Preferencias implements OnInit {
     // Mensaje accesible para lectores de pantalla (aria-live).
     readonly mensajeAccesible = signal('');
 
-    // Datos del formulario — inicializo con valores por defecto.
+    perfilEfectivo: PerfilEfectivo | null = null;
+    private formularioGuardado = '';
+    private tecnologiasEditadas = false;
+    private rolesEditados = false;
+
+    get cambiosSinGuardar(): boolean {
+        return this.tecnologiasEditadas || this.rolesEditados ||
+            (this.formularioGuardado !== '' && JSON.stringify(this.datosFormulario()) !== this.formularioGuardado);
+    }
+
+    // Inicializo los hechos sin afirmar información personal no confirmada.
     nombre = '';
-    nivelExperiencia: PreferenciasModel['nivel_experiencia'] = 'junior';
+    nivelExperiencia: PreferenciasModel['nivel_experiencia'] | undefined;
     perfilProfesional = '';
-    idiomaCandidato = 'Español nativo, Inglés básico oral / intermedio escrito';
+    idiomaCandidato = '';
     stackTecnologico: string[] = [];
     modalidadAceptada: PreferenciasModel['modalidad_aceptada'] = 'cualquiera';
     zonasPreferidas: string[] = [];
@@ -85,21 +95,7 @@ export class Preferencias implements OnInit {
     expectativaSalarialMin: number | null = null;
     expectativaSalarialMax: number | null = null;
     monedaSalarial: 'ARS' | 'USD' | 'NO_FILTRAR' = 'NO_FILTRAR';
-    nivelInglesDetalle: {
-        espanol: string | null;
-        reading: string | null;
-        writing: string | null;
-        speaking: string | null;
-        listening: string | null;
-        regla: string | null;
-    } = {
-        espanol: 'nativo',
-        reading: 'A2',
-        writing: 'A2_basico',
-        speaking: 'A1',
-        listening: 'A1',
-        regla: 'Aceptar lectura técnica e inglés deseable. Penalizar inglés conversacional, fluido, avanzado o bilingüe.',
-    };
+    nivelInglesDetalle: NonNullable<PreferenciasModel['nivel_ingles_detalle']> = {};
     keywordsPositivas: string[] = [];
     keywordsNegativas: string[] = [];
     plataformasPreferidas: string[] = [];
@@ -108,9 +104,9 @@ export class Preferencias implements OnInit {
     temperaturaEvaluacion = 0;
     temperaturaImportacion = 0;
     fechaImportacionCv: string | null = null;
-    aniosExperienciaReales: number | null = 1;
+    aniosExperienciaReales: number | null = null;
     tabActiva = signal(0);
-    nivelRealSeniority = 'Junior / Junior avanzado en proyectos propios, sin experiencia formal semi-senior o senior';
+    nivelRealSeniority = '';
     conocimientosAusentes: string[] = [];
     limitacionesExplicitas = '';
 
@@ -317,23 +313,18 @@ export class Preferencias implements OnInit {
         });
     }
 
-    guardar(): void {
-        this.guardando.set(true);
+    private datosFormulario(): PreferenciasActualizar {
         const stackDerivado = this.tecnologiasDetalle
             .filter(tech => tech.nivel !== 'ninguno')
             .map(tech => tech.nombre)
             .filter((nombre, index, arr) => nombre && nombre.trim() && arr.indexOf(nombre) === index);
 
-        const stackFinal = stackDerivado.length > 0
-            ? stackDerivado
-            : (this.stackTecnologico.length > 0 ? this.stackTecnologico : ['Sin stack definido']);
-
-        const datos: PreferenciasActualizar = {
+        return {
             nombre: this.nombre,
             nivel_experiencia: this.nivelExperiencia,
             perfil_profesional: this.perfilProfesional,
             idioma_candidato: this.idiomaCandidato,
-            stack_tecnologico: stackFinal,
+            stack_tecnologico: stackDerivado,
             modalidad_aceptada: this.modalidadAceptada,
             zonas_preferidas: this.zonasPreferidas,
             terminos_busqueda: this.terminosBusqueda,
@@ -367,7 +358,25 @@ export class Preferencias implements OnInit {
             limitaciones_explicitas: this.limitacionesExplicitas,
             fecha_importacion_cv: this.fechaImportacionCv,
         };
+    }
 
+    guardar(): void {
+        this.guardando.set(true);
+        const formulario = this.datosFormulario();
+        const anterior = this.formularioGuardado ? JSON.parse(this.formularioGuardado) : null;
+        // Envío solo cambios: un control vacío no materializa un dato ausente persistido.
+        const datos: PreferenciasActualizar = Object.fromEntries(Object.entries(formulario).filter(([campo, valor]) =>
+            anterior === null || JSON.stringify(valor) !== JSON.stringify(anterior[campo]) ||
+            (this.tecnologiasEditadas && ['tecnologias_detalle', 'stack_tecnologico'].includes(campo)) ||
+            (this.rolesEditados && campo === 'roles_objetivo_detalle')
+        ));
+        if (datos.tecnologias_detalle !== undefined) {
+            datos.stack_tecnologico = formulario.stack_tecnologico;
+        }
+        // null expresa borrado explícito del resumen; una cadena vacía no es un idioma válido.
+        if (typeof datos.idioma_candidato === 'string' && !datos.idioma_candidato.trim()) {
+            datos.idioma_candidato = null;
+        }
         this.servicio.actualizarPreferencias(datos).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos) {
@@ -398,9 +407,9 @@ export class Preferencias implements OnInit {
     // Mapeo los datos de la API a las propiedades del componente.
     private mapearDesdeApi(prefs: PreferenciasModel): void {
         this.nombre = prefs.nombre ?? '';
-        this.nivelExperiencia = prefs.nivel_experiencia ?? 'junior';
+        this.nivelExperiencia = prefs.nivel_experiencia ?? undefined;
         this.perfilProfesional = prefs.perfil_profesional ?? '';
-        this.idiomaCandidato = prefs.idioma_candidato ?? 'Español nativo, Inglés básico oral / intermedio escrito';
+        this.idiomaCandidato = prefs.idioma_candidato ?? '';
         this.stackTecnologico = prefs.stack_tecnologico ?? [];
         this.modalidadAceptada = prefs.modalidad_aceptada ?? 'cualquiera';
         this.zonasPreferidas = prefs.zonas_preferidas ?? [];
@@ -417,15 +426,7 @@ export class Preferencias implements OnInit {
         this.expectativaSalarialMin = prefs.expectativa_salarial_min ?? null;
         this.expectativaSalarialMax = prefs.expectativa_salarial_max ?? null;
         this.monedaSalarial = prefs.moneda_salarial ?? 'NO_FILTRAR';
-        this.nivelInglesDetalle = {
-            espanol: 'nativo',
-            reading: 'A2',
-            writing: 'A2_basico',
-            speaking: 'A1',
-            listening: 'A1',
-            regla: 'Aceptar lectura técnica e inglés deseable. Penalizar inglés conversacional, fluido, avanzado o bilingüe.',
-            ...(prefs.nivel_ingles_detalle || {}),
-        };
+        this.nivelInglesDetalle = { ...(prefs.nivel_ingles_detalle ?? {}) };
         this.keywordsPositivas = prefs.keywords_positivas ?? [];
         this.keywordsNegativas = prefs.keywords_negativas ?? [];
         this.plataformasPreferidas = prefs.plataformas_preferidas ?? [];
@@ -434,15 +435,19 @@ export class Preferencias implements OnInit {
         this.temperaturaEvaluacion = prefs.temperatura_evaluacion ?? 0;
         this.temperaturaImportacion = prefs.temperatura_importacion ?? 0;
         this.fechaImportacionCv = prefs.fecha_importacion_cv ?? null;
-        this.aniosExperienciaReales = prefs.anios_experiencia_reales ?? 1;
-        this.nivelRealSeniority = prefs.nivel_real_seniority ?? 'Junior / Junior avanzado en proyectos propios, sin experiencia formal semi-senior o senior';
+        this.aniosExperienciaReales = prefs.anios_experiencia_reales ?? null;
+        this.nivelRealSeniority = prefs.nivel_real_seniority ?? '';
         this.conocimientosAusentes = prefs.conocimientos_ausentes ?? [];
         this.limitacionesExplicitas = prefs.limitaciones_explicitas ?? '';
         this.preguntasPerfilPendientes = (prefs.preguntas_perfil_pendientes || []) as PreguntaImportacion[];
         const tecnologiasApi = (prefs as any).tecnologias_detalle ?? [];
-        const rolesApi = (prefs as any).roles_objetivo_detalle ?? [];
-        this.tecnologiasDetalle = tecnologiasApi.length > 0 ? tecnologiasApi : this.crearTecnologiasSugeridas();
-        this.rolesObjetivoDetalle = rolesApi.length > 0 ? rolesApi : this.crearRolesSugeridos();
+        const rolesApi = prefs.roles_objetivo_detalle ?? [];
+        this.tecnologiasDetalle = structuredClone(tecnologiasApi);
+        this.rolesObjetivoDetalle = structuredClone(rolesApi);
+        this.perfilEfectivo = prefs.perfil_efectivo ?? null;
+        this.formularioGuardado = JSON.stringify(this.datosFormulario());
+        this.tecnologiasEditadas = false;
+        this.rolesEditados = false;
         // scoring_config ya no se consume en el frontend (B1). Se ignora.
     }
 
@@ -485,6 +490,7 @@ export class Preferencias implements OnInit {
 
     // Agrega una tecnología vacía a la tabla de niveles.
     agregarTecnologia(): void {
+        this.tecnologiasEditadas = true;
         this.tecnologiasDetalle = [
             ...this.tecnologiasDetalle,
             { nombre: '', nivel: 'basico', categoria: 'lenguaje', importancia: 'secundaria', aliases: [] },
@@ -493,14 +499,22 @@ export class Preferencias implements OnInit {
 
     // Quita una tecnología de la tabla por índice.
     quitarTecnologia(idx: number): void {
+        this.tecnologiasEditadas = true;
         this.tecnologiasDetalle = this.tecnologiasDetalle.filter((_, i: number) => i !== idx);
     }
 
+    vaciarTecnologias(): void {
+        this.tecnologiasEditadas = true;
+        this.tecnologiasDetalle = [];
+    }
+
     cargarTecnologiasSugeridas(): void {
+        this.tecnologiasEditadas = true;
         this.tecnologiasDetalle = this.crearTecnologiasSugeridas();
     }
 
     agregarRol(): void {
+        this.rolesEditados = true;
         this.rolesObjetivoDetalle = [
             ...this.rolesObjetivoDetalle,
             { rol: '', prioridad: 'media', aliases: [] },
@@ -508,10 +522,12 @@ export class Preferencias implements OnInit {
     }
 
     quitarRol(idx: number): void {
+        this.rolesEditados = true;
         this.rolesObjetivoDetalle = this.rolesObjetivoDetalle.filter((_, i: number) => i !== idx);
     }
 
     cargarRolesSugeridos(): void {
+        this.rolesEditados = true;
         this.rolesObjetivoDetalle = this.crearRolesSugeridos();
     }
 
@@ -571,26 +587,19 @@ export class Preferencias implements OnInit {
         if (r.nivel_experiencia) this.nivelExperiencia = r.nivel_experiencia as any;
         if (r.perfil_profesional) this.perfilProfesional = r.perfil_profesional;
         if (r.idioma_candidato) this.idiomaCandidato = r.idioma_candidato;
-        if (r.modalidad_aceptada) this.modalidadAceptada = r.modalidad_aceptada as any;
-        if (r.disponibilidad) this.disponibilidad = r.disponibilidad as any;
-        if (r.zonas_preferidas?.length) this.zonasPreferidas = r.zonas_preferidas;
-        if (r.expectativa_salarial_min !== undefined) this.expectativaSalarialMin = r.expectativa_salarial_min ?? null;
-        if (r.expectativa_salarial_max !== undefined) this.expectativaSalarialMax = r.expectativa_salarial_max ?? null;
-        if (r.moneda_salarial) this.monedaSalarial = r.moneda_salarial as any;
+        // Conservo preferencias laborales: importar hechos no confirma otros criterios.
         if (r.nivel_ingles_detalle) {
             this.nivelInglesDetalle = {
                 ...this.nivelInglesDetalle,
                 ...r.nivel_ingles_detalle,
             };
         }
-        if (r.tecnologias_detalle?.length) this.tecnologiasDetalle = r.tecnologias_detalle;
-        if (r.roles_objetivo_detalle?.length) this.rolesObjetivoDetalle = r.roles_objetivo_detalle;
-        if (r.terminos_busqueda?.length) this.terminosBusqueda = r.terminos_busqueda;
-        if (r.reglas_exclusion?.length) this.reglasExclusion = r.reglas_exclusion;
-        if (r.keywords_positivas?.length) this.keywordsPositivas = r.keywords_positivas;
-        if (r.keywords_negativas?.length) this.keywordsNegativas = r.keywords_negativas;
-        if (r.plataformas_preferidas?.length) this.plataformasPreferidas = r.plataformas_preferidas;
-        if (r.plataformas_excluidas?.length) this.plataformasExcluidas = r.plataformas_excluidas;
+        if (r.tecnologias_detalle?.length) {
+            this.tecnologiasDetalle = r.tecnologias_detalle;
+            this.tecnologiasEditadas = true;
+        }
+        // Los roles objetivo son preferencias de búsqueda, no hechos del CV.
+        // Los términos de búsqueda y exclusiones continúan bajo edición explícita.
         // scoring_config ya no se aplica (B1): se ignora del resultado de importación.
         if (r.preguntas_perfil_pendientes?.length) {
             this.preguntasImportacion = r.preguntas_perfil_pendientes.map((p: any) => ({ ...p, estado: 'pendiente', respuesta: '' }));
@@ -673,7 +682,6 @@ export class Preferencias implements OnInit {
             this.expectativaSalarialMin = null;
             this.expectativaSalarialMax = null;
             this.monedaSalarial = 'NO_FILTRAR';
-        this.aniosExperienciaReales = 1;
         } else if (campo.includes('soporte')) {
             if (!this.keywordsPositivas.includes('soporte de aplicaciones')) {
                 this.keywordsPositivas = [...this.keywordsPositivas, 'soporte de aplicaciones'];

@@ -1,6 +1,7 @@
 // Interfaz que representa las preferencias del usuario tal como vienen de la API.
-// Mapea 1:1 con las columnas de la tabla "preferencias" de PostgreSQL.
+// Incluyo columnas persistidas y la vista de solo lectura calculada por el backend.
 export interface Preferencias {
+    perfil_efectivo?: PerfilEfectivo;
     id: number;
     nombre: string | null;
     nivel_experiencia: 'trainee' | 'junior' | 'semi-senior';
@@ -67,4 +68,47 @@ export interface Preferencias {
 
 // Campos actualizables. Excluyo id, fecha_creacion y fecha_actualizacion
 // porque esos los maneja el backend.
-export type PreferenciasActualizar = Partial<Omit<Preferencias, 'id' | 'fecha_creacion' | 'fecha_actualizacion'>>;
+export type PreferenciasActualizar = Partial<Omit<Preferencias, 'id' | 'fecha_creacion' | 'fecha_actualizacion' | 'perfil_efectivo'>>;
+
+// Consumo la representación autoritativa del backend sin construir otro perfil.
+export interface PerfilEfectivo {
+    version: 1;
+    candidato: {
+        nombre: string | null;
+        nivel_real_seniority: string | null;
+        anios_experiencia_reales: number | null;
+        perfil_profesional: string | null;
+        tecnologias_detalle: Array<{
+            nombre: string;
+            nivel: 'ninguno' | 'basico' | 'medio' | 'avanzado';
+            categoria: string;
+            importancia?: string;
+            aliases?: string[];
+            evidencia?: string;
+        }>;
+        stack_tecnologico: string[];
+        nivel_ingles_detalle: NonNullable<Preferencias['nivel_ingles_detalle']> | null;
+        idioma_candidato: string | null;
+        conocimientos_ausentes: string[];
+        limitaciones_explicitas: string | null;
+    };
+    restricciones: {
+        preferencias: {
+            roles_objetivo_detalle: Array<{ rol: string; prioridad: 'alta' | 'media' | 'baja'; aliases?: string[]; evidencia?: string }>;
+            modalidad_aceptada: string | null;
+            zonas_preferidas: string[] | null;
+            reglas_exclusion: string[] | null;
+            disponibilidad: string | null;
+            expectativa_salarial_min: number | string | null;
+            expectativa_salarial_max: number | string | null;
+            moneda_salarial: string | null;
+            keywords_positivas: string[] | null;
+            keywords_negativas: string[] | null;
+            plataformas_preferidas: string[] | null;
+            plataformas_excluidas: string[] | null;
+        };
+        politicas_sistema: string[];
+    };
+    secciones: { id: string; titulo: string; texto: string }[];
+    texto: string;
+}

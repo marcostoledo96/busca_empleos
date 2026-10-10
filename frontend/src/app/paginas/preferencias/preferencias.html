@@ -16,6 +16,78 @@
         </div>
     }
 
+    <section class="seccion perfil-ia" aria-labelledby="perfil-ia-titulo">
+        <div class="seccion-cabecera"><h3 id="perfil-ia-titulo">Qué perfil usa la IA</h3></div>
+        <div class="seccion-cuerpo">
+            <p>Consulto los datos confirmados y guardados. Esta vista no ejecuta evaluaciones ni llamadas a DeepSeek.</p>
+            @if (cambiosSinGuardar) {
+                <p role="status" aria-live="polite"><strong>Cambios sin guardar.</strong> La IA sigue usando el perfil guardado que muestro a continuación.</p>
+            }
+            @if (perfilEfectivo; as perfil) {
+                <h4>Candidato confirmado</h4>
+                <dl>
+                    <dt>Nombre</dt><dd>{{ perfil.candidato.nombre ?? 'No declarado' }}</dd>
+                    <dt>Nivel real</dt><dd>{{ perfil.candidato.nivel_real_seniority ?? 'No declarado' }}</dd>
+                    <dt>Años reales de experiencia</dt><dd>{{ perfil.candidato.anios_experiencia_reales ?? 'No declarado' }}</dd>
+                    <dt>Experiencia y proyectos</dt><dd>{{ perfil.candidato.perfil_profesional ?? 'No declarado' }}</dd>
+                    <dt>Stack confirmado</dt><dd>{{ perfil.candidato.stack_tecnologico.join(', ') || 'Sin tecnologías declaradas' }}</dd>
+                    <dt>Conocimientos ausentes</dt><dd>{{ perfil.candidato.conocimientos_ausentes.join(', ') || 'Sin conocimientos ausentes declarados' }}</dd>
+                    <dt>Limitaciones</dt><dd>{{ perfil.candidato.limitaciones_explicitas ?? 'No declaradas' }}</dd>
+                    <dt>Resumen de idiomas</dt><dd>{{ perfil.candidato.idioma_candidato ?? 'No declarado' }}</dd>
+                </dl>
+                @if (perfil.candidato.nivel_ingles_detalle; as idiomas) {
+                    <h4>Idiomas confirmados</h4>
+                    <dl>
+                        <dt>Español</dt><dd>{{ idiomas.espanol ?? 'No declarado' }}</dd>
+                        <dt>Lectura</dt><dd>{{ idiomas.reading ?? 'No declarada' }}</dd>
+                        <dt>Escritura</dt><dd>{{ idiomas.writing ?? 'No declarada' }}</dd>
+                        <dt>Habla</dt><dd>{{ idiomas.speaking ?? 'No declarada' }}</dd>
+                        <dt>Escucha</dt><dd>{{ idiomas.listening ?? 'No declarada' }}</dd>
+                        <dt>Criterio lingüístico confirmado</dt><dd>{{ idiomas.regla ?? 'No declarado' }}</dd>
+                    </dl>
+                }
+                <h4>Tecnologías y evidencia</h4>
+                <ul>
+                    @for (tecnologia of perfil.candidato.tecnologias_detalle; track $index) {
+                        <li>{{ tecnologia.nombre }} — Nivel: {{ tecnologia.nivel }}; categoría: {{ tecnologia.categoria }};
+                            importancia: {{ tecnologia.importancia ?? 'No declarada' }};
+                            aliases: {{ tecnologia.aliases?.join(', ') || 'Sin aliases' }};
+                            evidencia: {{ tecnologia.evidencia ?? 'No declarada' }}.</li>
+                    } @empty { <li>Sin tecnologías detalladas declaradas.</li> }
+                </ul>
+                <h4>Preferencias de búsqueda guardadas</h4>
+                @let preferencias = perfil.restricciones.preferencias;
+                <dl>
+                    <dt>Modalidad</dt><dd>{{ preferencias.modalidad_aceptada ?? 'No declarada' }}</dd>
+                    <dt>Zonas</dt><dd>{{ (preferencias.zonas_preferidas?.join(', ') ?? 'No declaradas') || 'Sin zonas seleccionadas' }}</dd>
+                    <dt>Disponibilidad</dt><dd>{{ preferencias.disponibilidad ?? 'No declarada' }}</dd>
+                    <dt>Salario mínimo</dt><dd>{{ preferencias.expectativa_salarial_min ?? 'No declarado' }}</dd>
+                    <dt>Salario máximo</dt><dd>{{ preferencias.expectativa_salarial_max ?? 'No declarado' }}</dd>
+                    <dt>Moneda</dt><dd>{{ preferencias.moneda_salarial ?? 'No declarada' }}</dd>
+                    <dt>Exclusiones adicionales</dt><dd>{{ (preferencias.reglas_exclusion?.join(', ') ?? 'No declaradas') || 'Sin exclusiones adicionales' }}</dd>
+                    <dt>Palabras clave positivas</dt><dd>{{ (preferencias.keywords_positivas?.join(', ') ?? 'No declaradas') || 'Sin palabras clave positivas' }}</dd>
+                    <dt>Palabras clave negativas</dt><dd>{{ (preferencias.keywords_negativas?.join(', ') ?? 'No declaradas') || 'Sin palabras clave negativas' }}</dd>
+                    <dt>Plataformas preferidas</dt><dd>{{ (preferencias.plataformas_preferidas?.join(', ') ?? 'No declaradas') || 'Sin plataformas preferidas' }}</dd>
+                    <dt>Plataformas excluidas</dt><dd>{{ (preferencias.plataformas_excluidas?.join(', ') ?? 'No declaradas') || 'Sin plataformas excluidas' }}</dd>
+                </dl>
+                <h4>Roles objetivo — preferencias, no experiencia acreditada</h4>
+                <ul>
+                    @for (rol of preferencias.roles_objetivo_detalle; track $index) {
+                        <li>{{ rol.rol }} — Prioridad: {{ rol.prioridad }}; aliases: {{ rol.aliases?.join(', ') || 'Sin aliases' }};
+                            evidencia: {{ rol.evidencia ?? 'No declarada' }}.</li>
+                    } @empty { <li>Sin roles objetivo declarados.</li> }
+                </ul>
+                <h4>Políticas obligatorias del sistema — no editables</h4>
+                <p>Modificar exclusiones adicionales o criterios personalizados no desactiva estas políticas.</p>
+                <ul>
+                    @for (politica of perfil.restricciones.politicas_sistema; track $index) { <li>{{ politica }}</li> }
+                </ul>
+            } @else {
+                <p>No recibí una representación del perfil guardado. No la reconstruyo a partir del formulario.</p>
+            }
+        </div>
+    </section>
+
     <div class="preferencias-tabs-shell">
         <p-tabs [value]="tabActiva()" (valueChange)="tabActiva.set($any($event))">
             <p-tablist>
@@ -153,7 +225,8 @@
                             </button>
                         </div>
                         <div class="seccion-cuerpo">
-                            <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología.</small>
+                            <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología. El detalle ausente no reemplaza el stack anterior hasta confirmar una edición.</small>
+                            <button class="btn-detalle-secundario" (click)="vaciarTecnologias()" [disabled]="modoDemo()">Vaciar tecnologías y stack</button>
                             @if (tecnologiasDetalle.length > 0) {
                                 <div class="tabla-tech tabla-tech--amplia">
                                     <div class="tabla-tech__header tabla-tech__header--amplia">
@@ -258,7 +331,8 @@
                                 </div>
                             </div>
                             <div class="campo">
-                                <label class="campo-etiqueta">Reglas de penalización históricas</label>
+                                <label class="campo-etiqueta">Exclusiones adicionales editables</label>
+                                <small class="campo-ayuda">Esta lista no permite desactivar las políticas obligatorias del sistema mostradas en el perfil guardado.</small>
                                 <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" appendTo="body" />
                             </div>
                         </div>
@@ -362,7 +436,7 @@
                                         <span>Modalidad: <strong>{{ resultadoImportacion.modalidad_aceptada || '—' }}</strong></span>
                                         <span>Disponibilidad: <strong>{{ resultadoImportacion.disponibilidad || '—' }}</strong></span>
                                         <span>Tecnologías detectadas: <strong>{{ resultadoImportacion.tecnologias_detalle.length }}</strong></span>
-                                        <span>Roles: <strong>{{ resultadoImportacion.roles_objetivo_detalle.length }}</strong></span>
+                                        <span>Roles detectados (no se aplican): <strong>{{ resultadoImportacion.roles_objetivo_detalle.length }}</strong></span>
                                     </div>
                                     <div class="campo-fila campo-fila--2 importar-preview-grid">
                                         <div class="campo">
@@ -376,11 +450,11 @@
                                     </div>
                                     <div class="campo-fila campo-fila--3 importar-preview-grid">
                                         <div class="campo">
-                                            <label class="campo-etiqueta">Términos de búsqueda</label>
+                                            <label class="campo-etiqueta">Términos detectados (no se aplican automáticamente)</label>
                                             <input pInputText [ngModel]="listaAString(resultadoImportacion.terminos_busqueda)" (ngModelChange)="resultadoImportacion!.terminos_busqueda = stringALista($event)" placeholder="term1, term2" />
                                         </div>
                                         <div class="campo">
-                                            <label class="campo-etiqueta">Reglas de penalización</label>
+                                            <label class="campo-etiqueta">Exclusiones detectadas (no se aplican automáticamente)</label>
                                             <input pInputText [ngModel]="listaAString(resultadoImportacion.reglas_exclusion || [])" (ngModelChange)="resultadoImportacion!.reglas_exclusion = stringALista($event)" placeholder="java, sap" />
                                         </div>
                                         <div class="campo">
@@ -398,7 +472,7 @@
                                             </div>
                                         </div>
                                         <div class="importar-mini-lista">
-                                            <label class="campo-etiqueta">Roles detectados</label>
+                                            <label class="campo-etiqueta">Roles detectados (no se aplican automáticamente)</label>
                                             <div class="importar-tags">
                                                 @for (rol of resultadoImportacion.roles_objetivo_detalle; track rol.rol) {
                                                     <span class="importar-adv">{{ rol.rol }} · {{ rol.prioridad }}</span>
