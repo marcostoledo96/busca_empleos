@@ -16,10 +16,10 @@
 // preferencias para no depender de la BD en estos tests unitarios.
 
 // Mockeo el módulo de configuración de DeepSeek.
+jest.mock('dotenv', () => ({ config: jest.fn() }));
 jest.mock('../../src/config/deepseek', () => ({
+    ...jest.requireActual('../../src/config/deepseek'),
     consultarDeepSeek: jest.fn(),
-    DEEPSEEK_URL: 'https://api.deepseek.com/v1/chat/completions',
-    DEEPSEEK_MODELO: 'deepseek-v4-flash',
 }));
 
 // Mockeo el modelo de ofertas para no tocar la base de datos.
@@ -35,8 +35,6 @@ jest.mock('../../src/modelos/preferencia', () => ({
 
 // Mockeo cache y lotes para no depender de PostgreSQL en tests unitarios.
 jest.mock('../../src/modelos/evaluacion-cache', () => ({
-    crearHashOferta: jest.fn(() => 'hash-oferta-test'),
-    crearHashPreferencias: jest.fn(() => 'hash-preferencias-test'),
     buscarCache: jest.fn(() => Promise.resolve(null)),
     guardarCache: jest.fn(() => Promise.resolve()),
 }));
@@ -141,6 +139,8 @@ describe('Servicio de evaluación con IA', () => {
     // Limpio los mocks antes de cada test para que no se contaminen.
     beforeEach(() => {
         jest.resetAllMocks();
+        evaluacionCache.buscarCache.mockResolvedValue(null);
+        evaluacionCache.guardarCache.mockResolvedValue();
         // Por defecto, el modelo de preferencias retorna las preferencias de ejemplo.
         modeloPreferencia.obtenerPreferencias.mockResolvedValue(preferenciasEjemplo);
         // Por defecto, las reglas de exclusión no se activan (la oferta pasa a evaluación por IA).
@@ -931,7 +931,8 @@ describe('Servicio de evaluación con IA', () => {
                 'React y TypeScript son compatibles.',
                 82,
                 null,
-                expect.objectContaining({ detectada: true })
+                expect.objectContaining({ detectada: true }),
+                expect.stringMatching(/^[a-f0-9]{64}$/)
             );
         });
 
@@ -985,12 +986,14 @@ describe('Servicio de evaluación con IA', () => {
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledTimes(2);
 
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                1, 'aprobada', 'Cumple con React y TypeScript.', 85, null
+                1, 'aprobada', 'Cumple con React y TypeScript.', 85, null,
+                expect.objectContaining({ detectada: false }), expect.stringMatching(/^[a-f0-9]{64}$/)
             );
 
             // Segunda oferta: rechazada con porcentaje.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.', 20, null
+                3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.', 20, null,
+                null, expect.stringMatching(/^[a-f0-9]{64}$/)
             );
         });
 
@@ -1050,10 +1053,6 @@ describe('Servicio de evaluación con IA', () => {
 
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaJavaRemota]);
 
-            // Necesito que los hashes se generen para que el cache busque.
-            evaluacionCache.crearHashOferta.mockReturnValue('hash-oferta-java');
-            evaluacionCache.crearHashPreferencias.mockReturnValue('hash-prefs-java');
-
             // Cache devuelve aprobación (puede pasar si las preferencias cambiaron).
             const resultadoCache = {
                 match: true,
@@ -1086,16 +1085,13 @@ describe('Servicio de evaluación con IA', () => {
             expect(consultarDeepSeek).not.toHaveBeenCalled();
             // Verifico que se actualizó con rechazo.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
-                10, 'rechazada', expect.stringContaining('Java'), 10, null
+                10, 'rechazada', expect.stringContaining('Java'), 10, null,
+                null, expect.stringMatching(/^[a-f0-9]{64}$/)
             );
         });
 
         test('cache hit aprobado sin exclusiones se acepta normalmente', async () => {
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaEjemplo]);
-
-            // Necesito que los hashes se generen para que el cache busque.
-            evaluacionCache.crearHashOferta.mockReturnValue('hash-oferta-test');
-            evaluacionCache.crearHashPreferencias.mockReturnValue('hash-prefs-test');
 
             // Cache devuelve aprobación válida (sin exclusiones).
             const resultadoCache = {
@@ -1127,16 +1123,12 @@ describe('Servicio de evaluación con IA', () => {
             expect(consultarDeepSeek).not.toHaveBeenCalled();
         });
 
-        test('cache hit rechazado se mantiene rechazado (no se revalida)', async () => {
+        test('cache hit rechazado se mantiene rechazado luego de aplicar defensas actuales', async () => {
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([
                 { ...ofertaEjemplo, id: 11 },
             ]);
 
-            // Necesito que los hashes se generen para que el cache busque.
-            evaluacionCache.crearHashOferta.mockReturnValue('hash-oferta-test');
-            evaluacionCache.crearHashPreferencias.mockReturnValue('hash-prefs-test');
-
-            // Cache devuelve rechazo (no necesita revalidación).
+            // Cache devuelve rechazo; igualmente aplico defensas actuales.
             const resultadoCache = {
                 match: false,
                 porcentaje: 15,
@@ -1157,8 +1149,8 @@ describe('Servicio de evaluación con IA', () => {
             expect(resultado.aprobadas).toBe(0);
             // DeepSeek no fue llamado (se usó cache).
             expect(consultarDeepSeek).not.toHaveBeenCalled();
-            // Las reglas de exclusión NO se evaluaron (cache ya era rechazo, no hay revalidación).
-            expect(evaluarReglasExclusion).not.toHaveBeenCalled();
+            // Las defensas vigentes también se ejecutan para rechazos cacheados.
+            expect(evaluarReglasExclusion).toHaveBeenCalledTimes(1);
         });
     });
 });

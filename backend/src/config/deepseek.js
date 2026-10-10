@@ -23,6 +23,9 @@ const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 // Usa el endpoint estándar de DeepSeek, no un proxy externo.
 const DEEPSEEK_MODELO = 'deepseek-v4-flash';
 
+// Comparto solamente configuración que afecta la decisión; nunca credenciales.
+const CONFIGURACION_DECISION = Object.freeze({ url: DEEPSEEK_URL, temperature: 0 });
+
 // La API key de DeepSeek viene del .env. NUNCA se hardcodea.
 // Se obtiene de: https://platform.deepseek.com → API Keys.
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
@@ -182,7 +185,7 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
         );
     }
 
-    const respuesta = await fetchConTimeoutYRetry(DEEPSEEK_URL, {
+    const respuesta = await fetchConTimeoutYRetry(CONFIGURACION_DECISION.url, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -194,7 +197,7 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
                 { role: 'system', content: mensajeSistema },
                 { role: 'user', content: mensajeUsuario },
             ],
-            temperature: 0,
+            temperature: CONFIGURACION_DECISION.temperature,
         }),
     }, {
         timeoutMs: 30000,
@@ -216,4 +219,5 @@ module.exports = {
     consultarDeepSeek,
     DEEPSEEK_URL,
     DEEPSEEK_MODELO,
+    CONFIGURACION_DECISION,
 };

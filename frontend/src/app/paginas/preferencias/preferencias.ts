@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { Preferencias as PreferenciasModel, PreferenciasActualizar, PerfilEfectivo } from '../../modelos/preferencia.model';
@@ -31,6 +32,7 @@ type PreguntaImportacion = {
     selector: 'app-preferencias',
     imports: [
         FormsModule,
+        RouterLink,
         InputText,
         Textarea,
         Select,
@@ -63,6 +65,7 @@ export class Preferencias implements OnInit {
 
     // Mensaje accesible para lectores de pantalla (aria-live).
     readonly mensajeAccesible = signal('');
+    readonly perfilCambio = signal(false);
 
     perfilEfectivo: PerfilEfectivo | null = null;
     private formularioGuardado = '';
@@ -361,6 +364,7 @@ export class Preferencias implements OnInit {
     }
 
     guardar(): void {
+        if (this.modoDemo() || this.guardando()) return;
         this.guardando.set(true);
         const formulario = this.datosFormulario();
         const anterior = this.formularioGuardado ? JSON.parse(this.formularioGuardado) : null;
@@ -381,6 +385,8 @@ export class Preferencias implements OnInit {
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos) {
                     this.mapearDesdeApi(respuesta.datos);
+                    // Uso únicamente el cambio confirmado sobre los criterios persistidos.
+                    if (respuesta.cambio_criterios === true) this.perfilCambio.set(true);
                     this.mensajeAccesible.set('Preferencias actualizadas correctamente.');
                     this.mensajes.add({
                         severity: 'success',

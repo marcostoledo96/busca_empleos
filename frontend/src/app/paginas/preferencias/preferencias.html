@@ -16,6 +16,13 @@
         </div>
     }
 
+    @if (perfilCambio()) {
+        <div class="perfil-aviso-reevaluacion" role="status" aria-live="polite">
+            <p>Tu perfil cambió. Algunas ofertas fueron evaluadas con información anterior. Podés volver a evaluarlas.</p>
+            <a routerLink="/" [queryParams]="{ reevaluar: '1' }">Seleccionar ofertas para volver a evaluar</a>
+        </div>
+    }
+
     <section class="seccion perfil-ia" aria-labelledby="perfil-ia-titulo">
         <div class="seccion-cabecera"><h3 id="perfil-ia-titulo">Qué perfil usa la IA</h3></div>
         <div class="seccion-cuerpo">

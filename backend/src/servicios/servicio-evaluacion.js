@@ -17,7 +17,7 @@
 // "haceme algo lindo" te da cualquier cosa. Si le decís exactamente qué
 // querés, colores, medidas, tipografía — te clava el diseño.
 
-const { consultarDeepSeek } = require('../config/deepseek');
+const { consultarDeepSeek, DEEPSEEK_MODELO } = require('../config/deepseek');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
@@ -25,7 +25,8 @@ const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
 const { evaluarReglasExclusion } = require('./evaluacion/reglas-exclusion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
-const { construirPerfilEfectivo } = require('./evaluacion/perfil-efectivo');
+const { construirPerfilDesdePreferencias, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
+const { construirIdentidadEvaluacion } = require('./evaluacion/identidad-evaluacion');
 
 // Progreso de la evaluación en curso.
 // ¿Por qué un objeto en memoria y no en la BD? Porque el progreso es efímero:
@@ -40,6 +41,10 @@ let progresoEvaluacion = {
     rechazadas: 0,
     errores: 0,
     porcentaje: 0,
+    estado: 'inactivo',
+    mensaje_error: null,
+    procesadas: 0,
+    pendientes: 0,
 };
 
 // Bandera para interrumpir el loop de evaluación.
@@ -59,67 +64,6 @@ function obtenerProgresoEvaluacion() {
  */
 function cancelarEvaluacionPendiente() {
     _cancelarEvaluacion = true;
-}
-
-/**
- * Construyo el texto del perfil del candidato a partir de las preferencias
- * guardadas en la base de datos.
- *
- * ¿Por qué una función y no una constante? Porque ahora el perfil es
- * dinámico: el usuario puede cambiar su stack, su nivel, sus zonas
- * preferidas y sus reglas de exclusión desde la página de preferencias.
- * Cada vez que se evalúa un lote, se lee el perfil actualizado.
- *
- * @param {Object} prefs - Fila de la tabla preferencias.
- * @returns {string} Texto del perfil para el prompt de la IA.
- */
-function construirPerfilDesdePreferencias(prefs) {
-    return construirPerfilEfectivo(prefs).texto;
-}
-
-/** Construyo instrucciones sin sustituir hechos confirmados por criterios adicionales. */
-function construirInstruccionesDesdePreferencias(prefs) {
-    const partes = [
-        'Sos un evaluador de ofertas de empleo. Compará la oferta con los hechos confirmados del candidato.',
-        construirPerfilDesdePreferencias(prefs),
-        'Respondé ÚNICAMENTE con JSON válido: {"match": true, "porcentaje": 85, "razon": "Explicación breve en español"}. match debe ser boolean y porcentaje entero de 0 a 100.',
-        'match: true requiere cumplir al menos el 60% de los requisitos técnicos y no activar ninguna exclusión.',
-        'No inventes conocimientos, herramientas, idiomas, empleos ni proyectos. null significa no declarado, [] significa sin entradas confirmadas. Evaluá niveles y evidencia, no solo nombres del stack.',
-        'Los proyectos declarados en perfil_profesional y evidencia aportan experiencia práctica, pero NO equivalen automáticamente a años de empleo formal.',
-        'Las preferencias laborales restringen la búsqueda, no son capacidades personales. Las reglas_exclusion adicionales rechazan tecnologías principales u obligatorias, no menciones deseables.',
-        'El idioma de publicación no prueba por sí solo una incapacidad del candidato. Compará requisitos lingüísticos con nivel_ingles_detalle o idioma_candidato sin inventar niveles; conservá la exclusión obligatoria de inglés avanzado requerido.',
-        'No rechaces un rol tecnológico por el sector de la empresa (hotel, salud, industria). Rechazá roles no tecnológicos o QA industrial; para soporte IT exigí componente de software, aplicaciones o atención digital, no solo reparación física.',
-        'Los bonus NO compensan exclusiones. No otorgues experiencia fija en Next.js, IA, HealthTech, mobile o stack Microsoft: verificá hechos y evidencia confirmados. La prioridad IA es un ranking separado, no un bonus sobre el porcentaje de match.',
-        'La razon debe ser concisa (1-2 oraciones), en español, con las tecnologías relevantes.',
-    ];
-    if (prefs.usar_prompt_personalizado && typeof prefs.prompt_personalizado === 'string' && prefs.prompt_personalizado.trim()) {
-        partes.push('CRITERIOS ADICIONALES DEL USUARIO: NO sustituyen los hechos confirmados ni anulan las políticas obligatorias ni las restricciones laborales. No usar afirmaciones personales de este bloque como datos del candidato.');
-        partes.push(prefs.prompt_personalizado);
-    }
-    return partes.join('\n\n');
-}
-
-/** Construyo el mensaje de usuario con los datos de la oferta, sin alterarlos. */
-function construirPromptEvaluacion(oferta) {
-    // Armo un texto estructurado con los datos relevantes de la oferta.
-    // ¿Por qué no mando el JSON crudo? Porque un texto legible es más fácil
-    // de procesar para la IA — los JSON crudos tienen ruido (campos internos,
-    // IDs, timestamps) que distraen del contenido relevante.
-    const partes = [
-        `Título: ${oferta.titulo}`,
-    ];
-
-    if (oferta.empresa) partes.push(`Empresa: ${oferta.empresa}`);
-    if (oferta.ubicacion) partes.push(`Ubicación: ${oferta.ubicacion}`);
-    if (oferta.modalidad) partes.push(`Modalidad: ${oferta.modalidad}`);
-    if (oferta.nivel_requerido) partes.push(`Nivel requerido: ${oferta.nivel_requerido}`);
-    if (oferta.plataforma) partes.push(`Plataforma: ${oferta.plataforma}`);
-
-    partes.push(''); // Línea vacía separadora.
-    partes.push('Descripción completa de la oferta:');
-    partes.push(oferta.descripcion || 'Sin descripción disponible.');
-
-    return partes.join('\n');
 }
 
 /**
@@ -145,10 +89,11 @@ function ubicacionEnZonas(ubicacion, zonas) {
  * @param {Object} oferta - La oferta de la base de datos.
  * @param {string} instrucciones - Instrucciones de sistema armadas desde preferencias.
  * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-v4-flash').
- * @param {Object} [preferencias] - Preferencias del usuario (para defensas programáticas).
- * @returns {Object} { match: boolean, razon: string, porcentaje: number, error?: boolean }
+ * @param {Object} [preferencias] - Preferencias guardadas del lote (para defensas programáticas).
+ * @param {{forzar?: boolean, diferirCache?: boolean, guardarCache?: Function}} [opciones] - Difiero la caché del worker hasta persistir la oferta.
+ * @returns {Object} Resultado con firma_criterios_evaluacion solo si fue exitoso.
  */
-async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
+async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opciones = {}) {
     try {
         // Si recibo instrucciones como parámetro las uso; si no,
         // leo las preferencias de la BD (para llamadas sueltas desde la API).
@@ -156,22 +101,31 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         let modeloFinal = modelo;
         let preferenciasFinal = preferencias;
 
-        if (!instruccionesFinal || !preferenciasFinal) {
-            const prefsDeBD = await modeloPreferencia.obtenerPreferencias();
-            if (prefsDeBD) {
-                if (!instruccionesFinal) {
-                    instruccionesFinal = construirInstruccionesDesdePreferencias(prefsDeBD);
-                }
-                if (!preferenciasFinal) {
-                    preferenciasFinal = prefsDeBD;
-                }
-                modeloFinal = modeloFinal || prefsDeBD.modelo_ia;
-            }
+        if (!preferenciasFinal) {
+            preferenciasFinal = await modeloPreferencia.obtenerPreferencias();
         }
+        preferenciasFinal = preferenciasFinal || {};
+        instruccionesFinal = instruccionesFinal || construirInstruccionesDesdePreferencias(preferenciasFinal);
 
-        // Si no hay preferencias en BD (edge case), fallback al prompt mínimo.
-        if (!instruccionesFinal) {
-            instruccionesFinal = 'Sos un evaluador de ofertas de empleo. Respondé con JSON: {"match": true/false, "porcentaje": 0-100, "razon": "..."}';
+        const identidad = construirIdentidadEvaluacion(oferta, preferenciasFinal, {
+            instrucciones: instruccionesFinal,
+            modelo: modeloFinal,
+        });
+        modeloFinal = identidad.criterios.modelo;
+        const firma = identidad.firma_criterios_evaluacion;
+        async function guardarResultado(resultado) {
+            const firmado = { ...resultado, firma_criterios_evaluacion: firma };
+            // La caché es opcional; en el worker la confirmo después del UPDATE.
+            const confirmar = async () => {
+                try {
+                    await evaluacionCache.guardarCache(identidad.hash_oferta, firma, modeloFinal, firmado);
+                } catch (errorCache) {
+                    console.warn('[Evaluación] No se pudo guardar caché:', errorCache.message);
+                }
+            };
+            if (opciones.diferirCache) opciones.guardarCache = confirmar;
+            else await confirmar();
+            return firmado;
         }
 
         // ── Paso 1: Pre-evaluación con reglas de exclusión ──
@@ -181,12 +135,14 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         if (preferenciasFinal) {
             const resultadoExclusion = evaluarReglasExclusion(oferta, preferenciasFinal);
             if (resultadoExclusion.excluida) {
-                return {
+                const rechazo = {
                     match: false,
                     porcentaje: resultadoExclusion.porcentaje,
                     razon: resultadoExclusion.razon,
                     error: false,
+                    firma_criterios_evaluacion: firma,
                 };
+                return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
             }
         }
 
@@ -199,16 +155,27 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         const estaEnZonas = zonasPreferidas.length === 0 || ubicacionEnZonas(ubicacionOferta, zonasPreferidas);
 
         if (esPresencial && !estaEnZonas) {
-            return {
+            const rechazo = {
                 match: false,
                 porcentaje: 0,
                 razon: `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas) => rechazada.`,
+                firma_criterios_evaluacion: firma,
             };
+            return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
         }
 
         // ── Paso 2: Llamada a DeepSeek ──
         // Solo llego acá si las reglas de exclusión no se activaron.
-        const promptEvaluacion = construirPromptEvaluacion(oferta);
+        // Las defensas vigentes siempre se ejecutan antes de aceptar un hit.
+        if (!opciones.forzar) {
+            try {
+                const cacheado = await evaluacionCache.buscarCache(identidad.hash_oferta, firma, modeloFinal);
+                if (cacheado && !cacheado.error) return { ...cacheado, firma_criterios_evaluacion: firma };
+            } catch (errorCache) {
+                console.warn('[Evaluación] No se pudo leer caché:', errorCache.message);
+            }
+        }
+        const promptEvaluacion = identidad.oferta.mensaje_usuario;
         const respuestaTexto = await consultarDeepSeek(
             instruccionesFinal,
             promptEvaluacion,
@@ -235,12 +202,12 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         if (respuesta.match && preferenciasFinal) {
             const resultadoPostExclusion = evaluarReglasExclusion(oferta, preferenciasFinal);
             if (resultadoPostExclusion.excluida) {
-                return {
+                return await guardarResultado({
                     match: false,
                     porcentaje: resultadoPostExclusion.porcentaje,
                     razon: resultadoPostExclusion.razon,
                     error: false,
-                };
+                });
             }
         }
 
@@ -248,12 +215,12 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
         // pueden enriquecer la razón si detectan algo que la IA no mencionó.
         // Pero no sobreescribimos si ya fue rechazada — dejamos la razón de la IA.
         const prioridadIa = respuesta.match ? detectarPrioridadIa(oferta) : null;
-        return {
+        return await guardarResultado({
             match: respuesta.match,
             razon: respuesta.razon,
             porcentaje: respuesta.porcentaje,
             prioridad_ia: prioridadIa,
-        };
+        });
 
     } catch (error) {
         const razonError = `Error al evaluar con DeepSeek: ${error.message}`;
@@ -268,7 +235,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
 }
 
 /**
- * Evalúo todas las ofertas pendientes de la base de datos.
+ * Evalúo pendientes recientes o el snapshot completo seleccionado por el controlador.
  *
  * Proceso:
  * 1. Busco todas las ofertas con estado_evaluacion = 'pendiente'.
@@ -281,12 +248,15 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias) {
  * Procesando de a una, respetamos los límites y además podemos debuggear
  * fácilmente si algo falla.
  *
+ * @param {Object[]} [seleccionadas] - Ofertas recientes validadas; siempre fuerzo esta selección.
  * @returns {Object} Resumen: { total, aprobadas, rechazadas, errores, detalle }.
  */
-async function evaluarOfertasPendientes() {
+async function evaluarOfertasPendientes(seleccionadas) {
     // Inicializo el progreso y reseteo la bandera de cancelación.
     _cancelarEvaluacion = false;
     let loteId = null;
+    let errorLote = null;
+    let resumen;
     progresoEvaluacion = {
         activo: true,
         total: 0,
@@ -295,25 +265,22 @@ async function evaluarOfertasPendientes() {
         rechazadas: 0,
         errores: 0,
         porcentaje: 0,
+        estado: 'activo',
+        mensaje_error: null,
+        procesadas: 0,
+        pendientes: 0,
     };
 
     try {
         // Leo las preferencias UNA sola vez para todo el lote.
-        const prefs = await modeloPreferencia.obtenerPreferencias();
-        const instrucciones = prefs
-            ? construirInstruccionesDesdePreferencias(prefs)
-            : null;
-        const modeloIA = prefs
-            ? (prefs.modelo_ia_evaluacion || prefs.modelo_ia || 'deepseek-v4-flash')
-            : undefined;
+        const prefs = structuredClone((await modeloPreferencia.obtenerPreferencias()) || {});
+        const instrucciones = construirInstruccionesDesdePreferencias(prefs);
+        const modeloIA = prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO;
 
-        const hashPreferencias = prefs
-            ? evaluacionCache.crearHashPreferencias(prefs)
-            : null;
-
-        const pendientes = await modeloOferta.obtenerOfertasPendientes();
+        const pendientes = seleccionadas || await modeloOferta.obtenerOfertasPendientes();
 
         progresoEvaluacion.total = pendientes.length;
+        progresoEvaluacion.pendientes = pendientes.length;
 
         // Creo un lote persistente en BD para que el progreso sobreviva reinicios.
         try {
@@ -323,7 +290,7 @@ async function evaluarOfertasPendientes() {
             console.warn('[Evaluación] No se pudo crear lote en BD, el progreso solo estará en memoria:', err.message);
         }
 
-        const resumen = {
+        resumen = {
             total: pendientes.length,
             aprobadas: 0,
             rechazadas: 0,
@@ -347,87 +314,46 @@ async function evaluarOfertasPendientes() {
 
             console.log(`[Evaluación] Procesando oferta ID ${oferta.id}: "${oferta.titulo}"...`);
 
-            let resultado;
-            const hashOferta = hashPreferencias
-                ? evaluacionCache.crearHashOferta(oferta)
-                : null;
-
-            // Verifico si ya existe un resultado cacheado para esta oferta
-            // con las preferencias actuales y el mismo modelo.
-            // Si hay cache hit, revalido con las reglas de exclusión antes de aceptar.
-            // Una oferta que antes pasó pero ahora debería excluirse por reglas
-            // determinísticas NO debe ser aprobada desde cache.
-            if (hashOferta && hashPreferencias) {
-                const cacheado = await evaluacionCache.buscarCache(
-                    hashOferta, hashPreferencias, modeloIA
-                );
-
-                if (cacheado) {
-                    console.log(`[Evaluación] Cache hit para oferta ID ${oferta.id}`);
-
-                    // Revalidación: si el cache dice aprobada pero las reglas
-                    // de exclusión la rechazan, sobreescribo a rechazo.
-                    if (cacheado.match && prefs) {
-                        const resultadoExclusion = evaluarReglasExclusion(oferta, prefs);
-                        if (resultadoExclusion.excluida) {
-                            console.log(`[Evaluación] Cache rechazado por reglas de exclusión para oferta ID ${oferta.id}: ${resultadoExclusion.razon}`);
-                            resultado = {
-                                match: false,
-                                porcentaje: resultadoExclusion.porcentaje,
-                                razon: resultadoExclusion.razon,
-                                error: false,
-                            };
-                        } else {
-                            resultado = cacheado;
-                        }
-                    } else {
-                        resultado = cacheado;
-                    }
-                }
-            }
-
-            // Si no había cache, evalúo con DeepSeek y guardo para el futuro.
-            if (!resultado) {
-                resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs);
-
-                // Guardo en cache solo si la evaluación fue exitosa (no errores de API).
-                if (!resultado.error && hashOferta && hashPreferencias) {
-                    // No espero a que se guarde — si falla el cache no quiero trabar la evaluación.
-                    evaluacionCache.guardarCache(
-                        hashOferta, hashPreferencias, modeloIA, resultado
-                    ).catch(err => console.warn('[Evaluación] No se pudo guardar en cache:', err.message));
-                }
-            }
-
-            const estado = resultado.match ? 'aprobada' : 'rechazada';
+            // El reset deja un marcador persistido: omito caché solo en esa próxima evaluación.
+            const forzar = Boolean(seleccionadas) || oferta.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA';
+            const opciones = { forzar, diferirCache: true };
+            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs, opciones);
+            const conservarAnterior = forzar && resultado.error
+                && ['aprobada', 'rechazada'].includes(oferta.estado_evaluacion)
+                && Boolean(oferta.fecha_evaluacion)
+                && (!oferta.evaluacion_error_mensaje || oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
+            const estado = conservarAnterior ? oferta.estado_evaluacion : resultado.match ? 'aprobada' : 'rechazada';
             const errorMensaje = resultado.error ? resultado.razon : null;
 
-            // Actualizo el estado, el porcentaje y el error (si hubo) en la base de datos.
-            if (resultado.prioridad_ia?.detectada) {
-                await modeloOferta.actualizarEvaluacion(
-                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje, resultado.prioridad_ia
-                );
+            if (conservarAnterior) {
+                await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje);
             } else {
                 await modeloOferta.actualizarEvaluacion(
-                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje
+                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
+                    resultado.prioridad_ia || null, resultado.error ? null : resultado.firma_criterios_evaluacion
                 );
             }
+            // Nunca consolido un resultado cuyo UPDATE falló.
+            if (opciones.guardarCache) await opciones.guardarCache();
 
-            // Actualizo los contadores del resumen y del progreso.
-            progresoEvaluacion.evaluadas++;
+            progresoEvaluacion.procesadas++;
             if (resultado.error) {
                 resumen.errores++;
                 progresoEvaluacion.errores++;
-            }
-            if (resultado.match) {
-                resumen.aprobadas++;
-                progresoEvaluacion.aprobadas++;
+                progresoEvaluacion.mensaje_error = resultado.razon;
             } else {
-                resumen.rechazadas++;
-                progresoEvaluacion.rechazadas++;
+                progresoEvaluacion.evaluadas++;
+                if (resultado.match) {
+                    resumen.aprobadas++;
+                    progresoEvaluacion.aprobadas++;
+                } else {
+                    resumen.rechazadas++;
+                    progresoEvaluacion.rechazadas++;
+                }
             }
+            progresoEvaluacion.pendientes = progresoEvaluacion.total - progresoEvaluacion.evaluadas;
             progresoEvaluacion.porcentaje = progresoEvaluacion.total > 0
-                ? Math.round((progresoEvaluacion.evaluadas / progresoEvaluacion.total) * 100)
+                ? Math.round((progresoEvaluacion.procesadas / progresoEvaluacion.total) * 100)
                 : 0;
 
             resumen.detalle.push({
@@ -441,27 +367,39 @@ async function evaluarOfertasPendientes() {
             // Actualizo el lote en BD cada 5 ofertas (o en la última) para no
             // saturar PostgreSQL con writes. Si el servidor se reinicia, el
             // frontend ve el último snapshot persistido.
-            if (loteId && (progresoEvaluacion.evaluadas % 5 === 0 || progresoEvaluacion.evaluadas === progresoEvaluacion.total)) {
-                evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion).catch(
-                    err => console.warn('[Evaluación] No se pudo actualizar lote:', err.message)
-                );
+            if (loteId && (progresoEvaluacion.procesadas % 5 === 0 || progresoEvaluacion.procesadas === progresoEvaluacion.total)) {
+                await evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion);
             }
         }
 
-        console.log(`[Evaluación] Completado. Aprobadas: ${resumen.aprobadas}, Rechazadas: ${resumen.rechazadas}, Errores: ${resumen.errores}`);
+        console.log(`[Evaluación] Procesamiento finalizado. Aprobadas: ${resumen.aprobadas}, Rechazadas: ${resumen.rechazadas}, Errores: ${resumen.errores}`);
 
         return resumen;
+    } catch (error) {
+        errorLote = error;
+        progresoEvaluacion.mensaje_error = error.message;
+        throw error;
     } finally {
-        // Siempre marco el progreso como inactivo al terminar (o al cancelar).
-        progresoEvaluacion.activo = false;
-
-        // Marco el lote como finalizado en BD.
-        if (loteId) {
-            const estadoFinal = _cancelarEvaluacion ? 'cancelado' : 'completado';
-            evaluacionLote.finalizarLote(loteId, estadoFinal).catch(
-                err => console.warn('[Evaluación] No se pudo finalizar lote:', err.message)
+        // Retengo el mutex del llamador hasta terminar todas las escrituras finales.
+        progresoEvaluacion.estado = errorLote || progresoEvaluacion.errores > 0
+            ? 'error' : _cancelarEvaluacion ? 'cancelado' : 'completado';
+        try {
+            if (loteId) {
+                await evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion);
+                await evaluacionLote.finalizarLote(loteId, progresoEvaluacion.estado);
+            }
+        } catch (errorFinal) {
+            progresoEvaluacion.estado = 'error';
+            progresoEvaluacion.mensaje_error = errorLote?.message || errorFinal.message;
+            // Intento dejar al menos el estado terminal; una BD caída no garantiza durabilidad.
+            if (loteId) await evaluacionLote.finalizarLote(loteId, 'error').catch(
+                err => console.warn('[Evaluación] No se pudo persistir el error del lote:', err.message)
             );
+            if (!errorLote) errorLote = errorFinal;
         }
+        progresoEvaluacion.activo = false;
+        if (resumen) Object.assign(resumen, progresoEvaluacion);
+        if (errorLote) throw errorLote;
     }
 }
 
@@ -473,9 +411,13 @@ async function rehidratarProgreso() {
     try {
         const lote = await evaluacionLote.obtenerUltimoLote();
 
-        if (lote && lote.estado === 'activo') {
+        if (lote) {
             progresoEvaluacion = {
-                activo: true,
+                activo: lote.estado === 'activo',
+                estado: lote.estado,
+                mensaje_error: lote.estado === 'error' ? 'El lote terminó con errores. Revisá los resultados y las ofertas pendientes.' : null,
+                procesadas: lote.evaluadas + lote.errores,
+                pendientes: Math.max(0, lote.total - lote.evaluadas),
                 total: lote.total,
                 evaluadas: lote.evaluadas,
                 aprobadas: lote.aprobadas,

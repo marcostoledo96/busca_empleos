@@ -18,6 +18,7 @@ jest.mock('../../src/utils/middleware-auth', () => ({
 const request = require('supertest');
 const app = require('../../src/app');
 const modeloPreferencia = require('../../src/modelos/preferencia');
+const { crearFirmaCriterios } = require('../../src/servicios/evaluacion/identidad-evaluacion');
 const {
     NIVELES_VALIDOS,
     MODALIDADES_VALIDAS,
@@ -42,6 +43,37 @@ const preferenciasEjemplo = {
     fecha_creacion: '2025-01-01T00:00:00.000Z',
     fecha_actualizacion: '2025-01-01T00:00:00.000Z',
 };
+
+describe('Firma de preferencias efectivamente persistidas', () => {
+    test.each([
+        [{ nombre: 'Perfil nuevo' }, true],
+        [{ terminos_busqueda: ['Otra búsqueda'] }, false],
+        [{ prompt_personalizado: 'Criterio inactivo' }, false],
+        [{ usar_prompt_personalizado: true, prompt_personalizado: 'Criterio activo' }, true],
+        [{ anios_experiencia_reales: 0, tecnologias_detalle: [], idioma_candidato: null }, true],
+        [{}, false],
+    ])('informo cambios según RETURNING, no según formulario: %j', async (cambios, cambio) => {
+        const anteriores = { nombre: 'Perfil sintético', stack_tecnologico: ['TypeScript'], usar_prompt_personalizado: false };
+        const guardadas = { ...anteriores, ...cambios };
+        modeloPreferencia.obtenerPreferencias.mockResolvedValue(anteriores);
+        modeloPreferencia.actualizarPreferencias.mockResolvedValue(guardadas);
+        const res = await request(app).put('/api/preferencias').send(cambios);
+        expect(res.status).toBe(200);
+        expect(res.body.cambio_criterios).toBe(cambio);
+        expect(res.body.firma_criterios_evaluacion).toBe(crearFirmaCriterios(guardadas));
+        expect(modeloPreferencia.obtenerPreferencias).toHaveBeenCalledTimes(1);
+        jest.clearAllMocks();
+    });
+    test('un campo ignorado por la BD no fabrica cambios en criterios', async () => {
+        const guardadas = { nombre: 'Perfil sintético' };
+        modeloPreferencia.obtenerPreferencias.mockResolvedValue(guardadas);
+        modeloPreferencia.actualizarPreferencias.mockResolvedValue(guardadas);
+        const res = await request(app).put('/api/preferencias').send({ perfil_profesional: 'No persistido por el modelo simulado' });
+        expect(res.body.cambio_criterios).toBe(false);
+        expect(res.body.firma_criterios_evaluacion).toBe(crearFirmaCriterios(guardadas));
+        jest.clearAllMocks();
+    });
+});
 
 describe('Controlador de preferencias', () => {
     afterEach(() => jest.clearAllMocks());

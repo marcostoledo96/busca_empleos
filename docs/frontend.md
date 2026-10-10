@@ -195,7 +195,7 @@ Archivo: `frontend/src/app/servicios/evaluacion.service.ts`
 
 | Método | HTTP | Ruta | Retorna |
 |--------|------|------|---------|
-| `ejecutarEvaluacion()` | POST | `/evaluacion/ejecutar` | `Observable<RespuestaApi<RespuestaEvaluacion>>` |
+| `ejecutarEvaluacion(ids?)` | POST | `/evaluacion/ejecutar` | `Observable<InicioEvaluacion>` (inicio asincrónico, sin wrapper `datos`) |
 
 ### AutomatizacionService
 
@@ -303,6 +303,7 @@ Archivo: `frontend/src/app/componentes/panel-control/`
 - `ejecutarAutomatizacion()`: envía `POST /api/automatizacion/ejecutar`. Si recibe `202`, inicia polling a `GET /api/automatizacion/progreso` y NO cierra el overlay de progreso hasta que el ciclo termine realmente. Si recibe `409`, rehidrata el progreso del ciclo existente en lugar de mostrar error fatal.
 - Durante el polling de evaluación, emite `evaluacionEnProgreso` en cada tick para que el `Dashboard` refresque contadores sin esperar al final.
 - Durante el polling de automatización, emite `accionCompletada` cuando el ciclo finaliza para que el Dashboard recargue datos.
+- Al recibir el ciclo inactivo con 100%, reviso `pasos[].estado`: si algún paso está en `error`, muestro «Ciclo con errores» y aviso que conservo resultados parciales, sin toast de éxito. Cierro el overlay y recargo los datos también en ese caso; el porcentaje indica finalización, no éxito.
 - Al completar cualquier otra acción, emite `accionCompletada` para que el Dashboard recargue datos.
 
 **Accesibilidad y responsive:**
@@ -409,6 +410,43 @@ Las pruebas de componente cubren edición, aviso, respuesta persistida de guarda
 recarga, eliminaciones, cero/ninguno, información ausente, texto exacto y conservación
 de criterios laborales al importar. Las pruebas HTTP verifican el transporte intacto
 de la representación autoritativa en GET/PUT.
+
+### Reevaluación seleccionada (issue #9)
+
+Muestro el aviso de perfil cambiado únicamente cuando PUT `/api/preferencias` confirma
+`cambio_criterios: true`. Los cambios sin guardar y los guardados irrelevantes no crean
+invalidaciones ni ejecutan IA. Conservo el aviso de cambios sin guardar y la vista del
+perfil persistido de #8. El enlace abre `/?reevaluar=1`, la ruta del dashboard, sin iniciar
+ninguna evaluación ni seleccionar ofertas automáticamente.
+
+En esa vista incluyo todos los estados extraídos en los últimos **30 días**, también
+rechazadas y ofertas legacy. Sincronizo desde el servidor antes de habilitar selección;
+no calculo vigencia desde el formulario ni confío en un caché local anterior. Tabla y
+cards muestran texto: **Evaluación actual**, **Evaluación anterior** o **Vigencia desconocida**;
+las pendientes indican **Sin evaluación**. El filtro de plataforma continúa disponible.
+
+Reutilizo los checkboxes y las acciones de la tabla; agrego selección en cards y una
+confirmación explícita con cantidad, ventana fija de extracción, perfil guardado y
+posibles llamadas pagas. Envío solamente `{ ids: [...] }`, entre 1 y 200 IDs válidos,
+sin preferencias entrantes ni scraping. Limpio selección al filtrar, paginar, ordenar,
+cambiar tamaño de ventana o refrescar datos, para no confirmar ofertas ocultas.
+
+Reutilizo progreso y cancelación de `PanelControl`. Inicio polling solamente después
+de una aceptación real; para una selección rechazada con 400/409 muestro el error,
+sin polling ni éxito ficticio. Bloqueo inicio en demo y ante evaluación, ciclo o scraping
+local en curso. Al finalizar vuelvo a sincronizar resultados y firmas, también ante
+error o cancelación; no anuncio esos cierres como éxito. El panel muestra un aviso
+accesible y cantidades de resultados actualizados/pendientes. Consumo `estado`,
+`mensaje_error`, `procesadas` y `pendientes` como campos opcionales del progreso,
+con fallback para backends anteriores; detengo polling y libero el estado ocupado.
+Tabla y cards muestran el error técnico separado del último resultado válido conservado,
+no presentan el marcador interno de reset como error. Las acciones manuales de
+postulación conservan su flujo habitual.
+
+El test `paginas/dashboard/reevaluacion-flujo.spec.ts` recorre componentes y router reales
+con servicios HTTP reales y respuestas sintéticas (`HttpTestingController`): guardar,
+aviso, navegación, selección reciente, confirmación, POST de IDs, cancelación y resultados
+actuales, preservando postulación. También cubro cards, legado, límites, demo y errores.
 
 ## Flujo de datos
 

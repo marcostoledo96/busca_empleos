@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RespuestaApi, RespuestaEvaluacion, ProgresoEvaluacion } from '../modelos/respuesta-api.model';
+import { RespuestaApi, InicioEvaluacion, ProgresoEvaluacion } from '../modelos/respuesta-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class EvaluacionService {
@@ -11,8 +11,8 @@ export class EvaluacionService {
     private readonly urlBase = `${environment.urlApi}/evaluacion`;
 
     // Inicia la evaluación en segundo plano. El backend responde de inmediato.
-    ejecutarEvaluacion(): Observable<RespuestaApi<{ mensaje: string; en_curso: boolean }>> {
-        return this.http.post<RespuestaApi<{ mensaje: string; en_curso: boolean }>>(`${this.urlBase}/ejecutar`, {});
+    ejecutarEvaluacion(ids?: number[]): Observable<InicioEvaluacion> {
+        return this.http.post<InicioEvaluacion>(`${this.urlBase}/ejecutar`, ids === undefined ? {} : { ids });
     }
 
     // Devuelve el estado actual del progreso (para polling).

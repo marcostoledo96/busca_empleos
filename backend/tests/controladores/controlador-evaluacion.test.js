@@ -65,6 +65,19 @@ describe('Controlador de evaluación', () => {
             expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledTimes(1);
         });
 
+        test('reutiliza /ejecutar con IDs y responde cantidad y período', async () => {
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
+            const seleccion = [{ id: 1, estado_postulacion: 'descartada' }];
+            modeloOferta.obtenerOfertasSeleccionadas.mockResolvedValue(seleccion);
+            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({});
+            const res = await request(app).post('/api/evaluacion/ejecutar').send({ ids: [1], forzar: false });
+            expect(res.status).toBe(200);
+            expect(res.body).toMatchObject({ exito: true, en_curso: true, cantidad: 1, periodo_dias: 30 });
+            expect(modeloOferta.obtenerOfertasSeleccionadas).toHaveBeenCalledWith([1]);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledWith(seleccion);
+        });
+
         test('retorna 409 si ya hay una evaluación en curso', async () => {
             // Simulo que el advisory lock ya está tomado (otra evaluación en curso).
             bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: false });
@@ -346,6 +359,10 @@ describe('Controlador de evaluación', () => {
     // === POST /api/evaluacion/resetear ===
 
     describe('POST /api/evaluacion/resetear', () => {
+        beforeEach(() => {
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
+        });
         test('resetea las ofertas de los últimos N días y retorna el conteo', async () => {
             modeloOferta.resetearEvaluacionesPorDias.mockResolvedValue([
                 { id: 1, titulo: 'Dev Junior React' },
@@ -404,13 +421,15 @@ describe('Controlador de evaluación', () => {
             expect(res.body.exito).toBe(false);
         });
 
-        test('retorna 400 si falta el campo dias', async () => {
+        test('usa 30 días de extracción si falta el campo dias', async () => {
+            modeloOferta.resetearEvaluacionesPorDias.mockResolvedValue([]);
             const res = await request(app)
                 .post('/api/evaluacion/resetear')
                 .send({});
 
-            expect(res.status).toBe(400);
-            expect(res.body.exito).toBe(false);
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(modeloOferta.resetearEvaluacionesPorDias).toHaveBeenCalledWith(30);
         });
     });
 });

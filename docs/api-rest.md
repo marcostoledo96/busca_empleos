@@ -95,6 +95,32 @@ programática. El prompt personalizado sigue almacenado intacto y solo agrega
 criterios, no hechos ni permisos para quitar restricciones. Prioridad IA permanece
 un ajuste del ranking, no un bonus fijo sobre el match.
 
+## Firma y vigencia de evaluaciones (issue #9, T1)
+
+GET/PUT `/api/preferencias` agregan `firma_criterios_evaluacion: string` al
+envoltorio. PUT agrega `cambio_criterios: boolean`, comparando los criterios
+anteriores con la fila completa efectivamente persistida (`RETURNING *`), no con
+el formulario parcial. Guardar no evalúa ofertas, no hace scraping ni llama IA.
+Cambios visuales, términos de búsqueda o contenido personalizado inactivo no
+modifican la firma; los mensajes efectivos, modelo y contrato de reglas sí.
+Conservo las reglas de PUT parcial y los valores `null`, `[]`, `{}` y `0`.
+
+GET `/api/ofertas`, GET `/api/ofertas/:id` y GET `/api/ofertas/sincronizacion`
+agregan en cada oferta:
+
+- `firma_criterios_evaluacion: string | null`: firma guardada al evaluar con éxito;
+  las filas históricas permanecen en null (sin backfill).
+- `vigencia_evaluacion: 'actual' | 'anterior' | 'desconocida'`: comparación con
+  los criterios actualmente guardados. Una firma diferente es anterior; una
+  firma ausente, estado pendiente o error de evaluación es desconocido, nunca actual.
+
+La vigencia describe **criterios del perfil**, no certifica que el contenido de
+una oferta no haya cambiado desde su evaluación. La identidad de caché sí incluye
+las entradas efectivas de cada oferta. No modifico estados manuales de postulación
+ni el comportamiento existente de `fecha_evaluacion`. La migración 019 agrega
+únicamente la firma nullable. T2 reutiliza `/api/evaluacion/ejecutar` para la
+selección por IDs; la confirmación visual corresponde a T3.
+
 ## Base URL
 
 ```
@@ -150,7 +176,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/getonbrd` | Consultar estado bloqueado del piloto GetOnBrd | **Sí** | **Inactivo** |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
-| POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
+| POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
 | POST | `/api/automatizacion/detener` | Detener el cron | **Sí** | No |
@@ -583,31 +609,79 @@ Controlador: `backend/src/controladores/controlador-evaluacion.js`
 
 ### POST /api/evaluacion/ejecutar
 
-Evalúa todas las ofertas con `estado_evaluacion = 'pendiente'` usando DeepSeek.
+Sin `ids` (body ausente o `{}`), evalúo solamente pendientes extraídas en los
+últimos **30 días**, también en automatización. Con `{"ids":[5,6]}`, fuerzo
+exactamente esa selección, cualquiera sea su estado de evaluación o postulación.
 
-**Body:** Ninguno.
+Acepto **1–200 IDs únicos**, enteros positivos seguros de JavaScript, sin convertir
+strings. Todas las ofertas deben existir y tener `fecha_extraccion` dentro de la
+ventana fija de 30 días; no uso fecha de publicación ni evaluación. Rechazo con
+**400** una selección vacía, malformada, duplicada, excesiva, histórica o inexistente,
+o un conteo inesperado: no evalúo parcialmente ni omito IDs silenciosamente.
 
-**Ejemplo response (200):**
+Leo una única copia del perfil persistido al iniciar el worker. Ignoro preferencias
+entrantes y `forzar: false`: una selección válida siempre omite lectura de caché y
+reemplaza su resultado compatible, sin saltar exclusiones ni modificar campos
+manuales de postulación. No necesito reset previo.
+
+**Respuesta inmediata (200, selección de dos ofertas):**
 ```json
 {
     "exito": true,
-    "datos": {
-        "total": 30,
-        "aprobadas": 12,
-        "rechazadas": 18,
-        "errores": 0,
-        "mensaje": "Evaluación completada: 12 aprobadas, 18 rechazadas.",
-        "detalle": [
-            {
-                "id": 5,
-                "titulo": "React Developer Junior",
-                "estado": "aprobada",
-                "razon": "Matchea con React y JavaScript del perfil."
-            }
-        ]
-    }
+    "mensaje": "Evaluación iniciada.",
+    "en_curso": true,
+    "cantidad": 2,
+    "periodo_dias": 30
 }
 ```
+
+Sin selección retorno el mismo envoltorio sin `cantidad` ni `periodo_dias`.
+Reutilizo el worker, mutex, progreso y cancelación existentes: **409** si hay una
+evaluación en curso. Consulto GET `/api/evaluacion/progreso` para el avance y POST
+`/api/evaluacion/cancelar` para detener después de la oferta actual. Si falla una
+reevaluación forzada, conservo el último resultado válido (estado, razón, porcentaje,
+fecha, firma y prioridad) y registro solamente `evaluacion_error_mensaje`. Sin resultado
+válido previo mantengo el rechazo técnico existente; nunca lo convierto en descarte manual.
+Solo reemplazo caché después de persistir exitosamente la oferta; un fallo opcional de
+caché no revierte el resultado guardado.
+Guardar preferencias no inicia evaluación ni scraping; solo esta ejecución explícita
+puede consumir IA cuando las exclusiones no resuelven la oferta.
+
+### GET /api/evaluacion/progreso
+
+Retorno `{ exito: true, datos }` con los campos habituales y `estado`
+(`inactivo`, `activo`, `completado`, `cancelado` o `error`), `mensaje_error`,
+`procesadas` y `pendientes`. `evaluadas` cuenta resultados válidos persistidos;
+`aprobadas + rechazadas = evaluadas`, `procesadas = evaluadas + errores` y
+`pendientes = total - evaluadas` incluye fallos de proveedor y ofertas no procesadas.
+El porcentaje describe procesamiento, no garantiza éxito. Un fallo SQL detiene el
+lote sin contar la oferta fallida ni las siguientes; prevalece sobre una cancelación.
+El POST ya aceptado sigue siendo 200: consulto este progreso para conocer el resultado.
+
+Persisto los contadores finales y el estado terminal antes de liberar el mutex. Al
+rehidratar un lote con error recupero estado/contadores y un aviso genérico: el detalle
+de la excepción queda en memoria, no agrego una columna ni historial de errores.
+Si la BD está caída, no puedo garantizar escrituras del lote. El próximo inicio
+limpia el estado de error anterior.
+
+### POST /api/evaluacion/resetear
+
+Sin body o con `{}`, reseteo evaluaciones aprobadas/rechazadas de ofertas extraídas
+en los últimos **30 días**. Con `{"dias":7}`, uso ese período explícito: entero entre
+**1 y 30** (admito cadenas numéricas legacy, no conversiones parciales). Un valor
+inválido responde **400** antes de adquirir el mutex o escribir; el modelo también
+rechaza períodos fuera de 1–30. El mutex o progreso ocupado responde **409**.
+
+Retorno **200** con `{ exito: true, datos: { reseteadas, ofertas }, mensaje }`;
+`ofertas` contiene `id` y `titulo`. Limpio firma, resultado, fecha y prioridad de
+evaluación; conservo campos manuales. Persisto `REEVALUACION_SOLICITADA` en
+`evaluacion_error_mensaje` como **intención interna de evaluación forzada pendiente**,
+no como error técnico. El worker omite caché para esa próxima evaluación y reemplaza
+el marcador al guardar su resultado, sin borrar cachés compartidas.
+
+Resetear no llama IA ni hace scraping. Rechazo períodos mayores que 30 para conservar
+intactas las evaluaciones históricas fuera de la ventana reevaluable. Recomiendo la
+selección explícita mediante `/ejecutar` para reevaluar ofertas recientes sin reset previo.
 
 ---
 

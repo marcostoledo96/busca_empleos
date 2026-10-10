@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { Preferencias, PreferenciasActualizar } from '../modelos/preferencia.model';
-import { RespuestaApi } from '../modelos/respuesta-api.model';
+import { RespuestaApi, RespuestaPreferencias } from '../modelos/respuesta-api.model';
 
 export interface ResultadoImportacionCv {
     nombre: string | null;
@@ -46,12 +46,12 @@ export class PreferenciasService {
     private readonly http = inject(HttpClient);
     private readonly urlBase = `${environment.urlApi}/preferencias`;
 
-    obtenerPreferencias(): Observable<RespuestaApi<Preferencias>> {
-        return this.http.get<RespuestaApi<Preferencias>>(this.urlBase);
+    obtenerPreferencias(): Observable<RespuestaPreferencias<Preferencias>> {
+        return this.http.get<RespuestaPreferencias<Preferencias>>(this.urlBase);
     }
 
-    actualizarPreferencias(datos: PreferenciasActualizar): Observable<RespuestaApi<Preferencias>> {
-        return this.http.put<RespuestaApi<Preferencias>>(this.urlBase, datos);
+    actualizarPreferencias(datos: PreferenciasActualizar): Observable<RespuestaPreferencias<Preferencias>> {
+        return this.http.put<RespuestaPreferencias<Preferencias>>(this.urlBase, datos);
     }
 
     // Analiza un CV Markdown con DeepSeek. No guarda preferencias.

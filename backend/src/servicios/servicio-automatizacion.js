@@ -31,6 +31,7 @@
 const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
+const bloqueo = require('../utils/bloqueo-concurrente');
 const { detectarIdioma } = require('./servicio-normalizacion');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
@@ -358,10 +359,30 @@ async function ejecutarCicloCompleto() {
     // ── Paso 4: Evaluar ofertas pendientes ──
     actualizarPasoPorgreso('evaluacion', 'procesando');
     try {
-        resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
-        actualizarPasoPorgreso('evaluacion', 'completada', resultado.evaluacion.aprobadas);
+        // Comparto el mutex de selección y reset, tanto para cron como para ejecución manual.
+        const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
+        if (!lock.ok) throw new Error('Ya hay una evaluación en curso.');
+        try {
+            if (servicioEvaluacion.obtenerProgresoEvaluacion().activo) {
+                throw new Error('Ya hay una evaluación en curso.');
+            }
+            resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
+        } finally {
+            await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        }
+        const evaluacion = resultado.evaluacion;
+        const fallo = evaluacion.estado === 'error' || evaluacion.errores > 0;
+        const cancelada = evaluacion.estado === 'cancelado';
+        if (fallo || cancelada) {
+            resultado.exito = false;
+            resultado.errores.push(cancelada
+                ? 'La evaluación fue cancelada. Conservo los resultados parciales.'
+                : `Error en evaluación: ${evaluacion.errores || 0} error(es). Conservo los resultados parciales.`);
+        }
+        actualizarPasoPorgreso('evaluacion', fallo || cancelada ? 'error' : 'completada', evaluacion.aprobadas);
         console.log(`[Automatización] Evaluación: ${resultado.evaluacion.aprobadas} aprobadas, ${resultado.evaluacion.rechazadas} rechazadas.`);
     } catch (error) {
+        resultado.exito = false;
         actualizarPasoPorgreso('evaluacion', 'error', 0);
         resultado.errores.push(`Error en evaluación: ${error.message}`);
         console.error(`[Automatización] Error en evaluación: ${error.message}`);

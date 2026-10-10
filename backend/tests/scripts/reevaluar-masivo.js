@@ -1,3 +1,6 @@
+// Deshabilito el script legacy antes de cargar dependencias; conservo su fuente como referencia.
+throw new Error('Reevaluación masiva legacy deshabilitada. Uso el dashboard para seleccionar ofertas recientes o POST /api/evaluacion/ejecutar con {"ids":[5,6]}.');
+
 // Script para reevaluar de forma masiva TODAS las ofertas con el nuevo prompt.
 // Ideal para usar luego de haber ajustado la lógica de la IA.
 //

@@ -15,6 +15,7 @@
 // jest.mock() se "hoistea" (se mueve al principio) automáticamente,
 // así que aunque esté antes del require, funciona.
 jest.mock('../../src/modelos/oferta');
+jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/utils/middleware-auth', () => ({
@@ -31,6 +32,8 @@ const request = require('supertest');
 const app = require('../../src/app');
 const modeloOferta = require('../../src/modelos/oferta');
 const baseDatos = require('../../src/config/base-datos');
+const modeloPreferencia = require('../../src/modelos/preferencia');
+const { crearFirmaCriterios } = require('../../src/servicios/evaluacion/identidad-evaluacion');
 
 describe('Controlador de ofertas', () => {
     // Después de cada test, limpio los mocks para que no se contaminen entre sí.
@@ -497,6 +500,29 @@ describe('Controlador de ofertas', () => {
             expect(res.status).toBe(400);
             expect(res.body.exito).toBe(false);
         });
+    });
+});
+
+describe('Vigencia de criterios en respuestas reales', () => {
+    const prefs = { nombre: 'Perfil sintético', stack_tecnologico: ['TypeScript'] };
+    test.each(['/api/ofertas', '/api/ofertas/9', '/api/ofertas/sincronizacion'])('derivo vigencia compartida en %s', async ruta => {
+        modeloPreferencia.obtenerPreferencias.mockResolvedValue(prefs);
+        const firma = crearFirmaCriterios(prefs);
+        const filas = [
+            { id: 9, estado_evaluacion: 'aprobada', firma_criterios_evaluacion: firma, estado_postulacion: 'cv_enviado' },
+            { id: 10, estado_evaluacion: 'rechazada', firma_criterios_evaluacion: 'anterior' },
+            { id: 11, estado_evaluacion: 'aprobada', firma_criterios_evaluacion: null },
+            { id: 12, estado_evaluacion: 'rechazada', firma_criterios_evaluacion: firma, evaluacion_error_mensaje: 'Timeout' },
+        ];
+        modeloOferta.obtenerOfertas.mockResolvedValue({ ofertas: filas, total: 4, pagina: 1, limite_pagina: null });
+        modeloOferta.obtenerOfertaPorId.mockResolvedValue(filas[0]);
+        modeloOferta.obtenerBloqueSincronizacion.mockResolvedValue({ datos: filas, completada: true });
+        const res = await request(app).get(ruta);
+        expect(res.status).toBe(200);
+        const datos = Array.isArray(res.body.datos) ? res.body.datos : [res.body.datos];
+        expect(datos[0].vigencia_evaluacion).toBe('actual');
+        expect(datos[0].estado_postulacion).toBe('cv_enviado');
+        if (datos.length > 1) expect(datos.map(f => f.vigencia_evaluacion)).toEqual(['actual', 'anterior', 'desconocida', 'desconocida']);
     });
 });
 

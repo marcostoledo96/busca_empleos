@@ -1,3 +1,26 @@
+@if (algunaSeleccionada() && !modoDemo()) {
+    <div class="barra-bulk reevaluacion-seleccion" role="region" aria-label="Volver a evaluar ofertas seleccionadas">
+        <p>{{ seleccionadas().size }} oferta{{ seleccionadas().size === 1 ? '' : 's' }} seleccionada{{ seleccionadas().size === 1 ? '' : 's' }}.
+            Período fijo: últimos 30 días desde la extracción. Máximo 200 ofertas.</p>
+        @if (!seleccionReevaluable()) {
+            <p role="alert">Seleccioná entre 1 y 200 ofertas extraídas en los últimos 30 días; las históricas no se pueden reevaluar.</p>
+        }
+        @if (!confirmandoReevaluacion()) {
+            <button type="button" class="btn-bulk-aplicar" data-accion="reevaluar"
+                [disabled]="evaluacionOcupada() || !seleccionReevaluable()" (click)="solicitarReevaluacion()">Volver a evaluar seleccionadas</button>
+        } @else {
+            <div role="region" aria-label="Confirmar reevaluación" aria-live="polite">
+                <p>Voy a volver a evaluar {{ seleccionadas().size }} oferta{{ seleccionadas().size === 1 ? '' : 's' }} de los últimos 30 días desde la extracción,
+                    usando el perfil guardado. Esta acción fuerza la evaluación y puede generar llamadas pagas a la IA. No realiza scraping.</p>
+                <button type="button" class="btn-bulk-aplicar" data-accion="confirmar-reevaluacion"
+                    [disabled]="evaluacionOcupada() || !seleccionReevaluable()" (click)="confirmarReevaluacion()">Confirmar reevaluación</button>
+                <button type="button" class="btn-bulk-cancelar" (click)="confirmandoReevaluacion.set(false)">Cancelar</button>
+            </div>
+        }
+        <button type="button" class="btn-bulk-cancelar" (click)="limpiarSeleccion()">Limpiar selección</button>
+    </div>
+}
+
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
 <div class="tabla-contenedor vista-desktop" role="region" aria-label="Tabla de ofertas de empleo">
     <!-- Encabezado externo a PrimeNG -->
@@ -11,7 +34,7 @@
                 class="filtro-busqueda"
                 placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
                 aria-labelledby="tabla-busqueda-label"
-                (input)="tablaOfertas.filterGlobal($any($event.target).value, 'contains')" />
+                (input)="limpiarSeleccion(); tablaOfertas.filterGlobal($any($event.target).value, 'contains')" />
         </div>
     </div>
 
@@ -60,6 +83,9 @@
         [sortField]="sortField()"
         [sortOrder]="sortOrder()"
         styleClass="p-datatable-sm"
+        (onPage)="limpiarSeleccion()"
+        (onFilter)="limpiarSeleccion()"
+        (onSort)="limpiarSeleccion()"
         #tablaOfertas>
 
         <!-- Definición de columnas -->
@@ -67,12 +93,15 @@
             <tr>
                 <th class="columna-checkbox" style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar todas">
                     @if (!modoDemo()) {
+                        @let ofertasVisibles = (tablaOfertas.filteredValue || ofertas()).slice(tablaOfertas.first || 0, (tablaOfertas.first || 0) + (tablaOfertas.rows || 20));
+                        @let todasVisiblesSeleccionadas = todasSeleccionadas(ofertasVisibles);
                         <input
                             type="checkbox"
                             class="checkbox-tabla"
-                            [checked]="todasSeleccionadas()"
-                            [indeterminate]="algunaSeleccionada() && !todasSeleccionadas()"
-                            (change)="toggleSeleccionarTodas()"
+                            [checked]="todasVisiblesSeleccionadas"
+                            [indeterminate]="contarSeleccionadasVisibles(ofertasVisibles) > 0 && !todasVisiblesSeleccionadas"
+                            [disabled]="evaluacionOcupada()"
+                            (change)="toggleSeleccionarTodas(ofertasVisibles)"
                             aria-label="Seleccionar todas las ofertas" />
                     }
                 </th>
@@ -106,6 +135,7 @@
                             type="checkbox"
                             class="checkbox-tabla"
                             [checked]="seleccionadas().has(oferta.id)"
+                            [disabled]="evaluacionOcupada()"
                             (change)="toggleSeleccion(oferta.id)"
                             [attr.aria-label]="'Seleccionar ' + oferta.titulo" />
                     }
@@ -130,6 +160,10 @@
                     <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
                         {{ oferta.estado_evaluacion | uppercase }}
                     </span>
+                    <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
+                    @if (errorEvaluacionOferta(oferta); as error) {
+                        <span role="status">{{ error }}</span>
+                    }
                     @if (oferta.prioridad_ia) {
                         <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA: ' + (oferta.evidencias_prioridad_ia || []).join(', ')">IA</span>
                     }
@@ -218,6 +252,13 @@
         <div class="cards-lista" role="list">
             @for (oferta of ofertasPaginadasCards(); track oferta.id) {
                 <article class="card-oferta" role="listitem" (click)="verDetalle(oferta)" (keydown)="activarCardConTeclado($event, oferta)" tabindex="0" [attr.aria-label]="'Oferta: ' + oferta.titulo">
+                    @if (!modoDemo()) {
+                        <label class="card-seleccion" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                            <input type="checkbox" [checked]="seleccionadas().has(oferta.id)" [disabled]="evaluacionOcupada()"
+                                (change)="toggleSeleccion(oferta.id)" [attr.aria-label]="'Seleccionar en tarjeta ' + oferta.titulo" />
+                            Seleccionar para acciones
+                        </label>
+                    }
                     <!-- Encabezado de la card: título + match -->
                     <div class="card-oferta__encabezado">
                         <div class="card-oferta__titulo-grupo">
@@ -253,6 +294,10 @@
                         <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
                             {{ oferta.estado_evaluacion | uppercase }}
                         </span>
+                        <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
+                        @if (errorEvaluacionOferta(oferta); as error) {
+                            <span role="status">{{ error }}</span>
+                        }
                         @if (!modoDemo()) {
                             <p-select
                                 [options]="opcionesPostulacion"

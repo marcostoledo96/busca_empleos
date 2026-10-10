@@ -1,11 +1,10 @@
 'use strict';
 
-jest.mock('../../src/config/deepseek', () => ({ consultarDeepSeek: jest.fn() }));
+jest.mock('dotenv', () => ({ config: jest.fn() }));
+jest.mock('../../src/config/deepseek', () => ({ ...jest.requireActual('../../src/config/deepseek'), consultarDeepSeek: jest.fn() }));
 jest.mock('../../src/modelos/oferta', () => ({ obtenerOfertasPendientes: jest.fn(), actualizarEvaluacion: jest.fn() }));
 jest.mock('../../src/modelos/preferencia', () => ({ obtenerPreferencias: jest.fn() }));
 jest.mock('../../src/modelos/evaluacion-cache', () => ({
-    crearHashPreferencias: jest.fn(() => 'preferencias'),
-    crearHashOferta: jest.fn(() => 'oferta'),
     buscarCache: jest.fn(),
     guardarCache: jest.fn().mockResolvedValue(),
 }));

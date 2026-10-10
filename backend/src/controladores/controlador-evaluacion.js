@@ -1,8 +1,8 @@
 // Controlador de evaluación — maneja la request para evaluar ofertas con IA.
 //
 // Este controlador tiene cuatro endpoints:
-// - POST /ejecutar: Inicia la evaluación en segundo plano (fire-and-forget)
-//   y responde di inmediatamente. El cliente hace polling a /progreso.
+// - POST /ejecutar: Evalúo pendientes recientes o fuerzo los IDs seleccionados
+//   en segundo plano. Respondo inmediatamente; el cliente consulta /progreso.
 // - GET /progreso: Devuelve el estado actual del progreso.
 // - POST /cancelar: Interrumpe la evaluación en curso.
 // - POST /resetear: Resetea a 'pendiente' las evaluaciones de los últimos N días.
@@ -36,9 +36,22 @@ async function ejecutarEvaluacion(req, res) {
         });
     }
 
+    let seleccionadas;
+    try {
+        if (Object.prototype.hasOwnProperty.call(req.body || {}, 'ids')) {
+            seleccionadas = await modeloOferta.obtenerOfertasSeleccionadas(req.body.ids);
+        }
+    } catch (error) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        if (error.status === 400) {
+            return res.status(400).json({ exito: false, error: error.message });
+        }
+        throw error;
+    }
+
     // Lanzamos sin await: el controlador responde inmediatamente
     // y la evaluación corre en segundo plano en el mismo proceso de Node.js.
-    servicioEvaluacion.evaluarOfertasPendientes()
+    servicioEvaluacion.evaluarOfertasPendientes(seleccionadas)
         .catch((error) => {
             console.error('[Evaluación] Error en segundo plano:', error.message);
         })
@@ -50,6 +63,7 @@ async function ejecutarEvaluacion(req, res) {
         exito: true,
         mensaje: 'Evaluación iniciada.',
         en_curso: true,
+        ...(seleccionadas ? { cantidad: seleccionadas.length, periodo_dias: 30 } : {}),
     });
 }
 
@@ -80,9 +94,9 @@ function cancelarEvaluacion(req, res) {
 /**
  * POST /api/evaluacion/resetear
  * Reseteo a 'pendiente' las evaluaciones de la IA para ofertas evaluadas
- * en los últimos N días.
+ * extraídas en los últimos N días (30 por defecto).
  *
- * Body: { dias: 7 }
+ * Body opcional: { dias: 7 }
  *
  * ¿Por qué resetear y no borrar? Porque al volver a 'pendiente',
  * la próxima vez que se ejecute la evaluación, la IA las revisa de nuevo
@@ -90,26 +104,38 @@ function cancelarEvaluacion(req, res) {
  * ofertas que tal vez cambiaron o que el perfil ahora cubre mejor.
  */
 async function resetearEvaluaciones(req, res) {
-    const dias = parseInt(req.body.dias, 10);
+    const dias = req.body?.dias === undefined ? 30 : Number(req.body.dias);
 
-    // Valido que dias sea un entero entre 1 y 365.
-    if (!Number.isInteger(dias) || dias < 1 || dias > 365) {
+    // Conservo números y cadenas numéricas legacy, no booleanos ni conversiones parciales.
+    if ((req.body?.dias !== undefined && !['number', 'string'].includes(typeof req.body.dias))
+        || !Number.isInteger(dias) || dias < 1 || dias > 30) {
         return res.status(400).json({
             exito: false,
-            error: 'El campo dias debe ser un número entero entre 1 y 365.',
+            error: 'El campo dias debe ser un número entero entre 1 y 30.',
         });
     }
 
-    const ofertasReseteadas = await modeloOferta.resetearEvaluacionesPorDias(dias);
-
-    res.json({
-        exito: true,
-        datos: {
-            reseteadas: ofertasReseteadas.length,
-            ofertas: ofertasReseteadas,
-        },
-        mensaje: `${ofertasReseteadas.length} oferta(s) reseteadas a 'pendiente'.`,
-    });
+    // Protejo el marcador de reset contra escrituras de un worker en curso.
+    const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
+    if (!lock.ok) {
+        return res.status(409).json({ exito: false, mensaje: 'Ya hay una evaluación en curso.' });
+    }
+    try {
+        if (servicioEvaluacion.obtenerProgresoEvaluacion().activo) {
+            return res.status(409).json({ exito: false, mensaje: 'Ya hay una evaluación en curso.' });
+        }
+        const ofertasReseteadas = await modeloOferta.resetearEvaluacionesPorDias(dias);
+        res.json({
+            exito: true,
+            datos: {
+                reseteadas: ofertasReseteadas.length,
+                ofertas: ofertasReseteadas,
+            },
+            mensaje: `${ofertasReseteadas.length} oferta(s) reseteadas a 'pendiente'.`,
+        });
+    } finally {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+    }
 }
 
 module.exports = { ejecutarEvaluacion, obtenerProgresoEvaluacion, cancelarEvaluacion, resetearEvaluaciones };

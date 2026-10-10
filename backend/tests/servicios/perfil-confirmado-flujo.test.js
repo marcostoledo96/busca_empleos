@@ -1,5 +1,6 @@
 jest.mock('../../src/config/base-datos', () => ({ query: jest.fn() }));
-jest.mock('../../src/config/deepseek', () => ({ consultarDeepSeek: jest.fn() }));
+jest.mock('dotenv', () => ({ config: jest.fn() }));
+jest.mock('../../src/config/deepseek', () => ({ ...jest.requireActual('../../src/config/deepseek'), consultarDeepSeek: jest.fn() }));
 
 const pool = require('../../src/config/base-datos');
 const { consultarDeepSeek } = require('../../src/config/deepseek');
@@ -8,6 +9,7 @@ const controlador = require('../../src/controladores/controlador-preferencias');
 const servicio = require('../../src/servicios/servicio-evaluacion');
 
 let fila;
+let cachePersistida;
 const copiar = valor => JSON.parse(JSON.stringify(valor));
 const oferta = { id: 81, titulo: 'Desarrollador junior', descripcion: 'Desarrollo de aplicaciones', modalidad: 'remoto' };
 
@@ -26,9 +28,16 @@ async function consultar() {
 
 beforeEach(() => {
     jest.clearAllMocks();
+    cachePersistida = new Map();
     fila = { id: 1, stack_tecnologico: ['Tecnología anterior'], idioma_candidato: 'Inglés A1 anterior', nivel_experiencia: 'junior', reglas_exclusion: ['Java'], zonas_preferidas: ['CABA'] };
     // Simulo pg, no el modelo: interpreto sus parámetros y serialización JSONB.
     pool.query.mockImplementation(async (sql, valores) => {
+        if (sql.includes('evaluaciones_cache')) {
+            const clave = JSON.stringify(valores.slice(0, 3));
+            if (sql.startsWith('SELECT')) return { rows: cachePersistida.has(clave) ? [{ resultado: copiar(cachePersistida.get(clave)) }] : [] };
+            cachePersistida.set(clave, JSON.parse(valores[3]));
+            return { rows: [] };
+        }
         if (sql.startsWith('SELECT')) return { rows: [copiar(fila)] };
         if (sql.includes('SET backup_preferencias')) return { rows: [] };
         if (sql.startsWith('UPDATE')) {
@@ -45,7 +54,7 @@ beforeEach(() => {
     consultarDeepSeek.mockResolvedValue('{"match":true,"porcentaje":80,"razon":"Compatible"}');
 });
 
-test('guardo dos perfiles, recargo y envío exactamente su vista al proveedor sin cache', async () => {
+test('guardo dos perfiles, recargo y envío exactamente su vista al proveedor con miss real', async () => {
     for (const [nombre, nivel, evidencia, anios] of [['Perfil Uno', 'basico', 'Proyecto sintético Uno', 0], ['Perfil Dos', 'avanzado', 'Empleo sintético Dos', 2]]) {
         const persistido = await guardar({ nombre, perfil_profesional: evidencia, nivel_real_seniority: 'junior', anios_experiencia_reales: anios,
             roles_objetivo_detalle: [{ rol: `Desarrollo ${nombre}`, prioridad: 'alta', evidencia }],
@@ -155,6 +164,27 @@ test('perfil incompleto llega al proveedor sin completar hechos personales', asy
 
 test.each(['Java deseable', 'Inglés avanzado es un plus', 'Vas a aprender junto a nuestro desarrollador senior', 'Empresa con 5+ años de trayectoria'])('conservo contexto #7: %s llega a IA', async descripcion => {
     await servicio.evaluarOferta({ ...oferta, descripcion });
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
+test('guardar cambios irrelevantes no llama IA y conserva firma y caché del perfil guardado', async () => {
+    const { crearFirmaCriterios } = require('../../src/servicios/evaluacion/identidad-evaluacion');
+    const primera = await servicio.evaluarOferta(oferta);
+    const firmaAnterior = crearFirmaCriterios(fila);
+    consultarDeepSeek.mockClear();
+    const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
+    await controlador.actualizarPreferencias({ body: { terminos_busqueda: ['Nueva búsqueda'], prompt_personalizado: 'Criterio todavía inactivo', temperatura_evaluacion: 0.7 } }, res);
+    const respuesta = res.json.mock.calls[0][0];
+    expect(respuesta.cambio_criterios).toBe(false);
+    expect(respuesta.firma_criterios_evaluacion).toBe(firmaAnterior);
+    expect(consultarDeepSeek).not.toHaveBeenCalled();
+    expect(await servicio.evaluarOferta(oferta)).toEqual(primera);
+    expect(consultarDeepSeek).not.toHaveBeenCalled();
+    await guardar({ perfil_profesional: 'Proyecto confirmado nuevo' });
+    expect(consultarDeepSeek).not.toHaveBeenCalled();
+    const nueva = await servicio.evaluarOferta(oferta);
+    expect(nueva.firma_criterios_evaluacion).not.toBe(firmaAnterior);
+    expect(consultarDeepSeek.mock.calls[0][0]).toContain('Proyecto confirmado nuevo');
     expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
 });
 

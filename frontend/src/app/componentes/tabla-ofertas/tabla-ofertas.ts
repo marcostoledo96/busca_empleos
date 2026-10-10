@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -15,7 +15,8 @@ import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
     selector: 'app-tabla-ofertas',
     imports: [DatePipe, UpperCasePipe, TableModule, SelectModule, FormsModule],
     templateUrl: './tabla-ofertas.html',
-    styleUrl: './tabla-ofertas.css'
+    styleUrl: './tabla-ofertas.css',
+    host: { '(window:resize)': 'limpiarSeleccion()' }
 })
 export class TablaOfertas {
 
@@ -29,6 +30,55 @@ export class TablaOfertas {
 
     // Cuando es true, bloquea checkboxes, dropdowns de postulación y acciones masivas.
     readonly modoDemo = input(false);
+    readonly evaluacionOcupada = input(false);
+    readonly reevaluarSeleccionadas = output<number[]>();
+    readonly confirmandoReevaluacion = signal(false);
+
+    constructor() {
+        // Ante un refresh descarto la selección: nunca confirmo IDs de otra vista.
+        effect(() => {
+            this.ofertas();
+            this.paginaActualCards.set(0);
+            this.limpiarSeleccion();
+        });
+    }
+
+    esReciente(oferta: Oferta): boolean {
+        const fecha = new Date(oferta.fecha_extraccion).getTime();
+        return Number.isFinite(fecha) && fecha >= Date.now() - 30 * 86400000;
+    }
+
+    readonly seleccionReevaluable = computed(() => {
+        const ids = this.seleccionadas();
+        return ids.size > 0 && ids.size <= 200 && this.ofertas()
+            .filter(o => ids.has(o.id) && Number.isSafeInteger(o.id) && o.id > 0 && this.esReciente(o)).length === ids.size;
+    });
+
+    solicitarReevaluacion(): void {
+        if (this.modoDemo() || this.evaluacionOcupada() || !this.seleccionReevaluable()) return;
+        this.confirmandoReevaluacion.set(true);
+    }
+
+    confirmarReevaluacion(): void {
+        if (!this.confirmandoReevaluacion() || this.modoDemo() || this.evaluacionOcupada() || !this.seleccionReevaluable()) return;
+        this.reevaluarSeleccionadas.emit([...this.seleccionadas()]);
+        this.limpiarSeleccion();
+    }
+
+    errorEvaluacionOferta(oferta: Oferta): string | null {
+        const datos = oferta as Oferta & { evaluacion_error_mensaje?: string | null; fecha_evaluacion?: string | null };
+        const mensaje = datos.evaluacion_error_mensaje;
+        if (!mensaje || mensaje === 'REEVALUACION_SOLICITADA') return null;
+        const conservado = datos.fecha_evaluacion && oferta.razon_evaluacion !== mensaje;
+        return `Error de evaluación: ${mensaje}. ${conservado ? 'Resultado anterior conservado' : 'Sin resultado válido nuevo'}.`;
+    }
+
+    textoVigencia(oferta: Oferta): string {
+        if (oferta.estado_evaluacion === 'pendiente') return 'Sin evaluación';
+        if (oferta.vigencia_evaluacion === 'actual') return 'Evaluación actual';
+        if (oferta.vigencia_evaluacion === 'anterior') return 'Evaluación anterior';
+        return 'Vigencia desconocida';
+    }
 
     // Evento que emite cuando el usuario hace clic en una oferta.
     readonly ofertaSeleccionada = output<Oferta>();
@@ -93,6 +143,7 @@ export class TablaOfertas {
     // Cambia de página en la vista cards.
     irAPaginaCards(pagina: number): void {
         if (pagina >= 0 && pagina < this.totalPaginasCards()) {
+            this.limpiarSeleccion();
             this.paginaActualCards.set(pagina);
         }
     }
@@ -100,6 +151,7 @@ export class TablaOfertas {
     // Actualiza el filtro de texto de la vista cards y resetea la página.
     filtrarCards(evento: Event): void {
         const valor = (evento.target as HTMLInputElement).value;
+        this.limpiarSeleccion();
         this.filtroTextoCards.set(valor);
         this.paginaActualCards.set(0);
     }
@@ -115,12 +167,14 @@ export class TablaOfertas {
     // True si al menos una oferta de la página está seleccionada.
     readonly algunaSeleccionada = computed(() => this.seleccionadas().size > 0);
 
-    // True si TODAS las ofertas visibles están seleccionadas.
-    readonly todasSeleccionadas = computed(() => {
-        const total = this.ofertas().length;
-        if (total === 0) return false;
-        return this.ofertas().every(o => this.seleccionadas().has(o.id));
-    });
+    contarSeleccionadasVisibles(visibles: Oferta[]): number {
+        return visibles.filter(oferta => this.seleccionadas().has(oferta.id)).length;
+    }
+
+    // Comparo el mismo conjunto visible que uso al seleccionar la página.
+    todasSeleccionadas(visibles = this.ofertas()): boolean {
+        return visibles.length > 0 && this.contarSeleccionadasVisibles(visibles) === visibles.length;
+    }
 
     // Opciones para los filtros de los dropdowns.
     readonly opcionesEstado = [
@@ -241,6 +295,8 @@ export class TablaOfertas {
 
     // Alterna la selección de una oferta individual.
     toggleSeleccion(id: number): void {
+        if (this.modoDemo() || this.evaluacionOcupada()) return;
+        this.confirmandoReevaluacion.set(false);
         const actual = new Set(this.seleccionadas());
         if (actual.has(id)) {
             actual.delete(id);
@@ -251,11 +307,13 @@ export class TablaOfertas {
     }
 
     // Alterna la selección de todas las ofertas visibles.
-    toggleSeleccionarTodas(): void {
-        if (this.todasSeleccionadas()) {
+    toggleSeleccionarTodas(visibles = this.ofertas()): void {
+        if (this.modoDemo() || this.evaluacionOcupada()) return;
+        this.confirmandoReevaluacion.set(false);
+        if (visibles.every(o => this.seleccionadas().has(o.id))) {
             this.seleccionadas.set(new Set());
         } else {
-            this.seleccionadas.set(new Set(this.ofertas().map(o => o.id)));
+            this.seleccionadas.set(new Set(visibles.map(o => o.id)));
         }
     }
 
@@ -263,6 +321,7 @@ export class TablaOfertas {
     limpiarSeleccion(): void {
         this.seleccionadas.set(new Set());
         this.estadoBulkSeleccionado = null;
+        this.confirmandoReevaluacion.set(false);
     }
 
     // Aplica la acción masiva y emite el evento al padre para confirmación.

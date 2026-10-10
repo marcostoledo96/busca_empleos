@@ -40,6 +40,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoInfojobs = signal(false);
     readonly scrapeandoAdzuna = signal(false);
     readonly evaluando = signal(false);
+    readonly errorEvaluacion = signal<string | null>(null);
 
     // Computed: hay algún scraping individual en curso (para deshabilitar selector mobile).
     // InfoJobs excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
@@ -123,6 +124,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly modoDemo = input(false);
 
     ngOnInit(): void {
+        if (this.modoDemo()) return;
         this.consultarEstadoCron();
         this.rehidratarEvaluacion();
         this.rehidratarCiclo();
@@ -156,6 +158,8 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.evaluando.set(true);
                     this.progresoEvaluacion.set(respuesta.datos);
                     this.iniciarPollingEvaluacion();
+                } else if (respuesta.exito && (respuesta.datos.estado === 'error' || respuesta.datos.errores > 0)) {
+                    this.finalizarSeguimientoEvaluacion(respuesta.datos);
                 }
             },
             error: () => {} // Silencioso — si falla, el componente arranca en estado vacío.
@@ -202,13 +206,16 @@ export class PanelControl implements OnInit, OnDestroy {
                             this.ejecutandoCiclo.set(false);
                             // Aseguro que el overlay muestre 100% antes de cerrar.
                             this.progresoCiclo.set({ ...respuesta.datos, porcentaje: 100, activo: false });
+                            const fallo = respuesta.datos.pasos.some(paso => paso.estado === 'error');
                             setTimeout(() => {
                                 this.mostrarOverlayCiclo.set(false);
                                 this.progresoCiclo.set(null);
                                 this.mensajes.add({
-                                    severity: 'success',
-                                    summary: 'Ciclo completo',
-                                    detail: 'Scraping y evaluación finalizados.',
+                                    severity: fallo ? 'error' : 'success',
+                                    summary: fallo ? 'Ciclo con errores' : 'Ciclo completo',
+                                    detail: fallo
+                                        ? 'El ciclo terminó con errores. Conservo los resultados parciales en el resumen del ciclo.'
+                                        : 'Scraping y evaluación finalizados.',
                                     life: 5000
                                 });
                                 this.accionCompletada.emit();
@@ -262,18 +269,7 @@ export class PanelControl implements OnInit, OnDestroy {
                         this.evaluacionEnProgreso.emit();
                         // Si el backend terminó, detengo el polling y notifico.
                         if (!respuesta.datos.activo) {
-                            this.detenerPollingEvaluacion();
-                            this.evaluando.set(false);
-                            const p = respuesta.datos;
-                            this.mensajes.add({
-                                severity: 'success',
-                                summary: 'Evaluación completada',
-                                detail: `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`,
-                                life: 5000
-                            });
-                            this.accionCompletada.emit();
-                            // Limpio el progreso después de mostrar el toast.
-                            setTimeout(() => this.progresoEvaluacion.set(null), 1500);
+                            this.finalizarSeguimientoEvaluacion(respuesta.datos);
                         }
                     }
                 },
@@ -292,6 +288,33 @@ export class PanelControl implements OnInit, OnDestroy {
                 }
             });
         }, 2000);
+    }
+
+    // Distingo el cierre del proceso de la persistencia exitosa de todos los resultados.
+    private finalizarSeguimientoEvaluacion(p: ProgresoEvaluacion): void {
+        this.detenerPollingEvaluacion();
+        this.evaluando.set(false);
+        this.progresoEvaluacion.set(p);
+        const fallo = p.estado === 'error' || p.errores > 0;
+        const cancelada = !fallo && (p.estado === 'cancelado' || p.evaluadas < p.total);
+        const pendientes = p.pendientes ?? Math.max(0, p.total - p.evaluadas);
+        const conteos = `${p.evaluadas} resultado(s) actualizado(s), ${pendientes} pendiente(s)`;
+        const detalle = fallo
+            ? `${p.mensaje_error || 'La evaluación terminó con errores.'} ${conteos}. Conservo el último resultado válido cuando existe.`
+            : cancelada ? `Evaluación cancelada: ${conteos}.`
+            : `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`;
+        this.errorEvaluacion.set(fallo ? detalle : null);
+        this.mensajes.add({
+            severity: fallo ? 'error' : cancelada ? 'info' : 'success',
+            summary: fallo ? 'Error en evaluación' : cancelada ? 'Evaluación cancelada' : 'Evaluación completada',
+            detail: detalle,
+            life: 5000,
+        });
+        // Refresco también los resultados parciales; no certifico todas las ofertas como nuevas.
+        this.accionCompletada.emit();
+        if (!fallo && !cancelada) setTimeout(() => {
+            if (this.progresoEvaluacion() === p) this.progresoEvaluacion.set(null);
+        }, 1500);
     }
 
     // Limpia el intervalo de polling de evaluación.
@@ -776,43 +799,46 @@ export class PanelControl implements OnInit, OnDestroy {
         });
     }
 
-    ejecutarEvaluacion(): void {
+    ejecutarEvaluacion(ids?: number[]): void {
+        if (this.modoDemo() || this.evaluando() || this.ejecutandoCiclo() || this.scrapeandoAlguno()) return;
+        if (ids !== undefined && (ids.length < 1 || ids.length > 200 || new Set(ids).size !== ids.length ||
+            ids.some(id => !Number.isSafeInteger(id) || id <= 0))) {
+            this.errorEvaluacion.set('Seleccioná entre 1 y 200 ofertas válidas, sin duplicados.');
+            return;
+        }
+        this.errorEvaluacion.set(null);
         this.evaluando.set(true);
         this.progresoEvaluacion.set(null);
-
-        // Espero 500ms antes de iniciar el polling para que el backend
-        // tenga tiempo de inicializar el objeto de progreso.
-        setTimeout(() => this.iniciarPollingEvaluacion(), 500);
-
-        this.evaluacionService.ejecutarEvaluacion().subscribe({
-            next: () => {
-                // El backend responde de inmediato (fire-and-forget).
-                // El polling se encarga de detectar cuándo terminó.
-            },
-            error: (error) => {
-                // 409 Conflict: ya hay una evaluación en curso iniciada antes de este mount.
-                // En lugar de mostrar error, rehidrato el estado desde el backend.
-                if (error?.status === 409) {
-                    this.detenerPollingEvaluacion();
+        this.evaluacionService.ejecutarEvaluacion(ids).subscribe({
+            next: (respuesta) => {
+                if (!respuesta.exito || !respuesta.en_curso) {
                     this.evaluando.set(false);
-                    this.progresoEvaluacion.set(null);
-                    this.rehidratarEvaluacion();
+                    this.errorEvaluacion.set(respuesta.mensaje || 'No se inició la evaluación. Volvé a seleccionar las ofertas.');
                     return;
                 }
+                // Inicio el seguimiento solo después de la aceptación real del backend.
+                this.iniciarPollingEvaluacion();
+            },
+            error: (error) => {
                 this.detenerPollingEvaluacion();
                 this.evaluando.set(false);
                 this.progresoEvaluacion.set(null);
-                this.mensajes.add({
-                    severity: 'error',
-                    summary: 'Error en evaluación',
-                    detail: error.error?.error || 'Error al conectar con el servidor',
-                    life: 5000
-                });
+                // Conservo la rehidratación habitual de pendientes; una selección rechazada no inició trabajo.
+                if (error?.status === 409 && ids === undefined) {
+                    this.rehidratarEvaluacion();
+                    return;
+                }
+                const detalle = error?.status === 409
+                    ? 'Ya hay un proceso en curso. Esperá a que termine y volvé a seleccionar las ofertas.'
+                    : error.error?.error || 'No pude iniciar la evaluación. Actualizá las ofertas y volvé a seleccionar.';
+                this.errorEvaluacion.set(detalle);
+                this.mensajes.add({ severity: 'error', summary: 'Error en evaluación', detail: detalle, life: 5000 });
             }
         });
     }
 
     cancelarEvaluacion(): void {
+        if (this.modoDemo() || !this.evaluando()) return;
         this.evaluacionService.cancelarEvaluacion().subscribe({
             next: () => {
                 this.mensajes.add({

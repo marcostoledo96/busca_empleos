@@ -52,8 +52,9 @@
 
     <!-- Panel de control (scraping + evaluación) -->
     <app-panel-control
+        #panelControl
         [modoDemo]="modoDemo()"
-        (accionCompletada)="onAccionCompletada()"
+        (accionCompletada)="cargarDatos()"
         (evaluacionEnProgreso)="onProgresoEvaluacion()" />
 
     <!-- Sección de resultados: filtro global + 4 tabs -->
@@ -72,6 +73,24 @@
                 [style]="{ minWidth: '160px' }" />
         </div>
 
+        <button type="button" class="dashboard__mensaje" [disabled]="modoDemo()"
+            (click)="modoReevaluacion() ? modoReevaluacion.set(false) : seleccionarParaReevaluar()">
+            {{ modoReevaluacion() ? 'Volver a las ofertas agrupadas' : 'Seleccionar ofertas para reevaluar' }}
+        </button>
+        @if (modoReevaluacion()) {
+            <section aria-label="Selección para reevaluación">
+                <h2>Seleccionar ofertas para reevaluar</h2>
+                <p>Últimos 30 días desde la extracción. Incluyo todos los estados de evaluación, también rechazadas y vigencia desconocida.
+                    Seleccioná hasta 200 ofertas; no se ejecuta nada hasta confirmar.</p>
+                <app-tabla-ofertas [modoDemo]="modoDemo()" [ofertas]="ofertasReevaluables()" [cargando]="sincronizando()"
+                    [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                    (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
+                    (ofertaSeleccionada)="mostrarDetalle($event)"
+                    (postulacionActualizada)="onAccionCompletada()"
+                    (postulacionPendiente)="onPostulacionPendiente($event)"
+                    (accionMasiva)="onAccionMasiva($event)" />
+            </section>
+        } @else {
         <!-- Tabs de resultados -->
         <p-tabs [value]="0" aria-label="Ofertas agrupadas por estado">
             <!-- Tab 1: Aprobadas -->
@@ -116,6 +135,8 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasAprobadas()"
+                        [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                        (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
                         [sortField]="'porcentaje_match'"
                         [sortOrder]="-1"
@@ -130,6 +151,8 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPostuladas()"
+                        [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                        (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
                         [sortField]="'porcentaje_match'"
                         [sortOrder]="-1"
@@ -144,6 +167,8 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasRechazadas()"
+                        [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                        (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
                         [sortField]="'porcentaje_match'"
                         [sortOrder]="-1"
@@ -158,6 +183,8 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPendientes()"
+                        [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                        (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
                         [sortField]="'fecha_extraccion'"
                         [sortOrder]="-1"
@@ -168,6 +195,7 @@
                 </p-tabpanel>
             </p-tabpanels>
         </p-tabs>
+        }
     </div>
 
     <!-- Atribución obligatoria de Adzuna (requerimiento de API) -->

@@ -7,6 +7,20 @@ export interface RespuestaApi<T> {
     error?: string;
 }
 
+export interface RespuestaPreferencias<T> extends RespuestaApi<T> {
+    firma_criterios_evaluacion?: string;
+    cambio_criterios?: boolean;
+}
+
+// Consumo el inicio asincrónico tal como lo devuelve el backend, sin wrapper datos.
+export interface InicioEvaluacion {
+    exito: boolean;
+    mensaje: string;
+    en_curso: boolean;
+    cantidad?: number;
+    periodo_dias?: number;
+}
+
 export interface RespuestaSincronizacionOfertas<T> extends RespuestaApi<T[]> {
     fecha_corte: string;
     max_id: number;
@@ -50,6 +64,10 @@ export interface RespuestaEvaluacion {
 
 // Progreso en tiempo real de la evaluación IA (para polling).
 export interface ProgresoEvaluacion {
+    estado?: 'inactivo' | 'activo' | 'completado' | 'cancelado' | 'error';
+    mensaje_error?: string | null;
+    procesadas?: number;
+    pendientes?: number;
     activo: boolean;
     total: number;
     evaluadas: number;

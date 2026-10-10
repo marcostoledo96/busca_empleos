@@ -3,6 +3,7 @@
 // Mockeo completamente la BD con jest.mock para que los tests
 // sean puros unitarios (sin conexión a PostgreSQL).
 
+jest.mock('dotenv', () => ({ config: jest.fn() }));
 jest.mock('../../src/config/base-datos');
 
 const modeloCache = require('../../src/modelos/evaluacion-cache');
@@ -50,7 +51,7 @@ describe('Modelo de cache de evaluaciones', () => {
             expect(modeloCache.crearHashOferta(cambioModalidad)).not.toBe(hashBase);
         });
 
-        test('ignora diferencias de mayusculas y tildes', () => {
+        test('conservo diferencias de texto presentes en el mensaje real', () => {
             const ofertaA = {
                 titulo: 'Desarrollador Angular',
                 empresa: 'Empresa S.A.',
@@ -67,7 +68,7 @@ describe('Modelo de cache de evaluaciones', () => {
                 descripcion: 'buscamos desarrollador frontend.',
             };
 
-            expect(modeloCache.crearHashOferta(ofertaA)).toBe(modeloCache.crearHashOferta(ofertaB));
+            expect(modeloCache.crearHashOferta(ofertaA)).not.toBe(modeloCache.crearHashOferta(ofertaB));
         });
 
         test('tolera campos undefined', () => {
@@ -209,12 +210,15 @@ describe('Modelo de cache de evaluaciones', () => {
             );
         });
 
-        test('no falla si la query falla (ON CONFLICT DO NOTHING)', async () => {
+        test('reemplazo resultado y fecha ante conflicto compatible', async () => {
             pool.query.mockResolvedValueOnce({ rows: [] });
 
             await expect(
                 modeloCache.guardarCache('h1', 'h2', 'm1', { score: 70 })
             ).resolves.toBeUndefined();
+            expect(pool.query.mock.calls[0][0]).toContain('DO UPDATE');
+            expect(pool.query.mock.calls[0][0]).toContain('resultado = EXCLUDED.resultado');
+            expect(pool.query.mock.calls[0][0]).toContain('creado_en = NOW()');
         });
     });
 });

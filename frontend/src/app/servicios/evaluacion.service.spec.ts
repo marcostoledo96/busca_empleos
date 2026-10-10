@@ -30,12 +30,23 @@ describe('EvaluacionService', () => {
     it('debería ejecutar evaluación (POST)', () => {
         servicio.ejecutarEvaluacion().subscribe((resp) => {
             expect(resp.exito).toBeTrue();
-            expect(resp.datos.en_curso).toBeTrue();
+            expect(resp.en_curso).toBeTrue();
         });
 
         const req = httpMock.expectOne(`${urlBase}/ejecutar`);
         expect(req.request.method).toBe('POST');
-        req.flush({ exito: true, datos: { mensaje: 'Evaluación iniciada', en_curso: true } });
+        expect(req.request.body).toEqual({});
+        req.flush({ exito: true, mensaje: 'Evaluación iniciada.', en_curso: true });
+    });
+
+    it('envía solamente los IDs seleccionados y consume cantidad y período del inicio real', () => {
+        servicio.ejecutarEvaluacion([1, 2]).subscribe(resp => {
+            expect(resp.cantidad).toBe(2);
+            expect(resp.periodo_dias).toBe(30);
+        });
+        const req = httpMock.expectOne(`${urlBase}/ejecutar`);
+        expect(req.request.body).toEqual({ ids: [1, 2] });
+        req.flush({ exito: true, mensaje: 'Evaluación iniciada.', en_curso: true, cantidad: 2, periodo_dias: 30 });
     });
 
     it('debería obtener progreso de evaluación (GET)', () => {

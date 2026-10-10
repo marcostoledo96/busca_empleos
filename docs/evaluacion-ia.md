@@ -132,7 +132,7 @@ Interpreto las señales de Java, seniority, experiencia e inglés dentro de clá
 7. Retornar resultado
 ```
 
-**Manejo de errores:** Si la API falla o la respuesta no es JSON válido, la oferta se marca como rechazada con un mensaje de error descriptivo, sin romper el flujo de las demás.
+**Manejo de errores:** Si falla la API o el JSON en una reevaluación forzada con resultado válido previo, conservo esa evaluación y actualizo únicamente `evaluacion_error_mensaje`. Sin resultado válido previo mantengo el rechazo técnico existente. Continúo las demás ofertas ante fallos de proveedor; ante fallos SQL detengo el lote con estado `error`, nunca `completado`.
 
 ### Construcción del prompt (`construirPromptEvaluacion`)
 
@@ -155,8 +155,8 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 ### Evaluación masiva (`evaluarOfertasPendientes`)
 
 ```
-1. Buscar todas las ofertas con estado_evaluacion = 'pendiente'
-2. Si no hay pendientes → retornar resumen vacío
+1. Usar la selección reciente validada por el controlador, o buscar pendientes extraídas en los últimos 30 días
+2. Tomar una única copia del perfil guardado; si no hay ofertas → retornar resumen vacío
 3. Para CADA oferta (secuencialmente):
    a. Evaluar con DeepSeek
    b. Determinar estado: match=true → 'aprobada', match=false → 'rechazada'
@@ -275,9 +275,148 @@ Se ejecutan antes de llamar a DeepSeek. Si alguna regla excluye, se retorna rech
 
 Se reaplican después de parsear la respuesta IA. Si DeepSeek aprueba una oferta que debió ser excluida, el resultado se sobrescribe con rechazo determinístico.
 
-### Cache defensivo
+### Caché defensiva e identidad vigente (issue #9, T1)
 
-También se aplican al leer resultados cacheados en `evaluarOfertasPendientes()`. Una oferta cacheada como aprobada pero que ahora es excluible se rechaza igual.
+Centralizo la caché en `evaluarOferta()`, compartida por llamadas individuales y
+lotes. Ejecuto las defensas actuales antes de cualquier hit, incluso si la caché
+contiene un rechazo; una aprobación compatible nunca anula una exclusión vigente.
+
+Extraigo los mensajes finales a `entradas-evaluacion.js` y calculo SHA-256 en
+`identidad-evaluacion.js` mediante serialización canónica (claves de objetos
+ordenadas recursivamente, arrays conservados). El sistema enviado contiene
+literalmente el perfil efectivo; ordeno sus objetos también al presentar esa vista.
+La firma de criterios incluye el mensaje de sistema real, modelo efectivo
+(`modelo_ia_evaluacion`, luego `modelo_ia`, luego el predeterminado), configuración
+efectiva del proveedor (URL y temperatura cero compartidas con el request) y
+versiones del contrato de reglas/parser y del detector de prioridad. No incluye claves
+API ni configuración visual. Incremento `VERSION_CONTRATO_EVALUACION` cuando cambio
+reglas o parser.
+
+La identidad por oferta incluye el mensaje de usuario real, con `nivel_requerido`
+y `plataforma`, más las seis fuentes crudas analizadas por las exclusiones:
+`description`, `descriptionHtml`, `jobDescription`, `job_description`, `requirements`
+y `requisitos`. No incluyo logos, tracking ni otros metadatos visuales. Conservo
+mayúsculas, espacios y acentos de los mensajes efectivos; no pruebo equivalencia
+con el hash normalizado anterior ni hago fallback a cachés legacy.
+
+Uso `evaluarOferta(oferta, instrucciones, modelo, preferencias,
+{ forzar: true })`: omito la lectura de caché, mantengo exclusiones y espero el
+upsert que reemplaza resultado, hashes/modelo y `creado_en`. Una ejecución posterior
+reutiliza el resultado nuevo. Los errores de API/parser no se cachean ni reciben
+firma de éxito; una falla de almacenamiento de caché no invalida una evaluación.
+En el worker difiero ese upsert mediante las opciones internas de `evaluarOferta()`
+hasta completar el UPDATE de la oferta. Si el UPDATE falla, no reemplazo caché;
+las llamadas individuales conservan su contrato de caché administrada.
+
+El lote persiste `firma_criterios_evaluacion` mediante el séptimo argumento de
+`actualizarEvaluacion()`, después de prioridad IA. La migración 019 agrega una
+columna TEXT nullable, sin reconstruir criterios históricos. Listado, detalle y
+sincronización derivan `vigencia_evaluacion` con el mismo helper puro: actual,
+anterior o desconocida; pendientes y errores nunca son actuales. La vigencia compara
+criterios, no cambios posteriores del contenido de la oferta. Guardar preferencias
+compara firmas antes/después usando la fila persistida y retorna `cambio_criterios`
+sin llamadas pagas. Ver [contrato API](api-rest.md#firma-y-vigencia-de-evaluaciones-issue-9-t1).
+
+## Reevaluación seleccionada y reset (issue #9, T2)
+
+Deshabilito `backend/tests/scripts/reevaluar-masivo.js`: tanto la ejecución directa
+como la importación fallan antes de cargar dependencias, variables de entorno, BD
+o IA. Conservo la fuente legacy como referencia, sin reset masivo ni un segundo
+flujo de evaluación. Uso el dashboard para seleccionar ofertas recientes o POST
+`/api/evaluacion/ejecutar` con `{"ids":[5,6]}`.
+
+Reutilizo POST `/api/evaluacion/ejecutar` con `{"ids":[5,6]}`. Acepto 1–200 IDs
+únicos, enteros positivos seguros; todos deben existir y haberse extraído en los
+últimos 30 días. La ventana es fija por `fecha_extraccion`, no por publicación ni
+evaluación. Selecciones vacías, malformadas, duplicadas, excesivas, históricas,
+inexistentes o con conteo inesperado responden 400 antes de evaluar: no proceso
+un subconjunto silenciosamente. Respondo inmediatamente con 200, `en_curso: true`,
+`cantidad` exacta y `periodo_dias: 30`; si hay evaluación activa, respondo 409.
+
+La selección siempre fuerza caché, incluso con `forzar: false`, y puede incluir
+cualquier estado de evaluación o postulación. Mantengo exclusiones, reemplazo el
+resultado compatible reutilizable y conservo estados/notas manuales. Un rechazo o
+error técnico no descarta manualmente la oferta. Uso una única copia profunda del
+perfil persistido al comenzar el worker, nunca preferencias entrantes sin guardar.
+No agrego otra orquestación: comparto mutex, progreso y cancelación entre ofertas.
+Sin `ids`, el mismo worker evalúa pendientes de extracción30d, también en automatización.
+Cron y ejecución manual automática adquieren `EVALUACION_OFERTAS` antes de entrar
+al worker, sin adquirir nuevamente el mutex que ya posee el endpoint seleccionado.
+Si está ocupado, registro el conflicto en los errores del ciclo y no modifico
+progreso, cancelación, caché ni resultados de evaluación. Retengo el cliente hasta
+terminar el worker y sus escrituras de progreso/finalización de lote, incluso ante
+cancelación o error; luego libero el bloqueo y devuelvo el cliente una sola vez.
+
+POST `/api/evaluacion/resetear` usa extracción30d por defecto y admite `dias`
+explícito entre 1 y 30, validado antes de escribir en controlador y modelo. Reseteo aprobadas/rechazadas, limpio firma, resultado, fecha
+y prioridad de evaluación, y preservo campos manuales. Con el mismo mutex de la
+ejecución, protejo el reset contra un worker activo. Uso el marcador
+`REEVALUACION_SOLICITADA` en `evaluacion_error_mensaje` como **intención interna de
+forzar una evaluación pendiente**, no como fallo técnico. Omite caché la próxima
+vez que el worker procese esa oferta; al persistir el resultado reemplazo el marcador.
+No elimino cachés compartidas ni pierdo el beneficio de reutilización ordinaria.
+
+Si `dias` supera 30, rechazo el reset para no perder resultados históricos fuera de
+la ventana reevaluable. Recomiendo seleccionar IDs recientes sin reset previo. Guardar perfil o resetear no
+inicia scraping ni llamadas pagas; la ejecución explícita puede consultar IA según
+las defensas y caché aplicables. Ver [contrato API](api-rest.md#post-apievaluacionejecutar).
+
+## Recorrido explícito en el dashboard (issue #9, T3)
+
+Después de guardar un cambio relevante confirmado por el servidor, muestro el aviso
+«Tu perfil cambió» y un enlace a selección de ofertas. No lo infiero del formulario,
+no invalido por cambios irrelevantes y no ejecuto llamadas pagas al guardar.
+
+En `/?reevaluar=1` muestro ofertas de todos los estados extraídas en los últimos
+30 días, con vigencia textual retornada por el backend. Refresco los bloques completos,
+incluidas ofertas cuyo contenido no cambió, antes de habilitar selección. Una firma
+histórica ausente sigue siendo desconocida; no reconstruyo ni invento criterios.
+
+Selecciono una o varias ofertas desde tabla o cards y confirmo cantidad, extracción30d,
+uso del perfil guardado y posible costo. Reutilizo POST de IDs, mutex, progreso y
+cancelación del flujo existente; no agrego scraping ni un segundo evaluador. Los errores
+400/409 de selección no inician polling ni se anuncian como éxito. Un cierre con estado
+`error` o errores de proveedor muestra un aviso accesible y resultados actualizados/pendientes;
+un cierre cancelado no anuncia éxito. Al terminar, incluso con error o cancelación, sincronizo
+resultados parciales sin modificar decisiones manuales. En tabla/cards muestro el fallo
+separado del resultado anterior conservado. Ver [frontend](frontend.md#reevaluación-seleccionada-issue-9).
+
+## Verificación reproducible de issue #9 (T4)
+
+Registro evidencia independiente sobre `d5c1a21a0a24e7c2b1aba5583ab8440cbd951c02`,
+sin cambios de código fuente durante la verificación. Desde la raíz ejecuto:
+
+```bash
+cd backend
+NODE_ENV=test ALLOW_DB_TESTS=false npm test -- --runInBand --silent
+cd ../frontend
+npm test -- --watch=false --browsers=ChromeHeadless
+npm run build
+```
+
+Resultados registrados: backend 1670 pruebas aprobadas, 48 omitidas y 36 suites
+aprobadas; frontend 201 pruebas aprobadas y build aprobado.
+
+Para repetir la variante SQL, preparo primero PostgreSQL 15.19 aislado en loopback,
+base con sufijo `_test`, datos sintéticos y variables PG explícitas mediante `env -i`;
+nunca uso el entorno de producción. Desde `backend`, con `NODE_ENV=test` y la guarda
+`ALLOW_DB_TESTS=true` en ese entorno, ejecuto `npm run db:migrate:apply` (22 migraciones, incluida
+019), lo repito (0 pendientes), luego `npm run test:db` (72 aprobadas, 6 suites,
+mezcla de SQL real y mocks) y `npm test -- --runInBand --silent` (1718 aprobadas,
+39 suites, ninguna omitida). Estos comandos requieren configurar ese aislamiento;
+no constituyen una receta de aprovisionamiento ni infraestructura genérica.
+
+Compruebo en SQL real preservación de estados/notas manuales, JSON crudo y fechas,
+reset de 30 días sin históricos, upsert fresco, selección atómica y clientes advisory
+reales; 019 es idempotente y conserva firmas legacy null. No agrego historial de
+evaluaciones; incremento manualmente el contrato al cambiar decisiones determinísticas o parser.
+
+**Alcance:** backend integrado con funciones reales y proveedor/PG simulados;
+12 pruebas frontend HTTP/DOM con componentes y servicios reales, HTTP simulado,
+sin conexión real al backend. No ejecuto API paga, scraping, revisión visual/responsive
+ni auditoría. En esta verificación previa a publicar usé Node 24.18 local;
+CI remoto con Node 22 no fue ejecutado.
+Confirmo limpieza de fixtures aislados (tmpfs), sin datos persistentes restantes.
 
 ## Documentos relacionados
 
