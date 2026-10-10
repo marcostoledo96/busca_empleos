@@ -227,7 +227,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
 }
 
 /**
- * Evalúo todas las ofertas pendientes de la base de datos.
+ * Evalúo pendientes recientes o el snapshot completo seleccionado por el controlador.
  *
  * Proceso:
  * 1. Busco todas las ofertas con estado_evaluacion = 'pendiente'.
@@ -240,9 +240,10 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
  * Procesando de a una, respetamos los límites y además podemos debuggear
  * fácilmente si algo falla.
  *
+ * @param {Object[]} [seleccionadas] - Ofertas recientes validadas; siempre fuerzo esta selección.
  * @returns {Object} Resumen: { total, aprobadas, rechazadas, errores, detalle }.
  */
-async function evaluarOfertasPendientes() {
+async function evaluarOfertasPendientes(seleccionadas) {
     // Inicializo el progreso y reseteo la bandera de cancelación.
     _cancelarEvaluacion = false;
     let loteId = null;
@@ -258,15 +259,11 @@ async function evaluarOfertasPendientes() {
 
     try {
         // Leo las preferencias UNA sola vez para todo el lote.
-        const prefs = await modeloPreferencia.obtenerPreferencias();
-        const instrucciones = prefs
-            ? construirInstruccionesDesdePreferencias(prefs)
-            : null;
-        const modeloIA = prefs
-            ? (prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO)
-            : undefined;
+        const prefs = structuredClone((await modeloPreferencia.obtenerPreferencias()) || {});
+        const instrucciones = construirInstruccionesDesdePreferencias(prefs);
+        const modeloIA = prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO;
 
-        const pendientes = await modeloOferta.obtenerOfertasPendientes();
+        const pendientes = seleccionadas || await modeloOferta.obtenerOfertasPendientes();
 
         progresoEvaluacion.total = pendientes.length;
 
@@ -302,7 +299,9 @@ async function evaluarOfertasPendientes() {
 
             console.log(`[Evaluación] Procesando oferta ID ${oferta.id}: "${oferta.titulo}"...`);
 
-            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs);
+            // El reset deja un marcador persistido: omito caché solo en esa próxima evaluación.
+            const forzar = Boolean(seleccionadas) || oferta.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA';
+            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs, { forzar });
 
             const estado = resultado.match ? 'aprobada' : 'rechazada';
             const errorMensaje = resultado.error ? resultado.razon : null;
@@ -342,7 +341,7 @@ async function evaluarOfertasPendientes() {
             // saturar PostgreSQL con writes. Si el servidor se reinicia, el
             // frontend ve el último snapshot persistido.
             if (loteId && (progresoEvaluacion.evaluadas % 5 === 0 || progresoEvaluacion.evaluadas === progresoEvaluacion.total)) {
-                evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion).catch(
+                await evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion).catch(
                     err => console.warn('[Evaluación] No se pudo actualizar lote:', err.message)
                 );
             }
@@ -358,7 +357,7 @@ async function evaluarOfertasPendientes() {
         // Marco el lote como finalizado en BD.
         if (loteId) {
             const estadoFinal = _cancelarEvaluacion ? 'cancelado' : 'completado';
-            evaluacionLote.finalizarLote(loteId, estadoFinal).catch(
+            await evaluacionLote.finalizarLote(loteId, estadoFinal).catch(
                 err => console.warn('[Evaluación] No se pudo finalizar lote:', err.message)
             );
         }

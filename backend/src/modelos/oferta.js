@@ -337,7 +337,9 @@ async function obtenerOfertaPorId(id) {
  */
 async function obtenerOfertasPendientes() {
     const resultado = await pool.query(
-        `SELECT * FROM ofertas WHERE estado_evaluacion = 'pendiente' ORDER BY fecha_extraccion DESC`
+        `SELECT * FROM ofertas WHERE estado_evaluacion = 'pendiente'
+         AND fecha_extraccion >= NOW() - INTERVAL '30 days'
+         ORDER BY fecha_extraccion DESC`
     );
 
     return resultado.rows;
@@ -456,8 +458,9 @@ async function actualizarPostulacionMasiva(ids, estadoPostulacion) {
 }
 
 /**
- * Reseteo a 'pendiente' las evaluaciones de la IA para ofertas evaluadas
- * dentro de los últimos N días.
+ * Reseteo a 'pendiente' las evaluaciones de ofertas extraídas en los últimos N días.
+ * El marcador persistido solicita omitir caché en su próxima evaluación;
+ * no elimino cachés compartidas ni modifico datos de postulación.
  *
  * Esto le permite al usuario volver a evaluar ofertas recientes si cambió
  * su perfil o sus preferencias para la IA.
@@ -470,15 +473,19 @@ async function actualizarPostulacionMasiva(ids, estadoPostulacion) {
  * @param {number} dias - Cantidad de días hacia atrás a resetear.
  * @returns {{ id: number, titulo: string }[]} Lista de ofertas reseteadas.
  */
-async function resetearEvaluacionesPorDias(dias) {
+async function resetearEvaluacionesPorDias(dias = 30) {
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = 'pendiente',
              razon_evaluacion  = NULL,
              porcentaje_match  = NULL,
-             fecha_evaluacion  = NULL
+             fecha_evaluacion  = NULL,
+             firma_criterios_evaluacion = NULL,
+             evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA',
+             prioridad_ia = false, puntaje_prioridad_ia = 0,
+             evidencias_prioridad_ia = '[]'::jsonb, version_prioridad_ia = NULL
          WHERE estado_evaluacion IN ('aprobada', 'rechazada')
-           AND fecha_evaluacion > NOW() - make_interval(days => $1)
+           AND fecha_extraccion >= NOW() - make_interval(days => $1)
          RETURNING id, titulo`,
         [dias]
     );
@@ -486,7 +493,33 @@ async function resetearEvaluacionesPorDias(dias) {
     return resultado.rows;
 }
 
+/** Selecciono el conjunto completo reciente; nunca omito IDs inválidos silenciosamente. */
+async function obtenerOfertasSeleccionadas(ids) {
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 200
+        || ids.some(id => !Number.isSafeInteger(id) || id < 1)
+        || new Set(ids).size !== ids.length) {
+        const error = new Error('Debo recibir entre 1 y 200 IDs únicos, enteros positivos seguros.');
+        error.status = 400;
+        throw error;
+    }
+    const resultado = await pool.query(
+        `SELECT * FROM ofertas WHERE id = ANY($1::bigint[])
+         AND fecha_extraccion >= NOW() - INTERVAL '30 days'
+         ORDER BY fecha_extraccion DESC`,
+        [ids]
+    );
+    if (resultado.rows.length !== ids.length
+        || new Set(resultado.rows.map(oferta => Number(oferta.id))).size !== ids.length
+        || resultado.rows.some(oferta => !ids.includes(Number(oferta.id)))) {
+        const error = new Error('Todas las ofertas seleccionadas deben existir y haberse extraído en los últimos 30 días.');
+        error.status = 400;
+        throw error;
+    }
+    return resultado.rows;
+}
+
 module.exports = {
+    obtenerOfertasSeleccionadas,
     crearOferta,
     obtenerOfertas,
     obtenerBloqueSincronizacion,

@@ -31,6 +31,7 @@
 const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
+const bloqueo = require('../utils/bloqueo-concurrente');
 const { detectarIdioma } = require('./servicio-normalizacion');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
@@ -358,7 +359,17 @@ async function ejecutarCicloCompleto() {
     // ── Paso 4: Evaluar ofertas pendientes ──
     actualizarPasoPorgreso('evaluacion', 'procesando');
     try {
-        resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
+        // Comparto el mutex de selección y reset, tanto para cron como para ejecución manual.
+        const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
+        if (!lock.ok) throw new Error('Ya hay una evaluación en curso.');
+        try {
+            if (servicioEvaluacion.obtenerProgresoEvaluacion().activo) {
+                throw new Error('Ya hay una evaluación en curso.');
+            }
+            resultado.evaluacion = await servicioEvaluacion.evaluarOfertasPendientes();
+        } finally {
+            await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        }
         actualizarPasoPorgreso('evaluacion', 'completada', resultado.evaluacion.aprobadas);
         console.log(`[Automatización] Evaluación: ${resultado.evaluacion.aprobadas} aprobadas, ${resultado.evaluacion.rechazadas} rechazadas.`);
     } catch (error) {

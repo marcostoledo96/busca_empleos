@@ -118,8 +118,8 @@ La vigencia describe **criterios del perfil**, no certifica que el contenido de
 una oferta no haya cambiado desde su evaluación. La identidad de caché sí incluye
 las entradas efectivas de cada oferta. No modifico estados manuales de postulación
 ni el comportamiento existente de `fecha_evaluacion`. La migración 019 agrega
-únicamente la firma nullable. T1 no agrega un endpoint de reevaluación por IDs:
-la selección y confirmación corresponden a T2/T3.
+únicamente la firma nullable. T2 reutiliza `/api/evaluacion/ejecutar` para la
+selección por IDs; la confirmación visual corresponde a T3.
 
 ## Base URL
 
@@ -176,7 +176,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/getonbrd` | Consultar estado bloqueado del piloto GetOnBrd | **Sí** | **Inactivo** |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
-| POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
+| POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
 | POST | `/api/automatizacion/detener` | Detener el cron | **Sí** | No |
@@ -609,31 +609,58 @@ Controlador: `backend/src/controladores/controlador-evaluacion.js`
 
 ### POST /api/evaluacion/ejecutar
 
-Evalúa todas las ofertas con `estado_evaluacion = 'pendiente'` usando DeepSeek.
+Sin `ids` (body ausente o `{}`), evalúo solamente pendientes extraídas en los
+últimos **30 días**, también en automatización. Con `{"ids":[5,6]}`, fuerzo
+exactamente esa selección, cualquiera sea su estado de evaluación o postulación.
 
-**Body:** Ninguno.
+Acepto **1–200 IDs únicos**, enteros positivos seguros de JavaScript, sin convertir
+strings. Todas las ofertas deben existir y tener `fecha_extraccion` dentro de la
+ventana fija de 30 días; no uso fecha de publicación ni evaluación. Rechazo con
+**400** una selección vacía, malformada, duplicada, excesiva, histórica o inexistente,
+o un conteo inesperado: no evalúo parcialmente ni omito IDs silenciosamente.
 
-**Ejemplo response (200):**
+Leo una única copia del perfil persistido al iniciar el worker. Ignoro preferencias
+entrantes y `forzar: false`: una selección válida siempre omite lectura de caché y
+reemplaza su resultado compatible, sin saltar exclusiones ni modificar campos
+manuales de postulación. No necesito reset previo.
+
+**Respuesta inmediata (200, selección de dos ofertas):**
 ```json
 {
     "exito": true,
-    "datos": {
-        "total": 30,
-        "aprobadas": 12,
-        "rechazadas": 18,
-        "errores": 0,
-        "mensaje": "Evaluación completada: 12 aprobadas, 18 rechazadas.",
-        "detalle": [
-            {
-                "id": 5,
-                "titulo": "React Developer Junior",
-                "estado": "aprobada",
-                "razon": "Matchea con React y JavaScript del perfil."
-            }
-        ]
-    }
+    "mensaje": "Evaluación iniciada.",
+    "en_curso": true,
+    "cantidad": 2,
+    "periodo_dias": 30
 }
 ```
+
+Sin selección retorno el mismo envoltorio sin `cantidad` ni `periodo_dias`.
+Reutilizo el worker, mutex, progreso y cancelación existentes: **409** si hay una
+evaluación en curso. Consulto GET `/api/evaluacion/progreso` para el avance y POST
+`/api/evaluacion/cancelar` para detener después de la oferta actual. Un fallo técnico
+puede dejar evaluación rechazada con error; nunca lo convierto en descarte manual.
+Guardar preferencias no inicia evaluación ni scraping; solo esta ejecución explícita
+puede consumir IA cuando las exclusiones no resuelven la oferta.
+
+### POST /api/evaluacion/resetear
+
+Sin body o con `{}`, reseteo evaluaciones aprobadas/rechazadas de ofertas extraídas
+en los últimos **30 días**. Con `{"dias":7}`, uso ese período explícito: entero entre
+**1 y 365** (admito cadenas numéricas legacy, no conversiones parciales). Un valor
+inválido responde **400**; el mutex o progreso ocupado responde **409**.
+
+Retorno **200** con `{ exito: true, datos: { reseteadas, ofertas }, mensaje }`;
+`ofertas` contiene `id` y `titulo`. Limpio firma, resultado, fecha y prioridad de
+evaluación; conservo campos manuales. Persisto `REEVALUACION_SOLICITADA` en
+`evaluacion_error_mensaje` como **intención interna de evaluación forzada pendiente**,
+no como error técnico. El worker omite caché para esa próxima evaluación y reemplaza
+el marcador al guardar su resultado, sin borrar cachés compartidas.
+
+Resetear no llama IA ni hace scraping. Un `dias` explícito mayor que 30 puede dejar
+históricos pendientes, pero no los evalúo automáticamente: pendientes y selección
+siguen limitados a extracción30d. Recomiendo la selección explícita mediante
+`/ejecutar` para reevaluar ofertas recientes.
 
 ---
 

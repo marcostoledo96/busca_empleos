@@ -155,8 +155,8 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 ### Evaluación masiva (`evaluarOfertasPendientes`)
 
 ```
-1. Buscar todas las ofertas con estado_evaluacion = 'pendiente'
-2. Si no hay pendientes → retornar resumen vacío
+1. Usar la selección reciente validada por el controlador, o buscar pendientes extraídas en los últimos 30 días
+2. Tomar una única copia del perfil guardado; si no hay ofertas → retornar resumen vacío
 3. Para CADA oferta (secuencialmente):
    a. Evaluar con DeepSeek
    b. Determinar estado: match=true → 'aprobada', match=false → 'rechazada'
@@ -299,7 +299,7 @@ y `requisitos`. No incluyo logos, tracking ni otros metadatos visuales. Conservo
 mayúsculas, espacios y acentos de los mensajes efectivos; no pruebo equivalencia
 con el hash normalizado anterior ni hago fallback a cachés legacy.
 
-Para T2 expongo `evaluarOferta(oferta, instrucciones, modelo, preferencias,
+Uso `evaluarOferta(oferta, instrucciones, modelo, preferencias,
 { forzar: true })`: omito la lectura de caché, mantengo exclusiones y espero el
 upsert que reemplaza resultado, hashes/modelo y `creado_en`. Una ejecución posterior
 reutiliza el resultado nuevo. Los errores de API/parser no se cachean ni reciben
@@ -313,6 +313,51 @@ anterior o desconocida; pendientes y errores nunca son actuales. La vigencia com
 criterios, no cambios posteriores del contenido de la oferta. Guardar preferencias
 compara firmas antes/después usando la fila persistida y retorna `cambio_criterios`
 sin llamadas pagas. Ver [contrato API](api-rest.md#firma-y-vigencia-de-evaluaciones-issue-9-t1).
+
+## Reevaluación seleccionada y reset (issue #9, T2)
+
+Deshabilito `backend/tests/scripts/reevaluar-masivo.js`: tanto la ejecución directa
+como la importación fallan antes de cargar dependencias, variables de entorno, BD
+o IA. Conservo la fuente legacy como referencia, sin reset masivo ni un segundo
+flujo de evaluación. Uso el dashboard para seleccionar ofertas recientes o POST
+`/api/evaluacion/ejecutar` con `{"ids":[5,6]}`.
+
+Reutilizo POST `/api/evaluacion/ejecutar` con `{"ids":[5,6]}`. Acepto 1–200 IDs
+únicos, enteros positivos seguros; todos deben existir y haberse extraído en los
+últimos 30 días. La ventana es fija por `fecha_extraccion`, no por publicación ni
+evaluación. Selecciones vacías, malformadas, duplicadas, excesivas, históricas,
+inexistentes o con conteo inesperado responden 400 antes de evaluar: no proceso
+un subconjunto silenciosamente. Respondo inmediatamente con 200, `en_curso: true`,
+`cantidad` exacta y `periodo_dias: 30`; si hay evaluación activa, respondo 409.
+
+La selección siempre fuerza caché, incluso con `forzar: false`, y puede incluir
+cualquier estado de evaluación o postulación. Mantengo exclusiones, reemplazo el
+resultado compatible reutilizable y conservo estados/notas manuales. Un rechazo o
+error técnico no descarta manualmente la oferta. Uso una única copia profunda del
+perfil persistido al comenzar el worker, nunca preferencias entrantes sin guardar.
+No agrego otra orquestación: comparto mutex, progreso y cancelación entre ofertas.
+Sin `ids`, el mismo worker evalúa pendientes de extracción30d, también en automatización.
+Cron y ejecución manual automática adquieren `EVALUACION_OFERTAS` antes de entrar
+al worker, sin adquirir nuevamente el mutex que ya posee el endpoint seleccionado.
+Si está ocupado, registro el conflicto en los errores del ciclo y no modifico
+progreso, cancelación, caché ni resultados de evaluación. Retengo el cliente hasta
+terminar el worker y sus escrituras de progreso/finalización de lote, incluso ante
+cancelación o error; luego libero el bloqueo y devuelvo el cliente una sola vez.
+
+POST `/api/evaluacion/resetear` usa extracción30d por defecto y admite `dias`
+explícito entre 1 y 365. Reseteo aprobadas/rechazadas, limpio firma, resultado, fecha
+y prioridad de evaluación, y preservo campos manuales. Con el mismo mutex de la
+ejecución, protejo el reset contra un worker activo. Uso el marcador
+`REEVALUACION_SOLICITADA` en `evaluacion_error_mensaje` como **intención interna de
+forzar una evaluación pendiente**, no como fallo técnico. Omite caché la próxima
+vez que el worker procese esa oferta; al persistir el resultado reemplazo el marcador.
+No elimino cachés compartidas ni pierdo el beneficio de reutilización ordinaria.
+
+Si `dias` supera 30 explícitamente, puede dejar históricos pendientes; no los evalúo
+automáticamente porque el worker normal y la selección mantienen la ventana30d.
+Recomiendo seleccionar IDs recientes sin reset previo. Guardar perfil o resetear no
+inicia scraping ni llamadas pagas; la ejecución explícita puede consultar IA según
+las defensas y caché aplicables. Ver [contrato API](api-rest.md#post-apievaluacionejecutar).
 
 ## Documentos relacionados
 

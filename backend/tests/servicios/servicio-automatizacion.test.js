@@ -18,6 +18,11 @@
 // Mockeo los módulos ANTES de importar el servicio.
 // Jest reemplaza el módulo real con el mock para que nunca se llame a la API real.
 jest.mock('node-cron');
+jest.mock('../../src/utils/bloqueo-concurrente', () => ({
+    CLAVES: { EVALUACION_OFERTAS: 10001 },
+    intentarAdquirirLock: jest.fn().mockResolvedValue({ ok: true, client: {} }),
+    liberarBloqueoSeguro: jest.fn().mockResolvedValue(),
+}));
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/modelos/oferta');
@@ -102,6 +107,7 @@ describe('Servicio de automatización', () => {
         servicioScraping.ejecutarScrapingRemoteOK.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingInfojobs.mockResolvedValue([]);
         servicioScraping.ejecutarScrapingAdzuna.mockResolvedValue([]);
+        servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
         servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({
             total: 0, aprobadas: 0, rechazadas: 0, errores: 0,
         });
