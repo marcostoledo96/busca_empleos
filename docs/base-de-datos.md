@@ -82,8 +82,10 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 | `firma_criterios_evaluacion` | TEXT | NULL permitido | Firma SHA-256 de los criterios efectivos de la evaluación exitosa. Migración 019. |
 
 Conservo firmas legacy en NULL (criterios desconocidos), sin backfill. Al reevaluar,
-reemplazo el resultado y su firma sin modificar estados ni notas manuales; no almaceno
-historial de evaluaciones.
+reemplazo el resultado y su firma solo ante éxito, sin modificar estados ni notas manuales;
+no almaceno historial de evaluaciones. Ante fallo de proveedor en reevaluación forzada,
+`registrarErrorEvaluacion()` actualiza únicamente `evaluacion_error_mensaje` y conserva el
+resultado válido anterior, incluida su fecha, firma y prioridad.
 
 ### Constraints activas
 
@@ -185,12 +187,12 @@ Script de creación: `backend/sql/migracion-010-lotes-evaluacion.sql` (idempoten
 | Columna | Tipo | Default | Descripción |
 |---------|------|---------|-------------|
 | `id` | SERIAL | PRIMARY KEY | ID del lote. |
-| `estado` | VARCHAR(30) | `'activo'` | Estado del lote (`activo`, `completado`, `error`). |
+| `estado` | VARCHAR(30) | `'activo'` | Estado del lote (`activo`, `completado`, `cancelado`, `error`), sin constraint adicional. |
 | `total` | INTEGER | 0 | Total de ofertas en el lote. |
-| `evaluadas` | INTEGER | 0 | Ofertas ya evaluadas. |
+| `evaluadas` | INTEGER | 0 | Resultados válidos persistidos; no cuento fallos de proveedor como éxitos. |
 | `aprobadas` | INTEGER | 0 | Ofertas aprobadas. |
 | `rechazadas` | INTEGER | 0 | Ofertas rechazadas. |
-| `errores` | INTEGER | 0 | Errores durante la evaluación. |
+| `errores` | INTEGER | 0 | Fallos de proveedor procesados; un fallo SQL se indica mediante estado `error`. |
 | `porcentaje` | INTEGER | 0 | Progreso del lote (0-100). |
 | `modelo_ia` | VARCHAR(100) | — | Modelo de IA usado. |
 | `creado_en` | TIMESTAMP | NOW() | Fecha de creación. |
@@ -221,6 +223,7 @@ Archivo: `backend/src/modelos/oferta.js`. Funciones CRUD con queries SQL paramet
 | `obtenerOfertas(filtros)` | SELECT con WHERE dinámico | Lista ofertas. Filtros opcionales: `estado` y `plataforma`. Orden: `fecha_extraccion DESC`. |
 | `obtenerOfertaPorId(id)` | SELECT WHERE id=$1 | Retorna una oferta por ID, o `null` si no existe. |
 | `obtenerOfertasPendientes()` | SELECT WHERE estado='pendiente' | Lista ofertas no evaluadas. Usado por el servicio de evaluación. |
+| `registrarErrorEvaluacion(id, mensaje)` | UPDATE solo del mensaje técnico | Conservo todos los demás campos de la evaluación válida y los datos manuales. |
 | `actualizarEvaluacion(id, estado, razon, porcentaje, errorMensaje, prioridadIa, firmaCriterios)` | UPDATE de resultado, prioridad y firma | Actualizo la evaluación IA y su firma; ante error guardo firma NULL. Retorno la oferta actualizada o `null`. |
 | `actualizarPostulacion(id, estadoPostulacion)` | UPDATE SET estado_postulacion | Cambia el estado de postulación de una oferta. Retorna la oferta actualizada o `null`. |
 | `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado WHERE fecha ≥ 30 días | Retorna `{ total, pendientes, aprobadas, rechazadas }` por `estado_evaluacion`, **solo de los últimos 30 días** (filtro por `fecha_extraccion`). Consistente con `obtenerOfertas()`. |

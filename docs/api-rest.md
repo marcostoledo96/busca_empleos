@@ -638,17 +638,39 @@ manuales de postulación. No necesito reset previo.
 Sin selección retorno el mismo envoltorio sin `cantidad` ni `periodo_dias`.
 Reutilizo el worker, mutex, progreso y cancelación existentes: **409** si hay una
 evaluación en curso. Consulto GET `/api/evaluacion/progreso` para el avance y POST
-`/api/evaluacion/cancelar` para detener después de la oferta actual. Un fallo técnico
-puede dejar evaluación rechazada con error; nunca lo convierto en descarte manual.
+`/api/evaluacion/cancelar` para detener después de la oferta actual. Si falla una
+reevaluación forzada, conservo el último resultado válido (estado, razón, porcentaje,
+fecha, firma y prioridad) y registro solamente `evaluacion_error_mensaje`. Sin resultado
+válido previo mantengo el rechazo técnico existente; nunca lo convierto en descarte manual.
+Solo reemplazo caché después de persistir exitosamente la oferta; un fallo opcional de
+caché no revierte el resultado guardado.
 Guardar preferencias no inicia evaluación ni scraping; solo esta ejecución explícita
 puede consumir IA cuando las exclusiones no resuelven la oferta.
+
+### GET /api/evaluacion/progreso
+
+Retorno `{ exito: true, datos }` con los campos habituales y `estado`
+(`inactivo`, `activo`, `completado`, `cancelado` o `error`), `mensaje_error`,
+`procesadas` y `pendientes`. `evaluadas` cuenta resultados válidos persistidos;
+`aprobadas + rechazadas = evaluadas`, `procesadas = evaluadas + errores` y
+`pendientes = total - evaluadas` incluye fallos de proveedor y ofertas no procesadas.
+El porcentaje describe procesamiento, no garantiza éxito. Un fallo SQL detiene el
+lote sin contar la oferta fallida ni las siguientes; prevalece sobre una cancelación.
+El POST ya aceptado sigue siendo 200: consulto este progreso para conocer el resultado.
+
+Persisto los contadores finales y el estado terminal antes de liberar el mutex. Al
+rehidratar un lote con error recupero estado/contadores y un aviso genérico: el detalle
+de la excepción queda en memoria, no agrego una columna ni historial de errores.
+Si la BD está caída, no puedo garantizar escrituras del lote. El próximo inicio
+limpia el estado de error anterior.
 
 ### POST /api/evaluacion/resetear
 
 Sin body o con `{}`, reseteo evaluaciones aprobadas/rechazadas de ofertas extraídas
 en los últimos **30 días**. Con `{"dias":7}`, uso ese período explícito: entero entre
-**1 y 365** (admito cadenas numéricas legacy, no conversiones parciales). Un valor
-inválido responde **400**; el mutex o progreso ocupado responde **409**.
+**1 y 30** (admito cadenas numéricas legacy, no conversiones parciales). Un valor
+inválido responde **400** antes de adquirir el mutex o escribir; el modelo también
+rechaza períodos fuera de 1–30. El mutex o progreso ocupado responde **409**.
 
 Retorno **200** con `{ exito: true, datos: { reseteadas, ofertas }, mensaje }`;
 `ofertas` contiene `id` y `titulo`. Limpio firma, resultado, fecha y prioridad de
@@ -657,10 +679,9 @@ evaluación; conservo campos manuales. Persisto `REEVALUACION_SOLICITADA` en
 no como error técnico. El worker omite caché para esa próxima evaluación y reemplaza
 el marcador al guardar su resultado, sin borrar cachés compartidas.
 
-Resetear no llama IA ni hace scraping. Un `dias` explícito mayor que 30 puede dejar
-históricos pendientes, pero no los evalúo automáticamente: pendientes y selección
-siguen limitados a extracción30d. Recomiendo la selección explícita mediante
-`/ejecutar` para reevaluar ofertas recientes.
+Resetear no llama IA ni hace scraping. Rechazo períodos mayores que 30 para conservar
+intactas las evaluaciones históricas fuera de la ventana reevaluable. Recomiendo la
+selección explícita mediante `/ejecutar` para reevaluar ofertas recientes sin reset previo.
 
 ---
 

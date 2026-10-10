@@ -638,6 +638,26 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         fixture.destroy();
     });
 
+    it('rehidrata error terminal visible y limpia el aviso al iniciar un nuevo lote', async () => {
+        evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: {
+            ...progresoActivoMock, activo: false, estado: 'error', mensaje_error: 'Fallo SQL sintético', pendientes: 7,
+        } }));
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Fallo SQL sintético');
+        expect(fixture.nativeElement.textContent).toContain('3 resultado(s) actualizado(s), 7 pendiente(s)');
+        expect(fixture.nativeElement.textContent).not.toContain('Evaluación completada');
+        expect(component.evaluando()).toBeFalse();
+        evalSpy.ejecutarEvaluacion.and.returnValue(of({ exito: true, en_curso: true, mensaje: 'Iniciada' }));
+        component.ejecutarEvaluacion([1]);
+        await fixture.whenStable();
+        expect(component.errorEvaluacion()).toBeNull();
+        expect(component.progresoEvaluacion()).toBeNull();
+        expect(component.evaluando()).toBeTrue();
+    });
+
     it('al remontarse con evaluación activa, evaluando() queda en true', fakeAsync(() => {
         // El backend reporta evaluación en curso.
         evalSpy.obtenerProgreso.and.returnValue(

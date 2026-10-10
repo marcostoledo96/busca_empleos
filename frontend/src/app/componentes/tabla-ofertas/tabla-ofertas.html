@@ -161,6 +161,9 @@
                         {{ oferta.estado_evaluacion | uppercase }}
                     </span>
                     <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
+                    @if (errorEvaluacionOferta(oferta); as error) {
+                        <span role="status">{{ error }}</span>
+                    }
                     @if (oferta.prioridad_ia) {
                         <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA: ' + (oferta.evidencias_prioridad_ia || []).join(', ')">IA</span>
                     }
@@ -292,6 +295,9 @@
                             {{ oferta.estado_evaluacion | uppercase }}
                         </span>
                         <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
+                        @if (errorEvaluacionOferta(oferta); as error) {
+                            <span role="status">{{ error }}</span>
+                        }
                         @if (!modoDemo()) {
                             <p-select
                                 [options]="opcionesPostulacion"

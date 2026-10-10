@@ -108,10 +108,10 @@ async function resetearEvaluaciones(req, res) {
 
     // Conservo números y cadenas numéricas legacy, no booleanos ni conversiones parciales.
     if ((req.body?.dias !== undefined && !['number', 'string'].includes(typeof req.body.dias))
-        || !Number.isInteger(dias) || dias < 1 || dias > 365) {
+        || !Number.isInteger(dias) || dias < 1 || dias > 30) {
         return res.status(400).json({
             exito: false,
-            error: 'El campo dias debe ser un número entero entre 1 y 365.',
+            error: 'El campo dias debe ser un número entero entre 1 y 30.',
         });
     }
 

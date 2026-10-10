@@ -158,6 +158,8 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.evaluando.set(true);
                     this.progresoEvaluacion.set(respuesta.datos);
                     this.iniciarPollingEvaluacion();
+                } else if (respuesta.exito && (respuesta.datos.estado === 'error' || respuesta.datos.errores > 0)) {
+                    this.finalizarSeguimientoEvaluacion(respuesta.datos);
                 }
             },
             error: () => {} // Silencioso — si falla, el componente arranca en estado vacío.
@@ -264,18 +266,7 @@ export class PanelControl implements OnInit, OnDestroy {
                         this.evaluacionEnProgreso.emit();
                         // Si el backend terminó, detengo el polling y notifico.
                         if (!respuesta.datos.activo) {
-                            this.detenerPollingEvaluacion();
-                            this.evaluando.set(false);
-                            const p = respuesta.datos;
-                            this.mensajes.add({
-                                severity: 'success',
-                                summary: 'Evaluación completada',
-                                detail: `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`,
-                                life: 5000
-                            });
-                            this.accionCompletada.emit();
-                            // Limpio el progreso después de mostrar el toast.
-                            setTimeout(() => this.progresoEvaluacion.set(null), 1500);
+                            this.finalizarSeguimientoEvaluacion(respuesta.datos);
                         }
                     }
                 },
@@ -294,6 +285,33 @@ export class PanelControl implements OnInit, OnDestroy {
                 }
             });
         }, 2000);
+    }
+
+    // Distingo el cierre del proceso de la persistencia exitosa de todos los resultados.
+    private finalizarSeguimientoEvaluacion(p: ProgresoEvaluacion): void {
+        this.detenerPollingEvaluacion();
+        this.evaluando.set(false);
+        this.progresoEvaluacion.set(p);
+        const fallo = p.estado === 'error' || p.errores > 0;
+        const cancelada = !fallo && (p.estado === 'cancelado' || p.evaluadas < p.total);
+        const pendientes = p.pendientes ?? Math.max(0, p.total - p.evaluadas);
+        const conteos = `${p.evaluadas} resultado(s) actualizado(s), ${pendientes} pendiente(s)`;
+        const detalle = fallo
+            ? `${p.mensaje_error || 'La evaluación terminó con errores.'} ${conteos}. Conservo el último resultado válido cuando existe.`
+            : cancelada ? `Evaluación cancelada: ${conteos}.`
+            : `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`;
+        this.errorEvaluacion.set(fallo ? detalle : null);
+        this.mensajes.add({
+            severity: fallo ? 'error' : cancelada ? 'info' : 'success',
+            summary: fallo ? 'Error en evaluación' : cancelada ? 'Evaluación cancelada' : 'Evaluación completada',
+            detail: detalle,
+            life: 5000,
+        });
+        // Refresco también los resultados parciales; no certifico todas las ofertas como nuevas.
+        this.accionCompletada.emit();
+        if (!fallo && !cancelada) setTimeout(() => {
+            if (this.progresoEvaluacion() === p) this.progresoEvaluacion.set(null);
+        }, 1500);
     }
 
     // Limpia el intervalo de polling de evaluación.

@@ -3,6 +3,9 @@
 @if (errorEvaluacion(); as error) {
     <p role="alert">{{ error }}</p>
 }
+@if (progresoEvaluacion()?.estado === 'cancelado' && !errorEvaluacion()) {
+    <p role="status">Evaluación cancelada: {{ progresoEvaluacion()?.evaluadas }} resultado(s) actualizado(s), {{ progresoEvaluacion()?.pendientes ?? 0 }} pendiente(s).</p>
+}
 
 <!-- Overlay: scraping individual (spinner simple, sin % real) -->
 @if (mostrarOverlayIndividual()) {

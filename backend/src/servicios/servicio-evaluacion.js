@@ -41,6 +41,10 @@ let progresoEvaluacion = {
     rechazadas: 0,
     errores: 0,
     porcentaje: 0,
+    estado: 'inactivo',
+    mensaje_error: null,
+    procesadas: 0,
+    pendientes: 0,
 };
 
 // Bandera para interrumpir el loop de evaluación.
@@ -86,7 +90,7 @@ function ubicacionEnZonas(ubicacion, zonas) {
  * @param {string} instrucciones - Instrucciones de sistema armadas desde preferencias.
  * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-v4-flash').
  * @param {Object} [preferencias] - Preferencias guardadas del lote (para defensas programáticas).
- * @param {{forzar?: boolean}} [opciones] - Omite lectura y reemplaza caché, sin omitir defensas.
+ * @param {{forzar?: boolean, diferirCache?: boolean, guardarCache?: Function}} [opciones] - Difiero la caché del worker hasta persistir la oferta.
  * @returns {Object} Resultado con firma_criterios_evaluacion solo si fue exitoso.
  */
 async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opciones = {}) {
@@ -111,12 +115,16 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         const firma = identidad.firma_criterios_evaluacion;
         async function guardarResultado(resultado) {
             const firmado = { ...resultado, firma_criterios_evaluacion: firma };
-            // Espero el reemplazo; una falla de caché no invalida la evaluación.
-            try {
-                await evaluacionCache.guardarCache(identidad.hash_oferta, firma, modeloFinal, firmado);
-            } catch (errorCache) {
-                console.warn('[Evaluación] No se pudo guardar caché:', errorCache.message);
-            }
+            // La caché es opcional; en el worker la confirmo después del UPDATE.
+            const confirmar = async () => {
+                try {
+                    await evaluacionCache.guardarCache(identidad.hash_oferta, firma, modeloFinal, firmado);
+                } catch (errorCache) {
+                    console.warn('[Evaluación] No se pudo guardar caché:', errorCache.message);
+                }
+            };
+            if (opciones.diferirCache) opciones.guardarCache = confirmar;
+            else await confirmar();
             return firmado;
         }
 
@@ -247,6 +255,8 @@ async function evaluarOfertasPendientes(seleccionadas) {
     // Inicializo el progreso y reseteo la bandera de cancelación.
     _cancelarEvaluacion = false;
     let loteId = null;
+    let errorLote = null;
+    let resumen;
     progresoEvaluacion = {
         activo: true,
         total: 0,
@@ -255,6 +265,10 @@ async function evaluarOfertasPendientes(seleccionadas) {
         rechazadas: 0,
         errores: 0,
         porcentaje: 0,
+        estado: 'activo',
+        mensaje_error: null,
+        procesadas: 0,
+        pendientes: 0,
     };
 
     try {
@@ -266,6 +280,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
         const pendientes = seleccionadas || await modeloOferta.obtenerOfertasPendientes();
 
         progresoEvaluacion.total = pendientes.length;
+        progresoEvaluacion.pendientes = pendientes.length;
 
         // Creo un lote persistente en BD para que el progreso sobreviva reinicios.
         try {
@@ -275,7 +290,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
             console.warn('[Evaluación] No se pudo crear lote en BD, el progreso solo estará en memoria:', err.message);
         }
 
-        const resumen = {
+        resumen = {
             total: pendientes.length,
             aprobadas: 0,
             rechazadas: 0,
@@ -301,32 +316,44 @@ async function evaluarOfertasPendientes(seleccionadas) {
 
             // El reset deja un marcador persistido: omito caché solo en esa próxima evaluación.
             const forzar = Boolean(seleccionadas) || oferta.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA';
-            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs, { forzar });
-
-            const estado = resultado.match ? 'aprobada' : 'rechazada';
+            const opciones = { forzar, diferirCache: true };
+            const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs, opciones);
+            const conservarAnterior = forzar && resultado.error
+                && ['aprobada', 'rechazada'].includes(oferta.estado_evaluacion)
+                && Boolean(oferta.fecha_evaluacion)
+                && (!oferta.evaluacion_error_mensaje || oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
+            const estado = conservarAnterior ? oferta.estado_evaluacion : resultado.match ? 'aprobada' : 'rechazada';
             const errorMensaje = resultado.error ? resultado.razon : null;
 
-            // Actualizo el estado, el porcentaje y el error (si hubo) en la base de datos.
-            await modeloOferta.actualizarEvaluacion(
-                oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
-                resultado.prioridad_ia || null, resultado.error ? null : resultado.firma_criterios_evaluacion
-            );
+            if (conservarAnterior) {
+                await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje);
+            } else {
+                await modeloOferta.actualizarEvaluacion(
+                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
+                    resultado.prioridad_ia || null, resultado.error ? null : resultado.firma_criterios_evaluacion
+                );
+            }
+            // Nunca consolido un resultado cuyo UPDATE falló.
+            if (opciones.guardarCache) await opciones.guardarCache();
 
-            // Actualizo los contadores del resumen y del progreso.
-            progresoEvaluacion.evaluadas++;
+            progresoEvaluacion.procesadas++;
             if (resultado.error) {
                 resumen.errores++;
                 progresoEvaluacion.errores++;
-            }
-            if (resultado.match) {
-                resumen.aprobadas++;
-                progresoEvaluacion.aprobadas++;
+                progresoEvaluacion.mensaje_error = resultado.razon;
             } else {
-                resumen.rechazadas++;
-                progresoEvaluacion.rechazadas++;
+                progresoEvaluacion.evaluadas++;
+                if (resultado.match) {
+                    resumen.aprobadas++;
+                    progresoEvaluacion.aprobadas++;
+                } else {
+                    resumen.rechazadas++;
+                    progresoEvaluacion.rechazadas++;
+                }
             }
+            progresoEvaluacion.pendientes = progresoEvaluacion.total - progresoEvaluacion.evaluadas;
             progresoEvaluacion.porcentaje = progresoEvaluacion.total > 0
-                ? Math.round((progresoEvaluacion.evaluadas / progresoEvaluacion.total) * 100)
+                ? Math.round((progresoEvaluacion.procesadas / progresoEvaluacion.total) * 100)
                 : 0;
 
             resumen.detalle.push({
@@ -340,27 +367,39 @@ async function evaluarOfertasPendientes(seleccionadas) {
             // Actualizo el lote en BD cada 5 ofertas (o en la última) para no
             // saturar PostgreSQL con writes. Si el servidor se reinicia, el
             // frontend ve el último snapshot persistido.
-            if (loteId && (progresoEvaluacion.evaluadas % 5 === 0 || progresoEvaluacion.evaluadas === progresoEvaluacion.total)) {
-                await evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion).catch(
-                    err => console.warn('[Evaluación] No se pudo actualizar lote:', err.message)
-                );
+            if (loteId && (progresoEvaluacion.procesadas % 5 === 0 || progresoEvaluacion.procesadas === progresoEvaluacion.total)) {
+                await evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion);
             }
         }
 
-        console.log(`[Evaluación] Completado. Aprobadas: ${resumen.aprobadas}, Rechazadas: ${resumen.rechazadas}, Errores: ${resumen.errores}`);
+        console.log(`[Evaluación] Procesamiento finalizado. Aprobadas: ${resumen.aprobadas}, Rechazadas: ${resumen.rechazadas}, Errores: ${resumen.errores}`);
 
         return resumen;
+    } catch (error) {
+        errorLote = error;
+        progresoEvaluacion.mensaje_error = error.message;
+        throw error;
     } finally {
-        // Siempre marco el progreso como inactivo al terminar (o al cancelar).
-        progresoEvaluacion.activo = false;
-
-        // Marco el lote como finalizado en BD.
-        if (loteId) {
-            const estadoFinal = _cancelarEvaluacion ? 'cancelado' : 'completado';
-            await evaluacionLote.finalizarLote(loteId, estadoFinal).catch(
-                err => console.warn('[Evaluación] No se pudo finalizar lote:', err.message)
+        // Retengo el mutex del llamador hasta terminar todas las escrituras finales.
+        progresoEvaluacion.estado = errorLote || progresoEvaluacion.errores > 0
+            ? 'error' : _cancelarEvaluacion ? 'cancelado' : 'completado';
+        try {
+            if (loteId) {
+                await evaluacionLote.actualizarProgreso(loteId, progresoEvaluacion);
+                await evaluacionLote.finalizarLote(loteId, progresoEvaluacion.estado);
+            }
+        } catch (errorFinal) {
+            progresoEvaluacion.estado = 'error';
+            progresoEvaluacion.mensaje_error = errorLote?.message || errorFinal.message;
+            // Intento dejar al menos el estado terminal; una BD caída no garantiza durabilidad.
+            if (loteId) await evaluacionLote.finalizarLote(loteId, 'error').catch(
+                err => console.warn('[Evaluación] No se pudo persistir el error del lote:', err.message)
             );
+            if (!errorLote) errorLote = errorFinal;
         }
+        progresoEvaluacion.activo = false;
+        if (resumen) Object.assign(resumen, progresoEvaluacion);
+        if (errorLote) throw errorLote;
     }
 }
 
@@ -372,9 +411,13 @@ async function rehidratarProgreso() {
     try {
         const lote = await evaluacionLote.obtenerUltimoLote();
 
-        if (lote && lote.estado === 'activo') {
+        if (lote) {
             progresoEvaluacion = {
-                activo: true,
+                activo: lote.estado === 'activo',
+                estado: lote.estado,
+                mensaje_error: lote.estado === 'error' ? 'El lote terminó con errores. Revisá los resultados y las ofertas pendientes.' : null,
+                procesadas: lote.evaluadas + lote.errores,
+                pendientes: Math.max(0, lote.total - lote.evaluadas),
                 total: lote.total,
                 evaluadas: lote.evaluadas,
                 aprobadas: lote.aprobadas,

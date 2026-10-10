@@ -474,6 +474,9 @@ async function actualizarPostulacionMasiva(ids, estadoPostulacion) {
  * @returns {{ id: number, titulo: string }[]} Lista de ofertas reseteadas.
  */
 async function resetearEvaluacionesPorDias(dias = 30) {
+    if (!Number.isInteger(dias) || dias < 1 || dias > 30) {
+        throw Object.assign(new Error('El campo dias debe ser un número entero entre 1 y 30.'), { status: 400 });
+    }
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = 'pendiente',
@@ -518,7 +521,17 @@ async function obtenerOfertasSeleccionadas(ids) {
     return resultado.rows;
 }
 
+// Registro el fallo sin reemplazar la evaluación válida ni los datos manuales.
+async function registrarErrorEvaluacion(id, mensaje) {
+    const resultado = await pool.query(
+        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 RETURNING *',
+        [mensaje, id]
+    );
+    return resultado.rows[0] || null;
+}
+
 module.exports = {
+    registrarErrorEvaluacion,
     obtenerOfertasSeleccionadas,
     crearOferta,
     obtenerOfertas,

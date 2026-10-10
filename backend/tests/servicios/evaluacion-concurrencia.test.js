@@ -97,7 +97,7 @@ test.each([false, true])('retengo el mutex durante finalización con cancelació
     expect(competidor.ok).toBe(false);
     finalizado.resolver();
     const resultado = await trabajo;
-    expect(lotes.finalizarLote).toHaveBeenCalledWith(1, 'cancelado');
+    expect(lotes.finalizarLote).toHaveBeenCalledWith(1, errorEscritura ? 'error' : 'cancelado');
     expect(resultado.errores.length).toBe(errorEscritura ? 1 : 0);
     expect(propietario).toBeNull();
     for (const cliente of clientes) expect(cliente.release).toHaveBeenCalledTimes(1);

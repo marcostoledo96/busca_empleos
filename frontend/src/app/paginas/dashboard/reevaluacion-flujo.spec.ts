@@ -101,6 +101,18 @@ describe('Reevaluación — selección visible', () => {
         expect(confirmacion?.textContent).toContain('pagas');
     });
 
+    it('muestra fallo separado junto al resultado anterior en tabla y cards', async () => {
+        fixture.componentRef.setInput('ofertas', [{ ...ofertaSintetica(1), fecha_evaluacion: '2026-01-01', evaluacion_error_mensaje: 'Timeout sintético' }]);
+        await fixture.whenStable();
+        for (const vista of ['.vista-desktop', '.vista-mobile']) {
+            const texto = fixture.nativeElement.querySelector(vista).textContent;
+            expect(texto).toContain('Timeout sintético');
+            expect(texto).toContain('Resultado anterior conservado');
+            expect(texto).toContain('20');
+            expect(texto).toContain('RECHAZADA');
+        }
+    });
+
     it('identifica evaluaciones anteriores y desconocidas por texto en tabla y cards', () => {
         for (const vista of ['.vista-desktop', '.vista-mobile']) {
             const texto = fixture.nativeElement.querySelector(vista).textContent;
@@ -352,6 +364,37 @@ describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
             await new Promise(resolve => setTimeout(resolve, 2100));
             http.expectNone(`${url}/evaluacion/progreso`);
             http.expectNone(req => req.url.includes('scraping'));
+        });
+    }
+
+    for (const terminal of [
+        { estado: 'error', errores: 0, mensaje_error: 'Fallo de persistencia' },
+        { estado: 'error', errores: 1, mensaje_error: 'Timeout del proveedor' },
+        { errores: 1, mensaje_error: null },
+        { estado: 'cancelado', errores: 0, mensaje_error: null },
+    ]) {
+        it(`detiene polling y muestra contadores parciales sin éxito falso: ${JSON.stringify(terminal)}`, async () => {
+            const refrescar = spyOn(fixture.componentInstance.accionCompletada, 'emit');
+            fixture.componentInstance.ejecutarEvaluacion([1, 2]);
+            http.expectOne(`${url}/evaluacion/ejecutar`).flush({ exito: true, en_curso: true });
+            await new Promise(resolve => setTimeout(resolve, 2100));
+            http.expectOne(`${url}/evaluacion/progreso`).flush({ exito: true, datos: {
+                activo: false, total: 2, evaluadas: 1, procesadas: 1 + terminal.errores,
+                pendientes: 1, aprobadas: 1, rechazadas: 0, porcentaje: 50, ...terminal,
+            } });
+            await fixture.whenStable();
+            const raiz = fixture.nativeElement as HTMLElement;
+            expect(raiz.textContent).not.toContain('Evaluación completada');
+            expect(raiz.textContent).toContain('1 resultado(s) actualizado(s), 1 pendiente(s)');
+            if (terminal.estado !== 'cancelado') {
+                expect(raiz.querySelector('[role="alert"]')?.textContent).toContain('último resultado válido');
+            } else {
+                expect(raiz.textContent).toContain('Evaluación cancelada');
+            }
+            expect(fixture.componentInstance.evaluando()).toBeFalse();
+            expect(refrescar).toHaveBeenCalledTimes(1);
+            await new Promise(resolve => setTimeout(resolve, 2100));
+            http.expectNone(`${url}/evaluacion/progreso`);
         });
     }
 

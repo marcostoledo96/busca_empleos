@@ -64,6 +64,10 @@ export interface RespuestaEvaluacion {
 
 // Progreso en tiempo real de la evaluación IA (para polling).
 export interface ProgresoEvaluacion {
+    estado?: 'inactivo' | 'activo' | 'completado' | 'cancelado' | 'error';
+    mensaje_error?: string | null;
+    procesadas?: number;
+    pendientes?: number;
     activo: boolean;
     total: number;
     evaluadas: number;

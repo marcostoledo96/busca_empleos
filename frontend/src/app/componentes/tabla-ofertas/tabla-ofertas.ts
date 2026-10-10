@@ -65,6 +65,14 @@ export class TablaOfertas {
         this.limpiarSeleccion();
     }
 
+    errorEvaluacionOferta(oferta: Oferta): string | null {
+        const datos = oferta as Oferta & { evaluacion_error_mensaje?: string | null; fecha_evaluacion?: string | null };
+        const mensaje = datos.evaluacion_error_mensaje;
+        if (!mensaje || mensaje === 'REEVALUACION_SOLICITADA') return null;
+        const conservado = datos.fecha_evaluacion && oferta.razon_evaluacion !== mensaje;
+        return `Error de evaluación: ${mensaje}. ${conservado ? 'Resultado anterior conservado' : 'Sin resultado válido nuevo'}.`;
+    }
+
     textoVigencia(oferta: Oferta): string {
         if (oferta.estado_evaluacion === 'pendiente') return 'Sin evaluación';
         if (oferta.vigencia_evaluacion === 'actual') return 'Evaluación actual';

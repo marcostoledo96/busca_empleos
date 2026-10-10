@@ -80,6 +80,11 @@ beforeEach(() => {
             }
             return { rows: datos };
         }
+        if (sql.includes('UPDATE ofertas SET evaluacion_error_mensaje')) {
+            const fila = filas.find(fila => fila.id === valores[1]);
+            fila.evaluacion_error_mensaje = valores[0];
+            return { rows: [fila] };
+        }
         if (sql.includes('UPDATE ofertas')) {
             const fila = filas.find(fila => fila.id === valores[3]);
             Object.assign(fila, { estado_evaluacion: valores[0], razon_evaluacion: valores[1], porcentaje_match: valores[2], evaluacion_error_mensaje: valores[4], firma_criterios_evaluacion: valores[9] });
@@ -202,11 +207,14 @@ test.each(['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'])('seleccion
     expect(filas[0].notas).toBe('Conservo mi nota');
 });
 
-test('error técnico no descarta manualmente y libera el mutex', async () => {
+test('error técnico conserva evaluación válida, no descarta manualmente y libera el mutex', async () => {
     proveedor.consultarDeepSeek.mockRejectedValueOnce(new Error('Fallo sintético'));
-    filas[0].estado_postulacion = 'no_postulado';
+    Object.assign(filas[0], { estado_postulacion: 'no_postulado', estado_evaluacion: 'aprobada',
+        razon_evaluacion: 'Resultado anterior', porcentaje_match: 80, fecha_evaluacion: '2026-01-01', firma_criterios_evaluacion: 'anterior' });
     await ejecutar({ ids: [1] });
-    expect(filas[0]).toMatchObject({ estado_evaluacion: 'rechazada', estado_postulacion: 'no_postulado', firma_criterios_evaluacion: null });
+    expect(filas[0]).toMatchObject({ estado_evaluacion: 'aprobada', estado_postulacion: 'no_postulado',
+        razon_evaluacion: 'Resultado anterior', porcentaje_match: 80, fecha_evaluacion: '2026-01-01', firma_criterios_evaluacion: 'anterior',
+        evaluacion_error_mensaje: expect.stringContaining('Fallo sintético') });
     expect(servicio.obtenerProgresoEvaluacion()).toMatchObject({ activo: false, errores: 1 });
     expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledTimes(1);
 });

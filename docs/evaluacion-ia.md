@@ -132,7 +132,7 @@ Interpreto las señales de Java, seniority, experiencia e inglés dentro de clá
 7. Retornar resultado
 ```
 
-**Manejo de errores:** Si la API falla o la respuesta no es JSON válido, la oferta se marca como rechazada con un mensaje de error descriptivo, sin romper el flujo de las demás.
+**Manejo de errores:** Si falla la API o el JSON en una reevaluación forzada con resultado válido previo, conservo esa evaluación y actualizo únicamente `evaluacion_error_mensaje`. Sin resultado válido previo mantengo el rechazo técnico existente. Continúo las demás ofertas ante fallos de proveedor; ante fallos SQL detengo el lote con estado `error`, nunca `completado`.
 
 ### Construcción del prompt (`construirPromptEvaluacion`)
 
@@ -304,6 +304,9 @@ Uso `evaluarOferta(oferta, instrucciones, modelo, preferencias,
 upsert que reemplaza resultado, hashes/modelo y `creado_en`. Una ejecución posterior
 reutiliza el resultado nuevo. Los errores de API/parser no se cachean ni reciben
 firma de éxito; una falla de almacenamiento de caché no invalida una evaluación.
+En el worker difiero ese upsert mediante las opciones internas de `evaluarOferta()`
+hasta completar el UPDATE de la oferta. Si el UPDATE falla, no reemplazo caché;
+las llamadas individuales conservan su contrato de caché administrada.
 
 El lote persiste `firma_criterios_evaluacion` mediante el séptimo argumento de
 `actualizarEvaluacion()`, después de prioridad IA. La migración 019 agrega una
@@ -345,7 +348,7 @@ terminar el worker y sus escrituras de progreso/finalización de lote, incluso a
 cancelación o error; luego libero el bloqueo y devuelvo el cliente una sola vez.
 
 POST `/api/evaluacion/resetear` usa extracción30d por defecto y admite `dias`
-explícito entre 1 y 365. Reseteo aprobadas/rechazadas, limpio firma, resultado, fecha
+explícito entre 1 y 30, validado antes de escribir en controlador y modelo. Reseteo aprobadas/rechazadas, limpio firma, resultado, fecha
 y prioridad de evaluación, y preservo campos manuales. Con el mismo mutex de la
 ejecución, protejo el reset contra un worker activo. Uso el marcador
 `REEVALUACION_SOLICITADA` en `evaluacion_error_mensaje` como **intención interna de
@@ -353,9 +356,8 @@ forzar una evaluación pendiente**, no como fallo técnico. Omite caché la pró
 vez que el worker procese esa oferta; al persistir el resultado reemplazo el marcador.
 No elimino cachés compartidas ni pierdo el beneficio de reutilización ordinaria.
 
-Si `dias` supera 30 explícitamente, puede dejar históricos pendientes; no los evalúo
-automáticamente porque el worker normal y la selección mantienen la ventana30d.
-Recomiendo seleccionar IDs recientes sin reset previo. Guardar perfil o resetear no
+Si `dias` supera 30, rechazo el reset para no perder resultados históricos fuera de
+la ventana reevaluable. Recomiendo seleccionar IDs recientes sin reset previo. Guardar perfil o resetear no
 inicia scraping ni llamadas pagas; la ejecución explícita puede consultar IA según
 las defensas y caché aplicables. Ver [contrato API](api-rest.md#post-apievaluacionejecutar).
 
@@ -373,8 +375,11 @@ histórica ausente sigue siendo desconocida; no reconstruyo ni invento criterios
 Selecciono una o varias ofertas desde tabla o cards y confirmo cantidad, extracción30d,
 uso del perfil guardado y posible costo. Reutilizo POST de IDs, mutex, progreso y
 cancelación del flujo existente; no agrego scraping ni un segundo evaluador. Los errores
-400/409 de selección no inician polling ni se anuncian como éxito. Al terminar sincronizo
-resultados nuevos sin modificar decisiones manuales. Ver [frontend](frontend.md#reevaluación-seleccionada-issue-9).
+400/409 de selección no inician polling ni se anuncian como éxito. Un cierre con estado
+`error` o errores de proveedor muestra un aviso accesible y resultados actualizados/pendientes;
+un cierre cancelado no anuncia éxito. Al terminar, incluso con error o cancelación, sincronizo
+resultados parciales sin modificar decisiones manuales. En tabla/cards muestro el fallo
+separado del resultado anterior conservado. Ver [frontend](frontend.md#reevaluación-seleccionada-issue-9).
 
 ## Verificación reproducible de issue #9 (T4)
 

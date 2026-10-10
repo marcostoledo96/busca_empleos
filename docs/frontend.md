@@ -433,8 +433,14 @@ cambiar tamaño de ventana o refrescar datos, para no confirmar ofertas ocultas.
 Reutilizo progreso y cancelación de `PanelControl`. Inicio polling solamente después
 de una aceptación real; para una selección rechazada con 400/409 muestro el error,
 sin polling ni éxito ficticio. Bloqueo inicio en demo y ante evaluación, ciclo o scraping
-local en curso. Al finalizar vuelvo a sincronizar resultados y firmas; las acciones
-manuales de postulación conservan su flujo habitual.
+local en curso. Al finalizar vuelvo a sincronizar resultados y firmas, también ante
+error o cancelación; no anuncio esos cierres como éxito. El panel muestra un aviso
+accesible y cantidades de resultados actualizados/pendientes. Consumo `estado`,
+`mensaje_error`, `procesadas` y `pendientes` como campos opcionales del progreso,
+con fallback para backends anteriores; detengo polling y libero el estado ocupado.
+Tabla y cards muestran el error técnico separado del último resultado válido conservado,
+no presentan el marcador interno de reset como error. Las acciones manuales de
+postulación conservan su flujo habitual.
 
 El test `paginas/dashboard/reevaluacion-flujo.spec.ts` recorre componentes y router reales
 con servicios HTTP reales y respuestas sintéticas (`HttpTestingController`): guardar,

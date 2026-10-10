@@ -31,7 +31,7 @@ async function crearLote(total, modeloIa) {
  *
  * @param {number} loteId - ID del lote.
  * @param {Object} progreso - Datos del progreso actual.
- * @param {number} progreso.evaluadas - Ofertas ya evaluadas.
+ * @param {number} progreso.evaluadas - Resultados válidos persistidos (sin errores de proveedor).
  * @param {number} progreso.aprobadas - Ofertas aprobadas.
  * @param {number} progreso.rechazadas - Ofertas rechazadas.
  * @param {number} progreso.errores - Errores de API.
@@ -58,7 +58,7 @@ async function actualizarProgreso(loteId, progreso) {
  * Marca un lote como finalizado.
  *
  * @param {number} loteId - ID del lote.
- * @param {string} estado - Estado final ('completado' o 'cancelado').
+ * @param {string} estado - Estado final ('completado', 'cancelado' o 'error').
  */
 /**
  * Obtiene el último lote de evaluación creado.
@@ -74,6 +74,9 @@ async function obtenerUltimoLote() {
 }
 
 async function finalizarLote(loteId, estado = 'completado') {
+    if (!['completado', 'cancelado', 'error'].includes(estado)) {
+        throw new Error('Estado terminal de evaluación inválido.');
+    }
     await pool.query(
         `UPDATE evaluacion_lotes
          SET estado = $1, finalizado_en = NOW(), actualizado_en = NOW()
