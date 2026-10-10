@@ -195,7 +195,7 @@ Archivo: `frontend/src/app/servicios/evaluacion.service.ts`
 
 | Método | HTTP | Ruta | Retorna |
 |--------|------|------|---------|
-| `ejecutarEvaluacion()` | POST | `/evaluacion/ejecutar` | `Observable<RespuestaApi<RespuestaEvaluacion>>` |
+| `ejecutarEvaluacion(ids?)` | POST | `/evaluacion/ejecutar` | `Observable<InicioEvaluacion>` (inicio asincrónico, sin wrapper `datos`) |
 
 ### AutomatizacionService
 
@@ -409,6 +409,37 @@ Las pruebas de componente cubren edición, aviso, respuesta persistida de guarda
 recarga, eliminaciones, cero/ninguno, información ausente, texto exacto y conservación
 de criterios laborales al importar. Las pruebas HTTP verifican el transporte intacto
 de la representación autoritativa en GET/PUT.
+
+### Reevaluación seleccionada (issue #9)
+
+Muestro el aviso de perfil cambiado únicamente cuando PUT `/api/preferencias` confirma
+`cambio_criterios: true`. Los cambios sin guardar y los guardados irrelevantes no crean
+invalidaciones ni ejecutan IA. Conservo el aviso de cambios sin guardar y la vista del
+perfil persistido de #8. El enlace abre `/?reevaluar=1`, la ruta del dashboard, sin iniciar
+ninguna evaluación ni seleccionar ofertas automáticamente.
+
+En esa vista incluyo todos los estados extraídos en los últimos **30 días**, también
+rechazadas y ofertas legacy. Sincronizo desde el servidor antes de habilitar selección;
+no calculo vigencia desde el formulario ni confío en un caché local anterior. Tabla y
+cards muestran texto: **Evaluación actual**, **Evaluación anterior** o **Vigencia desconocida**;
+las pendientes indican **Sin evaluación**. El filtro de plataforma continúa disponible.
+
+Reutilizo los checkboxes y las acciones de la tabla; agrego selección en cards y una
+confirmación explícita con cantidad, ventana fija de extracción, perfil guardado y
+posibles llamadas pagas. Envío solamente `{ ids: [...] }`, entre 1 y 200 IDs válidos,
+sin preferencias entrantes ni scraping. Limpio selección al filtrar, paginar, ordenar,
+cambiar tamaño de ventana o refrescar datos, para no confirmar ofertas ocultas.
+
+Reutilizo progreso y cancelación de `PanelControl`. Inicio polling solamente después
+de una aceptación real; para una selección rechazada con 400/409 muestro el error,
+sin polling ni éxito ficticio. Bloqueo inicio en demo y ante evaluación, ciclo o scraping
+local en curso. Al finalizar vuelvo a sincronizar resultados y firmas; las acciones
+manuales de postulación conservan su flujo habitual.
+
+El test `paginas/dashboard/reevaluacion-flujo.spec.ts` recorre componentes y router reales
+con servicios HTTP reales y respuestas sintéticas (`HttpTestingController`): guardar,
+aviso, navegación, selección reciente, confirmación, POST de IDs, cancelación y resultados
+actuales, preservando postulación. También cubro cards, legado, límites, demo y errores.
 
 ## Flujo de datos
 

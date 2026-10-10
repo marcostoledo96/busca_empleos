@@ -1,5 +1,8 @@
 <!-- Panel de acciones: Scraping + Evaluación + Automatización -->
 <p-toast />
+@if (errorEvaluacion(); as error) {
+    <p role="alert">{{ error }}</p>
+}
 
 <!-- Overlay: scraping individual (spinner simple, sin % real) -->
 @if (mostrarOverlayIndividual()) {
@@ -163,7 +166,7 @@
             <div class="panel-grupo" role="group" aria-labelledby="label-evaluacion">
                 <span class="grupo-label" id="label-evaluacion">Evaluación IA</span>
                 <div class="grupo-acciones eval-acciones">
-                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando() || modoDemo()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top" aria-label="Evaluar ofertas pendientes con IA">
+                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="evaluando() || ejecutandoCiclo() || scrapeandoAlguno() || modoDemo()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top" aria-label="Evaluar ofertas pendientes con IA">
                         {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
                     </button>
                     @if (evaluando()) {

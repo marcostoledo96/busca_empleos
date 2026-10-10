@@ -359,6 +359,23 @@ Recomiendo seleccionar IDs recientes sin reset previo. Guardar perfil o resetear
 inicia scraping ni llamadas pagas; la ejecución explícita puede consultar IA según
 las defensas y caché aplicables. Ver [contrato API](api-rest.md#post-apievaluacionejecutar).
 
+## Recorrido explícito en el dashboard (issue #9, T3)
+
+Después de guardar un cambio relevante confirmado por el servidor, muestro el aviso
+«Tu perfil cambió» y un enlace a selección de ofertas. No lo infiero del formulario,
+no invalido por cambios irrelevantes y no ejecuto llamadas pagas al guardar.
+
+En `/?reevaluar=1` muestro ofertas de todos los estados extraídas en los últimos
+30 días, con vigencia textual retornada por el backend. Refresco los bloques completos,
+incluidas ofertas cuyo contenido no cambió, antes de habilitar selección. Una firma
+histórica ausente sigue siendo desconocida; no reconstruyo ni invento criterios.
+
+Selecciono una o varias ofertas desde tabla o cards y confirmo cantidad, extracción30d,
+uso del perfil guardado y posible costo. Reutilizo POST de IDs, mutex, progreso y
+cancelación del flujo existente; no agrego scraping ni un segundo evaluador. Los errores
+400/409 de selección no inician polling ni se anuncian como éxito. Al terminar sincronizo
+resultados nuevos sin modificar decisiones manuales. Ver [frontend](frontend.md#reevaluación-seleccionada-issue-9).
+
 ## Documentos relacionados
 
 - [Arquitectura](arquitectura.md) — Vista general del flujo.

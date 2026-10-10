@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { TabsModule } from 'primeng/tabs';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
@@ -30,6 +31,20 @@ import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 export class Dashboard implements OnInit {
 
     private readonly ofertasService = inject(OfertasService);
+    private readonly ruta = inject(ActivatedRoute, { optional: true });
+    readonly modoReevaluacion = signal(false);
+    readonly ofertasReevaluables = computed(() => this.ordenarOfertas(this.ofertasFiltradas().filter(oferta => {
+        const fecha = new Date(oferta.fecha_extraccion).getTime();
+        return Number.isFinite(fecha) && fecha >= Date.now() - 30 * 86400000;
+    })));
+
+    seleccionarParaReevaluar(): void {
+        if (this.modoDemo()) return;
+        this.filtroPlataforma.set(null);
+        this.modoReevaluacion.set(true);
+        // Leo vigencia autoritativa; no la deduzco del formulario ni del caché local.
+        this.cargarDatos();
+    }
     private readonly persistenciaDashboard = inject(PersistenciaDashboardService);
     private readonly preferenciasService = inject(PreferenciasService);
     private readonly demoService = inject(DemoService);
@@ -125,6 +140,7 @@ export class Dashboard implements OnInit {
     readonly statRechazadas = computed(() => this.ofertasRechazadas().length);
 
     ngOnInit(): void {
+        this.modoReevaluacion.set(this.ruta?.snapshot.queryParamMap.get('reevaluar') === '1');
         // En modo demo no hacemos ninguna petición al backend.
         if (this.demoService.esModoDemo()) {
             this.ofertas.set(this.demoService.obtenerOfertasDemo());
@@ -138,6 +154,7 @@ export class Dashboard implements OnInit {
     // Carga ofertas del backend. Las estadísticas se derivan de las ofertas
     // en computed signals, así que no necesita llamar a /estadisticas.
     cargarDatos(): void {
+        if (this.modoDemo() || this.sincronizando()) return;
         void this.sincronizarOfertas();
     }
 

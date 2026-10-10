@@ -64,6 +64,27 @@
     text-transform: uppercase;
 }
 
+.perfil-aviso-reevaluacion {
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid var(--outline-variant, currentColor);
+    color: var(--on-surface);
+    line-height: 1.5;
+}
+
+.perfil-aviso-reevaluacion p {
+    max-width: 70ch;
+    margin: 0 0 0.5rem;
+}
+
+.perfil-aviso-reevaluacion a {
+    display: inline-block;
+    padding-block: 0.5rem;
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
 /* === Aviso modo demo === */
 .preferencias-aviso-demo {
     display: flex;

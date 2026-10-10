@@ -40,6 +40,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoInfojobs = signal(false);
     readonly scrapeandoAdzuna = signal(false);
     readonly evaluando = signal(false);
+    readonly errorEvaluacion = signal<string | null>(null);
 
     // Computed: hay algún scraping individual en curso (para deshabilitar selector mobile).
     // InfoJobs excluido — desactivado temporalmente (portal de developers no acepta nuevas apps).
@@ -123,6 +124,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly modoDemo = input(false);
 
     ngOnInit(): void {
+        if (this.modoDemo()) return;
         this.consultarEstadoCron();
         this.rehidratarEvaluacion();
         this.rehidratarCiclo();
@@ -776,43 +778,46 @@ export class PanelControl implements OnInit, OnDestroy {
         });
     }
 
-    ejecutarEvaluacion(): void {
+    ejecutarEvaluacion(ids?: number[]): void {
+        if (this.modoDemo() || this.evaluando() || this.ejecutandoCiclo() || this.scrapeandoAlguno()) return;
+        if (ids !== undefined && (ids.length < 1 || ids.length > 200 || new Set(ids).size !== ids.length ||
+            ids.some(id => !Number.isSafeInteger(id) || id <= 0))) {
+            this.errorEvaluacion.set('Seleccioná entre 1 y 200 ofertas válidas, sin duplicados.');
+            return;
+        }
+        this.errorEvaluacion.set(null);
         this.evaluando.set(true);
         this.progresoEvaluacion.set(null);
-
-        // Espero 500ms antes de iniciar el polling para que el backend
-        // tenga tiempo de inicializar el objeto de progreso.
-        setTimeout(() => this.iniciarPollingEvaluacion(), 500);
-
-        this.evaluacionService.ejecutarEvaluacion().subscribe({
-            next: () => {
-                // El backend responde de inmediato (fire-and-forget).
-                // El polling se encarga de detectar cuándo terminó.
-            },
-            error: (error) => {
-                // 409 Conflict: ya hay una evaluación en curso iniciada antes de este mount.
-                // En lugar de mostrar error, rehidrato el estado desde el backend.
-                if (error?.status === 409) {
-                    this.detenerPollingEvaluacion();
+        this.evaluacionService.ejecutarEvaluacion(ids).subscribe({
+            next: (respuesta) => {
+                if (!respuesta.exito || !respuesta.en_curso) {
                     this.evaluando.set(false);
-                    this.progresoEvaluacion.set(null);
-                    this.rehidratarEvaluacion();
+                    this.errorEvaluacion.set(respuesta.mensaje || 'No se inició la evaluación. Volvé a seleccionar las ofertas.');
                     return;
                 }
+                // Inicio el seguimiento solo después de la aceptación real del backend.
+                this.iniciarPollingEvaluacion();
+            },
+            error: (error) => {
                 this.detenerPollingEvaluacion();
                 this.evaluando.set(false);
                 this.progresoEvaluacion.set(null);
-                this.mensajes.add({
-                    severity: 'error',
-                    summary: 'Error en evaluación',
-                    detail: error.error?.error || 'Error al conectar con el servidor',
-                    life: 5000
-                });
+                // Conservo la rehidratación habitual de pendientes; una selección rechazada no inició trabajo.
+                if (error?.status === 409 && ids === undefined) {
+                    this.rehidratarEvaluacion();
+                    return;
+                }
+                const detalle = error?.status === 409
+                    ? 'Ya hay un proceso en curso. Esperá a que termine y volvé a seleccionar las ofertas.'
+                    : error.error?.error || 'No pude iniciar la evaluación. Actualizá las ofertas y volvé a seleccionar.';
+                this.errorEvaluacion.set(detalle);
+                this.mensajes.add({ severity: 'error', summary: 'Error en evaluación', detail: detalle, life: 5000 });
             }
         });
     }
 
     cancelarEvaluacion(): void {
+        if (this.modoDemo() || !this.evaluando()) return;
         this.evaluacionService.cancelarEvaluacion().subscribe({
             next: () => {
                 this.mensajes.add({

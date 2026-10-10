@@ -38,6 +38,8 @@ export interface Oferta {
     fecha_publicacion: string | null;
     fecha_extraccion: string;
     datos_crudos: Record<string, unknown> | null;
+    firma_criterios_evaluacion?: string | null;
+    vigencia_evaluacion?: 'actual' | 'anterior' | 'desconocida';
     prioridad_ia?: boolean;
     puntaje_prioridad_ia?: number;
     evidencias_prioridad_ia?: string[];
