@@ -39,6 +39,8 @@ describe('Reevaluación — aviso del perfil guardado', () => {
         fixture = TestBed.createComponent(Preferencias);
         fixture.autoDetectChanges();
         http.expectOne(`${url}/preferencias`).flush({ exito: true, datos, firma_criterios_evaluacion: 'inicial' });
+        http.expectOne(`${url}/preferencias/cv-base`).flush({ exito: true,
+            datos: { cv_base: null, cv_base_actualizado_en: null } });
         await fixture.whenStable();
     });
 
@@ -248,6 +250,8 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         });
         await harness.navigateByUrl('/preferencias');
         http.expectOne(`${url}/preferencias`).flush({ exito: true, datos: { nombre: 'Guardado' } });
+        http.expectOne(`${url}/preferencias/cv-base`).flush({ exito: true,
+            datos: { cv_base: null, cv_base_actualizado_en: null } });
         await harness.fixture.whenStable();
         const preferencias = harness.routeDebugElement!.componentInstance as Preferencias;
         preferencias.nombre = 'Perfil confirmado nuevo';

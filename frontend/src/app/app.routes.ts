@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './guards/auth.guard';
+import { cambiosCvGuard } from './guards/cambios-cv.guard';
 
 export const routes: Routes = [
     {
@@ -10,6 +11,7 @@ export const routes: Routes = [
     {
         path: 'preferencias',
         canActivate: [authGuard],
+        canDeactivate: [cambiosCvGuard],
         loadComponent: () => import('./paginas/preferencias/preferencias').then(m => m.Preferencias)
     },
     {

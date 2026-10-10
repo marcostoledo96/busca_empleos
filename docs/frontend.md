@@ -1,5 +1,41 @@
 # Frontend — Busca Empleos
 
+## CV base editable — issue #12
+
+En `/preferencias` mantengo un editor de texto Markdown cómodo, independiente del
+perfil confirmado y del borrador de revisión. No leo ningún `cv.md` del repositorio.
+
+- **Guardar CV base**: envío la cadena exacta a `PUT /api/preferencias/cv-base`
+  como `text/markdown; charset=utf-8`, sin JSON. Consulto la fuente con `GET` al abrir.
+  Distingo fuente ausente (`null`) de fuente guardada vacía (`''`). Muestro
+  `Sin cambios`, `Cambios pendientes`, `Guardando`, `Guardado correctamente` o
+  `Error al guardar`; la fecha proviene únicamente de una respuesta exitosa de la BD.
+  Ante fallas conservo el texto local y permito reintentar. No modifico preferencias,
+  borradores, evaluaciones ni cachés al guardar la fuente.
+- **Usar este archivo como mi CV base**: cargo explícitamente el archivo seleccionado
+  en el editor, sin guardar. Confirmo antes de reemplazar cambios pendientes.
+  Valido UTF-8 estricto, hasta 1 MiB inclusive (1048576 bytes) y ausencia de NUL;
+  preservo BOM, espacios y saltos de línea. Descarto lecturas tardías de otro archivo
+  o de un editor que cambió mientras esperaba.
+- **Analizar texto del editor con IA**: envío una copia exacta como `File('cv-base.md')`
+  de tipo `text/markdown` por el servicio existente `analizarCvMarkdown`. Uso el
+  endpoint y la configuración de importación existentes, sin llamadas automáticas.
+  El texto puede estar sin guardar. El análisis tiene costo y solo genera una
+  propuesta revisable; no guarda la fuente ni confirma preferencias.
+- **Aplicar al formulario** y **Guardar preferencias** siguen siendo pasos separados.
+  Conservo correcciones, preguntas y notas al guardar/importar la fuente; pido
+  confirmación antes de descartar una revisión para seleccionar o analizar otra.
+  La reevaluación continúa siendo explícita después de un cambio de criterios
+  confirmado por el guardado de preferencias.
+
+Deshabilito el editor hasta cargar la fuente y mientras guardo o leo un archivo.
+Durante el guardado también pauso acciones de archivo/análisis; una respuesta
+ tardía no sobrescribe ediciones programáticas locales. `CanDeactivate` y
+`beforeunload` advierten al salir con cambios pendientes o guardado en curso.
+El navegador decide la redacción del aviso al cerrar/recargar la pestaña.
+No agrego dependencias, editor enriquecido ni persistencia del CV en el navegador;
+conservo el interceptor de autenticación existente.
+
 ## Stack
 
 | Tecnología | Versión | Uso |
