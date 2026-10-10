@@ -4,7 +4,7 @@ import { PreferenciasService } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { DemoService } from '../../servicios/demo.service';
 import { MessageService } from 'primeng/api';
-import { of } from 'rxjs';
+import { of, throwError, Subject } from 'rxjs';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 describe('Preferencias — Accesibilidad aria-live dinámico', () => {
@@ -32,6 +32,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const mockPrefService = {
             obtenerPreferencias: () => of(mockPreferencias),
             actualizarPreferencias: () => of(mockPreferencias),
+            analizarCvMarkdown: () => of({ exito: true, datos: { nombre: 'Perfil parcial' } }),
         };
         const mockEvaluacionService = {
             resetearEvaluaciones: () => of({ exito: true, datos: { reseteadas: 3 } }),
@@ -53,6 +54,144 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const component = fixture.componentInstance;
         return { fixture, component };
     }
+
+    it('muestra el error backend y descarta la extracción anterior', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const mensajes = fixture.debugElement.injector.get(MessageService);
+        const aviso = spyOn(mensajes, 'add').and.callThrough();
+        component.cargando.set(false);
+        fixture.autoDetectChanges();
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValue(throwError(() => ({
+            error: { error: 'La extracción del CV contiene datos inválidos.' },
+        })));
+        component.resultadoImportacion = { nombre: 'Anterior' } as any;
+        component.preguntasImportacion = [{ campo: 'anterior', pregunta: 'Anterior' }];
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+        expect(component.preguntasImportacion).toEqual([]);
+        expect(component.analizandoCv()).toBeFalse();
+        expect(aviso).toHaveBeenCalledWith(jasmine.objectContaining({ detail: 'La extracción del CV contiene datos inválidos.' }));
+        component.nombre = 'Confirmado';
+        component.aplicarImportacion();
+        expect(component.nombre).toBe('Confirmado');
+        await fixture.whenStable();
+        expect(fixture.nativeElement.textContent).toContain('La extracción del CV contiene datos inválidos.');
+        expect(fixture.nativeElement.querySelector('.importar-resultado')).toBeNull();
+    });
+
+    it('descarta sugerencias también ante archivo grande y error sin mensaje backend', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const mensajes = fixture.debugElement.injector.get(MessageService);
+        const aviso = spyOn(mensajes, 'add');
+        const analizar = spyOn(servicio, 'analizarCvMarkdown').and.returnValue(throwError(() => ({ status: 0 })));
+        component.resultadoImportacion = { nombre: 'Anterior' } as any;
+        component.archivoCvSeleccionado = new File(['a'.repeat(1024 * 1024 + 1)], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+        expect(analizar).not.toHaveBeenCalled();
+        component.resultadoImportacion = { nombre: 'Anterior' } as any;
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+        expect(aviso).toHaveBeenCalledWith(jasmine.objectContaining({ detail: 'No se pudo analizar el CV.' }));
+    });
+
+    it('presenta una extracción parcial sin inventar listas ausentes', async () => {
+        const { fixture, component } = await crearComponente();
+        component.cargando.set(false);
+        component.tabActiva.set(5);
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        fixture.autoDetectChanges();
+        component.analizarCv();
+        await fixture.whenStable();
+        expect(component.resultadoImportacion).toEqual({ nombre: 'Perfil parcial' } as any);
+        expect(component.preguntasImportacion).toEqual([]);
+    });
+
+    for (const preguntas of [undefined, [], [{ campo: 'nuevo', pregunta: '¿Nuevo?', motivo: 'Ausente' }]]) {
+        it(`conservo omisión y aplico preguntas explícitas: ${JSON.stringify(preguntas)}`, async () => {
+            const { component } = await crearComponente();
+            const servicio = TestBed.inject(PreferenciasService);
+            const anterior = [{ campo: 'anterior', pregunta: '¿Anterior?', motivo: 'Pendiente' }];
+            spyOn(servicio, 'obtenerPreferencias').and.returnValue(of({ ...mockPreferencias,
+                datos: { ...mockPreferencias.datos, preguntas_perfil_pendientes: anterior } } as any));
+            const guardar = spyOn(servicio, 'actualizarPreferencias').and.returnValue(of({ exito: false } as any));
+            spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true,
+                datos: { nombre: 'Nuevo', ...(preguntas === undefined ? {} : { preguntas }) } } as any));
+            component.cargarPreferencias();
+            component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+            component.analizarCv();
+            component.aplicarImportacion();
+            expect(component.preguntasPerfilPendientes.map(p => p.campo)).toEqual((preguntas ?? anterior).map(p => p.campo));
+            component.guardar();
+            const payload = guardar.calls.mostRecent().args[0];
+            if (preguntas === undefined) expect(payload.preguntas_perfil_pendientes).toBeUndefined();
+            else expect(payload.preguntas_perfil_pendientes?.length).toBe(preguntas.length);
+        });
+    }
+
+    for (const falla of [false, true]) {
+        for (const terminaB of [false, true]) {
+            it(`ignoro respuesta A obsoleta: error=${falla}, B finalizado=${terminaB}`, async () => {
+                const { fixture, component } = await crearComponente();
+                const servicio = TestBed.inject(PreferenciasService);
+                const a = new Subject<any>();
+                const b = new Subject<any>();
+                spyOn(servicio, 'analizarCvMarkdown').and.returnValues(a, b);
+                const mensajes = fixture.debugElement.injector.get(MessageService);
+                const aviso = spyOn(mensajes, 'add');
+                component.archivoCvSeleccionado = new File(['A'], 'a.md');
+                component.analizarCv();
+                component.onArchivoCvSeleccionado({ target: { files: [new File(['B'], 'b.md')] } } as unknown as Event);
+                expect(component.resultadoImportacion).toBeNull();
+                expect(component.preguntasImportacion).toEqual([]);
+                expect(component.analizandoCv()).toBeFalse();
+                component.analizarCv();
+                if (terminaB) b.next({ exito: true, datos: { nombre: 'B' } });
+                aviso.calls.reset();
+                if (falla) a.error({ error: { error: 'Error A' } });
+                else a.next({ exito: true, datos: { nombre: 'A' } });
+                expect(aviso).not.toHaveBeenCalled();
+                expect(component.analizandoCv()).toBe(!terminaB);
+                expect(component.resultadoImportacion).toEqual(terminaB ? { nombre: 'B' } : null);
+                if (!terminaB) b.next({ exito: true, datos: { nombre: 'B' } });
+                expect(component.resultadoImportacion).toEqual({ nombre: 'B' });
+            });
+        }
+    }
+
+    it('descarto A antes de iniciar B y conservo precedencia de preguntas pendientes explícitas', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const a = new Subject<any>();
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValues(a, of({ exito: true, datos: {
+            nombre: 'B', preguntas_perfil_pendientes: [], preguntas: [{ campo: 'otro', pregunta: '¿Otro?', motivo: 'Ausente' }],
+        } } as any));
+        component.archivoCvSeleccionado = new File(['A'], 'a.md');
+        component.analizarCv();
+        component.onArchivoCvSeleccionado({ target: { files: [new File(['B'], 'b.md')] } } as unknown as Event);
+        a.next({ exito: true, datos: { nombre: 'A' } });
+        expect(component.resultadoImportacion).toBeNull();
+        component.analizarCv();
+        component.preguntasPerfilPendientes = [{ campo: 'anterior', pregunta: '¿Anterior?' }];
+        component.aplicarImportacion();
+        expect(component.nombre).toBe('B');
+        expect(component.preguntasPerfilPendientes).toEqual([]);
+    });
+
+    it('cambiar archivo limpia la vista previa y los avisos', async () => {
+        const { fixture, component } = await crearComponente();
+        component.resultadoImportacion = { nombre: 'Anterior' };
+        component.preguntasImportacion = [{ campo: 'anterior', pregunta: '¿Anterior?' }];
+        const limpiar = spyOn(fixture.debugElement.injector.get(MessageService), 'clear');
+        component.onArchivoCvSeleccionado({ target: { files: [] } } as unknown as Event);
+        expect(component.resultadoImportacion).toBeNull();
+        expect(component.preguntasImportacion).toEqual([]);
+        expect(limpiar).toHaveBeenCalled();
+    });
 
     it('debería crear el componente', async () => {
         const { component } = await crearComponente();

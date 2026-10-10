@@ -122,7 +122,8 @@ export class Preferencias implements OnInit {
     // Importación de CV Markdown.
     archivoCvSeleccionado: File | null = null;
     analizandoCv = signal(false);
-    resultadoImportacion: ResultadoImportacionCv | null = null;
+    private solicitudCv = 0;
+    resultadoImportacion: Partial<ResultadoImportacionCv> | null = null;
     preguntasImportacion: PreguntaImportacion[] = [];
     preguntasPerfilPendientes: PreguntaImportacion[] = [];
 
@@ -553,9 +554,20 @@ export class Preferencias implements OnInit {
     onArchivoCvSeleccionado(evento: Event): void {
         const input = evento.target as HTMLInputElement;
         this.archivoCvSeleccionado = input.files?.[0] ?? null;
+        this.solicitudCv++;
+        this.analizandoCv.set(false);
+        this.resultadoImportacion = null;
+        this.preguntasImportacion = [];
+        this.mensajes.clear();
     }
 
     analizarCv(): void {
+        const solicitud = ++this.solicitudCv;
+        const archivo = this.archivoCvSeleccionado;
+        this.analizandoCv.set(false);
+        // Descarto sugerencias anteriores antes de validar o iniciar otro análisis.
+        this.resultadoImportacion = null;
+        this.preguntasImportacion = [];
         if (!this.archivoCvSeleccionado) return;
 
         if (this.archivoCvSeleccionado.size > 1024 * 1024) {
@@ -566,6 +578,7 @@ export class Preferencias implements OnInit {
         this.analizandoCv.set(true);
         this.servicio.analizarCvMarkdown(this.archivoCvSeleccionado).subscribe({
             next: (resp) => {
+                if (solicitud !== this.solicitudCv || archivo !== this.archivoCvSeleccionado) return;
                 this.analizandoCv.set(false);
                 if (resp.exito && resp.datos) {
                     this.resultadoImportacion = resp.datos;
@@ -575,11 +588,15 @@ export class Preferencias implements OnInit {
                         respuesta: '',
                     }));
                     this.mensajes.add({ severity: 'success', summary: 'CV analizado', detail: 'Revisá los datos extraídos antes de aplicar.' });
+                } else {
+                    this.mensajes.add({ severity: 'error', summary: 'Error', detail: resp.error || 'No se pudo analizar el CV.' });
                 }
             },
-            error: () => {
+            error: (error) => {
+                if (solicitud !== this.solicitudCv || archivo !== this.archivoCvSeleccionado) return;
                 this.analizandoCv.set(false);
-                this.mensajes.add({ severity: 'error', summary: 'Error', detail: 'No se pudo analizar el CV.' });
+                const detalle = typeof error.error?.error === 'string' ? error.error.error : 'No se pudo analizar el CV.';
+                this.mensajes.add({ severity: 'error', summary: 'Error', detail: detalle });
             },
         });
     }
@@ -610,7 +627,10 @@ export class Preferencias implements OnInit {
         if (r.preguntas_perfil_pendientes?.length) {
             this.preguntasImportacion = r.preguntas_perfil_pendientes.map((p: any) => ({ ...p, estado: 'pendiente', respuesta: '' }));
         }
-        this.preguntasPerfilPendientes = this.preguntasImportacion.filter(p => p.estado !== 'ignorada');
+        // La omisión conserva preguntas confirmadas; [] explícito permite limpiarlas.
+        if (Object.hasOwn(r, 'preguntas_perfil_pendientes') || Object.hasOwn(r, 'preguntas')) {
+            this.preguntasPerfilPendientes = this.preguntasImportacion.filter(p => p.estado !== 'ignorada');
+        }
         this.fechaImportacionCv = new Date().toISOString();
 
         this.resultadoImportacion = null;

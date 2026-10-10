@@ -122,7 +122,8 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
             if (!reintentable || intento === maxReintentos) {
                 const cuerpo = await respuesta.text();
                 throw new Error(
-                    `DeepSeek respondió con error ${respuesta.status}: ${cuerpo}`
+                    config.importacionCv ? `DeepSeek respondió con error ${respuesta.status}.` :
+                        `DeepSeek respondió con error ${respuesta.status}: ${cuerpo}`
                 );
             }
 
@@ -149,7 +150,9 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
             const espera = calcularBackoff(intento);
 
             console.warn(
-                `[DeepSeek] Error en intento ${intento + 1}, reintentando en ${espera}ms: ${error.message}`
+                config.importacionCv
+                    ? `[DeepSeek] Error de importación en intento ${intento + 1}, reintentando en ${espera}ms.`
+                    : `[DeepSeek] Error en intento ${intento + 1}, reintentando en ${espera}ms: ${error.message}`
             );
 
             await esperar(espera);
@@ -178,7 +181,7 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
  * @param {string} [modelo] - Modelo a usar (default: DEEPSEEK_MODELO).
  * @returns {string} La respuesta de la IA en texto plano.
  */
-async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
+async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo, opciones = {}) {
     if (!DEEPSEEK_API_KEY || DEEPSEEK_API_KEY === 'tu_api_key_de_deepseek') {
         throw new Error(
             'DEEPSEEK_API_KEY no está configurada. Revisá el archivo .env.'
@@ -202,6 +205,7 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
     }, {
         timeoutMs: 30000,
         maxReintentos: 3,
+        importacionCv: opciones.importacionCv === true,
     });
 
     const datos = await respuesta.json();
@@ -212,6 +216,11 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo) {
         throw new Error('DeepSeek no devolvió ninguna respuesta (choices vacío).');
     }
 
+    if (opciones.importacionCv && datos.choices[0].finish_reason !== 'stop') {
+        const error = new Error('La extracción está incompleta.');
+        error.codigo = datos.choices[0].finish_reason === 'length' ? 'SALIDA_TRUNCADA' : 'SALIDA_INCOMPLETA';
+        throw error;
+    }
     return datos.choices[0].message.content;
 }
 

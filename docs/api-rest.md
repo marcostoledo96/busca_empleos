@@ -95,6 +95,53 @@ programática. El prompt personalizado sigue almacenado intacto y solo agrega
 criterios, no hechos ni permisos para quitar restricciones. Prioridad IA permanece
 un ajuste del ranking, no un bonus fijo sobre el match.
 
+## Extracción de CV completo (issue #10)
+
+En `POST /api/preferencias/importar-cv/analizar` envío un único Markdown en el campo
+multipart `cv` (máximo 1 MiB). Analizo el contenido completo en una solicitud lógica,
+sin recortar a 15000 caracteres. Mantengo modelo, timeout y reintentos existentes.
+Uso bytes UTF-8 de ambos mensajes como presupuesto conservador, **no tokens exactos**:
+acepto hasta 602688 bytes de mensajes (contexto de 1000000 menos reserva de salida
+máxima 393216 —384 × 1024— y margen de formato 4096). El límite efectivo del CV
+es ese techo menos los bytes de instrucciones y encuadre del prompt de usuario;
+un archivo permitido por Multer puede excederlo. No aumento `max_tokens`.
+Rechazo UTF-8 malformado con decodificación fatal, sin sustituir bytes silenciosamente.
+Referencia de límites: https://api-docs.deepseek.com/quick_start/pricing.
+
+Devuelvo `{ exito: true, datos }` solamente después de validar el objeto JSON y
+cada campo presente: enums compartidos con PUT, objetos de tecnologías/roles,
+aliases, listas de strings, inglés anidado, preguntas y salarios numéricos finitos
+entre 0 y 999999999 (mínimo no mayor que máximo). Plataformas usan ids canónicos;
+zonas admiten ubicaciones declaradas, no solo el catálogo de zonas. Rechazo campos
+no reconocidos y objetos superiores vacíos. Acepto extracción parcial sin inventar
+hechos: omisión permanece omisión, `[]` permanece vacío; `null` solo se admite en
+textos/enums escalares, salarios e inglés (incluidos sus subcampos), no en listas
+ni elementos de tecnologías/roles/preguntas. No convierto strings en números.
+Exijo al menos un hecho útil: nombre, perfil profesional o idioma no vacío, nivel de
+experiencia no null, tecnologías válidas no vacías o alguna habilidad de inglés
+(`reading`, `writing`, `speaking`, `listening`) no vacía. Preguntas, advertencias,
+preferencias laborales y la guía `regla` solas no bastan: respondo 422
+`CONTRATO_INVALIDO`. No exijo todos los campos ni cuento espacios como información.
+No guardo preferencias ni devuelvo datos crudos al fallar.
+
+Los errores contienen `{ exito: false, codigo, error }`:
+
+| HTTP | código | Condición |
+| --- | --- | --- |
+| 400 / 413 | `CARGA_INVALIDA` | Falta de archivo, archivo vacío, UTF-8 malformado, formato/campo inválido o carga superior a 1 MiB |
+| 413 | `PRESUPUESTO_DOCUMENTO` | Los mensajes completos exceden el presupuesto conservador |
+| 422 | `JSON_INVALIDO` | El contenido de extracción no es JSON interpretable |
+| 422 | `CONTRATO_INVALIDO` | JSON válido con estructura/campos inválidos |
+| 422 | `SALIDA_TRUNCADA` | El proveedor informa `finish_reason: length` |
+| 422 | `SALIDA_INCOMPLETA` | Finalización distinta de `stop`, ausente o desconocida, aunque el contenido sea JSON válido |
+| 502 | `PROVEEDOR_NO_DISPONIBLE` | Fallo de comunicación o respuesta del proveedor |
+
+El prompt incluye las categorías e importancias canónicas (`mobile`, `no_prioritaria`)
+y aliases opcionales, vacíos o de hasta 20 strings, sin inventarlos.
+
+No registro contenido del CV, respuesta cruda ni mensajes privados del proveedor
+en errores/reintentos de esta importación. Las restantes llamadas conservan su comportamiento.
+
 ## Firma y vigencia de evaluaciones (issue #9, T1)
 
 GET/PUT `/api/preferencias` agregan `firma_criterios_evaluacion: string` al
