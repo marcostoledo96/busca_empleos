@@ -37,6 +37,12 @@ function validarExtraccionCv(datos, contrato) {
             (!Object.hasOwn(item, 'sugerencia') || item.sugerencia === null || texto(item.sugerencia)));
     }
     if (!Object.entries(datos).every(([campo, valor]) => Object.hasOwn(reglas, campo) && reglas[campo](valor))) return false;
+    // Exijo un hecho útil del candidato, no solo preguntas o preferencias de búsqueda.
+    const textoUtil = valor => texto(valor) && valor.trim().length > 0;
+    const tieneHechos = ['nombre', 'perfil_profesional', 'idioma_candidato'].some(campo => textoUtil(datos[campo])) ||
+        datos.nivel_experiencia != null || datos.tecnologias_detalle?.length > 0 ||
+        ['reading', 'writing', 'speaking', 'listening'].some(campo => textoUtil(datos.nivel_ingles_detalle?.[campo]));
+    if (!tieneHechos) return false;
     return !(typeof datos.expectativa_salarial_min === 'number' && typeof datos.expectativa_salarial_max === 'number' &&
         datos.expectativa_salarial_min > datos.expectativa_salarial_max);
 }

@@ -18,15 +18,15 @@ const subir = (texto = '# CV sintético', nombre = 'cv.md') => request(app).post
 beforeEach(() => {
     jest.clearAllMocks();
     preferencias.obtenerPreferencias.mockResolvedValue({});
-    consultarDeepSeek.mockResolvedValue(JSON.stringify({ tecnologias_detalle: [] }));
+    consultarDeepSeek.mockResolvedValue(JSON.stringify({ nombre: 'Perfil sintético' }));
 });
 afterEach(() => expect(preferencias.actualizarPreferencias).not.toHaveBeenCalled());
 
 test('acepto un Markdown pequeño y conservo ausencia, null y listas vacías', async () => {
-    consultarDeepSeek.mockResolvedValue(JSON.stringify({ nombre: null, tecnologias_detalle: [], advertencias: [] }));
+    consultarDeepSeek.mockResolvedValue(JSON.stringify({ nombre: null, perfil_profesional: 'Perfil sintético', tecnologias_detalle: [], advertencias: [] }));
     const respuesta = await subir();
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body.datos).toEqual({ nombre: null, tecnologias_detalle: [], advertencias: [] });
+    expect(respuesta.body.datos).toEqual({ nombre: null, perfil_profesional: 'Perfil sintético', tecnologias_detalle: [], advertencias: [] });
 });
 test('envío el documento completo de 60411 caracteres con evidencia final', async () => {
     const final = '\nEVIDENCIA_FINAL_ANGULAR';
@@ -163,6 +163,31 @@ test('el montaje real de app comparte errores de carga y validación', async () 
     const contrato = await request(aplicacion).post(ruta).attach('cv', Buffer.from('# CV'), 'cv.md');
     expect(contrato.status).toBe(422);
     expect(contrato.body.codigo).toBe('CONTRATO_INVALIDO');
+});
+test.each([{}, { advertencias: [] }, { nombre: null }, { nombre: ' \n ' },
+    { tecnologias_detalle: [] }, { nivel_experiencia: null }, { nivel_ingles_detalle: null },
+    { nivel_ingles_detalle: { reading: ' ', speaking: null, regla: 'No excluir' } },
+    { nivel_ingles_detalle: { espanol: 'Nativo' } },
+    { preguntas: [{ campo: 'idioma', pregunta: '¿Nivel?', motivo: 'Ausente' }] },
+    { advertencias: ['Falta información'], zonas_preferidas: ['CABA'], modalidad_aceptada: 'remoto',
+        disponibilidad: 'full_time', expectativa_salarial_min: 100, moneda_salarial: 'ARS',
+        roles_objetivo_detalle: [{ rol: 'QA', prioridad: 'alta' }], terminos_busqueda: ['QA'],
+        reglas_exclusion: ['Java'], keywords_positivas: ['IA'], plataformas_preferidas: ['linkedin'] },
+])('rechazo extracción sin hechos útiles: %j', async datos => {
+    consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+    const respuesta = await subir();
+    expect(respuesta.status).toBe(422);
+    expect(respuesta.body.codigo).toBe('CONTRATO_INVALIDO');
+    expect(respuesta.body.datos).toBeUndefined();
+});
+test.each([{ nombre: 'Perfil sintético' }, { perfil_profesional: 'QA' }, { idioma_candidato: 'Español' },
+    { nivel_experiencia: 'trainee' }, { nivel_ingles_detalle: { reading: 'B1' } },
+    { tecnologias_detalle: [{ nombre: 'Angular', nivel: 'basico', categoria: 'frontend' }] },
+])('acepto un único hecho útil sin completar datos: %j', async datos => {
+    consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+    const respuesta = await subir();
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.datos).toEqual(datos);
 });
 test('rechazo falta de archivo', async () => {
     const respuesta = await request(app).post(ruta);

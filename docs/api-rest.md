@@ -117,6 +117,11 @@ no reconocidos y objetos superiores vacíos. Acepto extracción parcial sin inve
 hechos: omisión permanece omisión, `[]` permanece vacío; `null` solo se admite en
 textos/enums escalares, salarios e inglés (incluidos sus subcampos), no en listas
 ni elementos de tecnologías/roles/preguntas. No convierto strings en números.
+Exijo al menos un hecho útil: nombre, perfil profesional o idioma no vacío, nivel de
+experiencia no null, tecnologías válidas no vacías o alguna habilidad de inglés
+(`reading`, `writing`, `speaking`, `listening`) no vacía. Preguntas, advertencias,
+preferencias laborales y la guía `regla` solas no bastan: respondo 422
+`CONTRATO_INVALIDO`. No exijo todos los campos ni cuento espacios como información.
 No guardo preferencias ni devuelvo datos crudos al fallar.
 
 Los errores contienen `{ exito: false, codigo, error }`:

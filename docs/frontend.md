@@ -406,7 +406,12 @@ Al analizar otro CV descarto la extracción y preguntas anteriores antes de vali
 carga o consultar el backend. Si falla, muestro su mensaje `error` (o un mensaje breve
 si no existe), sin permitir aplicar una sugerencia obsoleta. La vista previa tolera
 listas ausentes en una extracción parcial sin materializarlas en el resultado.
-No modifico aplicación manual, notas, índices de preguntas ni guardado de preferencias.
+Al cambiar archivo limpio la vista previa, preguntas de importación y avisos; invalido
+respuestas de solicitudes anteriores, tanto éxito como error, sin detener el indicador
+de un análisis posterior. Al aplicar una extracción sin ambos campos `preguntas` y
+`preguntas_perfil_pendientes`, conservo las preguntas pendientes existentes. Un `[]`
+explícito permite limpiarlas; si vienen ambos campos, priorizo `preguntas_perfil_pendientes`.
+No rediseño aplicación manual, notas, índices de preguntas ni guardado de preferencias.
 
 Al aplicar un CV conservo roles objetivo, modalidad, zonas, disponibilidad, salario, términos,
 exclusiones, palabras clave y plataformas existentes; continúo con el mapeo acotado de hechos, sin
