@@ -6,6 +6,8 @@ import { DemoService } from '../../servicios/demo.service';
 import { MessageService } from 'primeng/api';
 import { of, throwError, Subject } from 'rxjs';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 
 describe('Preferencias — Accesibilidad aria-live dinámico', () => {
 
@@ -54,6 +56,102 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const component = fixture.componentInstance;
         return { fixture, component };
     }
+
+    it('permite editar y rechazar el detalle de inglés desde el borrador', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        component.nivelInglesDetalle = { speaking: 'básico' };
+        component.resultadoImportacion = { nivel_ingles_detalle: { speaking: 'avanzado', regla: 'Sin límite' } };
+        await fixture.whenStable();
+        const oral = fixture.nativeElement.querySelector('#cv-ingles-speaking') as HTMLInputElement;
+        expect(oral).not.toBeNull();
+        if (!oral) return;
+        oral.value = 'intermedio';
+        oral.dispatchEvent(new Event('input'));
+        await fixture.whenStable();
+        expect(component.nivelInglesDetalle.speaking).toBe('básico');
+        component.aplicarImportacion();
+        expect(component.nivelInglesDetalle.speaking).toBe('intermedio');
+        component.resultadoImportacion = { nivel_ingles_detalle: { speaking: 'avanzado' } };
+        await fixture.whenStable();
+        (fixture.nativeElement.querySelector('#cv-rechazar-ingles') as HTMLButtonElement).click();
+        await fixture.whenStable();
+        expect(component.resumenImportacion.conservar).toContain('Inglés detallado');
+        component.aplicarImportacion();
+        expect(component.nivelInglesDetalle.speaking).toBe('intermedio');
+    });
+
+    it('rechaza tecnologías individuales sin borrar hechos confirmados ni aceptar nombres vacíos', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        const previa = { nombre: 'Angular', nivel: 'basico', categoria: 'frontend', importancia: 'principal', aliases: [] };
+        component.tecnologiasDetalle = [previa];
+        component.resultadoImportacion = { tecnologias_detalle: [
+            { ...previa, nivel: 'avanzado' },
+            { ...previa, nombre: 'Nueva' },
+            { ...previa, nombre: '  ' },
+        ] } as any;
+        await fixture.whenStable();
+        const botones = fixture.nativeElement.querySelectorAll('[data-rechazar-tecnologia]');
+        expect(botones.length).toBe(3);
+        if (botones.length !== 3) return;
+        botones[1].click();
+        await fixture.whenStable();
+        fixture.nativeElement.querySelector('[data-rechazar-tecnologia]').click();
+        await fixture.whenStable();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+    });
+
+    it('conserva inglés confirmado al analizar y descarta rechazos al cancelar', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.nivelInglesDetalle = { speaking: 'básico', regla: 'Sin reuniones en inglés' };
+        spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({
+            exito: true, datos: { nivel_ingles_detalle: { speaking: 'avanzado', reading: 'intermedio' } },
+        } as any));
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion?.nivel_ingles_detalle).toEqual({
+            speaking: 'básico', reading: 'intermedio', regla: 'Sin reuniones en inglés',
+        });
+        const previa = { nombre: 'Angular', nivel: 'basico', categoria: 'frontend', importancia: 'principal', aliases: [] };
+        component.tecnologiasDetalle = [previa];
+        component.resultadoImportacion = { tecnologias_detalle: [{ ...previa, nivel: 'avanzado' }] } as any;
+        component.rechazarTecnologiaImportacion(0);
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+        component.resultadoImportacion = { tecnologias_detalle: [{ ...previa, nombre: 'Nueva' }] } as any;
+        component.rechazarTecnologiaImportacion(0);
+        component.cancelarImportacion();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+        expect(component.nivelInglesDetalle).toEqual({ speaking: 'básico', regla: 'Sin reuniones en inglés' });
+    });
+
+    it('soporte respeta el reemplazo aceptado de palabras clave sin cambiar experiencia', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        component.keywordsPositivas = ['Vieja'];
+        component.aniosExperienciaReales = 2;
+        component.resultadoImportacion = { keywords_positivas: ['Nueva'] };
+        component.preguntasImportacion = [{ id: 'soporte', campo: 'soporte', pregunta: '¿Soporte?' }];
+        await fixture.whenStable();
+        const confirmar = fixture.nativeElement.querySelector('.importar-resultado input[type="checkbox"]') as HTMLInputElement;
+        confirmar.click();
+        await fixture.whenStable();
+        const accion = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+            .find(b => b.textContent?.trim() === 'Aplicar sugerencia');
+        expect(accion).toBeDefined();
+        accion!.click();
+        await fixture.whenStable();
+        component.aplicarImportacion();
+        expect(component.keywordsPositivas).toEqual(['Nueva', 'soporte de aplicaciones']);
+        expect(component.aniosExperienciaReales).toBe(2);
+    });
 
     it('muestra el error backend y descarta la extracción anterior', async () => {
         const { fixture, component } = await crearComponente();
@@ -191,6 +289,300 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(component.resultadoImportacion).toBeNull();
         expect(component.preguntasImportacion).toEqual([]);
         expect(limpiar).toHaveBeenCalled();
+    });
+
+    it('revisa Docker en DOM con inglés previo y campos duplicados sin tocar el formulario', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const extraido = { tecnologias_detalle: [{ nombre: 'Docker', nivel: 'avanzado', categoria: 'herramienta', importancia: 'secundaria', aliases: [] }],
+            preguntas: [{ campo: 'ingles', pregunta: '¿Inglés?' }, { campo: 'docker', pregunta: '¿Docker local?' }, { campo: 'docker', pregunta: '¿Docker producción?' }] };
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: extraido } as any));
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        await fixture.whenStable();
+        const filas = fixture.nativeElement.querySelectorAll('.importar-pregunta--accionable');
+        (filas[1].querySelector('button') as HTMLButtonElement).click();
+        await fixture.whenStable();
+        expect(component.preguntasImportacion[0].estado).toBe('pendiente');
+        expect(component.preguntasImportacion[1].estado).toBe('pendiente');
+        expect(component.preguntasImportacion[2].estado).toBe('aplicada');
+        expect(component.tecnologiasDetalle).toEqual([]);
+        expect(component.resultadoImportacion?.tecnologias_detalle?.[0].nivel).toBe('basico');
+        expect(extraido.tecnologias_detalle[0].nivel).toBe('avanzado');
+        const informativa = fixture.nativeElement.querySelector('.importar-pregunta--informativa');
+        const respuesta = informativa.querySelector('textarea') as HTMLTextAreaElement;
+        respuesta.value = 'Lectura confirmada';
+        respuesta.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+        expect(component.preguntasImportacion[0].estado).toBe('respondida');
+        expect(component.preguntasPerfilPendientes).toEqual([]);
+        (informativa.querySelector('button') as HTMLButtonElement).click();
+        await fixture.whenStable();
+        expect(component.preguntasImportacion[0].nota).toBe('Lectura confirmada');
+        expect(component.preguntasImportacion[1].estado).toBe('pendiente');
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle[0].nivel).toBe('basico');
+        expect(component.preguntasPerfilPendientes[2].estado).toBe('aplicada');
+    });
+
+    it('cancelar descarta salario y respuestas temporales, conserva ediciones manuales e invalida HTTP', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const tardio = new Subject<any>();
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValues(of({ exito: true, datos: {
+            preguntas: [{ campo: 'salario', pregunta: '¿Sin filtro salarial?' }], expectativa_salarial_min: null,
+        } } as any), tardio);
+        component.nombre = 'Manual sin guardar';
+        component.expectativaSalarialMin = 900;
+        component.aniosExperienciaReales = 3;
+        component.preguntasPerfilPendientes = [{ campo: 'previa', pregunta: 'Confirmada', respuesta: 'Sí' }];
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        component.aceptarSugerenciaImportacion(component.preguntasImportacion[0].id);
+        expect(component.expectativaSalarialMin).toBe(900);
+        expect(component.aniosExperienciaReales).toBe(3);
+        component.cancelarImportacion();
+        expect(component.nombre).toBe('Manual sin guardar');
+        expect(component.preguntasPerfilPendientes[0].respuesta).toBe('Sí');
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        component.cancelarImportacion();
+        tardio.next({ exito: true, datos: { nombre: 'Obsoleto' } });
+        expect(component.resultadoImportacion).toBeNull();
+        expect(component.analizandoCv()).toBeFalse();
+    });
+
+    it('aplica respuesta y nota sin reiniciarlas; ignorar no guarda texto y salario ausente conserva manual', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
+            expectativa_salarial_min: null, expectativa_salarial_max: null,
+            preguntas_perfil_pendientes: [{ campo: 'ingles', pregunta: '¿Nivel?' }, { campo: 'ingles', pregunta: '¿Oral?' }],
+        } } as any));
+        component.expectativaSalarialMin = 900;
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        const ids = component.preguntasImportacion.map(p => p.id);
+        expect(ids[0]).not.toBe(ids[1]);
+        component.actualizarRespuestaPregunta(ids[0], 'Nota oral');
+        component.guardarNotaEIgnorar(ids[0]);
+        component.actualizarRespuestaPregunta(ids[1], 'No conservar');
+        component.ignorarPreguntaImportacion(ids[1]);
+        component.aplicarImportacion();
+        expect(component.preguntasPerfilPendientes[0].nota).toBe('Nota oral');
+        expect(component.preguntasPerfilPendientes[0].estado).toBe('nota');
+        expect(component.preguntasPerfilPendientes[1].estado).toBe('ignorada');
+        expect(component.preguntasPerfilPendientes[1].respuesta).toBeUndefined();
+        expect(component.expectativaSalarialMin).toBe(900);
+    });
+
+    for (const detalle of [undefined, null, []]) {
+        it(`conservo hechos y preferencias ante extracción parcial: ${JSON.stringify(detalle)}`, async () => {
+            const { component } = await crearComponente();
+            const tecnologias = [{ nombre: 'Docker', nivel: 'medio', categoria: 'herramienta', importancia: 'secundaria', aliases: [] }];
+            component.tecnologiasDetalle = structuredClone(tecnologias);
+            component.perfilProfesional = 'Experiencia manual';
+            component.nivelInglesDetalle = { reading: 'C1' };
+            component.expectativaSalarialMin = 900;
+            component.expectativaSalarialMax = 1500;
+            component.monedaSalarial = 'USD';
+            component.preguntasPerfilPendientes = [{ campo: 'anterior', pregunta: '¿Confirmado?', estado: 'respondida', respuesta: 'Sí' }];
+            spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
+                nombre: 'Parcial', perfil_profesional: null, nivel_ingles_detalle: null,
+                ...(detalle === undefined ? {} : { tecnologias_detalle: detalle }),
+            } } as any));
+            component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+            component.analizarCv();
+            component.aplicarImportacion();
+            expect(component.nombre).toBe('Parcial');
+            expect(component.tecnologiasDetalle).toEqual(tecnologias);
+            expect(component.perfilProfesional).toBe('Experiencia manual');
+            expect(component.nivelInglesDetalle).toEqual({ reading: 'C1' });
+            expect(component.expectativaSalarialMin).toBe(900);
+            expect(component.expectativaSalarialMax).toBe(1500);
+            expect(component.monedaSalarial).toBe('USD');
+            expect(component.preguntasPerfilPendientes[0].respuesta).toBe('Sí');
+        });
+    }
+
+    it('rechaza null en preguntas sin permitir aplicar otra extracción', async () => {
+        const { component } = await crearComponente();
+        spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
+            nombre: 'Inválido', preguntas_perfil_pendientes: null,
+        } } as any));
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+    });
+
+    it('edita nivel y texto en DOM y aplica exactamente el borrador, incluso un texto vaciado', async () => {
+        const { fixture, component } = await crearComponente();
+        spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
+            perfil_profesional: 'Texto extraído', tecnologias_detalle: [{ nombre: 'Docker', nivel: 'avanzado', categoria: 'herramienta', importancia: 'secundaria', aliases: [] }],
+        } } as any));
+        fixture.autoDetectChanges();
+        component.perfilProfesional = 'Texto manual';
+        component.tabActiva.set(5);
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        await fixture.whenStable();
+        const nivel = fixture.nativeElement.querySelector('[aria-label="Nivel revisado de Docker"]') as HTMLSelectElement;
+        nivel.value = 'basico';
+        nivel.dispatchEvent(new Event('change', { bubbles: true }));
+        const texto = fixture.nativeElement.querySelector('.importar-preview-grid textarea') as HTMLTextAreaElement;
+        texto.value = '';
+        texto.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+        expect(component.perfilProfesional).toBe('Texto manual');
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle[0].nivel).toBe('basico');
+        expect(component.perfilProfesional).toBe('');
+    });
+
+    it('conserva React Native confirmado y aceptar soporte/salario solo cambia criterios revisados', async () => {
+        const { component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
+            tecnologias_detalle: [{ nombre: 'React Native', nivel: 'avanzado', categoria: 'mobile', importancia: 'principal', aliases: [] }],
+            preguntas: [{ campo: 'React Native', pregunta: '¿Mobile?' }, { campo: 'soporte', pregunta: '¿Priorizar soporte?' }, { campo: 'salario', pregunta: '¿Sin filtro?' }],
+            keywords_positivas: ['Inventada'], terminos_busqueda: ['Inventado'], disponibilidad: 'part_time',
+        } } as any));
+        component.tecnologiasDetalle = [{ nombre: 'React Native', nivel: 'ninguno', categoria: 'mobile', importancia: 'no_prioritaria', aliases: [] }];
+        component.aniosExperienciaReales = 2;
+        component.perfilProfesional = 'Experiencia confirmada';
+        component.keywordsPositivas = ['Manual'];
+        component.expectativaSalarialMin = 900;
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        component.aceptarSugerenciaImportacion(component.preguntasImportacion[0].id);
+        expect(component.preguntasImportacion[0].estado).toBe('pendiente');
+        component.aceptarSugerenciaImportacion(component.preguntasImportacion[1].id);
+        component.aceptarSugerenciaImportacion(component.preguntasImportacion[2].id);
+        expect(component.expectativaSalarialMin).toBe(900);
+        expect(component.keywordsPositivas).toEqual(['Manual']);
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle[0].nivel).toBe('ninguno');
+        expect(component.aniosExperienciaReales).toBe(2);
+        expect(component.perfilProfesional).toBe('Experiencia confirmada');
+        expect(component.disponibilidad).toBe('full_time');
+        expect(component.keywordsPositivas).toEqual(['Manual', 'soporte de aplicaciones']);
+        expect(component.expectativaSalarialMin).toBeNull();
+        expect(component.monedaSalarial).toBe('NO_FILTRAR');
+    });
+
+    it('guardar notas y recargar las muestra; un guardado fallido no confirma otro perfil', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        let fila: any = { ...mockPreferencias.datos, preguntas_perfil_pendientes: [] };
+        spyOn(servicio, 'obtenerPreferencias').and.callFake(() => of({ exito: true, datos: fila }));
+        const guardar = spyOn(servicio, 'actualizarPreferencias').and.callFake(datos => {
+            fila = { ...fila, ...structuredClone(datos) };
+            return of({ exito: true, datos: fila });
+        });
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
+            preguntas: [{ campo: 'ingles', pregunta: '¿Oral?' }],
+        } } as any));
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.analizarCv();
+        const id = component.preguntasImportacion[0].id;
+        component.actualizarRespuestaPregunta(id, 'Nota confirmada');
+        component.guardarNotaEIgnorar(id);
+        component.aplicarImportacion();
+        expect(guardar).not.toHaveBeenCalled();
+        component.guardar();
+        component.cargarPreferencias();
+        await fixture.whenStable();
+        expect(fixture.nativeElement.textContent).toContain('Nota confirmada');
+        expect(component.preguntasPerfilPendientes[0].estado).toBe('nota');
+        const perfil = component.perfilEfectivo;
+        guardar.and.returnValue(of({ exito: false } as any));
+        component.nombre = 'No confirmado';
+        component.guardar();
+        expect(component.perfilEfectivo).toBe(perfil);
+        expect(component.nombre).toBe('No confirmado');
+        expect(component.cambiosSinGuardar).toBeTrue();
+    });
+
+    it('persisto revisión DOM mediante servicio real, PUT y GET; un error no confirma hechos', async () => {
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [provideNoopAnimations(), provideHttpClient(), provideHttpClientTesting(),
+                { provide: DemoService, useValue: { esModoDemo: () => false } },
+                { provide: EvaluacionService, useValue: {} }],
+        }).compileComponents();
+        const http = TestBed.inject(HttpTestingController);
+        const fixture = TestBed.createComponent(Preferencias);
+        const componente = fixture.componentInstance;
+        fixture.autoDetectChanges();
+        let fila: any = { id: 1, nombre: 'Guardado', tecnologias_detalle: [],
+            modalidad_aceptada: 'remoto', plataformas_preferidas: ['linkedin'],
+            plataformas_excluidas: ['computrabajo'], expectativa_salarial_min: 900,
+            roles_objetivo_detalle: [{ rol: 'QA', prioridad: 'alta', aliases: [] }],
+            terminos_busqueda: ['QA'], reglas_exclusion: ['Java'] };
+        http.expectOne(r => r.method === 'GET').flush({ exito: true, datos: fila });
+        componente.tabActiva.set(5);
+        componente.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        await fixture.whenStable();
+        (fixture.nativeElement.querySelector('.btn-importar') as HTMLButtonElement).click();
+        const extraccion = { nombre: 'Revisado', tecnologias_detalle: [{ nombre: 'Docker', nivel: 'avanzado', categoria: 'herramienta', importancia: 'secundaria', aliases: [] }],
+            preguntas: [{ campo: 'ingles', pregunta: '¿Oral?' }, { campo: 'docker', pregunta: '¿Local?' }, { campo: 'docker', pregunta: '¿Producción?' }, { campo: 'otro', pregunta: '¿Otro?' }],
+            modalidad_aceptada: 'presencial', plataformas_preferidas: [], plataformas_excluidas: [], roles_objetivo_detalle: [], terminos_busqueda: [], reglas_exclusion: [] };
+        http.expectOne(r => r.method === 'POST').flush({ exito: true, datos: extraccion });
+        await fixture.whenStable();
+        const informativas = fixture.nativeElement.querySelectorAll('.importar-pregunta--informativa');
+        const nota = informativas[0].querySelector('textarea') as HTMLTextAreaElement;
+        nota.value = 'Lectura confirmada';
+        nota.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+        (informativas[0].querySelector('button') as HTMLButtonElement).click();
+        (informativas[1].querySelector('button:last-child') as HTMLButtonElement).click();
+        const accionables = fixture.nativeElement.querySelectorAll('.importar-pregunta--accionable');
+        (accionables[1].querySelector('button') as HTMLButtonElement).click();
+        await fixture.whenStable();
+        expect(componente.preguntasImportacion[1].estado).toBe('pendiente');
+        expect(componente.preguntasImportacion[2].estado).toBe('aplicada');
+        expect(extraccion.tecnologias_detalle[0].nivel).toBe('avanzado');
+        expect(fixture.nativeElement.textContent).toContain('Ignorar descarta la respuesta');
+        (fixture.nativeElement.querySelector('.importar-resultado .btn-guardar') as HTMLButtonElement).click();
+        await fixture.whenStable();
+        expect(componente.expectativaSalarialMin).toBe(900);
+        expect(componente.modalidadAceptada).toBe('remoto');
+        expect(componente.plataformasPreferidas).toEqual(['linkedin']);
+        expect(componente.plataformasExcluidas).toEqual(['computrabajo']);
+        expect(componente.rolesObjetivoDetalle).toEqual(fila.roles_objetivo_detalle);
+        expect(componente.terminosBusqueda).toEqual(['QA']);
+        expect(componente.reglasExclusion).toEqual(['Java']);
+        http.expectNone(r => r.method === 'PUT');
+        (fixture.nativeElement.querySelector('[aria-label="Guardar preferencias"]') as HTMLButtonElement).click();
+        const put = http.expectOne(r => r.method === 'PUT');
+        fila = JSON.parse(JSON.stringify({ ...fila, ...put.request.body }));
+        expect(fila.preguntas_perfil_pendientes[0]).toEqual(jasmine.objectContaining({ estado: 'nota', nota: 'Lectura confirmada', respuesta: 'Lectura confirmada', id: jasmine.any(String) }));
+        expect(fila.preguntas_perfil_pendientes[2]).toEqual(jasmine.objectContaining({ estado: 'aplicada', respuesta: jasmine.any(String) }));
+        expect(fila.preguntas_perfil_pendientes[3].respuesta).toBeUndefined();
+        fila.perfil_efectivo = { version: 1, candidato: { ...fila, conocimientos_ausentes: [] }, restricciones: { preferencias: { ...fila }, politicas_sistema: [] }, secciones: [], texto: '' };
+        put.flush({ exito: true, datos: fila });
+        componente.cargarPreferencias();
+        http.expectOne(r => r.method === 'GET').flush({ exito: true, datos: fila });
+        await fixture.whenStable();
+        expect(componente.tecnologiasDetalle[0].nivel).toBe('basico');
+        expect(componente.preguntasPerfilPendientes).toEqual(fila.preguntas_perfil_pendientes);
+        expect(fixture.nativeElement.textContent).toContain('Lectura confirmada');
+        const vista = fixture.nativeElement.querySelector('[aria-labelledby="perfil-ia-titulo"]');
+        expect(vista.textContent).toContain('Docker');
+        expect(vista.textContent).toContain('basico');
+        const confirmado = componente.perfilEfectivo;
+        componente.nombre = 'No confirmado';
+        componente.guardar();
+        http.expectOne(r => r.method === 'PUT').flush({ error: 'Falla simulada' }, { status: 500, statusText: 'Error' });
+        await fixture.whenStable();
+        expect(componente.perfilEfectivo).toBe(confirmado);
+        expect(componente.cambiosSinGuardar).toBeTrue();
+        expect(componente.mensajeAccesible()).toBe('No se pudieron guardar las preferencias.');
+        http.verify();
     });
 
     it('debería crear el componente', async () => {

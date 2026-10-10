@@ -436,7 +436,20 @@
 
                             @if (resultadoImportacion) {
                                 <div class="importar-resultado">
-                                    <h3>Vista previa del perfil detectado</h3>
+                                    <h3>Borrador revisable del CV</h3>
+                                    <p>La extracción es una propuesta. Editá los hechos antes de aplicar; todavía no modifico el formulario ni guardo preferencias.</p>
+                                    <p>Se agregará: {{ resumenImportacion.agregar.join(', ') || 'Nada' }}.</p>
+                                    <p>Se modificará: {{ resumenImportacion.modificar.join(', ') || 'Nada' }}.</p>
+                                    <p>Se conservará: {{ resumenImportacion.conservar.join(', ') || 'Nada' }}.</p>
+                                    <div class="campo">
+                                        <label for="cv-nombre">Nombre revisado</label>
+                                        <input pInputText id="cv-nombre" [(ngModel)]="resultadoImportacion.nombre" />
+                                        <label for="cv-nivel">Nivel revisado</label>
+                                        <select id="cv-nivel" [(ngModel)]="resultadoImportacion.nivel_experiencia">
+                                            <option [ngValue]="undefined">Sin propuesta</option>
+                                            @for (opcion of opcionesNivel; track opcion.value) { <option [value]="opcion.value">{{ opcion.label }}</option> }
+                                        </select>
+                                    </div>
                                     <div class="importar-resumen">
                                         <span>Nombre: <strong>{{ resultadoImportacion.nombre || '—' }}</strong></span>
                                         <span>Nivel: <strong>{{ resultadoImportacion.nivel_experiencia || '—' }}</strong></span>
@@ -455,6 +468,18 @@
                                             <textarea pTextarea [ngModel]="resultadoImportacion.idioma_candidato || ''" (ngModelChange)="resultadoImportacion!.idioma_candidato = $event" [rows]="4"></textarea>
                                         </div>
                                     </div>
+                                    @if (resultadoImportacion.nivel_ingles_detalle; as ingles) {
+                                        <div class="campo">
+                                            <p>Detalle de idiomas propuesto: edito cada habilidad y regla sin inferir niveles del resumen libre. Los campos omitidos conservan el detalle actual.</p>
+                                            <label>Español <input pInputText id="cv-ingles-espanol" [(ngModel)]="ingles.espanol" /></label>
+                                            <label>Lectura en inglés <input pInputText id="cv-ingles-reading" [(ngModel)]="ingles.reading" /></label>
+                                            <label>Escritura en inglés <input pInputText id="cv-ingles-writing" [(ngModel)]="ingles.writing" /></label>
+                                            <label>Conversación en inglés <input pInputText id="cv-ingles-speaking" [(ngModel)]="ingles.speaking" /></label>
+                                            <label>Comprensión oral en inglés <input pInputText id="cv-ingles-listening" [(ngModel)]="ingles.listening" /></label>
+                                            <label>Regla de idiomas <input pInputText id="cv-ingles-regla" [(ngModel)]="ingles.regla" /></label>
+                                            <button type="button" id="cv-rechazar-ingles" class="btn-detalle-secundario" (click)="resultadoImportacion.nivel_ingles_detalle = undefined">Rechazar detalle propuesto y conservar el actual</button>
+                                        </div>
+                                    }
                                     <div class="campo-fila campo-fila--3 importar-preview-grid">
                                         <div class="campo">
                                             <label class="campo-etiqueta">Términos detectados (no se aplican automáticamente)</label>
@@ -465,16 +490,44 @@
                                             <input pInputText [ngModel]="listaAString(resultadoImportacion.reglas_exclusion || [])" (ngModelChange)="resultadoImportacion!.reglas_exclusion = stringALista($event)" placeholder="java, sap" />
                                         </div>
                                         <div class="campo">
-                                            <label class="campo-etiqueta">Keywords positivas</label>
+                                            <label class="campo-etiqueta">Keywords positivas propuestas (no se aplican automáticamente)</label>
                                             <input pInputText [ngModel]="listaAString(resultadoImportacion.keywords_positivas || [])" (ngModelChange)="resultadoImportacion!.keywords_positivas = stringALista($event)" placeholder="healthtech, angular" />
+                                            <label><input type="checkbox" [ngModel]="preferenciasRevisadas.has('keywords_positivas')" (ngModelChange)="$event ? preferenciasRevisadas.add('keywords_positivas') : preferenciasRevisadas.delete('keywords_positivas')" /> Confirmar reemplazo de palabras clave positivas</label>
                                         </div>
+                                    </div>
+                                    <div class="campo">
+                                        <p>Salario propuesto: no se aplica sin confirmación. Un dato ausente conserva el filtro manual.</p>
+                                        <label>Salario mínimo revisado <input type="number" [(ngModel)]="resultadoImportacion.expectativa_salarial_min" /></label>
+                                        <label>Salario máximo revisado <input type="number" [(ngModel)]="resultadoImportacion.expectativa_salarial_max" /></label>
+                                        <label>Moneda revisada
+                                            <select [(ngModel)]="resultadoImportacion.moneda_salarial">
+                                                @for (opcion of opcionesMonedaSalarial; track opcion.value) { <option [value]="opcion.value">{{ opcion.label }}</option> }
+                                            </select>
+                                        </label>
+                                        <label><input type="checkbox" [ngModel]="preferenciasRevisadas.has('salario')" (ngModelChange)="$event ? preferenciasRevisadas.add('salario') : preferenciasRevisadas.delete('salario')" /> Confirmar reemplazo del filtro salarial (no modifica experiencia)</label>
                                     </div>
                                     <div class="importar-mini-listas">
                                         <div class="importar-mini-lista">
                                             <label class="campo-etiqueta">Tecnologías detectadas</label>
                                             <div class="importar-tags">
-                                                @for (tech of resultadoImportacion.tecnologias_detalle; track tech.nombre) {
-                                                    <span class="importar-adv">{{ tech.nombre }} · {{ tech.nivel }}</span>
+                                                @for (tech of resultadoImportacion.tecnologias_detalle; track $index) {
+                                                    <div class="campo">
+                                                        <label>Nombre revisado <input pInputText [(ngModel)]="tech.nombre" /></label>
+                                                        <button type="button" data-rechazar-tecnologia class="btn-detalle-secundario" (click)="rechazarTecnologiaImportacion($index)">Rechazar propuesta de {{ tech.nombre || 'tecnología sin nombre' }} (conservo el dato confirmado)</button>
+                                                        <label>Nivel revisado de {{ tech.nombre }}
+                                                            <select [(ngModel)]="tech.nivel" [attr.aria-label]="'Nivel revisado de ' + tech.nombre">
+                                                                @for (opcion of opcionesNivelTecnologia; track opcion.value) { <option [value]="opcion.value">{{ opcion.label }}</option> }
+                                                            </select>
+                                                        </label>
+                                                        <label>Categoría <input pInputText [(ngModel)]="tech.categoria" /></label>
+                                                        <label>Importancia
+                                                            <select [(ngModel)]="tech.importancia">
+                                                                @for (opcion of opcionesImportanciaTecnologia; track opcion.value) { <option [value]="opcion.value">{{ opcion.label }}</option> }
+                                                            </select>
+                                                        </label>
+                                                        <label>Aliases <input pInputText [ngModel]="listaAString(tech.aliases)" (ngModelChange)="tech.aliases = stringALista($event)" /></label>
+                                                        <label>Evidencia revisada <input pInputText [(ngModel)]="tech.evidencia" /></label>
+                                                    </div>
                                                 }
                                             </div>
                                         </div>
@@ -501,18 +554,31 @@
                                 </div>
                             }
 
+                            @if (!resultadoImportacion && preguntasPerfilPendientes.length > 0) {
+                                <div class="importar-preguntas">
+                                    <h4>Preguntas y notas del formulario</h4>
+                                    <p>Persisten únicamente después de Guardar preferencias.</p>
+                                    @for (p of preguntasPerfilPendientes; track $index) {
+                                        <div class="importar-pregunta">
+                                            <span>{{ p.pregunta }}</span>
+                                            <small>Estado: {{ p.estado || 'pendiente' }}</small>
+                                            @if (p.nota || p.respuesta) { <p>{{ p.nota || p.respuesta }}</p> }
+                                        </div>
+                                    }
+                                </div>
+                            }
                             @if (preguntasImportacion.length > 0) {
                                 <div class="importar-preguntas">
                                     <h4>Preguntas sugeridas por la IA</h4>
                                     <small class="campo-ayuda">
-                                        ⚡ Acción automática: aplicar sugerencia modifica el perfil.<br>
-                                        📝 Informativas: se guardan como nota; podés editarlas y guardar manualmente.
+                                        Las acciones solo modifican el borrador, con el alcance indicado.<br>
+                                        Responder no aplica hechos. Guardar nota e ignorar conserva la nota; Ignorar descarta la respuesta.
                                     </small>
 
                                     @if (preguntasAccionables.length > 0) {
                                         <div class="importar-seccion-preguntas">
-                                            <h5>Acción automática</h5>
-                                            @for (p of preguntasAccionables; track p.campo + $index; let i = $index) {
+                                            <h5>Acciones explícitas sobre el borrador</h5>
+                                            @for (p of preguntasAccionables; track p.id) {
                                                 <div class="importar-pregunta importar-pregunta--accionable" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
                                                     <span class="material-symbols-outlined" aria-hidden="true">⚡ help</span>
                                                     <div class="importar-pregunta__contenido">
@@ -523,12 +589,14 @@
                                                         @if (p.sugerencia) {
                                                             <small class="campo-ayuda">Sugerencia: {{ p.sugerencia }}</small>
                                                         }
-                                                        <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(i, $event)" [rows]="2" placeholder="Escribí una respuesta o nota para esta pregunta..."></textarea>
+                                                        <small class="campo-ayuda">{{ alcanceSugerencia(p.campo) }}</small>
+                                                        <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(p.id, $event)" [disabled]="p.estado === 'aplicada' || p.estado === 'ignorada' || p.estado === 'nota'" [attr.aria-label]="'Respuesta: ' + p.pregunta" [rows]="2" placeholder="Escribí una respuesta o nota para esta pregunta..."></textarea>
                                                         <div class="importar-acciones">
-                                                            <button class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(i)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada'">Aplicar sugerencia</button>
-                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(i)">Ignorar</button>
+                                                            <button class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(p.id)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada' || p.estado === 'nota'">Aplicar sugerencia</button>
+                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(p.id)" [disabled]="p.estado === 'aplicada'">Ignorar</button>
+                                                            <button class="btn-detalle-secundario" (click)="guardarNotaEIgnorar(p.id)" [disabled]="!p.respuesta?.trim() || p.estado === 'aplicada'">Guardar nota e ignorar</button>
                                                         </div>
-                                                        <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">{{ p.estado === 'aplicada' ? '✓ Sugerencia aplicada' : p.estado === 'ignorada' ? '✗ Ignorada' : '○ Pendiente' }}</small>
+                                                        <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">Estado: {{ p.estado }} — {{ p.nota || p.respuesta }}</small>
                                                     </div>
                                                 </div>
                                             }
@@ -538,7 +606,7 @@
                                     @if (preguntasInformativas.length > 0) {
                                         <div class="importar-seccion-preguntas">
                                             <h5>Preguntas informativas</h5>
-                                            @for (p of preguntasInformativas; track p.campo + $index; let i = $index) {
+                                            @for (p of preguntasInformativas; track p.id) {
                                                 <div class="importar-pregunta importar-pregunta--informativa" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
                                                     <span class="material-symbols-outlined" aria-hidden="true">📝 help</span>
                                                     <div class="importar-pregunta__contenido">
@@ -549,10 +617,12 @@
                                                         @if (p.sugerencia) {
                                                             <small class="campo-ayuda">Sugerencia: {{ p.sugerencia }}</small>
                                                         }
-                                                        <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(i, $event)" [rows]="2" placeholder="Escribí aquí tu respuesta como nota de trabajo. No hay acción automática, vas a tener que actualizar el perfil a mano."></textarea>
-                                                        <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">{{ p.estado === 'aplicada' ? '✓ Respuesta guardada' : p.estado === 'ignorada' ? '✗ Ignorada' : '○ Pendiente — guardá tu nota e ignorá para continuar' }}</small>
+                                                        <small class="campo-ayuda">{{ alcanceSugerencia(p.campo) }}</small>
+                                                        <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(p.id, $event)" [disabled]="p.estado === 'ignorada' || p.estado === 'nota'" [attr.aria-label]="'Respuesta: ' + p.pregunta" [rows]="2" placeholder="Escribí tu respuesta. No modifica hechos automáticamente."></textarea>
+                                                        <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">Estado: {{ p.estado }} — {{ p.nota || p.respuesta }}</small>
                                                         <div class="importar-acciones">
-                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(i)">Guardar nota e ignorar</button>
+                                                            <button class="btn-detalle-secundario" (click)="guardarNotaEIgnorar(p.id)" [disabled]="!p.respuesta?.trim()">Guardar nota e ignorar</button>
+                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(p.id)">Ignorar</button>
                                                         </div>
                                                     </div>
                                                 </div>

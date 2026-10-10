@@ -64,6 +64,27 @@ el modelo declara hechos desconocidos e inglés `{}` explícitamente, evitando l
 defaults personales del esquema. No requiero migración. El contrato tipado está en
 [API REST](api-rest.md#perfil-efectivo-de-solo-lectura-issue-8).
 
+## Confirmación del CV antes de evaluar (issue #11)
+
+Reviso explícitamente las habilidades y la regla del detalle de idiomas que prioriza
+el perfil efectivo; corregir solo el resumen libre no cambia ese detalle. Puedo rechazar
+la propuesta y conservarlo. Rechazar una tecnología propuesta conserva su hecho previo
+si ya estaba confirmado; no acredito tecnologías con nombres vacíos. Soporte respeta
+las palabras clave revisadas sin reintroducir las que descarté.
+
+Trato la extracción de DeepSeek como propuesta: reviso un borrador aislado y lo aplico
+al formulario sin guardarlo automáticamente. Las respuestas de preguntas no acreditan
+experiencia por palabras clave. Docker, salario y soporte tienen acciones explícitas
+con alcance visible y acotado; React Native requiere revisión del nivel, sin inventar
+años ni sobrescribir niveles confirmados automáticamente. Conservo salario manual si
+el CV no lo informa, también cuando el backend devuelve null.
+
+Persisto estados, respuestas y notas de preguntas en el JSONB existente únicamente al
+Guardar preferencias. Una nota ignorada se conserva; ignorar sin nota descarta la
+respuesta. Cancelar no altera el perfil ni ediciones manuales previas. La evaluación
+sigue consumiendo exclusivamente el perfil persistido retornado por el backend, nunca
+el borrador ni una confirmación optimista. Ver [revisión frontend](frontend.md#revisión-aislada-de-importación-cv-issue-11).
+
 ## Instrucciones de sistema (prompt de sistema)
 
 Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el perfil completo del candidato.

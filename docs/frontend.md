@@ -411,7 +411,7 @@ respuestas de solicitudes anteriores, tanto éxito como error, sin detener el in
 de un análisis posterior. Al aplicar una extracción sin ambos campos `preguntas` y
 `preguntas_perfil_pendientes`, conservo las preguntas pendientes existentes. Un `[]`
 explícito permite limpiarlas; si vienen ambos campos, priorizo `preguntas_perfil_pendientes`.
-No rediseño aplicación manual, notas, índices de preguntas ni guardado de preferencias.
+La revisión de borrador, notas e identidad de preguntas se amplía en #11, según el apartado siguiente.
 
 Al aplicar un CV conservo roles objetivo, modalidad, zonas, disponibilidad, salario, términos,
 exclusiones, palabras clave y plataformas existentes; continúo con el mapeo acotado de hechos, sin
@@ -421,6 +421,49 @@ Las pruebas de componente cubren edición, aviso, respuesta persistida de guarda
 recarga, eliminaciones, cero/ninguno, información ausente, texto exacto y conservación
 de criterios laborales al importar. Las pruebas HTTP verifican el transporte intacto
 de la representación autoritativa en GET/PUT.
+
+### Revisión aislada de importación CV (issue #11)
+
+Edito lectura, escritura, conversación, comprensión oral y regla de idiomas por separado;
+no infiero niveles del resumen libre. Parto de los valores confirmados y puedo rechazar
+el detalle propuesto para conservar el actual. Rechazo tecnologías por fila únicamente
+en el borrador: una propuesta rechazada no borra hechos confirmados, y los nombres
+vacíos no se aplican. Para borrar un hecho confirmado uso la edición manual del formulario.
+La acción de soporte agrega su palabra clave al reemplazo ya aceptado, sin recuperar
+palabras descartadas ni modificar experiencia.
+
+Copio la extracción validada a un único borrador revisable; no edito la respuesta de
+DeepSeek ni el formulario mientras respondo preguntas. Edito textos, niveles,
+importancia, aliases y evidencia desde esa revisión. Conservo los niveles tecnológicos
+ya confirmados como punto de partida; la propuesta no los sobrescribe por sí sola.
+Aplico los valores revisados, incluso textos vaciados, sin reiniciar preguntas desde
+la extracción. **Aplicar al formulario no guarda**: sigo usando Guardar preferencias.
+
+Asigno un UUID local nuevo por pregunta y revisión. El template y los eventos usan esa
+identidad, no `campo` ni índices de listas filtradas. Distingo `pendiente`, `respondida`
+(respuesta sin aplicar hechos), `aplicada` (acción explícita sobre el borrador),
+`ignorada` (sin respuesta ni nota) y `nota` (nota conservada e ignorada como acción).
+Guardo respuesta, nota, identidad y estado en `preguntas_perfil_pendientes`, incluyendo
+preguntas resueltas; después de guardar y recargar muestro sus textos. No hay migración.
+
+Las acciones muestran su alcance antes de ejecutarse: Docker cambia solo su nivel a
+básico; salario quita solo el filtro salarial; soporte agrega solo una palabra clave
+positiva. React Native y las respuestas libres no inventan experiencia: requieren
+edición explícita de los hechos del borrador. Salario y palabras clave positivas también
+admiten confirmación explícita de reemplazo desde controles etiquetados. El salario
+normalizado a null por ausencia conserva el manual, salvo esa decisión explícita.
+Roles, búsqueda, modalidad, zonas, disponibilidad, exclusiones, plataformas y años reales
+siguen protegidos; el resumen **Se agregará / Se modificará / Se conservará** lo comunica.
+
+Cancelar descarta todo el estado temporal e invalida respuestas HTTP tardías, sin
+restaurar ni pisar ediciones manuales previas. Preservo el contrato #10: preguntas
+omitidas conservan las existentes, `[]` explícito las limpia y
+`preguntas_perfil_pendientes` tiene precedencia. Rechazo null en cualquiera de los arrays.
+La vista del perfil IA continúa siendo exclusivamente la respuesta persistida del
+backend; un guardado fallido no confirma el borrador. Las pruebas focalizadas recorren
+clics DOM con preguntas mezcladas/duplicadas, edición de Docker, notas, cancelación,
+salario/experiencia, omisión/null/vacío y solicitudes obsoletas. El roundtrip HTTP con
+servicio real y las suites completas corresponden a T2.
 
 ### Reevaluación seleccionada (issue #9)
 
