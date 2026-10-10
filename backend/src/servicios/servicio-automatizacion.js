@@ -370,9 +370,19 @@ async function ejecutarCicloCompleto() {
         } finally {
             await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
         }
-        actualizarPasoPorgreso('evaluacion', 'completada', resultado.evaluacion.aprobadas);
+        const evaluacion = resultado.evaluacion;
+        const fallo = evaluacion.estado === 'error' || evaluacion.errores > 0;
+        const cancelada = evaluacion.estado === 'cancelado';
+        if (fallo || cancelada) {
+            resultado.exito = false;
+            resultado.errores.push(cancelada
+                ? 'La evaluación fue cancelada. Conservo los resultados parciales.'
+                : `Error en evaluación: ${evaluacion.errores || 0} error(es). Conservo los resultados parciales.`);
+        }
+        actualizarPasoPorgreso('evaluacion', fallo || cancelada ? 'error' : 'completada', evaluacion.aprobadas);
         console.log(`[Automatización] Evaluación: ${resultado.evaluacion.aprobadas} aprobadas, ${resultado.evaluacion.rechazadas} rechazadas.`);
     } catch (error) {
+        resultado.exito = false;
         actualizarPasoPorgreso('evaluacion', 'error', 0);
         resultado.errores.push(`Error en evaluación: ${error.message}`);
         console.error(`[Automatización] Error en evaluación: ${error.message}`);

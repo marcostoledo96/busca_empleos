@@ -77,6 +77,12 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
  6. Registrar resultado en estado del servicio
 ```
 
+### Finalización con resultados parciales
+
+Distingo la finalización del ciclo de una evaluación exitosa: si el worker resuelve con `estado: 'error'`, `errores > 0` o `estado: 'cancelado'`, marco el paso de evaluación como `error`, agrego un aviso en `resultado.errores` y retorno `exito: false`. También retorno `exito: false` si la evaluación rechaza la promesa. Conservo el resumen completo, sus contadores, las ofertas guardadas, el envío del email y la liberación del lock. Mantengo `activo: false` y `porcentaje: 100` como señales de finalización, no de éxito.
+
+En el email HTML y texto plano, completo el aviso desde `evaluacion.errores`, `evaluacion.estado` y `erroresGuardado` cuando el arreglo general llega vacío; no anuncio «Sin errores» ante fallos o cancelación. No modifico el tratamiento existente del scraping parcial.
+
 ### Plataformas actuales (definidas en `config/plataformas.js`)
 
 | Plataforma | id | Activa | Scraper |

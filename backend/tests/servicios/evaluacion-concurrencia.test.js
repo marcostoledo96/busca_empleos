@@ -98,7 +98,32 @@ test.each([false, true])('retengo el mutex durante finalización con cancelació
     finalizado.resolver();
     const resultado = await trabajo;
     expect(lotes.finalizarLote).toHaveBeenCalledWith(1, errorEscritura ? 'error' : 'cancelado');
-    expect(resultado.errores.length).toBe(errorEscritura ? 1 : 0);
+    expect(resultado.exito).toBe(false);
+    expect(resultado.errores).toEqual([errorEscritura
+        ? 'Error en evaluación: Falla de escritura'
+        : 'La evaluación fue cancelada. Conservo los resultados parciales.']);
+    if (errorEscritura) {
+        expect(resultado.evaluacion).toBeNull();
+        expect(servicio.obtenerProgresoEvaluacion()).toMatchObject({
+            activo: false, estado: 'error', evaluadas: 0, pendientes: 1,
+            mensaje_error: 'Falla de escritura',
+        });
+    } else {
+        expect(resultado.evaluacion).toMatchObject({
+            activo: false, estado: 'cancelado', total: 1, evaluadas: 1,
+            aprobadas: 1, rechazadas: 0, errores: 0, pendientes: 0,
+            detalle: [expect.objectContaining({ id: 1, estado: 'aprobada', error: false })],
+        });
+    }
+    expect(automatizacion.obtenerProgreso()).toMatchObject({
+        activo: false, porcentaje: 100,
+        pasos: expect.arrayContaining([
+            expect.objectContaining({ nombre: 'evaluacion', estado: 'error', extraidas: errorEscritura ? 0 : 1 }),
+        ]),
+    });
+    expect(resultado.scraping.totalExtraidas).toBe(0);
+    expect(email.enviarResumenCiclo).toHaveBeenCalledWith(resultado);
+    expect(automatizacion.obtenerEstado().ultimoResultado).toEqual(resultado);
     expect(propietario).toBeNull();
     for (const cliente of clientes) expect(cliente.release).toHaveBeenCalledTimes(1);
 });

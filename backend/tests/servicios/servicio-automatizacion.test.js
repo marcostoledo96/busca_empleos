@@ -383,6 +383,56 @@ describe('Servicio de automatización', () => {
             expect(resultado.errores).toHaveLength(0);
         });
 
+        test.each([
+            { estado: 'error', errores: 1 },
+            { estado: 'error', errores: 0 },
+            { estado: 'completado', errores: 1 },
+            { estado: 'cancelado', errores: 0 },
+        ])('conservo el resumen parcial sin éxito con evaluación $estado y $errores errores', async ({ estado, errores }) => {
+            const resumen = {
+                total: 2, evaluadas: 1, aprobadas: 1, rechazadas: 0,
+                errores, pendientes: 1, estado,
+            };
+            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue(resumen);
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev', url: 'https://linkedin.com/1' },
+            ]);
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.exito).toBe(false);
+            expect(resultado.evaluacion).toEqual(resumen);
+            expect(resultado.scraping.guardadas).toBe(1);
+            expect(resultado.errores).toEqual([expect.stringContaining('evaluación')]);
+            expect(servicioAutomatizacion.obtenerProgreso()).toMatchObject({
+                activo: false, porcentaje: 100,
+                pasos: expect.arrayContaining([
+                    expect.objectContaining({ nombre: 'evaluacion', estado: 'error', extraidas: 1 }),
+                ]),
+            });
+            expect(servicioAutomatizacion.obtenerEstado().ultimoResultado).toEqual(resultado);
+            expect(resultado.fechaEjecucion).toBeDefined();
+            expect(resultado.duracionSegundos).toBeDefined();
+            expect(servicioNotificacionEmail.enviarResumenCiclo).toHaveBeenCalledWith(resultado);
+            const bloqueo = require('../../src/utils/bloqueo-concurrente');
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledTimes(1);
+        });
+
+        test('conservo el éxito de una evaluación resuelta sin errores', async () => {
+            const resumen = {
+                total: 2, evaluadas: 2, aprobadas: 1, rechazadas: 1,
+                errores: 0, pendientes: 0, estado: 'completado',
+            };
+            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue(resumen);
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+            expect(resultado.exito).toBe(true);
+            expect(resultado.errores).toEqual([]);
+            expect(resultado.evaluacion).toEqual(resumen);
+            expect(servicioAutomatizacion.obtenerProgreso().pasos).toContainEqual(
+                expect.objectContaining({ nombre: 'evaluacion', estado: 'completada', extraidas: 1 })
+            );
+        });
+
         test('si la evaluación falla, reporta el error pero no crashea', async () => {
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
                 { titulo: 'Dev', url: 'https://linkedin.com/1' },
@@ -397,6 +447,9 @@ describe('Servicio de automatización', () => {
             expect(resultado.evaluacion).toBeNull();
             expect(resultado.errores).toHaveLength(1);
             expect(resultado.errores[0]).toContain('evaluación');
+            expect(resultado.exito).toBe(false);
+            expect(servicioAutomatizacion.obtenerProgreso().activo).toBe(false);
+            expect(require('../../src/utils/bloqueo-concurrente').liberarBloqueoSeguro).toHaveBeenCalledTimes(1);
         });
 
         test('ofertas duplicadas se cuentan correctamente (crearOferta retorna null)', async () => {

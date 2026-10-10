@@ -117,6 +117,21 @@ describe('Servicio de notificación por email', () => {
     });
 
     describe('armarResumenEmail()', () => {
+        test.each([
+            { evaluacion: { total: 2, aprobadas: 1, rechazadas: 0, errores: 1, estado: 'error' }, erroresGuardado: 0 },
+            { evaluacion: { total: 2, aprobadas: 1, rechazadas: 0, errores: 0, estado: 'error' }, erroresGuardado: 0 },
+            { evaluacion: { total: 2, aprobadas: 1, rechazadas: 0, errores: 0, estado: 'cancelado' }, erroresGuardado: 0 },
+            { evaluacion: null, erroresGuardado: 1 },
+        ])('no anuncio ausencia de errores con un resumen parcial %j', (parcial) => {
+            const resumen = { ...parcial, errores: [] };
+            const resultado = servicioNotificacionEmail.armarResumenEmail(resumen);
+            expect(resultado.html).not.toContain('Sin errores');
+            expect(resultado.texto).not.toContain('Sin errores');
+            expect(resultado.html).toContain('Errores');
+            expect(resultado.texto).toContain('Errores');
+            expect(resumen.errores).toEqual([]);
+        });
+
         test('genera asunto, HTML y texto plano con métricas completas', () => {
             const resumen = {
                 exito: true,

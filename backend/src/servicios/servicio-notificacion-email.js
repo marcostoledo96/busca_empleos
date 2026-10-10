@@ -88,7 +88,7 @@ function escaparHtml(texto) {
 function armarResumenEmail(resumenCiclo) {
     const s = resumenCiclo.scraping || {};
     const ev = resumenCiclo.evaluacion;
-    const errores = resumenCiclo.errores || [];
+    const errores = [...(resumenCiclo.errores || [])];
 
     // Datos del scraping por plataforma — solo muestro las que trajeron ofertas.
     const plataformas = [
@@ -117,6 +117,16 @@ function armarResumenEmail(resumenCiclo) {
     const rechazadas = ev ? (ev.rechazadas ?? 0) : 0;
     const totalEvaluadas = ev ? (ev.total ?? 0) : 0;
     const erroresIA = ev ? (ev.errores ?? 0) : 0;
+
+    // Completo el aviso cuando recibo contadores de fallo sin errores generales.
+    if (errores.length === 0) {
+        if (erroresGuardado > 0) errores.push(`Errores al guardar en BD: ${erroresGuardado}`);
+        if (erroresIA > 0 || ev?.estado === 'error') {
+            errores.push(`Errores de evaluación: ${erroresIA}. Conservo los resultados parciales.`);
+        } else if (ev?.estado === 'cancelado') {
+            errores.push('Evaluación cancelada. Conservo los resultados parciales.');
+        }
+    }
 
     // Fecha y duración del ciclo.
     const fechaEjecucion = resumenCiclo.fechaEjecucion

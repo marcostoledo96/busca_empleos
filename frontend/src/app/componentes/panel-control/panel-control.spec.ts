@@ -5,6 +5,7 @@ import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
 import { MessageService } from 'primeng/api';
 import { of, throwError, Observable } from 'rxjs';
+import { ProgresoAutomatizacion } from '../../modelos/respuesta-api.model';
 
 describe('PanelControl — Selector mobile de scraping', () => {
 
@@ -38,7 +39,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
         obtenerEstado:  () => of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } }),
         iniciarCron:    () => of({ exito: true, datos: { activo: true,  expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } }),
         detenerCron:    () => of({ exito: true }),
-        obtenerProgreso:() => of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } }),
+        obtenerProgreso:() => of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } as ProgresoAutomatizacion }),
         ejecutarCiclo:  () => of({ exito: true }),
     };
 
@@ -57,6 +58,38 @@ describe('PanelControl — Selector mobile de scraping', () => {
         component = fixture.componentInstance;
         fixture.detectChanges();
     });
+
+    for (const estado of ['error', 'completada'] as const) {
+        it(`notifico el ciclo terminal con paso ${estado} sin confundir 100% con éxito`, fakeAsync(() => {
+            const datos = {
+                activo: false, porcentaje: 100,
+                pasos: [{ nombre: 'evaluacion', label: 'Evaluación IA', estado, extraidas: 1 }],
+            };
+            const progresoSpy = spyOn(mockAutomatizacionService, 'obtenerProgreso').and.returnValue(of({ exito: true, datos }));
+            const mensajesSpy = spyOn((component as any).mensajes, 'add');
+            const eventoSpy = spyOn(component.accionCompletada, 'emit');
+            component.ejecutandoCiclo.set(true);
+            component.mostrarOverlayCiclo.set(true);
+            (component as any).iniciarPolling();
+            tick(2000);
+            expect(component.ejecutandoCiclo()).toBeFalse();
+            expect(component.progresoCiclo()).toEqual(datos);
+            tick(1200);
+            expect(mensajesSpy).toHaveBeenCalledOnceWith(jasmine.objectContaining({
+                severity: estado === 'error' ? 'error' : 'success',
+                summary: estado === 'error' ? 'Ciclo con errores' : 'Ciclo completo',
+            }));
+            if (estado === 'error') {
+                expect(mensajesSpy).toHaveBeenCalledWith(jasmine.objectContaining({
+                    detail: jasmine.stringMatching('parciales'),
+                }));
+            }
+            expect(eventoSpy).toHaveBeenCalledTimes(1);
+            expect(component.mostrarOverlayCiclo()).toBeFalse();
+            tick(4000);
+            expect(progresoSpy).toHaveBeenCalledTimes(1);
+        }));
+    }
 
     // --- Plataforma seleccionada por defecto ---
 

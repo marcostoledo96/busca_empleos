@@ -206,13 +206,16 @@ export class PanelControl implements OnInit, OnDestroy {
                             this.ejecutandoCiclo.set(false);
                             // Aseguro que el overlay muestre 100% antes de cerrar.
                             this.progresoCiclo.set({ ...respuesta.datos, porcentaje: 100, activo: false });
+                            const fallo = respuesta.datos.pasos.some(paso => paso.estado === 'error');
                             setTimeout(() => {
                                 this.mostrarOverlayCiclo.set(false);
                                 this.progresoCiclo.set(null);
                                 this.mensajes.add({
-                                    severity: 'success',
-                                    summary: 'Ciclo completo',
-                                    detail: 'Scraping y evaluación finalizados.',
+                                    severity: fallo ? 'error' : 'success',
+                                    summary: fallo ? 'Ciclo con errores' : 'Ciclo completo',
+                                    detail: fallo
+                                        ? 'El ciclo terminó con errores. Conservo los resultados parciales en el resumen del ciclo.'
+                                        : 'Scraping y evaluación finalizados.',
                                     life: 5000
                                 });
                                 this.accionCompletada.emit();

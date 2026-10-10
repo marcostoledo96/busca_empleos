@@ -303,6 +303,7 @@ Archivo: `frontend/src/app/componentes/panel-control/`
 - `ejecutarAutomatizacion()`: envía `POST /api/automatizacion/ejecutar`. Si recibe `202`, inicia polling a `GET /api/automatizacion/progreso` y NO cierra el overlay de progreso hasta que el ciclo termine realmente. Si recibe `409`, rehidrata el progreso del ciclo existente en lugar de mostrar error fatal.
 - Durante el polling de evaluación, emite `evaluacionEnProgreso` en cada tick para que el `Dashboard` refresque contadores sin esperar al final.
 - Durante el polling de automatización, emite `accionCompletada` cuando el ciclo finaliza para que el Dashboard recargue datos.
+- Al recibir el ciclo inactivo con 100%, reviso `pasos[].estado`: si algún paso está en `error`, muestro «Ciclo con errores» y aviso que conservo resultados parciales, sin toast de éxito. Cierro el overlay y recargo los datos también en ese caso; el porcentaje indica finalización, no éxito.
 - Al completar cualquier otra acción, emite `accionCompletada` para que el Dashboard recargue datos.
 
 **Accesibilidad y responsive:**
