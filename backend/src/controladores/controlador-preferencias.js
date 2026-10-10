@@ -8,6 +8,7 @@ const modeloPreferencia = require('../modelos/preferencia');
 const { construirPerfilEfectivoCanonico } = require('../servicios/evaluacion/entradas-evaluacion');
 const { crearFirmaCriterios } = require('../servicios/evaluacion/identidad-evaluacion');
 const { consultarDeepSeek } = require('../config/deepseek');
+const { validarExtraccionCv } = require('../utils/validacion-extraccion-cv');
 const { IDS_PLATAFORMAS, normalizarIdPlataforma } = require('../config/plataformas');
 
 /**
@@ -456,15 +457,23 @@ async function analizarCvMarkdown(req, res) {
     if (!archivo) {
         return res.status(400).json({
             exito: false,
-            error: 'No se recibió ningún archivo. Asegurate de enviar un .md.',
+            codigo: 'CARGA_INVALIDA',
+            error: 'No se recibió un archivo Markdown (.md).',
         });
     }
 
-    const contenidoMarkdown = archivo.buffer.toString('utf-8');
+    let contenidoMarkdown;
+    try {
+        contenidoMarkdown = new TextDecoder('utf-8', { fatal: true }).decode(archivo.buffer);
+    } catch {
+        return res.status(400).json({ exito: false, codigo: 'CARGA_INVALIDA',
+            error: 'El archivo debe contener texto UTF-8 válido.' });
+    }
 
     if (!contenidoMarkdown || contenidoMarkdown.trim().length === 0) {
         return res.status(400).json({
             exito: false,
+            codigo: 'CARGA_INVALIDA',
             error: 'El archivo está vacío.',
         });
     }
@@ -482,63 +491,51 @@ async function analizarCvMarkdown(req, res) {
         const promptSistema = construirPromptExtraccionSistema();
         const promptUsuario = construirPromptExtraccionUsuario(contenidoMarkdown);
 
-        // Usar el modelo de importación (V4 Pro por defecto), no el de evaluación.
-        const respuestaTexto = await consultarDeepSeek(promptSistema, promptUsuario, modeloImportacion);
+        // ponytail: uso bytes UTF-8 como cota conservadora, no como tokens exactos.
+        // Reservo la salida máxima de 384 Ki tokens (393216) y 4096 para el formato del contexto de 1M.
+        if (Buffer.byteLength(promptSistema + promptUsuario, 'utf8') > 1000000 - 393216 - 4096) {
+            return res.status(413).json({ exito: false, codigo: 'PRESUPUESTO_DOCUMENTO',
+                error: 'El documento completo supera el presupuesto de análisis. Reducí el archivo y volvé a intentar.' });
+        }
+        const respuestaTexto = await consultarDeepSeek(promptSistema, promptUsuario, modeloImportacion, { importacionCv: true });
 
-        // Limpiar markdown code blocks.
-        const jsonLimpio = respuestaTexto
-            .replace(/```json\s*/g, '')
-            .replace(/```\s*/g, '')
-            .trim();
+        // Quito solo el envoltorio Markdown, sin modificar evidencia dentro del JSON.
+        const jsonLimpio = respuestaTexto.trim()
+            .replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/, '$1');
 
-        const datos = JSON.parse(jsonLimpio);
-
-        // Validación manual básica.
-        if (!datos.tecnologias_detalle || !Array.isArray(datos.tecnologias_detalle)) {
-            return res.status(422).json({
-                exito: false,
-                error: 'DeepSeek no pudo extraer tecnologías del CV.',
-                datosCrudos: datos,
-            });
+        let datos;
+        try {
+            datos = JSON.parse(jsonLimpio);
+        } catch {
+            return res.status(422).json({ exito: false, codigo: 'JSON_INVALIDO',
+                error: 'La respuesta del análisis no es JSON válido. Volvé a intentar.' });
         }
 
-        res.json({
-            exito: true,
-            datos: {
-                nombre: datos.nombre || null,
-                nivel_experiencia: datos.nivel_experiencia || null,
-                perfil_profesional: datos.perfil_profesional || null,
-                idioma_candidato: datos.idioma_candidato || null,
-                modalidad_aceptada: datos.modalidad_aceptada || null,
-                zonas_preferidas: datos.zonas_preferidas || [],
-                disponibilidad: datos.disponibilidad || null,
-                expectativa_salarial_min: datos.expectativa_salarial_min ?? null,
-                expectativa_salarial_max: datos.expectativa_salarial_max ?? null,
-                moneda_salarial: datos.moneda_salarial || 'NO_FILTRAR',
-                nivel_ingles_detalle: datos.nivel_ingles_detalle || null,
-                tecnologias_detalle: datos.tecnologias_detalle || [],
-                roles_objetivo_detalle: datos.roles_objetivo_detalle || [],
-                terminos_busqueda: datos.terminos_busqueda || [],
-                reglas_exclusion: datos.reglas_exclusion || [],
-                keywords_positivas: datos.keywords_positivas || [],
-                keywords_negativas: datos.keywords_negativas || [],
-                plataformas_preferidas: datos.plataformas_preferidas || [],
-                plataformas_excluidas: datos.plataformas_excluidas || [],
-                preguntas: datos.preguntas || [],
-                preguntas_perfil_pendientes: datos.preguntas_perfil_pendientes || datos.preguntas || [],
-                advertencias: datos.advertencias || [],
+        const valido = validarExtraccionCv(datos, {
+            validarTecnologias: validarTecnologiasDetalle,
+            validarRoles: validarRolesObjetivoDetalle,
+            validarIngles: validarNivelInglesDetalle,
+            importancias: IMPORTANCIAS_TECNOLOGIA,
+            plataformas: IDS_PLATAFORMAS,
+            enums: {
+                nivel_experiencia: NIVELES_VALIDOS, modalidad_aceptada: MODALIDADES_VALIDAS,
+                disponibilidad: DISPONIBILIDADES_VALIDAS, moneda_salarial: MONEDAS_SALARIALES_VALIDAS,
             },
         });
+        if (!valido) {
+            return res.status(422).json({ exito: false, codigo: 'CONTRATO_INVALIDO',
+                error: 'La extracción del CV contiene datos inválidos. Volvé a intentar.' });
+        }
+        // Conservo ausencia, null y listas vacías sin inventar valores ni persistir.
+        res.json({ exito: true, datos });
     } catch (error) {
-        const esErrorParseo = error instanceof SyntaxError;
-
-        console.error('[Importar CV] Error:', error.message);
-
-        return res.status(500).json({
+        const truncada = error.codigo === 'SALIDA_TRUNCADA';
+        const incompleta = error.codigo === 'SALIDA_INCOMPLETA';
+        return res.status(truncada || incompleta ? 422 : 502).json({
             exito: false,
-            error: esErrorParseo
-                ? 'DeepSeek devolvió una respuesta que no se pudo interpretar. Probá de nuevo.'
-                : 'No se pudo analizar el CV. Verificá que DeepSeek esté disponible.',
+            codigo: truncada ? 'SALIDA_TRUNCADA' : incompleta ? 'SALIDA_INCOMPLETA' : 'PROVEEDOR_NO_DISPONIBLE',
+            error: truncada || incompleta ? 'El proveedor devolvió una extracción incompleta. Volvé a intentar.'
+                : 'No se pudo consultar el proveedor de análisis. Volvé a intentar.',
         });
     }
 }
@@ -557,7 +554,7 @@ Reglas estrictas:
 - Si el CV incluye una sección "Perfil estructurado para Busca Empleos AI", usala como fuente prioritaria.
 - Si una tecnología aparece como "penalizable" o "no dominada", nivel "ninguno".
 - NO confundas Java con JavaScript. Son tecnologías distintas.
-- Para cada tecnología incluí aliases técnicos (mínimo 1, máximo 5).
+- Los aliases técnicos son opcionales: podés omitirlos o usar un array vacío, máximo 20. NO inventes aliases.
 - Si hay datos que no podés inferir con certeza, ponelos en "advertencias".
 - Si detectás que faltan datos importantes, generá "preguntas" para el usuario.
 
@@ -585,8 +582,8 @@ Devolvé SOLO JSON válido con este formato:
     {
       "nombre": string,
       "nivel": "ninguno" | "basico" | "medio" | "avanzado",
-      "categoria": "frontend" | "backend" | "base_de_datos" | "lenguaje" | "testing" | "herramienta" | "metodologia" | "cloud" | "otro",
-      "importancia": "principal" | "secundaria" | "penalizable",
+      "categoria": "frontend" | "backend" | "base_de_datos" | "lenguaje" | "testing" | "herramienta" | "metodologia" | "cloud" | "mobile" | "otro",
+      "importancia": "principal" | "secundaria" | "penalizable" | "no_prioritaria",
       "aliases": string[],
       "evidencia": string
     }
@@ -629,13 +626,10 @@ Devolvé SOLO JSON válido con este formato:
  * Prompt de usuario con el contenido del CV.
  */
 function construirPromptExtraccionUsuario(contenidoMarkdown) {
-    // Recorto a 15000 caracteres para no exceder límites de tokens.
-    const contenidoRecortado = contenidoMarkdown.slice(0, 15000);
-
     return `Analizá este CV en Markdown y extraé los datos estructurados.
 
 CV:
-"""${contenidoRecortado}"""`;
+"""${contenidoMarkdown}"""`;
 }
 
 module.exports = {

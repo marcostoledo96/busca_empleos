@@ -442,8 +442,8 @@
                                         <span>Nivel: <strong>{{ resultadoImportacion.nivel_experiencia || '—' }}</strong></span>
                                         <span>Modalidad: <strong>{{ resultadoImportacion.modalidad_aceptada || '—' }}</strong></span>
                                         <span>Disponibilidad: <strong>{{ resultadoImportacion.disponibilidad || '—' }}</strong></span>
-                                        <span>Tecnologías detectadas: <strong>{{ resultadoImportacion.tecnologias_detalle.length }}</strong></span>
-                                        <span>Roles detectados (no se aplican): <strong>{{ resultadoImportacion.roles_objetivo_detalle.length }}</strong></span>
+                                        <span>Tecnologías detectadas: <strong>{{ resultadoImportacion.tecnologias_detalle?.length ?? 0 }}</strong></span>
+                                        <span>Roles detectados (no se aplican): <strong>{{ resultadoImportacion.roles_objetivo_detalle?.length ?? 0 }}</strong></span>
                                     </div>
                                     <div class="campo-fila campo-fila--2 importar-preview-grid">
                                         <div class="campo">
@@ -487,7 +487,7 @@
                                             </div>
                                         </div>
                                     </div>
-                                    @if (resultadoImportacion.advertencias.length > 0) {
+                                    @if ((resultadoImportacion.advertencias?.length ?? 0) > 0) {
                                         <div class="importar-advertencias">
                                             @for (adv of resultadoImportacion.advertencias; track adv) {
                                                 <span class="importar-adv">{{ adv }}</span>

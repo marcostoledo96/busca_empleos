@@ -4,7 +4,7 @@ import { PreferenciasService } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { DemoService } from '../../servicios/demo.service';
 import { MessageService } from 'primeng/api';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 describe('Preferencias — Accesibilidad aria-live dinámico', () => {
@@ -32,6 +32,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const mockPrefService = {
             obtenerPreferencias: () => of(mockPreferencias),
             actualizarPreferencias: () => of(mockPreferencias),
+            analizarCvMarkdown: () => of({ exito: true, datos: { nombre: 'Perfil parcial' } }),
         };
         const mockEvaluacionService = {
             resetearEvaluaciones: () => of({ exito: true, datos: { reseteadas: 3 } }),
@@ -53,6 +54,62 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const component = fixture.componentInstance;
         return { fixture, component };
     }
+
+    it('muestra el error backend y descarta la extracción anterior', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const mensajes = fixture.debugElement.injector.get(MessageService);
+        const aviso = spyOn(mensajes, 'add').and.callThrough();
+        component.cargando.set(false);
+        fixture.autoDetectChanges();
+        spyOn(servicio, 'analizarCvMarkdown').and.returnValue(throwError(() => ({
+            error: { error: 'La extracción del CV contiene datos inválidos.' },
+        })));
+        component.resultadoImportacion = { nombre: 'Anterior' } as any;
+        component.preguntasImportacion = [{ campo: 'anterior', pregunta: 'Anterior' }];
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+        expect(component.preguntasImportacion).toEqual([]);
+        expect(component.analizandoCv()).toBeFalse();
+        expect(aviso).toHaveBeenCalledWith(jasmine.objectContaining({ detail: 'La extracción del CV contiene datos inválidos.' }));
+        component.nombre = 'Confirmado';
+        component.aplicarImportacion();
+        expect(component.nombre).toBe('Confirmado');
+        await fixture.whenStable();
+        expect(fixture.nativeElement.textContent).toContain('La extracción del CV contiene datos inválidos.');
+        expect(fixture.nativeElement.querySelector('.importar-resultado')).toBeNull();
+    });
+
+    it('descarta sugerencias también ante archivo grande y error sin mensaje backend', async () => {
+        const { fixture, component } = await crearComponente();
+        const servicio = TestBed.inject(PreferenciasService);
+        const mensajes = fixture.debugElement.injector.get(MessageService);
+        const aviso = spyOn(mensajes, 'add');
+        const analizar = spyOn(servicio, 'analizarCvMarkdown').and.returnValue(throwError(() => ({ status: 0 })));
+        component.resultadoImportacion = { nombre: 'Anterior' } as any;
+        component.archivoCvSeleccionado = new File(['a'.repeat(1024 * 1024 + 1)], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+        expect(analizar).not.toHaveBeenCalled();
+        component.resultadoImportacion = { nombre: 'Anterior' } as any;
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion).toBeNull();
+        expect(aviso).toHaveBeenCalledWith(jasmine.objectContaining({ detail: 'No se pudo analizar el CV.' }));
+    });
+
+    it('presenta una extracción parcial sin inventar listas ausentes', async () => {
+        const { fixture, component } = await crearComponente();
+        component.cargando.set(false);
+        component.tabActiva.set(5);
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        fixture.autoDetectChanges();
+        component.analizarCv();
+        await fixture.whenStable();
+        expect(component.resultadoImportacion).toEqual({ nombre: 'Perfil parcial' } as any);
+        expect(component.preguntasImportacion).toEqual([]);
+    });
 
     it('debería crear el componente', async () => {
         const { component } = await crearComponente();

@@ -122,7 +122,7 @@ export class Preferencias implements OnInit {
     // Importación de CV Markdown.
     archivoCvSeleccionado: File | null = null;
     analizandoCv = signal(false);
-    resultadoImportacion: ResultadoImportacionCv | null = null;
+    resultadoImportacion: Partial<ResultadoImportacionCv> | null = null;
     preguntasImportacion: PreguntaImportacion[] = [];
     preguntasPerfilPendientes: PreguntaImportacion[] = [];
 
@@ -556,6 +556,9 @@ export class Preferencias implements OnInit {
     }
 
     analizarCv(): void {
+        // Descarto sugerencias anteriores antes de validar o iniciar otro análisis.
+        this.resultadoImportacion = null;
+        this.preguntasImportacion = [];
         if (!this.archivoCvSeleccionado) return;
 
         if (this.archivoCvSeleccionado.size > 1024 * 1024) {
@@ -575,11 +578,14 @@ export class Preferencias implements OnInit {
                         respuesta: '',
                     }));
                     this.mensajes.add({ severity: 'success', summary: 'CV analizado', detail: 'Revisá los datos extraídos antes de aplicar.' });
+                } else {
+                    this.mensajes.add({ severity: 'error', summary: 'Error', detail: resp.error || 'No se pudo analizar el CV.' });
                 }
             },
-            error: () => {
+            error: (error) => {
                 this.analizandoCv.set(false);
-                this.mensajes.add({ severity: 'error', summary: 'Error', detail: 'No se pudo analizar el CV.' });
+                const detalle = typeof error.error?.error === 'string' ? error.error.error : 'No se pudo analizar el CV.';
+                this.mensajes.add({ severity: 'error', summary: 'Error', detail: detalle });
             },
         });
     }

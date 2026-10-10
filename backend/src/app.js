@@ -196,28 +196,11 @@ app.use('/api/automatizacion', limitadorCostoso, rutasAutomatizacion);
 // Importar CV consume IA cara (deepseek-v4-pro) — rate limit separado.
 // Se monta ANTES del router general de preferencias para que esta ruta específica
 // tenga su propio rate limit sin afectar GET/PUT de preferencias.
-// Usamos multer inline para procesar el archivo antes de llegar al controlador.
-const Multer = require('multer');
-const uploadCvLimitado = Multer({
-    storage: Multer.memoryStorage(),
-    limits: { fileSize: 1024 * 1024 },
-    fileFilter: (req, file, cb) => {
-        const nombreOk = file.originalname.toLowerCase().endsWith('.md');
-        const mimeOk = ['text/markdown', 'text/plain', 'application/octet-stream'].includes(file.mimetype);
-
-        if (!nombreOk || !mimeOk) {
-            const error = new Error('Solo se permiten archivos Markdown (.md)');
-            error.statusCode = 400;
-            return cb(error);
-        }
-
-        cb(null, true);
-    },
-});
+// Reutilizo la misma carga y respuesta de errores que el router de preferencias.
 app.post(
     '/api/preferencias/importar-cv/analizar',
     limitadorImportacionCv,
-    uploadCvLimitado.single('cv'),
+    rutasPreferencias.recibirCv,
     controladorPreferencias.analizarCvMarkdown
 );
 
