@@ -601,6 +601,11 @@ export class Preferencias implements OnInit {
                         this.resultadoImportacion.expectativa_salarial_max = datos.expectativa_salarial_max ?? this.expectativaSalarialMax;
                         this.resultadoImportacion.moneda_salarial = datos.moneda_salarial ?? this.monedaSalarial;
                     }
+                    if (datos.nivel_ingles_detalle) {
+                        this.resultadoImportacion.nivel_ingles_detalle = {
+                            ...datos.nivel_ingles_detalle, ...this.nivelInglesDetalle,
+                        };
+                    }
                     // Mantengo el nivel confirmado hasta que lo edite explícitamente en la revisión.
                     if (datos.tecnologias_detalle?.length) {
                         this.resultadoImportacion.tecnologias_detalle = [
@@ -623,6 +628,18 @@ export class Preferencias implements OnInit {
         });
     }
 
+    rechazarTecnologiaImportacion(indice: number): void {
+        if (!this.resultadoImportacion?.tecnologias_detalle) return;
+        this.resultadoImportacion.tecnologias_detalle.splice(indice, 1);
+    }
+
+    private tecnologiasRevisadas() {
+        const propuestas = this.resultadoImportacion?.tecnologias_detalle?.filter(t => t.nombre.trim()) ?? [];
+        // Rechazar una propuesta no autoriza borrar una tecnología confirmada.
+        return [...structuredClone(propuestas), ...structuredClone(this.tecnologiasDetalle.filter(
+            actual => !propuestas.some(t => t.nombre.trim().toLowerCase() === actual.nombre.trim().toLowerCase())))];
+    }
+
     aplicarImportacion(): void {
         if (!this.resultadoImportacion) return;
 
@@ -640,7 +657,7 @@ export class Preferencias implements OnInit {
             };
         }
         if (r.tecnologias_detalle?.length) {
-            this.tecnologiasDetalle = structuredClone(r.tecnologias_detalle);
+            this.tecnologiasDetalle = this.tecnologiasRevisadas();
             this.tecnologiasEditadas = true;
         }
         // Los roles objetivo son preferencias de búsqueda, no hechos del CV.
@@ -721,7 +738,7 @@ export class Preferencias implements OnInit {
             borrador.moneda_salarial = 'NO_FILTRAR';
             this.preferenciasRevisadas.add('salario');
         } else if (campo.includes('soporte')) {
-            borrador.keywords_positivas = [...new Set([...this.keywordsPositivas, ...(this.preferenciasRevisadas.has('keywords_positivas') ? borrador.keywords_positivas ?? [] : []), 'soporte de aplicaciones'])];
+            borrador.keywords_positivas = [...new Set([...(this.preferenciasRevisadas.has('keywords_positivas') ? borrador.keywords_positivas ?? [] : this.keywordsPositivas), 'soporte de aplicaciones'])];
             this.preferenciasRevisadas.add('keywords_positivas');
         } else return;
         pregunta.estado = 'aplicada';
@@ -758,7 +775,7 @@ export class Preferencias implements OnInit {
             ['Nombre', r.nombre, this.nombre], ['Nivel', r.nivel_experiencia, this.nivelExperiencia],
             ['Perfil profesional', r.perfil_profesional, this.perfilProfesional], ['Idiomas', r.idioma_candidato, this.idiomaCandidato],
             ['Inglés detallado', r.nivel_ingles_detalle ? { ...this.nivelInglesDetalle, ...r.nivel_ingles_detalle } : undefined, this.nivelInglesDetalle],
-            ['Tecnologías', r.tecnologias_detalle?.length ? r.tecnologias_detalle : undefined, this.tecnologiasDetalle],
+            ['Tecnologías', r.tecnologias_detalle?.length ? this.tecnologiasRevisadas() : undefined, this.tecnologiasDetalle],
             ['Preguntas', Object.hasOwn(r, 'preguntas_perfil_pendientes') || Object.hasOwn(r, 'preguntas') ? this.preguntasImportacion : undefined, this.preguntasPerfilPendientes],
         ];
         if (this.preferenciasRevisadas.has('salario')) campos.push(['Filtro salarial', [r.expectativa_salarial_min, r.expectativa_salarial_max, r.moneda_salarial], [this.expectativaSalarialMin, this.expectativaSalarialMax, this.monedaSalarial]]);

@@ -424,6 +424,14 @@ de la representación autoritativa en GET/PUT.
 
 ### Revisión aislada de importación CV (issue #11)
 
+Edito lectura, escritura, conversación, comprensión oral y regla de idiomas por separado;
+no infiero niveles del resumen libre. Parto de los valores confirmados y puedo rechazar
+el detalle propuesto para conservar el actual. Rechazo tecnologías por fila únicamente
+en el borrador: una propuesta rechazada no borra hechos confirmados, y los nombres
+vacíos no se aplican. Para borrar un hecho confirmado uso la edición manual del formulario.
+La acción de soporte agrega su palabra clave al reemplazo ya aceptado, sin recuperar
+palabras descartadas ni modificar experiencia.
+
 Copio la extracción validada a un único borrador revisable; no edito la respuesta de
 DeepSeek ni el formulario mientras respondo preguntas. Edito textos, niveles,
 importancia, aliases y evidencia desde esa revisión. Conservo los niveles tecnológicos

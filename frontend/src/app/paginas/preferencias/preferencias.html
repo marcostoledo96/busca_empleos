@@ -468,6 +468,18 @@
                                             <textarea pTextarea [ngModel]="resultadoImportacion.idioma_candidato || ''" (ngModelChange)="resultadoImportacion!.idioma_candidato = $event" [rows]="4"></textarea>
                                         </div>
                                     </div>
+                                    @if (resultadoImportacion.nivel_ingles_detalle; as ingles) {
+                                        <div class="campo">
+                                            <p>Detalle de idiomas propuesto: edito cada habilidad y regla sin inferir niveles del resumen libre. Los campos omitidos conservan el detalle actual.</p>
+                                            <label>Español <input pInputText id="cv-ingles-espanol" [(ngModel)]="ingles.espanol" /></label>
+                                            <label>Lectura en inglés <input pInputText id="cv-ingles-reading" [(ngModel)]="ingles.reading" /></label>
+                                            <label>Escritura en inglés <input pInputText id="cv-ingles-writing" [(ngModel)]="ingles.writing" /></label>
+                                            <label>Conversación en inglés <input pInputText id="cv-ingles-speaking" [(ngModel)]="ingles.speaking" /></label>
+                                            <label>Comprensión oral en inglés <input pInputText id="cv-ingles-listening" [(ngModel)]="ingles.listening" /></label>
+                                            <label>Regla de idiomas <input pInputText id="cv-ingles-regla" [(ngModel)]="ingles.regla" /></label>
+                                            <button type="button" id="cv-rechazar-ingles" class="btn-detalle-secundario" (click)="resultadoImportacion.nivel_ingles_detalle = undefined">Rechazar detalle propuesto y conservar el actual</button>
+                                        </div>
+                                    }
                                     <div class="campo-fila campo-fila--3 importar-preview-grid">
                                         <div class="campo">
                                             <label class="campo-etiqueta">Términos detectados (no se aplican automáticamente)</label>
@@ -501,6 +513,7 @@
                                                 @for (tech of resultadoImportacion.tecnologias_detalle; track $index) {
                                                     <div class="campo">
                                                         <label>Nombre revisado <input pInputText [(ngModel)]="tech.nombre" /></label>
+                                                        <button type="button" data-rechazar-tecnologia class="btn-detalle-secundario" (click)="rechazarTecnologiaImportacion($index)">Rechazar propuesta de {{ tech.nombre || 'tecnología sin nombre' }} (conservo el dato confirmado)</button>
                                                         <label>Nivel revisado de {{ tech.nombre }}
                                                             <select [(ngModel)]="tech.nivel" [attr.aria-label]="'Nivel revisado de ' + tech.nombre">
                                                                 @for (opcion of opcionesNivelTecnologia; track opcion.value) { <option [value]="opcion.value">{{ opcion.label }}</option> }

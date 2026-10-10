@@ -66,6 +66,12 @@ defaults personales del esquema. No requiero migración. El contrato tipado est�
 
 ## Confirmación del CV antes de evaluar (issue #11)
 
+Reviso explícitamente las habilidades y la regla del detalle de idiomas que prioriza
+el perfil efectivo; corregir solo el resumen libre no cambia ese detalle. Puedo rechazar
+la propuesta y conservarlo. Rechazar una tecnología propuesta conserva su hecho previo
+si ya estaba confirmado; no acredito tecnologías con nombres vacíos. Soporte respeta
+las palabras clave revisadas sin reintroducir las que descarté.
+
 Trato la extracción de DeepSeek como propuesta: reviso un borrador aislado y lo aplico
 al formulario sin guardarlo automáticamente. Las respuestas de preguntas no acreditan
 experiencia por palabras clave. Docker, salario y soporte tienen acciones explícitas

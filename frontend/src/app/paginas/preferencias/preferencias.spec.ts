@@ -57,6 +57,102 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         return { fixture, component };
     }
 
+    it('permite editar y rechazar el detalle de inglés desde el borrador', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        component.nivelInglesDetalle = { speaking: 'básico' };
+        component.resultadoImportacion = { nivel_ingles_detalle: { speaking: 'avanzado', regla: 'Sin límite' } };
+        await fixture.whenStable();
+        const oral = fixture.nativeElement.querySelector('#cv-ingles-speaking') as HTMLInputElement;
+        expect(oral).not.toBeNull();
+        if (!oral) return;
+        oral.value = 'intermedio';
+        oral.dispatchEvent(new Event('input'));
+        await fixture.whenStable();
+        expect(component.nivelInglesDetalle.speaking).toBe('básico');
+        component.aplicarImportacion();
+        expect(component.nivelInglesDetalle.speaking).toBe('intermedio');
+        component.resultadoImportacion = { nivel_ingles_detalle: { speaking: 'avanzado' } };
+        await fixture.whenStable();
+        (fixture.nativeElement.querySelector('#cv-rechazar-ingles') as HTMLButtonElement).click();
+        await fixture.whenStable();
+        expect(component.resumenImportacion.conservar).toContain('Inglés detallado');
+        component.aplicarImportacion();
+        expect(component.nivelInglesDetalle.speaking).toBe('intermedio');
+    });
+
+    it('rechaza tecnologías individuales sin borrar hechos confirmados ni aceptar nombres vacíos', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        const previa = { nombre: 'Angular', nivel: 'basico', categoria: 'frontend', importancia: 'principal', aliases: [] };
+        component.tecnologiasDetalle = [previa];
+        component.resultadoImportacion = { tecnologias_detalle: [
+            { ...previa, nivel: 'avanzado' },
+            { ...previa, nombre: 'Nueva' },
+            { ...previa, nombre: '  ' },
+        ] } as any;
+        await fixture.whenStable();
+        const botones = fixture.nativeElement.querySelectorAll('[data-rechazar-tecnologia]');
+        expect(botones.length).toBe(3);
+        if (botones.length !== 3) return;
+        botones[1].click();
+        await fixture.whenStable();
+        fixture.nativeElement.querySelector('[data-rechazar-tecnologia]').click();
+        await fixture.whenStable();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+    });
+
+    it('conserva inglés confirmado al analizar y descarta rechazos al cancelar', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.nivelInglesDetalle = { speaking: 'básico', regla: 'Sin reuniones en inglés' };
+        spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({
+            exito: true, datos: { nivel_ingles_detalle: { speaking: 'avanzado', reading: 'intermedio' } },
+        } as any));
+        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.analizarCv();
+        expect(component.resultadoImportacion?.nivel_ingles_detalle).toEqual({
+            speaking: 'básico', reading: 'intermedio', regla: 'Sin reuniones en inglés',
+        });
+        const previa = { nombre: 'Angular', nivel: 'basico', categoria: 'frontend', importancia: 'principal', aliases: [] };
+        component.tecnologiasDetalle = [previa];
+        component.resultadoImportacion = { tecnologias_detalle: [{ ...previa, nivel: 'avanzado' }] } as any;
+        component.rechazarTecnologiaImportacion(0);
+        component.aplicarImportacion();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+        component.resultadoImportacion = { tecnologias_detalle: [{ ...previa, nombre: 'Nueva' }] } as any;
+        component.rechazarTecnologiaImportacion(0);
+        component.cancelarImportacion();
+        expect(component.tecnologiasDetalle).toEqual([previa]);
+        expect(component.nivelInglesDetalle).toEqual({ speaking: 'básico', regla: 'Sin reuniones en inglés' });
+    });
+
+    it('soporte respeta el reemplazo aceptado de palabras clave sin cambiar experiencia', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.autoDetectChanges();
+        component.tabActiva.set(5);
+        component.keywordsPositivas = ['Vieja'];
+        component.aniosExperienciaReales = 2;
+        component.resultadoImportacion = { keywords_positivas: ['Nueva'] };
+        component.preguntasImportacion = [{ id: 'soporte', campo: 'soporte', pregunta: '¿Soporte?' }];
+        await fixture.whenStable();
+        const confirmar = fixture.nativeElement.querySelector('.importar-resultado input[type="checkbox"]') as HTMLInputElement;
+        confirmar.click();
+        await fixture.whenStable();
+        const accion = Array.from(fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>)
+            .find(b => b.textContent?.trim() === 'Aplicar sugerencia');
+        expect(accion).toBeDefined();
+        accion!.click();
+        await fixture.whenStable();
+        component.aplicarImportacion();
+        expect(component.keywordsPositivas).toEqual(['Nueva', 'soporte de aplicaciones']);
+        expect(component.aniosExperienciaReales).toBe(2);
+    });
+
     it('muestra el error backend y descarta la extracción anterior', async () => {
         const { fixture, component } = await crearComponente();
         const servicio = TestBed.inject(PreferenciasService);
