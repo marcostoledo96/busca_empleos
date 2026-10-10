@@ -376,6 +376,43 @@ cancelación del flujo existente; no agrego scraping ni un segundo evaluador. Lo
 400/409 de selección no inician polling ni se anuncian como éxito. Al terminar sincronizo
 resultados nuevos sin modificar decisiones manuales. Ver [frontend](frontend.md#reevaluación-seleccionada-issue-9).
 
+## Verificación reproducible de issue #9 (T4)
+
+Registro evidencia independiente sobre `d5c1a21a0a24e7c2b1aba5583ab8440cbd951c02`,
+sin cambios de código fuente durante la verificación. Desde la raíz ejecuto:
+
+```bash
+cd backend
+NODE_ENV=test ALLOW_DB_TESTS=false npm test -- --runInBand --silent
+cd ../frontend
+npm test -- --watch=false --browsers=ChromeHeadless
+npm run build
+```
+
+Resultados registrados: backend 1670 pruebas aprobadas, 48 omitidas y 36 suites
+aprobadas; frontend 201 pruebas aprobadas y build aprobado.
+
+Para repetir la variante SQL, preparo primero PostgreSQL 15.19 aislado en loopback,
+base con sufijo `_test`, datos sintéticos y variables PG explícitas mediante `env -i`;
+nunca uso el entorno de producción. Desde `backend`, con `NODE_ENV=test` y la guarda
+`ALLOW_DB_TESTS=true` en ese entorno, ejecuto `npm run db:migrate:apply` (22 migraciones, incluida
+019), lo repito (0 pendientes), luego `npm run test:db` (72 aprobadas, 6 suites,
+mezcla de SQL real y mocks) y `npm test -- --runInBand --silent` (1718 aprobadas,
+39 suites, ninguna omitida). Estos comandos requieren configurar ese aislamiento;
+no constituyen una receta de aprovisionamiento ni infraestructura genérica.
+
+Compruebo en SQL real preservación de estados/notas manuales, JSON crudo y fechas,
+reset de 30 días sin históricos, upsert fresco, selección atómica y clientes advisory
+reales; 019 es idempotente y conserva firmas legacy null. No agrego historial de
+evaluaciones; incremento manualmente el contrato al cambiar decisiones determinísticas o parser.
+
+**Alcance:** backend integrado con funciones reales y proveedor/PG simulados;
+12 pruebas frontend HTTP/DOM con componentes y servicios reales, HTTP simulado,
+sin conexión real al backend. No ejecuto API paga, scraping, revisión visual/responsive
+ni auditoría. En esta verificación previa a publicar usé Node 24.18 local;
+CI remoto con Node 22 no fue ejecutado.
+Confirmo limpieza de fixtures aislados (tmpfs), sin datos persistentes restantes.
+
 ## Documentos relacionados
 
 - [Arquitectura](arquitectura.md) — Vista general del flujo.

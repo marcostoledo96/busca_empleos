@@ -79,6 +79,11 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 | `datos_crudos` | JSONB | — | JSON original de Apify sin procesar. JSONB permite queries internas y ocupa menos espacio. |
 | `fecha_evaluacion` | TIMESTAMP | DEFAULT NULL | Momento en que la IA evaluó la oferta. Backfill: se copia `fecha_extraccion` para ofertas ya evaluadas. Migración 005. |
 | `evaluacion_error_mensaje` | TEXT | — | Mensaje de error si la API de DeepSeek falló al evaluar. Separa errores técnicos de `razon_evaluacion`. Migración 008b. |
+| `firma_criterios_evaluacion` | TEXT | NULL permitido | Firma SHA-256 de los criterios efectivos de la evaluación exitosa. Migración 019. |
+
+Conservo firmas legacy en NULL (criterios desconocidos), sin backfill. Al reevaluar,
+reemplazo el resultado y su firma sin modificar estados ni notas manuales; no almaceno
+historial de evaluaciones.
 
 ### Constraints activas
 
@@ -216,7 +221,7 @@ Archivo: `backend/src/modelos/oferta.js`. Funciones CRUD con queries SQL paramet
 | `obtenerOfertas(filtros)` | SELECT con WHERE dinámico | Lista ofertas. Filtros opcionales: `estado` y `plataforma`. Orden: `fecha_extraccion DESC`. |
 | `obtenerOfertaPorId(id)` | SELECT WHERE id=$1 | Retorna una oferta por ID, o `null` si no existe. |
 | `obtenerOfertasPendientes()` | SELECT WHERE estado='pendiente' | Lista ofertas no evaluadas. Usado por el servicio de evaluación. |
-| `actualizarEvaluacion(id, estado, razon, porcentaje)` | UPDATE SET estado, razon, porcentaje_match | Actualiza el resultado de la evaluación IA (incluye porcentaje 0-100). Retorna la oferta actualizada o `null`. |
+| `actualizarEvaluacion(id, estado, razon, porcentaje, errorMensaje, prioridadIa, firmaCriterios)` | UPDATE de resultado, prioridad y firma | Actualizo la evaluación IA y su firma; ante error guardo firma NULL. Retorno la oferta actualizada o `null`. |
 | `actualizarPostulacion(id, estadoPostulacion)` | UPDATE SET estado_postulacion | Cambia el estado de postulación de una oferta. Retorna la oferta actualizada o `null`. |
 | `obtenerEstadisticas()` | SELECT COUNT GROUP BY estado WHERE fecha ≥ 30 días | Retorna `{ total, pendientes, aprobadas, rechazadas }` por `estado_evaluacion`, **solo de los últimos 30 días** (filtro por `fecha_extraccion`). Consistente con `obtenerOfertas()`. |
 
@@ -304,6 +309,7 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 | 015 | `migracion-015-indices-ofertas-ultimos-30-dias.sql` | Índices `idx_ofertas_fecha_extraccion_desc` y `idx_ofertas_estado_fecha_extraccion`. | Aditiva |
 | 016 | `migracion-016-eliminar-scoring-legacy.sql` | ⚠️ **Destructiva** — Elimina objetos legacy de scoring: índice, constraint y columnas (`score_previo`, `analisis_previo`, `scoring_version`, `scoring_config`). Usa `IF EXISTS` en todos los drops. | Destructiva |
 | 017 | `migracion-017-salario-rango.sql` | Agrega constraint `chk_ofertas_salario_rango` (salario_min <= salario_max cuando ambos no son NULL). Preflight de filas inválidas; si hay, la migración falla antes de crear la constraint. | Aditiva |
+| 019 | `migracion-019-firma-evaluacion.sql` | Agrego `firma_criterios_evaluacion` TEXT nullable a `ofertas`, con `IF NOT EXISTS`, sin backfill ni cambios en campos manuales. | Aditiva |
 
 ### Gotchas
 
