@@ -1,3 +1,15 @@
+// Conservo la resolución explícita de cada pregunta en el JSONB existente.
+export interface PreguntaPerfil {
+    id?: string;
+    campo: string;
+    pregunta: string;
+    motivo?: string;
+    sugerencia?: string | null;
+    estado?: 'pendiente' | 'respondida' | 'aplicada' | 'ignorada' | 'nota';
+    respuesta?: string;
+    nota?: string;
+}
+
 // Interfaz que representa las preferencias del usuario tal como vienen de la API.
 // Incluyo columnas persistidas y la vista de solo lectura calculada por el backend.
 export interface Preferencias {
@@ -34,7 +46,7 @@ export interface Preferencias {
     }>;
     // scoring_config fue deprecado en B1. La columna sigue existiendo en BD
     // para B2, pero el frontend ya no lo consume ni envía.
-    preguntas_perfil_pendientes: Array<Record<string, unknown>>;
+    preguntas_perfil_pendientes: PreguntaPerfil[];
     modelo_ia_evaluacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
     modelo_ia_importacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
     disponibilidad?: 'full_time' | 'part_time' | 'freelance' | 'a_coordinar';

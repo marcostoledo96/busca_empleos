@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { Preferencias, PreferenciasActualizar } from '../modelos/preferencia.model';
+import { Preferencias, PreferenciasActualizar, PreguntaPerfil } from '../modelos/preferencia.model';
 import { RespuestaApi, RespuestaPreferencias } from '../modelos/respuesta-api.model';
 
 export interface ResultadoImportacionCv {
@@ -35,8 +35,8 @@ export interface ResultadoImportacionCv {
     // scoring_config fue deprecado en B1. Se conserva el campo opcional
     // para compatibilidad si la API lo devuelve, pero el frontend no lo usa.
     scoring_config?: Record<string, unknown> | null;
-    preguntas: Array<{ campo: string; pregunta: string; motivo?: string; sugerencia?: string | null }>;
-    preguntas_perfil_pendientes?: Array<{ campo: string; pregunta: string; motivo?: string; sugerencia?: string | null }>;
+    preguntas: PreguntaPerfil[];
+    preguntas_perfil_pendientes?: PreguntaPerfil[];
     advertencias: string[];
 }
 

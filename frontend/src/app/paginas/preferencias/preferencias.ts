@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
-import { Preferencias as PreferenciasModel, PreferenciasActualizar, PerfilEfectivo } from '../../modelos/preferencia.model';
+import { Preferencias as PreferenciasModel, PreferenciasActualizar, PerfilEfectivo, PreguntaPerfil } from '../../modelos/preferencia.model';
 import { DemoService } from '../../servicios/demo.service';
 import { obtenerOpcionesPreferenciaPlataforma } from '../../config/plataformas';
 
@@ -18,15 +18,7 @@ import { Toast } from 'primeng/toast';
 import { TabsModule } from 'primeng/tabs';
 import { MessageService } from 'primeng/api';
 
-type PreguntaImportacion = {
-    campo: string;
-    pregunta: string;
-    motivo?: string;
-    sugerencia?: string | null;
-    estado?: 'pendiente' | 'aplicada' | 'ignorada';
-    respuesta?: string;
-    tieneAccionAutomatica?: boolean;
-};
+type PreguntaImportacion = PreguntaPerfil;
 
 @Component({
     selector: 'app-preferencias',
@@ -126,6 +118,8 @@ export class Preferencias implements OnInit {
     resultadoImportacion: Partial<ResultadoImportacionCv> | null = null;
     preguntasImportacion: PreguntaImportacion[] = [];
     preguntasPerfilPendientes: PreguntaImportacion[] = [];
+    // Registro únicamente decisiones explícitas sobre preferencias protegidas.
+    preferenciasRevisadas = new Set<string>();
 
     // Sugerencias para los AutoComplete en modo entrada libre.
     sugerencias: string[] = [];
@@ -446,7 +440,7 @@ export class Preferencias implements OnInit {
         this.nivelRealSeniority = prefs.nivel_real_seniority ?? '';
         this.conocimientosAusentes = prefs.conocimientos_ausentes ?? [];
         this.limitacionesExplicitas = prefs.limitaciones_explicitas ?? '';
-        this.preguntasPerfilPendientes = (prefs.preguntas_perfil_pendientes || []) as PreguntaImportacion[];
+        this.preguntasPerfilPendientes = structuredClone((prefs.preguntas_perfil_pendientes || []) as PreguntaImportacion[]);
         const tecnologiasApi = (prefs as any).tecnologias_detalle ?? [];
         const rolesApi = prefs.roles_objetivo_detalle ?? [];
         this.tecnologiasDetalle = structuredClone(tecnologiasApi);
@@ -558,6 +552,7 @@ export class Preferencias implements OnInit {
         this.analizandoCv.set(false);
         this.resultadoImportacion = null;
         this.preguntasImportacion = [];
+        this.preferenciasRevisadas.clear();
         this.mensajes.clear();
     }
 
@@ -568,6 +563,7 @@ export class Preferencias implements OnInit {
         // Descarto sugerencias anteriores antes de validar o iniciar otro análisis.
         this.resultadoImportacion = null;
         this.preguntasImportacion = [];
+        this.preferenciasRevisadas.clear();
         if (!this.archivoCvSeleccionado) return;
 
         if (this.archivoCvSeleccionado.size > 1024 * 1024) {
@@ -581,12 +577,38 @@ export class Preferencias implements OnInit {
                 if (solicitud !== this.solicitudCv || archivo !== this.archivoCvSeleccionado) return;
                 this.analizandoCv.set(false);
                 if (resp.exito && resp.datos) {
-                    this.resultadoImportacion = resp.datos;
-                    this.preguntasImportacion = (resp.datos.preguntas_perfil_pendientes || resp.datos.preguntas || []).map((p: any) => ({
-                        ...p,
-                        estado: 'pendiente',
-                        respuesta: '',
+                    const datos = resp.datos;
+                    // La omisión es válida; null o un contenedor inválido no lo son.
+                    if (['preguntas', 'preguntas_perfil_pendientes'].some(campo =>
+                        Object.hasOwn(datos, campo) && (!Array.isArray((datos as any)[campo]) ||
+                            (datos as any)[campo].some((p: any) => !p || typeof p.campo !== 'string' || typeof p.pregunta !== 'string')))) {
+                        this.mensajes.add({ severity: 'error', summary: 'Error', detail: 'La extracción contiene preguntas inválidas.' });
+                        return;
+                    }
+                    // Trabajo sobre una copia: la respuesta del proveedor no recibe ediciones.
+                    this.resultadoImportacion = structuredClone(datos);
+                    this.preguntasImportacion = (datos.preguntas_perfil_pendientes ?? datos.preguntas ?? []).map(p => ({
+                        ...structuredClone(p), id: crypto.randomUUID(), estado: 'pendiente',
                     }));
+                    if (Object.hasOwn(datos, 'preguntas_perfil_pendientes')) {
+                        this.resultadoImportacion.preguntas_perfil_pendientes = this.preguntasImportacion;
+                    } else if (Object.hasOwn(datos, 'preguntas')) {
+                        this.resultadoImportacion.preguntas = this.preguntasImportacion;
+                    }
+                    // El backend normaliza salario ausente a null: conservo los valores manuales.
+                    if (['expectativa_salarial_min', 'expectativa_salarial_max', 'moneda_salarial'].some(campo => Object.hasOwn(datos, campo))) {
+                        this.resultadoImportacion.expectativa_salarial_min = datos.expectativa_salarial_min ?? this.expectativaSalarialMin;
+                        this.resultadoImportacion.expectativa_salarial_max = datos.expectativa_salarial_max ?? this.expectativaSalarialMax;
+                        this.resultadoImportacion.moneda_salarial = datos.moneda_salarial ?? this.monedaSalarial;
+                    }
+                    // Mantengo el nivel confirmado hasta que lo edite explícitamente en la revisión.
+                    if (datos.tecnologias_detalle?.length) {
+                        this.resultadoImportacion.tecnologias_detalle = [
+                            ...structuredClone(this.tecnologiasDetalle),
+                            ...structuredClone(datos.tecnologias_detalle.filter(t => !this.tecnologiasDetalle.some(
+                                existente => existente.nombre.toLowerCase() === t.nombre.toLowerCase()))),
+                        ];
+                    }
                     this.mensajes.add({ severity: 'success', summary: 'CV analizado', detail: 'Revisá los datos extraídos antes de aplicar.' });
                 } else {
                     this.mensajes.add({ severity: 'error', summary: 'Error', detail: resp.error || 'No se pudo analizar el CV.' });
@@ -606,10 +628,10 @@ export class Preferencias implements OnInit {
 
         const r = this.resultadoImportacion;
 
-        if (r.nombre) this.nombre = r.nombre;
+        if (r.nombre != null) this.nombre = r.nombre;
         if (r.nivel_experiencia) this.nivelExperiencia = r.nivel_experiencia as any;
-        if (r.perfil_profesional) this.perfilProfesional = r.perfil_profesional;
-        if (r.idioma_candidato) this.idiomaCandidato = r.idioma_candidato;
+        if (r.perfil_profesional != null) this.perfilProfesional = r.perfil_profesional;
+        if (r.idioma_candidato != null) this.idiomaCandidato = r.idioma_candidato;
         // Conservo preferencias laborales: importar hechos no confirma otros criterios.
         if (r.nivel_ingles_detalle) {
             this.nivelInglesDetalle = {
@@ -618,29 +640,36 @@ export class Preferencias implements OnInit {
             };
         }
         if (r.tecnologias_detalle?.length) {
-            this.tecnologiasDetalle = r.tecnologias_detalle;
+            this.tecnologiasDetalle = structuredClone(r.tecnologias_detalle);
             this.tecnologiasEditadas = true;
         }
         // Los roles objetivo son preferencias de búsqueda, no hechos del CV.
         // Los términos de búsqueda y exclusiones continúan bajo edición explícita.
         // scoring_config ya no se aplica (B1): se ignora del resultado de importación.
-        if (r.preguntas_perfil_pendientes?.length) {
-            this.preguntasImportacion = r.preguntas_perfil_pendientes.map((p: any) => ({ ...p, estado: 'pendiente', respuesta: '' }));
+        // Aplico solamente preferencias aceptadas en la revisión, nunca detecciones automáticas.
+        if (this.preferenciasRevisadas.has('salario')) {
+            this.expectativaSalarialMin = r.expectativa_salarial_min ?? null;
+            this.expectativaSalarialMax = r.expectativa_salarial_max ?? null;
+            this.monedaSalarial = (r.moneda_salarial ?? this.monedaSalarial) as typeof this.monedaSalarial;
+        }
+        if (this.preferenciasRevisadas.has('keywords_positivas')) {
+            this.keywordsPositivas = structuredClone(r.keywords_positivas ?? []);
         }
         // La omisión conserva preguntas confirmadas; [] explícito permite limpiarlas.
         if (Object.hasOwn(r, 'preguntas_perfil_pendientes') || Object.hasOwn(r, 'preguntas')) {
-            this.preguntasPerfilPendientes = this.preguntasImportacion.filter(p => p.estado !== 'ignorada');
+            this.preguntasPerfilPendientes = structuredClone(r.preguntas_perfil_pendientes ?? r.preguntas ?? []);
         }
         this.fechaImportacionCv = new Date().toISOString();
 
-        this.resultadoImportacion = null;
-        this.preguntasImportacion = [];
-        this.archivoCvSeleccionado = null;
+        this.cancelarImportacion();
 
         this.mensajes.add({ severity: 'success', summary: 'Preferencias cargadas', detail: 'Revisá y guardá para confirmar los cambios.' });
     }
 
     cancelarImportacion(): void {
+        this.solicitudCv++;
+        this.analizandoCv.set(false);
+        this.preferenciasRevisadas.clear();
         this.resultadoImportacion = null;
         this.preguntasImportacion = [];
         this.archivoCvSeleccionado = null;
@@ -648,11 +677,11 @@ export class Preferencias implements OnInit {
 
     /**
      * Detecta si una pregunta de importación tiene acción automática conocida.
-     * Solo estas palabras clave aplican cambios reales al perfil; el resto
-     * queda como notas informativas pendientes.
+     * Limito las acciones a cambios acotados y explícitos del borrador.
+     * No infiero experiencia a partir de respuestas libres.
      */
     preguntaTieneAccionAutomatica(campo: string): boolean {
-        const clavesAccionables = ['react native', 'docker', 'salario', 'soporte'];
+        const clavesAccionables = ['docker', 'salario', 'soporte'];
         const texto = (campo || '').toLowerCase();
         return clavesAccionables.some(clave => texto.includes(clave));
     }
@@ -667,89 +696,81 @@ export class Preferencias implements OnInit {
         return this.preguntasImportacion.filter(p => !this.preguntaTieneAccionAutomatica(p.campo));
     }
 
-    aceptarSugerenciaImportacion(indice: number): void {
-        const pregunta = this.preguntasImportacion[indice];
-        if (!pregunta) return;
+    alcanceSugerencia(campo: string): string {
+        const texto = campo.toLowerCase();
+        if (texto.includes('docker')) return 'Cambiar únicamente el nivel de Docker a básico en el borrador.';
+        if (texto.includes('salario')) return 'Quitar únicamente el filtro salarial en el borrador. No modifica experiencia.';
+        if (texto.includes('soporte')) return 'Agregar únicamente «soporte de aplicaciones» a palabras clave positivas. No modifica experiencia.';
+        return 'Sin acción automática: reviso los hechos en los controles del borrador.';
+    }
 
-        const campo = (pregunta.campo || '').toLowerCase();
-        const sugerencia = (pregunta.sugerencia || '').toLowerCase();
-
-        if (campo.includes('react native')) {
-            const existente = this.tecnologiasDetalle.find(t => t.nombre.toLowerCase() === 'react native');
-            const payload = {
-                nombre: 'React Native',
-                nivel: 'basico',
-                categoria: 'mobile',
-                importancia: 'no_prioritaria',
-                aliases: ['react native'],
-                evidencia: sugerencia || 'No priorizar ofertas mobile',
-            };
-            if (existente) {
-                Object.assign(existente, payload);
-            } else {
-                this.tecnologiasDetalle = [...this.tecnologiasDetalle, payload];
-            }
-        } else if (campo.includes('docker')) {
-            const existente = this.tecnologiasDetalle.find(t => t.nombre.toLowerCase() === 'docker');
-            const payload = {
-                nombre: 'Docker',
-                nivel: 'basico',
-                categoria: 'herramienta',
-                importancia: 'secundaria',
-                aliases: ['docker'],
-                evidencia: sugerencia || 'Uso local / básico',
-            };
-            if (existente) {
-                Object.assign(existente, payload);
-            } else {
-                this.tecnologiasDetalle = [...this.tecnologiasDetalle, payload];
-            }
+    aceptarSugerenciaImportacion(id: string | undefined): void {
+        const pregunta = this.preguntasImportacion.find(p => id && p.id === id);
+        const borrador = this.resultadoImportacion;
+        if (!pregunta || !borrador || ['aplicada', 'ignorada', 'nota'].includes(pregunta.estado ?? '')) return;
+        const campo = pregunta.campo.toLowerCase();
+        if (campo.includes('docker')) {
+            const tecnologias = borrador.tecnologias_detalle ?? [];
+            const existente = tecnologias.find(t => t.nombre.toLowerCase() === 'docker');
+            if (existente) existente.nivel = 'basico';
+            else tecnologias.push({ nombre: 'Docker', nivel: 'basico', categoria: 'herramienta', importancia: 'secundaria', aliases: ['docker'] });
+            borrador.tecnologias_detalle = tecnologias;
         } else if (campo.includes('salario')) {
-            this.expectativaSalarialMin = null;
-            this.expectativaSalarialMax = null;
-            this.monedaSalarial = 'NO_FILTRAR';
+            borrador.expectativa_salarial_min = null;
+            borrador.expectativa_salarial_max = null;
+            borrador.moneda_salarial = 'NO_FILTRAR';
+            this.preferenciasRevisadas.add('salario');
         } else if (campo.includes('soporte')) {
-            if (!this.keywordsPositivas.includes('soporte de aplicaciones')) {
-                this.keywordsPositivas = [...this.keywordsPositivas, 'soporte de aplicaciones'];
-            }
-        } else {
-            // Si no es una pregunta con acción automática conocida,
-            // simplemente guardamos la respuesta como nota pendiente.
-            // El usuario puede editarla después.
-            console.log(`[Importar CV] Pregunta "${pregunta.campo}" sin acción automática. Guardada como nota.`);
+            borrador.keywords_positivas = [...new Set([...this.keywordsPositivas, ...(this.preferenciasRevisadas.has('keywords_positivas') ? borrador.keywords_positivas ?? [] : []), 'soporte de aplicaciones'])];
+            this.preferenciasRevisadas.add('keywords_positivas');
+        } else return;
+        pregunta.estado = 'aplicada';
+        pregunta.respuesta = pregunta.respuesta || this.alcanceSugerencia(pregunta.campo);
+    }
+
+    ignorarPreguntaImportacion(id: string | undefined): void {
+        const pregunta = this.preguntasImportacion.find(p => id && p.id === id);
+        if (!pregunta || pregunta.estado === 'aplicada') return;
+        pregunta.estado = 'ignorada';
+        delete pregunta.respuesta;
+        delete pregunta.nota;
+    }
+
+    guardarNotaEIgnorar(id: string | undefined): void {
+        const pregunta = this.preguntasImportacion.find(p => id && p.id === id);
+        if (!pregunta?.respuesta?.trim() || pregunta.estado === 'aplicada') return;
+        pregunta.nota = pregunta.respuesta;
+        pregunta.estado = 'nota';
+    }
+
+    actualizarRespuestaPregunta(id: string | undefined, valor: string): void {
+        const pregunta = this.preguntasImportacion.find(p => id && p.id === id);
+        if (!pregunta || ['aplicada', 'ignorada', 'nota'].includes(pregunta.estado ?? '')) return;
+        pregunta.respuesta = valor;
+        pregunta.estado = valor.trim() ? 'respondida' : 'pendiente';
+    }
+
+    get resumenImportacion(): { agregar: string[]; modificar: string[]; conservar: string[] } {
+        const resumen = { agregar: [] as string[], modificar: [] as string[], conservar: [] as string[] };
+        const r = this.resultadoImportacion;
+        if (!r) return resumen;
+        const campos: Array<[string, unknown, unknown]> = [
+            ['Nombre', r.nombre, this.nombre], ['Nivel', r.nivel_experiencia, this.nivelExperiencia],
+            ['Perfil profesional', r.perfil_profesional, this.perfilProfesional], ['Idiomas', r.idioma_candidato, this.idiomaCandidato],
+            ['Inglés detallado', r.nivel_ingles_detalle ? { ...this.nivelInglesDetalle, ...r.nivel_ingles_detalle } : undefined, this.nivelInglesDetalle],
+            ['Tecnologías', r.tecnologias_detalle?.length ? r.tecnologias_detalle : undefined, this.tecnologiasDetalle],
+            ['Preguntas', Object.hasOwn(r, 'preguntas_perfil_pendientes') || Object.hasOwn(r, 'preguntas') ? this.preguntasImportacion : undefined, this.preguntasPerfilPendientes],
+        ];
+        if (this.preferenciasRevisadas.has('salario')) campos.push(['Filtro salarial', [r.expectativa_salarial_min, r.expectativa_salarial_max, r.moneda_salarial], [this.expectativaSalarialMin, this.expectativaSalarialMax, this.monedaSalarial]]);
+        else resumen.conservar.push('Filtro salarial');
+        if (this.preferenciasRevisadas.has('keywords_positivas')) campos.push(['Palabras clave positivas', r.keywords_positivas, this.keywordsPositivas]);
+        else resumen.conservar.push('Palabras clave positivas');
+        for (const [nombre, propuesto, actual] of campos) {
+            if (propuesto == null || JSON.stringify(propuesto) === JSON.stringify(actual)) resumen.conservar.push(nombre);
+            else if (actual == null || actual === '' || (Array.isArray(actual) && actual.length === 0)) resumen.agregar.push(nombre);
+            else resumen.modificar.push(nombre);
         }
-
-        this.preguntasImportacion[indice] = {
-            ...pregunta,
-            estado: 'aplicada',
-            respuesta: pregunta.respuesta || sugerencia || 'Sugerencia aplicada',
-        };
-        this.sincronizarPreguntasPendientes();
-        this.mensajes.add({ severity: 'success', summary: 'Sugerencia aplicada', detail: `Pregunta "${pregunta.pregunta.substring(0, 60)}..." marcada como aplicada.` });
-    }
-
-    ignorarPreguntaImportacion(indice: number): void {
-        const pregunta = this.preguntasImportacion[indice];
-        if (!pregunta) return;
-        this.preguntasImportacion[indice] = { ...pregunta, estado: 'ignorada' };
-        this.sincronizarPreguntasPendientes();
-        this.mensajes.add({ severity: 'info', summary: 'Pregunta ignorada', detail: `Pregunta "${pregunta.pregunta.substring(0, 60)}..." fue ignorada.` });
-    }
-
-    actualizarRespuestaPregunta(indice: number, valor: string): void {
-        const pregunta = this.preguntasImportacion[indice];
-        if (!pregunta) return;
-        this.preguntasImportacion[indice] = {
-            ...pregunta,
-            respuesta: valor,
-            estado: valor.trim() ? 'aplicada' : 'pendiente',
-        };
-        this.sincronizarPreguntasPendientes();
-    }
-
-    private sincronizarPreguntasPendientes(): void {
-        this.preguntasPerfilPendientes = this.preguntasImportacion
-            .filter(p => p.estado !== 'ignorada')
-            .map(({ campo, pregunta, motivo, sugerencia, respuesta, estado }) => ({ campo, pregunta, motivo, sugerencia, respuesta, estado }));
+        resumen.conservar.push('Roles', 'Términos de búsqueda', 'Modalidad', 'Zonas', 'Exclusiones', 'Disponibilidad', 'Plataformas', 'Experiencia real');
+        return resumen;
     }
 }
