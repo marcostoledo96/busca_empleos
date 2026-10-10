@@ -111,6 +111,8 @@ app.use(cors({
 // express.json() parsea el body de las requests que vienen en formato JSON.
 // Sin esto, req.body sería undefined en los controladores que reciben datos.
 // Limito el tamaño del body a 1MB para prevenir ataques de payload gigante.
+// Autentico el CV privado antes de leer sus bytes y antes del parser JSON global.
+app.use('/api/preferencias/cv-base', verificarAuth, require('./rutas/cv-base'));
 app.use(express.json({ limit: '1mb' }));
 
 // Rate limiter para los endpoints que consumen créditos de APIs externas.
