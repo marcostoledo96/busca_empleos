@@ -1224,3 +1224,51 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(component.tecnologiasDetalle.length).toBe(cantidadAntes - 1);
     });
 });
+
+describe('Preferencias — Filtro de nivel de LinkedIn (Issue #14)', () => {
+    it('inicializa filtrarNivelLinkedin en true por defecto', () => {
+        TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [
+                provideRouter([]),
+                provideHttpClient(),
+                provideHttpClientTesting(),
+                provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => true } },
+            ],
+        });
+        const fixture = TestBed.createComponent(Preferencias);
+        const comp = fixture.componentInstance;
+        expect(comp.filtrarNivelLinkedin).toBeTrue();
+    });
+
+    it('mapea filtrar_nivel_linkedin: false desde la API y lo incluye en datosFormulario()', () => {
+        TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [
+                provideRouter([]),
+                provideHttpClient(),
+                provideHttpClientTesting(),
+                provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => false } },
+            ],
+        });
+        const http = TestBed.inject(HttpTestingController);
+        const fixture = TestBed.createComponent(Preferencias);
+        const comp = fixture.componentInstance;
+        fixture.autoDetectChanges();
+
+        http.expectOne('http://localhost:3000/api/preferencias').flush({
+            exito: true,
+            datos: { id: 1, filtrar_nivel_linkedin: false },
+        });
+        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({
+            exito: true,
+            datos: { cv_base: null, cv_base_actualizado_en: null },
+        });
+
+        expect(comp.filtrarNivelLinkedin).toBeFalse();
+        const form = (comp as any).datosFormulario();
+        expect(form.filtrar_nivel_linkedin).toBeFalse();
+    });
+});

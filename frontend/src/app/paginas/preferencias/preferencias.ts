@@ -86,6 +86,7 @@ export class Preferencias implements OnInit {
     modeloIaImportacion: 'deepseek-v4-flash' | 'deepseek-v4-pro' = 'deepseek-v4-pro';
     priorizarOfertasIa = false;
     bonusMaximoPrioridadIa = 6;
+    filtrarNivelLinkedin = true;
     disponibilidad: 'full_time' | 'part_time' | 'freelance' | 'a_coordinar' = 'full_time';
     expectativaSalarialMin: number | null = null;
     expectativaSalarialMax: number | null = null;
@@ -427,6 +428,7 @@ export class Preferencias implements OnInit {
         this.keywordsNegativas = ['java', 'cableado', 'soporte hardware'];
         this.plataformasPreferidas = ['linkedin', 'getonbrd'];
         this.plataformasExcluidas = [];
+        this.filtrarNivelLinkedin = true;
         this.tecnologiasDetalle = this.crearTecnologiasSugeridas();
         this.rolesObjetivoDetalle = this.crearRolesSugeridos();
         this.cargando.set(false);
@@ -474,6 +476,7 @@ export class Preferencias implements OnInit {
             modelo_ia: this.modeloIa,
             priorizar_ofertas_ia: this.priorizarOfertasIa,
             bonus_maximo_prioridad_ia: this.bonusMaximoPrioridadIa,
+            filtrar_nivel_linkedin: this.filtrarNivelLinkedin,
             tecnologias_detalle: this.tecnologiasDetalle as any,
             roles_objetivo_detalle: this.rolesObjetivoDetalle as any,
             // scoring_config eliminado en B1: ya no se envía al backend.
@@ -565,6 +568,7 @@ export class Preferencias implements OnInit {
         this.modeloIaImportacion = prefs.modelo_ia_importacion ?? 'deepseek-v4-pro';
         this.priorizarOfertasIa = prefs.priorizar_ofertas_ia ?? false;
         this.bonusMaximoPrioridadIa = prefs.bonus_maximo_prioridad_ia ?? 6;
+        this.filtrarNivelLinkedin = prefs.filtrar_nivel_linkedin !== false;
         this.disponibilidad = prefs.disponibilidad ?? 'full_time';
         this.expectativaSalarialMin = prefs.expectativa_salarial_min ?? null;
         this.expectativaSalarialMax = prefs.expectativa_salarial_max ?? null;

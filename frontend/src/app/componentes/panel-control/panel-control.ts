@@ -42,6 +42,17 @@ export class PanelControl implements OnInit, OnDestroy {
         { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo(), esCiclo: true },
     ]);
 
+    formatearConsultas(consultas: unknown): string {
+        if (!consultas) return '';
+        if (Array.isArray(consultas)) return consultas.join(', ');
+        if (typeof consultas === 'object') return JSON.stringify(consultas);
+        return String(consultas);
+    }
+
+    hayEquivalencias(equivalencias: unknown): boolean {
+        return !!equivalencias && typeof equivalencias === 'object' && Object.keys(equivalencias as object).length > 0;
+    }
+
     actualizarPrevisualizacion(continuar?: () => void): void {
         if (this.modoDemo() || this.destruido || this.cargandoPrevisualizacion()) return;
         this.cargandoPrevisualizacion.set(true);

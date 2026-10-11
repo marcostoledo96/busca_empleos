@@ -374,6 +374,11 @@
                                 <small class="campo-ayuda">Esta lista no permite desactivar las políticas obligatorias del sistema mostradas en el perfil guardado.</small>
                                 <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" appendTo="body" />
                             </div>
+                            <div class="campo campo-toggle">
+                                <p-toggleswitch [(ngModel)]="filtrarNivelLinkedin" inputId="toggle-nivel-linkedin" />
+                                <label for="toggle-nivel-linkedin" class="campo-etiqueta campo-etiqueta--inline">Filtrar nivel entry-level / pasantía en LinkedIn (f_E=1,2)</label>
+                            </div>
+                            <small class="campo-ayuda">Si lo desactivás, LinkedIn no restringirá los resultados con el filtro de nivel f_E en la búsqueda, ampliando la cobertura de ofertas sin cambiar tu nivel profesional.</small>
                         </div>
                     </section>
                 </p-tabpanel>

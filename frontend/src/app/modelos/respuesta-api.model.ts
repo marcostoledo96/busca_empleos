@@ -50,6 +50,8 @@ export interface ResumenBusqueda {
     ventanaDias: number | null;
     maxResultados: number | null;
     filtros: Record<string, unknown>;
+    consultasEfectivas?: string[] | Record<string, unknown>;
+    equivalenciasAplicadas?: Record<string, string | string[]>;
     advertencias: string[];
     origen: {
         terminos: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';

@@ -1106,3 +1106,69 @@ describe('PanelControl — Ciclo completo: 202 Accepted y 409 Conflict', () => {
         discardPeriodicTasks();
     }));
 });
+
+describe('PanelControl — Visualización de consultas efectivas y equivalencias (Issue #14)', () => {
+    let component: PanelControl;
+    let fixture: ComponentFixture<PanelControl>;
+
+    beforeEach(async () => {
+        const mockScrapingService = {
+            obtenerPrevisualizacion: () => of({
+                exito: true,
+                datos: {
+                    plataformas: [
+                        {
+                            plataforma: 'indeed',
+                            nombre: 'Indeed',
+                            habilitada: true,
+                            ejecutable: true,
+                            terminos: ['soporte IT'],
+                            ubicacion: ['Argentina'],
+                            ventanaDias: 14,
+                            maxResultados: 50,
+                            filtros: { country: 'ar' },
+                            consultasEfectivas: ['"soporte IT"'],
+                            equivalenciasAplicadas: { 'soporte it': 'mesa de ayuda' },
+                            advertencias: [],
+                            origen: { terminos: 'preferencias' as const, ubicacion: 'preferencias' as const },
+                        },
+                    ],
+                },
+            }),
+        };
+
+        const mockEval = {
+            obtenerProgreso: () => of({ exito: true, datos: { activo: false } }),
+        };
+        const mockAuto = {
+            obtenerEstado: () => of({ exito: true, datos: { activo: false } }),
+            obtenerProgreso: () => of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } as ProgresoAutomatizacion }),
+        };
+
+        await TestBed.configureTestingModule({
+            imports: [PanelControl],
+            providers: [
+                { provide: ScrapingService, useValue: mockScrapingService },
+                { provide: EvaluacionService, useValue: mockEval },
+                { provide: AutomatizacionService, useValue: mockAuto },
+                MessageService,
+            ],
+        }).compileComponents();
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+    });
+
+    it('renderiza consultas efectivas y equivalencias en el resumen', () => {
+        component.actualizarPrevisualizacion();
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Consultas efectivas: "soporte IT"');
+        expect(texto).toContain('Equivalencias aplicadas:');
+        expect(component.formatearConsultas(['"soporte IT"'])).toBe('"soporte IT"');
+        expect(component.hayEquivalencias({ 'soporte it': 'mesa de ayuda' })).toBeTrue();
+        expect(component.hayEquivalencias({})).toBeFalse();
+    });
+});
