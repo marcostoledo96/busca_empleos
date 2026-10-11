@@ -193,6 +193,7 @@ Script de creación: `backend/sql/migracion-003-preferencias.sql` (idempotente c
 | `conocimientos_ausentes` | TEXT[] | `'{}'` | Tecnologías/conceptos que NO maneja el candidato. Migración 011. |
 | `limitaciones_explicitas` | TEXT | `''` | Descripción libre de lo que el candidato no puede hacer. Migración 011. |
 | `anios_experiencia_reales` | INTEGER | 1 | Años reales de experiencia del candidato. Migración 012. |
+| `filtrar_nivel_linkedin` | BOOLEAN | TRUE | Si TRUE, aplica f_E=1,2 en LinkedIn. Si FALSE, omite el filtro de nivel en las URLs de LinkedIn. Migración 021. |
 | `fecha_creacion` | TIMESTAMP | `NOW()` | Fecha de creación. |
 | `fecha_actualizacion` | TIMESTAMP | `NOW()` | Fecha de última actualización. |
 

@@ -41,6 +41,31 @@ que reutiliza sin modificaciones `detectarIdioma`: descarto solo lo detectado
 como inglés. No cambio matching contextual #7, exclusiones ni deduplicación por
 URL. El total extraído conserva descartadas; las cuento aparte de duplicadas.
 
+## Preservación de frases, siglas y objetivos laborales (issue #14)
+
+Con `servicio-traductor-consultas.js`, preservo frases laborales como unidades íntegras
+(`soporte IT`, `mesa de ayuda`, `full stack node`, `frontend Angular`, `secretario médico`)
+y siglas técnicas esenciales (`QA`, `IT`, `C#`, `.NET`), evitando fragmentarlas en palabras
+sueltas o descartar términos cortos.
+
+- **Equivalencias explícitas y acotadas:** Tabla controlada para términos frecuentes
+  (`qa manual` ↔ `tester manual`, `soporte it` ↔ `mesa de ayuda` ↔ `help desk`,
+  `frontend angular` ↔ `desarrollador angular`, `c#` ↔ `c sharp` ↔ `.net`).
+- **Indeed:** Las frases compuestas se preservan entre comillas (`"react developer"`)
+  unidas mediante `OR` en un único run del actor, evitando fragmentación genérica.
+- **Bumeran:** Traduce `C#` a `c-sharp` y `.NET` a `net` para prevenir truncamiento por
+  fragmento hash (`#`) en URLs; siglas como `QA` e `IT` generan URLs válidas.
+- **Jooble y Adzuna:** Reciben las frases preservadas como unidades de búsqueda completas.
+- **Remotive y RemoteOK:** Mapean dinámicamente los objetivos laborales del usuario a
+  categorías (`software-dev`, `qa`, `customer-service`) y tags soportados (`qa`, `support`,
+  `csharp`, `net`, `angular`, `node`), advirtiendo de forma visible si un objetivo no tiene
+  representación compatible (ej. administrativo o salud).
+- **LinkedIn:** Se agrega la opción persistente `filtrar_nivel_linkedin` en preferencias
+  para activar o desactivar el filtro de nivel `f_E=1,2`, permitiendo mayor cobertura sin
+  alterar el seniority real del candidato.
+- **Resumen común (`ResumenBusqueda`):** Expone `consultasEfectivas` y `equivalenciasAplicadas`
+  para brindar visibilidad de las transformaciones sin consultar APIs de pago.
+
 ### Evidencia vertical sin proveedores reales
 
 Con `cd backend && npm run test:vertical` pruebo los recorridos individual y ciclo

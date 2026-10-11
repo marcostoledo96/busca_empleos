@@ -5,11 +5,14 @@
 Consulto `GET /api/scraping/previsualizacion` al montar el panel, al pedir actualizar
 la configuración y nuevamente antes de una extracción individual o ciclo. Muestro
 el DTO del backend: términos (hasta cinco y cantidad restante), origen, ubicación,
-ventana, `maxResultados`, filtros y advertencias. No deduzco capacidades por fuente
-ni envío overrides. Una advertencia de umbral no estricto se muestra literalmente;
-`null` indica ausencia del parámetro configurable. Conservo fuentes deshabilitadas
-como informativas, sin habilitar GetOnBrd. Si falla el preview, comunico el problema
-sin iniciar extracción ni simular filtros aplicados. En demo no consulto HTTP.
+ventana, `maxResultados`, filtros, `consultasEfectivas`, `equivalenciasAplicadas` y
+advertencias. En la pestaña Búsqueda de `/preferencias`, incorporo el control toggle
+para `filtrar_nivel_linkedin` (por defecto `true`), permitiendo omitir el filtro de
+nivel `f_E=1,2` en LinkedIn sin alterar el seniority real del candidato. No deduzco
+capacidades por fuente ni envío overrides. Una advertencia de umbral no estricto se
+muestra literalmente; `null` indica ausencia del parámetro configurable. Conservo
+fuentes deshabilitadas como informativas, sin habilitar GetOnBrd. Si falla el preview,
+comunico el problema sin iniciar extracción ni simular filtros aplicados. En demo no consulto HTTP.
 
 Distingo configuración guardada actual, última búsqueda individual
 (`datos.configuracion`) y snapshot del ciclo aceptado/progreso/último resultado.

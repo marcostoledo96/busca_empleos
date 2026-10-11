@@ -19,6 +19,8 @@ interface ResumenBusqueda {
     ventanaDias: number | null; // null: esta integración no aplica ventana.
     maxResultados: number | null; // null: Bumeran no aplica límite configurable.
     filtros: Record<string, unknown>;
+    consultasEfectivas?: string[] | Record<string, unknown>;
+    equivalenciasAplicadas?: Record<string, string | string[]>;
     advertencias: string[];
     origen: {
         terminos: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
@@ -222,7 +224,8 @@ afirmación sobre la capacidad lingüística.
 laborales son criterios para IA salvo geografía presencial, que tiene defensa
 programática. El prompt personalizado sigue almacenado intacto y solo agrega
 criterios, no hechos ni permisos para quitar restricciones. Prioridad IA permanece
-un ajuste del ranking, no un bonus fijo sobre el match.
+un ajuste del ranking, no un bonus fijo sobre el match. `filtrar_nivel_linkedin`
+permite omitir `f_E=1,2` en URLs de LinkedIn sin cambiar el seniority real del perfil.
 
 ## Extracción de CV completo (issue #10)
 
