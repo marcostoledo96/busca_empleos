@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
@@ -34,12 +34,27 @@ export class TablaOfertas {
     readonly reevaluarSeleccionadas = output<number[]>();
     readonly confirmandoReevaluacion = signal(false);
 
-    constructor() {
-        // Ante un refresh descarto la selección: nunca confirmo IDs de otra vista.
-        effect(() => {
-            this.ofertas();
-            this.paginaActualCards.set(0);
+    private ultimoOrden: { field?: string; order?: number } | null = null;
+
+    onOrdenamiento(orden: { field?: string; order?: number }): void {
+        // PrimeNG reemite el mismo orden al reemplazar value; sólo limpio
+        // cuando cambia el criterio, no cuando llegan ofertas actualizadas.
+        if (this.ultimoOrden && (orden.field !== this.ultimoOrden.field || orden.order !== this.ultimoOrden.order)) {
             this.limpiarSeleccion();
+        }
+        this.ultimoOrden = { field: orden.field, order: orden.order };
+    }
+
+    constructor() {
+        // Conservo IDs estables al refrescar; excluyo los que ya no pertenecen
+        // a esta vista y vuelvo a pedir confirmación con los datos actuales.
+        effect(() => {
+            const idsVisibles = new Set(this.ofertas().map(oferta => oferta.id));
+            untracked(() => {
+                this.seleccionadas.update(ids => new Set([...ids].filter(id => idsVisibles.has(id))));
+                this.confirmandoReevaluacion.set(false);
+                this.paginaActualCards.set(0);
+            });
         });
     }
 

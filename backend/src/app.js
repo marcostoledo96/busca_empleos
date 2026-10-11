@@ -34,6 +34,7 @@ const rutasPreferencias = require('./rutas/preferencias');
 // (con prefijo incluido). Como no hay path-stripping, nunca hace match → la request
 // sigue al siguiente middleware, que es app.use('/api/evaluacion', limitadorCostoso, ...).
 // La solución correcta es pasar la función handler del controlador directamente.
+const controladorScraping = require('./controladores/controlador-scraping');
 const controladorEvaluacion = require('./controladores/controlador-evaluacion');
 const controladorAutomatizacion = require('./controladores/controlador-automatizacion');
 
@@ -180,6 +181,12 @@ app.use('/api/ofertas', rutasOfertas);
 // Paso el handler del controlador directamente — NO el Router.
 // Pasar un Router a app.get() no funciona porque Express no hace path-stripping
 // en montajes de método; el Router busca la ruta completa y nunca hace match.
+// Eximo solo el GET exacto de lectura; Express también acepta HEAD, mayúsculas
+// y barra final en app.get(), por eso las variantes siguen al limitador normal.
+app.get('/api/scraping/previsualizacion', (req, res, next) => {
+    if (req.method !== 'GET' || req.path !== '/api/scraping/previsualizacion') return next();
+    return controladorScraping.previsualizarBusquedas(req, res, next);
+});
 app.get('/api/evaluacion/progreso', controladorEvaluacion.obtenerProgresoEvaluacion);
 app.get('/api/automatizacion/progreso', controladorAutomatizacion.obtenerProgreso);
 app.get('/api/automatizacion/estado', controladorAutomatizacion.obtenerEstado);

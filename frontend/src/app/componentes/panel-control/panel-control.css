@@ -27,6 +27,27 @@
     font-weight: 700;
 }
 
+.busqueda-resumen {
+    padding: 0.75rem 1.5rem;
+    border-bottom: 1px solid var(--outline-variant);
+    font-size: 0.875rem;
+    overflow-wrap: anywhere;
+}
+
+.busqueda-resumen article {
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--outline-variant);
+}
+
+.busqueda-resumen summary {
+    cursor: pointer;
+    padding: 0.5rem 0;
+}
+
+.busqueda-resumen p {
+    margin: 0.375rem 0;
+}
+
 .panel-cuerpo {
     display: flex;
     flex-direction: column;

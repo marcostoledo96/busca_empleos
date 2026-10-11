@@ -38,6 +38,28 @@ export interface EstadoOperativoSincronizacion {
     duplicados: number;
 }
 
+// Renderizo el contrato común del backend, sin inferir capacidades por proveedor.
+export interface ResumenBusqueda {
+    plataforma: string;
+    nombre: string;
+    habilitada: boolean;
+    ejecutable: boolean;
+    terminos: string[];
+    ubicacion: string[];
+    ventanaDias: number | null;
+    maxResultados: number | null;
+    filtros: Record<string, unknown>;
+    advertencias: string[];
+    origen: {
+        terminos: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
+        ubicacion: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
+    };
+}
+
+export interface InicioAutomatizacion {
+    configuracion?: ResumenBusqueda[];
+}
+
 // Respuesta específica de los endpoints de scraping.
 export interface RespuestaScraping {
     mensaje: string;
@@ -49,6 +71,8 @@ export interface RespuestaScraping {
     // por falta de credenciales (ej: InfoJobs sin INFOJOBS_CLIENT_ID/SECRET).
     // El frontend los usa para mostrar una advertencia informativa en lugar de
     // un toast de éxito engañoso con 0 extraídas.
+    configuracion?: ResumenBusqueda;
+    descartadas_por_idioma?: number;
     codigo_resultado?: string;
     advertencia?: string;
 }
@@ -82,7 +106,7 @@ export interface EstadoAutomatizacion {
     activo: boolean;
     expresionCron: string | null;
     ultimaEjecucion: string | null;
-    ultimoResultado: Record<string, unknown> | null;
+    ultimoResultado: (Record<string, unknown> & { configuracion?: ResumenBusqueda[] }) | null;
 }
 
 // Respuesta al iniciar/detener el cron.
@@ -101,6 +125,7 @@ export interface PasoProgreso {
 
 // Progreso del ciclo automático completo.
 export interface ProgresoAutomatizacion {
+    configuracion?: ResumenBusqueda[];
     activo: boolean;
     pasos: PasoProgreso[];
     porcentaje: number;

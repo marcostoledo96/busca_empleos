@@ -266,6 +266,7 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         http.expectOne(`${url}/automatizacion/estado`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/automatizacion/progreso`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/evaluacion/progreso`).flush(progreso(false));
+        http.expectOne(`${url}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: [] } });
         await harness.fixture.whenStable();
         const dashboardAntes = harness.routeDebugElement!.componentInstance as Dashboard;
         expect(dashboardAntes.ofertas()[0].vigencia_evaluacion).toBe('actual');
@@ -348,6 +349,7 @@ describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
         http.expectOne(`${url}/automatizacion/estado`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/automatizacion/progreso`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/evaluacion/progreso`).flush({ exito: true, datos: { activo: false } });
+        http.expectOne(`${url}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: [] } });
         await fixture.whenStable();
     });
 
