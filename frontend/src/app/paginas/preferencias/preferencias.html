@@ -27,6 +27,7 @@
         <div class="seccion-cabecera"><h3 id="cv-base-titulo">CV base editable</h3></div>
         <div class="seccion-cuerpo">
             <p id="cv-base-ayuda">Guardá el texto fuente por separado. Analizar con IA genera un borrador para revisar: no aplica ni guarda preferencias.</p>
+            @if (modoDemo()) { <p role="status">En modo demo no consulto ni guardo el CV base. La edición y el análisis del texto están deshabilitados.</p> }
             @if (cargandoCvBase()) { <p role="status">Cargando CV base…</p> }
             @if (errorCargaCvBase) {
                 <p role="alert">{{ errorCargaCvBase }}</p>

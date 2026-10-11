@@ -388,6 +388,7 @@ export class Preferencias implements OnInit {
     ngOnInit(): void {
         if (this.demoService.esModoDemo()) {
             this.cargarPreferenciasMockup();
+            this.cargandoCvBase.set(false);
             return;
         }
         this.cargarPreferencias();

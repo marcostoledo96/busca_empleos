@@ -29,6 +29,35 @@ describe('Preferencias — CV base persistido', () => {
         return { fixture, componente: fixture.componentInstance, http };
     }
 
+    it('termina la carga demo sin consultar ni simular un CV persistido', async () => {
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => true } }],
+        }).compileComponents();
+        const fixture = TestBed.createComponent(Preferencias);
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        const componente = fixture.componentInstance;
+        const http = TestBed.inject(HttpTestingController);
+        expect(componente.cargandoCvBase()).toBeFalse();
+        expect(componente.cvBaseCargado).toBeFalse();
+        expect(componente.cvBaseGuardado).toBeNull();
+        expect(componente.cvBaseFecha).toBeNull();
+        const seccion = fixture.nativeElement.querySelector('.cv-base-seccion');
+        expect(seccion.textContent).not.toContain('Cargando CV base');
+        expect(seccion.textContent).toContain('En modo demo no consulto ni guardo el CV base.');
+        for (const selector of ['#cv-base', '#guardar-cv-base', '#analizar-cv-base']) {
+            expect(seccion.querySelector(selector).disabled).toBeTrue();
+        }
+        componente.cargarCvBase();
+        componente.guardarFuenteCv();
+        componente.analizarFuenteCv();
+        expect(componente.cambiosCvPendientes).toBeFalse();
+        http.expectNone(() => true);
+        http.verify();
+    });
+
     it('distingue ausencia de vacío guardado y solo fecha confirmada por la BD', async () => {
         const { fixture, componente, http } = await abrir();
         expect(componente.estadoCvBase).toBe('Sin cambios');
