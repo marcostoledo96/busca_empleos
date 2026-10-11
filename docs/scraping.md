@@ -41,6 +41,26 @@ que reutiliza sin modificaciones `detectarIdioma`: descarto solo lo detectado
 como inglés. No cambio matching contextual #7, exclusiones ni deduplicación por
 URL. El total extraído conserva descartadas; las cuento aparte de duplicadas.
 
+### Evidencia vertical sin proveedores reales
+
+Con `cd backend && npm run test:vertical` pruebo los recorridos individual y ciclo
+hasta el DOM Angular, usando controllers, resolver, scrapers, normalización,
+filtro de idioma y modelos reales. Simulo sólo Firebase, `pg`, actores/datasets,
+HTTP externo y SMTP; cron rechaza cualquier intento de programar tareas.
+LinkedIn devuelve una oferta sintética en español y otra en inglés; las demás
+fuentes activas devuelven lotes vacíos. GetOnBrd/Google Jobs/InfoJobs no hacen
+llamadas externas. DeepSeek se reemplaza en `fetch`, no en el servicio de evaluación:
+el ciclo ejercita reglas/parser, UPDATE, caché y lote terminal sin consumir APIs.
+Conservo incluso las pausas existentes de Adzuna; no acelero el código productivo.
+
+`backend/tests/helpers/bd-busquedas-memoria.js` reconoce únicamente SQL del recorrido.
+Su modo vertical agrega sincronización, evaluación/caché/lotes y advisory locks
+simulados; registra y rechaza consultas desconocidas. No es PostgreSQL: no verifica
+sintaxis SQL general, `xmin`/MVCC, aislamiento/rollback, locks concurrentes,
+constraints reales ni durabilidad tras reinicios. El filtro de fecha no se reproduce
+porque todas las fixtures son recientes; la firma del snapshot es una serialización
+en memoria, no `md5(string_agg(...))`. **PostgreSQL real y proveedores reales: NOT RUN.**
+
 ## Qué es y por qué se usa Apify
 
 Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) en sus servidores. En vez de hacer scraping directo desde nuestra PC (arriesgándonos a bloqueos de IP), le mandamos la orden a Apify, sus servidores ejecutan el scraping, y nosotros recibimos los resultados en JSON.

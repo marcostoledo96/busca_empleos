@@ -29,7 +29,25 @@ están confirmados como actualizados, sin certificar éxito por finalizar una ac
 
 Las pruebas Angular usan componentes y servicios reales con HTTP sintético:
 guardado de preferencias, botones individuales/ciclo, eventos y ofertas/conteos
-visibles. No constituyen un E2E con Express/PostgreSQL ni ejecutan proveedores reales.
+visibles. Esas pruebas aisladas no constituyen un E2E con Express/PostgreSQL ni ejecutan proveedores reales.
+
+### Puente vertical opt-in
+
+Ejecuto `cd backend && npm run test:vertical` para unir ChromeHeadless y
+`HttpClient` real con Express (`app.js`, sin `index.js`) en `127.0.0.1:43193`.
+El harness espera el evento de escucha, verifica un nonce antes de usar la API y
+lanza únicamente `busquedas-vertical.spec.ts` mediante Karma. Un puerto ocupado
+falla sin terminar procesos ajenos; el `finally` espera al hijo/ciclo y cierra el servidor.
+La suite habitual informa dos pruebas Angular **SKIPPED** y una Jest **SKIPPED**;
+no interpreta ausencia del puente como éxito. El comando opt-in exige ambos flujos completados.
+
+Compruebo PUT de preferencias, botones reales individuales/ciclo, snapshot ejecutado
+distinto del preview tras otro PUT, fuente simulada, persistencia, evento de finalización,
+DOM/conteos y conservación de filtro/postulación anterior. Uso el servicio IndexedDB
+real y leo sus ofertas desde una instancia nueva; el fallback de memoria no alcanza.
+El ciclo cruza aceptación 202, polling y evaluación real con respuesta externa de
+DeepSeek sintética. Restauro `environment.urlApi` después de cada prueba.
+Los límites del adaptador SQL y proveedores simulados están en [Scraping](scraping.md#evidencia-vertical-sin-proveedores-reales).
 
 ## CV base editable — issue #12
 
