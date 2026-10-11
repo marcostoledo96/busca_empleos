@@ -8,6 +8,214 @@ import { of, throwError, Subject } from 'rxjs';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { provideRouter } from '@angular/router';
+
+describe('Preferencias — CV base persistido', () => {
+    const url = 'http://localhost:3000/api/preferencias/cv-base';
+    const fecha = '2026-01-01T00:00:00Z';
+
+    async function abrir(texto: string | null = null) {
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => false } }],
+        }).compileComponents();
+        const fixture = TestBed.createComponent(Preferencias);
+        fixture.autoDetectChanges();
+        const http = TestBed.inject(HttpTestingController);
+        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: {} });
+        http.expectOne(url).flush({ exito: true, datos: { cv_base: texto, cv_base_actualizado_en: texto === null ? null : fecha } });
+        await fixture.whenStable();
+        return { fixture, componente: fixture.componentInstance, http };
+    }
+
+    it('termina la carga demo sin consultar ni simular un CV persistido', async () => {
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => true } }],
+        }).compileComponents();
+        const fixture = TestBed.createComponent(Preferencias);
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        const componente = fixture.componentInstance;
+        const http = TestBed.inject(HttpTestingController);
+        expect(componente.cargandoCvBase()).toBeFalse();
+        expect(componente.cvBaseCargado).toBeFalse();
+        expect(componente.cvBaseGuardado).toBeNull();
+        expect(componente.cvBaseFecha).toBeNull();
+        const seccion = fixture.nativeElement.querySelector('.cv-base-seccion');
+        expect(seccion.textContent).not.toContain('Cargando CV base');
+        expect(seccion.textContent).toContain('En modo demo no consulto ni guardo el CV base.');
+        for (const selector of ['#cv-base', '#guardar-cv-base', '#analizar-cv-base']) {
+            expect(seccion.querySelector(selector).disabled).toBeTrue();
+        }
+        componente.cargarCvBase();
+        componente.guardarFuenteCv();
+        componente.analizarFuenteCv();
+        expect(componente.cambiosCvPendientes).toBeFalse();
+        http.expectNone(() => true);
+        http.verify();
+    });
+
+    it('distingue ausencia de vacío guardado y solo fecha confirmada por la BD', async () => {
+        const { fixture, componente, http } = await abrir();
+        expect(componente.estadoCvBase).toBe('Sin cambios');
+        componente.guardarFuenteCv();
+        expect(componente.cvBaseFecha).toBeNull();
+        http.expectOne(url).flush({ exito: true, datos: { cv_base: '', cv_base_actualizado_en: fecha } });
+        await fixture.whenStable();
+        expect(fixture.nativeElement.textContent).toContain('El CV base está guardado vacío');
+        expect(componente.estadoCvBase).toBe('Guardado correctamente');
+        expect(componente.cvBaseFecha).toBe(fecha);
+        http.verify();
+    });
+
+    it('congela DOM y archivos durante PUT, pero conserva una edición programática tardía', async () => {
+        const { fixture, componente, http } = await abrir('Anterior');
+        componente.editarCvBase('Enviado');
+        componente.guardarFuenteCv();
+        await fixture.whenStable();
+        expect((fixture.nativeElement.querySelector('#cv-base') as HTMLTextAreaElement).disabled).toBeTrue();
+        componente.tabActiva.set(5);
+        await fixture.whenStable();
+        expect((fixture.nativeElement.querySelector('input[type=file]') as HTMLInputElement).disabled).toBeTrue();
+        componente.archivoCvSeleccionado = new File(['Archivo'], 'sintetico.md');
+        await componente.usarArchivoComoCvBase();
+        componente.editarCvBase('Edición posterior');
+        http.expectOne(url).flush({ exito: true, datos: { cv_base: 'Enviado', cv_base_actualizado_en: fecha } });
+        expect(componente.cvBaseTexto).toBe('Edición posterior');
+        expect(componente.cvBaseGuardado).toBe('Enviado');
+        expect(componente.estadoCvBase).toBe('Cambios pendientes');
+        const salida = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+        componente.advertirSalidaCv(salida);
+        expect(salida.defaultPrevented).toBeTrue();
+        http.verify();
+    });
+
+    it('conserva texto y fecha ante error de BD o respuesta sin éxito', async () => {
+        const { fixture, componente, http } = await abrir('Confirmado');
+        componente.editarCvBase('Pendiente');
+        componente.guardarFuenteCv();
+        http.expectOne(url).flush({ error: 'BD indisponible' }, { status: 500, statusText: 'Error' });
+        await fixture.whenStable();
+        expect(fixture.nativeElement.textContent).toContain('Error al guardar');
+        expect(componente.cvBaseTexto).toBe('Pendiente');
+        expect(componente.cvBaseFecha).toBe(fecha);
+        componente.guardarFuenteCv();
+        http.expectOne(url).flush({ exito: false });
+        expect(componente.estadoCvBase).toBe('Error al guardar');
+        expect(componente.cambiosCvPendientes).toBeTrue();
+        http.verify();
+    });
+
+    it('acepta 1 MiB multibyte exacto y rechaza overflow, NUL y sustitutos inválidos', async () => {
+        const { componente, http } = await abrir();
+        const limite = 'ñ'.repeat(524288);
+        componente.editarCvBase(limite);
+        componente.guardarFuenteCv();
+        const peticion = http.expectOne(url);
+        expect(new TextEncoder().encode(peticion.request.body).byteLength).toBe(1048576);
+        peticion.flush({ exito: true, datos: { cv_base: limite, cv_base_actualizado_en: fecha } });
+        for (const invalido of [limite + 'a', 'Texto\u0000', '\ud800']) {
+            componente.editarCvBase(invalido);
+            componente.guardarFuenteCv();
+            expect(componente.estadoCvBase).toBe('Error al guardar');
+            http.expectNone(url);
+        }
+        http.verify();
+    });
+
+    it('importa UTF-8 preservando BOM y CRLF sin guardar ni borrar revisión; confirma reemplazo', async () => {
+        const { componente, http } = await abrir('Original');
+        const confirmar = spyOn(window, 'confirm').and.returnValue(false);
+        componente.editarCvBase('Pendiente');
+        componente.resultadoImportacion = { nombre: 'Corrección' };
+        const borrador = componente.resultadoImportacion;
+        componente.archivoCvSeleccionado = new File(['\ufeff# Sintético\r\nñ 🌎\r\n'], 'sintetico.md');
+        await componente.usarArchivoComoCvBase();
+        expect(componente.cvBaseTexto).toBe('Pendiente');
+        confirmar.and.returnValue(true);
+        await componente.usarArchivoComoCvBase();
+        expect(componente.cvBaseTexto).toBe('\ufeff# Sintético\r\nñ 🌎\r\n');
+        expect(componente.resultadoImportacion).toBe(borrador);
+        expect(componente.cambiosCvPendientes).toBeTrue();
+        http.expectNone(r => r.method !== 'GET');
+        for (const contenido of [new Uint8Array([0xc3, 0x28]), new Uint8Array([0]), new Uint8Array(1048577)]) {
+            componente.archivoCvSeleccionado = new File([contenido], 'invalido.md');
+            await componente.usarArchivoComoCvBase();
+            expect(componente.cvBaseTexto).toBe('\ufeff# Sintético\r\nñ 🌎\r\n');
+        }
+        http.verify();
+    });
+
+    it('descarta una lectura de archivo tardía si cambió la identidad o el texto local', async () => {
+        const { componente, http } = await abrir('Original');
+        const archivo = new File(['Primero'], 'primero.md');
+        let resolver!: (contenido: ArrayBuffer) => void;
+        spyOn(archivo, 'arrayBuffer').and.returnValue(new Promise(resolve => resolver = resolve));
+        componente.archivoCvSeleccionado = archivo;
+        const lectura = componente.usarArchivoComoCvBase();
+        componente.archivoCvSeleccionado = new File(['Segundo'], 'segundo.md');
+        resolver(new TextEncoder().encode('Primero').buffer);
+        await lectura;
+        expect(componente.cvBaseTexto).toBe('Original');
+        componente.archivoCvSeleccionado = archivo;
+        const otraLectura = componente.usarArchivoComoCvBase();
+        componente.editarCvBase('Edición concurrente');
+        resolver(new TextEncoder().encode('Primero').buffer);
+        await otraLectura;
+        expect(componente.cvBaseTexto).toBe('Edición concurrente');
+        http.verify();
+    });
+
+    it('no descarta correcciones ni notas al rechazar un nuevo análisis', async () => {
+        const { componente, http } = await abrir('# Sintético');
+        spyOn(window, 'confirm').and.returnValue(false);
+        componente.resultadoImportacion = { nombre: 'Corregido' };
+        componente.preguntasImportacion = [{ campo: 'otro', pregunta: '¿Otro?', nota: 'Nota', estado: 'nota' }];
+        componente.analizarFuenteCv();
+        expect(componente.resultadoImportacion.nombre).toBe('Corregido');
+        expect(componente.preguntasImportacion[0].nota).toBe('Nota');
+        http.expectNone(r => r.method === 'POST');
+        http.verify();
+    });
+
+    it('carga la fuente independiente y deshabilita el editor hasta recibirla', async () => {
+        await TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => false } }],
+        }).compileComponents();
+        const fixture = TestBed.createComponent(Preferencias);
+        fixture.detectChanges();
+        const http = TestBed.inject(HttpTestingController);
+        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: {} });
+        fixture.detectChanges();
+        await fixture.whenStable();
+        const editor = fixture.nativeElement.querySelector('#cv-base') as HTMLTextAreaElement;
+        expect(editor).not.toBeNull();
+        if (editor) expect(editor.disabled).toBeTrue();
+        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({ error: 'Error de carga' }, { status: 500, statusText: 'Error' });
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(editor.disabled).toBeTrue();
+        expect(fixture.nativeElement.textContent).toContain('No pude cargar el CV base');
+        expect(fixture.nativeElement.textContent).not.toContain('Guardado correctamente');
+        fixture.componentInstance.guardarFuenteCv();
+        http.expectNone(r => r.method === 'PUT');
+        fixture.componentInstance.cargarCvBase();
+        fixture.componentInstance.editarCvBase('Edición programática antes del GET');
+        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({
+            exito: true, datos: { cv_base: null, cv_base_actualizado_en: null },
+        });
+        fixture.detectChanges();
+        expect(fixture.componentInstance.cvBaseTexto).toBe('Edición programática antes del GET');
+        expect(fixture.componentInstance.cambiosCvPendientes).toBeTrue();
+        expect(fixture.nativeElement.textContent).toContain('Todavía no hay un CV base guardado');
+        http.verify();
+    });
+});
 
 describe('Preferencias — Accesibilidad aria-live dinámico', () => {
 
@@ -31,7 +239,9 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
     };
 
     async function crearComponente(): Promise<{ fixture: ComponentFixture<Preferencias>; component: Preferencias }> {
+        spyOn(window, 'confirm').and.returnValue(true);
         const mockPrefService = {
+            obtenerCvBase: () => of({ exito: true, datos: { cv_base: null, cv_base_actualizado_en: null } }),
             obtenerPreferencias: () => of(mockPreferencias),
             actualizarPreferencias: () => of(mockPreferencias),
             analizarCvMarkdown: () => of({ exito: true, datos: { nombre: 'Perfil parcial' } }),
@@ -510,7 +720,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
     it('persisto revisión DOM mediante servicio real, PUT y GET; un error no confirma hechos', async () => {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
-            providers: [provideNoopAnimations(), provideHttpClient(), provideHttpClientTesting(),
+            providers: [provideRouter([]), provideNoopAnimations(), provideHttpClient(), provideHttpClientTesting(),
                 { provide: DemoService, useValue: { esModoDemo: () => false } },
                 { provide: EvaluacionService, useValue: {} }],
         }).compileComponents();
@@ -523,15 +733,37 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
             plataformas_excluidas: ['computrabajo'], expectativa_salarial_min: 900,
             roles_objetivo_detalle: [{ rol: 'QA', prioridad: 'alta', aliases: [] }],
             terminos_busqueda: ['QA'], reglas_exclusion: ['Java'] };
-        http.expectOne(r => r.method === 'GET').flush({ exito: true, datos: fila });
+        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: fila });
+        const urlFuente = 'http://localhost:3000/api/preferencias/cv-base';
+        http.expectOne(urlFuente).flush({ exito: true, datos: { cv_base: null, cv_base_actualizado_en: null } });
+        await fixture.whenStable();
+        const editor = fixture.nativeElement.querySelector('#cv-base') as HTMLTextAreaElement;
+        editor.value = '# CV sintético\n\nExperiencia técnica ñ 🌎\n';
+        editor.dispatchEvent(new Event('input', { bubbles: true }));
+        await fixture.whenStable();
+        expect(componente.estadoCvBase).toBe('Cambios pendientes');
+        (fixture.nativeElement.querySelector('#guardar-cv-base') as HTMLButtonElement).click();
+        const fuente = http.expectOne(urlFuente);
+        expect(fuente.request.body).toBe(editor.value);
+        expect(componente.estadoCvBase).toBe('Guardando');
+        fuente.flush({ exito: true, datos: { cv_base: editor.value, cv_base_actualizado_en: '2026-01-01T00:00:00Z' } });
+        componente.cargarCvBase();
+        http.expectOne(urlFuente).flush({ exito: true, datos: { cv_base: editor.value, cv_base_actualizado_en: '2026-01-01T00:00:00Z' } });
+        componente.editarCvBase(componente.cvBaseTexto + '\nProyecto nuevo');
+        const snapshot = componente.cvBaseTexto;
         componente.tabActiva.set(5);
         componente.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
         await fixture.whenStable();
-        (fixture.nativeElement.querySelector('.btn-importar') as HTMLButtonElement).click();
+        (fixture.nativeElement.querySelector('#analizar-cv-base') as HTMLButtonElement).click();
         const extraccion = { nombre: 'Revisado', tecnologias_detalle: [{ nombre: 'Docker', nivel: 'avanzado', categoria: 'herramienta', importancia: 'secundaria', aliases: [] }],
             preguntas: [{ campo: 'ingles', pregunta: '¿Oral?' }, { campo: 'docker', pregunta: '¿Local?' }, { campo: 'docker', pregunta: '¿Producción?' }, { campo: 'otro', pregunta: '¿Otro?' }],
             modalidad_aceptada: 'presencial', plataformas_preferidas: [], plataformas_excluidas: [], roles_objetivo_detalle: [], terminos_busqueda: [], reglas_exclusion: [] };
-        http.expectOne(r => r.method === 'POST').flush({ exito: true, datos: extraccion });
+        const analisis = http.expectOne(r => r.method === 'POST');
+        const documento = (analisis.request.body as FormData).get('cv') as File;
+        expect(documento.name).toBe('cv-base.md');
+        expect(documento.type).toBe('text/markdown');
+        expect(await documento.text()).toBe(snapshot);
+        analisis.flush({ exito: true, datos: extraccion });
         await fixture.whenStable();
         const informativas = fixture.nativeElement.querySelectorAll('.importar-pregunta--informativa');
         const nota = informativas[0].querySelector('textarea') as HTMLTextAreaElement;
@@ -545,6 +777,13 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         await fixture.whenStable();
         expect(componente.preguntasImportacion[1].estado).toBe('pendiente');
         expect(componente.preguntasImportacion[2].estado).toBe('aplicada');
+        componente.resultadoImportacion!.nombre = 'Corrección sintética';
+        const borrador = componente.resultadoImportacion;
+        componente.guardarFuenteCv();
+        http.expectOne(urlFuente).flush({ exito: true, datos: { cv_base: snapshot, cv_base_actualizado_en: '2026-01-02T00:00:00Z' } });
+        expect(componente.resultadoImportacion).toBe(borrador);
+        expect(componente.preguntasImportacion[0].nota).toBe('Lectura confirmada');
+        expect(componente.nombre).toBe('Guardado');
         expect(extraccion.tecnologias_detalle[0].nivel).toBe('avanzado');
         expect(fixture.nativeElement.textContent).toContain('Ignorar descarta la respuesta');
         (fixture.nativeElement.querySelector('.importar-resultado .btn-guardar') as HTMLButtonElement).click();
@@ -564,7 +803,9 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(fila.preguntas_perfil_pendientes[2]).toEqual(jasmine.objectContaining({ estado: 'aplicada', respuesta: jasmine.any(String) }));
         expect(fila.preguntas_perfil_pendientes[3].respuesta).toBeUndefined();
         fila.perfil_efectivo = { version: 1, candidato: { ...fila, conocimientos_ausentes: [] }, restricciones: { preferencias: { ...fila }, politicas_sistema: [] }, secciones: [], texto: '' };
-        put.flush({ exito: true, datos: fila });
+        expect(fila.nombre).toBe('Corrección sintética');
+        put.flush({ exito: true, datos: fila, cambio_criterios: true });
+        expect(componente.perfilCambio()).toBeTrue();
         componente.cargarPreferencias();
         http.expectOne(r => r.method === 'GET').flush({ exito: true, datos: fila });
         await fixture.whenStable();

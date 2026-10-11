@@ -1,5 +1,38 @@
 # Base de datos — Busca Empleos
 
+## Documento fuente del CV (issue #12)
+
+Agrego `migracion-020-cv-base.sql`, idempotente mediante `CREATE TABLE IF NOT EXISTS`.
+No modifica datos ni esquema de preferencias existentes.
+
+| Columna de `cv_base` | Contrato |
+|---|---|
+| `id` | INTEGER, PK y CHECK `id = 1`: como máximo una fila |
+| `cv_base` | TEXT NOT NULL, CHECK `octet_length(cv_base) <= 1048576` |
+| `cv_base_actualizado_en` | TIMESTAMPTZ NOT NULL, generado al guardar |
+
+Represento ausencia mediante **ninguna fila**, expuesta por GET como texto y fecha
+`null`. Una fila con TEXT vacío representa un documento guardado vacío.
+Uso una sola consulta parametrizada `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`
+para guardar atómicamente texto y `clock_timestamp()` y retornar la fecha de BD.
+En escrituras concurrentes prevalece la última escritura; no implemento versionado.
+
+Elijo tabla independiente en lugar de dos columnas en preferencias porque
+`backend/src/modelos/preferencia.js` usa `SELECT *`, `RETURNING *` y copia la fila completa a
+`backup_preferencias`. Columnas nuevas expondrían la fuente en respuestas y backups
+del perfil salvo cambios adicionales. La tabla aislada evita esas filtraciones y
+no modifica preferencias, su fecha, perfil efectivo ni firma/caché de evaluación.
+PostgreSQL TEXT no admite NUL: lo rechazo antes de la consulta y valido UTF-8
+estricto antes de decodificar. No almaceno texto reemplazado ni normalizado.
+
+Los tests de persistencia están en `tests/modelos/cv-base-persistencia.test.js`
+para entrar en el job DB existente. Requieren `ALLOW_DB_TESTS=true`, `NODE_ENV=test`,
+PGDATABASE terminado en `_test` y PGHOST local, verifican `current_database()` y
+usan tablas en `pg_temp` dentro de una transacción revertida. No cargan dotenv ni
+DATABASE_URL, no tocan tablas públicas ni realizan TRUNCATE. Comprueban migración
+repetida, preservación de datos sintéticos, roundtrip, vacío y fecha real.
+
+
 ## Motor y conexión
 
 - **Motor:** PostgreSQL (instalación local).

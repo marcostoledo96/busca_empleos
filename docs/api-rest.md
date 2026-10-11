@@ -1,5 +1,33 @@
 # API REST — Busca Empleos
 
+## CV base editable — documento fuente (issue #12)
+
+Uso GET y PUT `/api/preferencias/cv-base`, con la misma autenticación Firebase
+que el resto de la API. Mantengo esta fuente privada separada del perfil confirmado.
+No leo un CV del repositorio ni ejecuto IA, evaluación, scraping o invalidación de caché.
+
+Ambos métodos devuelven HTTP 200 y `{ exito: true, datos: { cv_base,
+cv_base_actualizado_en } }`. GET sin documento devuelve ambos campos `null`;
+un documento guardado vacío devuelve `cv_base: ""` y su fecha ISO 8601.
+PUT devuelve el texto persistido y la fecha generada por PostgreSQL, no por el cliente.
+
+En PUT envío **el texto crudo**, no JSON, con `Content-Type: text/plain` o
+`text/markdown`, opcionalmente `charset=utf-8` (también entre comillas).
+Admito hasta **1048576 bytes UTF-8 inclusive**, sin costo de envoltorio JSON.
+Conservo espacios, Markdown, BOM y saltos de línea exactamente; no recorto ni normalizo.
+Un cuerpo de cero bytes guarda un documento vacío; no borra ni restablece la ausencia.
+Rechazo UTF-8 inválido y NUL con 400, exceso con 413, tipo/charset/codificación
+comprimida no admitidos con 415. No admito JSON, multipart ni `null` como cuerpo.
+Los errores usan `{ exito: false, error }`; un fallo de BD devuelve 500 genérico
+sin registrar ni exponer el documento. No aumento el límite JSON global.
+
+Para Angular envío un string con ese Content-Type y el token del interceptor;
+calculo el límite con `new TextEncoder().encode(texto).length`. Distingo `null`
+de `""` al cargar. Uso la fecha retornada sólo tras guardar exitosamente.
+Guardar fuente, analizar su snapshot mediante el importador existente, aplicar la
+revisión y guardar preferencias siguen siendo cuatro acciones independientes.
+
+
 ## Perfil efectivo de solo lectura (issue #8)
 
 GET `/api/preferencias` y PUT `/api/preferencias` conservan su envoltorio

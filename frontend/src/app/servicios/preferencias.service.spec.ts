@@ -23,6 +23,30 @@ describe('PreferenciasService', () => {
         httpMock.verify();
     });
 
+    it('obtiene null o vacío sin confundirlos y guarda Markdown crudo exacto en UTF-8', () => {
+        for (const texto of [null, '']) {
+            servicio.obtenerCvBase().subscribe(resp => expect(resp.datos.cv_base).toBe(texto));
+            const peticion = httpMock.expectOne(`${urlBase}/cv-base`);
+            expect(peticion.request.method).toBe('GET');
+            peticion.flush({ exito: true, datos: { cv_base: texto, cv_base_actualizado_en: null } });
+        }
+        const texto = '\ufeff# Sintético\r\n\nñ 🌎\n';
+        servicio.guardarCvBase(texto).subscribe(resp => expect(resp.datos.cv_base).toBe(texto));
+        const peticion = httpMock.expectOne(`${urlBase}/cv-base`);
+        expect(peticion.request.method).toBe('PUT');
+        expect(peticion.request.body).toBe(texto);
+        expect(peticion.request.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+        peticion.flush({ exito: true, datos: { cv_base: texto, cv_base_actualizado_en: '2026-01-01T00:00:00Z' } });
+    });
+
+    it('propaga fallas de base de datos sin fabricar éxito', () => {
+        servicio.guardarCvBase('Pendiente').subscribe({
+            next: () => fail('No debo recibir éxito'),
+            error: error => expect(error.status).toBe(500),
+        });
+        httpMock.expectOne(`${urlBase}/cv-base`).flush({ error: 'Falla sintética' }, { status: 500, statusText: 'Error' });
+    });
+
     it('should be created', () => {
         expect(servicio).toBeTruthy();
     });

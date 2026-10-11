@@ -23,6 +23,38 @@
         </div>
     }
 
+    <section class="seccion cv-base-seccion" aria-labelledby="cv-base-titulo">
+        <div class="seccion-cabecera"><h3 id="cv-base-titulo">CV base editable</h3></div>
+        <div class="seccion-cuerpo">
+            <p id="cv-base-ayuda">Guardá el texto fuente por separado. Analizar con IA genera un borrador para revisar: no aplica ni guarda preferencias.</p>
+            @if (modoDemo()) { <p role="status">En modo demo no consulto ni guardo el CV base. La edición y el análisis del texto están deshabilitados.</p> }
+            @if (cargandoCvBase()) { <p role="status">Cargando CV base…</p> }
+            @if (errorCargaCvBase) {
+                <p role="alert">{{ errorCargaCvBase }}</p>
+                <button type="button" class="btn-detalle-secundario" (click)="cargarCvBase()">Reintentar carga del CV base</button>
+            }
+            @if (cvBaseCargado) {
+                <p>{{ cvBaseGuardado === null ? 'Todavía no hay un CV base guardado.' : cvBaseGuardado === '' ? 'El CV base está guardado vacío.' : 'Hay un CV base guardado.' }}</p>
+            }
+            <label class="campo-etiqueta" for="cv-base">Texto del CV en Markdown</label>
+            <textarea id="cv-base" class="cv-base-editor" [ngModel]="cvBaseTexto" (ngModelChange)="editarCvBase($event)"
+                [disabled]="!cvBaseCargado || cargandoCvBase() || guardandoCvBase() || leyendoCvBase() || modoDemo()"
+                aria-describedby="cv-base-ayuda cv-base-estado" spellcheck="true" rows="18"></textarea>
+            @if (cvBaseCargado) { <p id="cv-base-estado" role="status" aria-live="polite">{{ estadoCvBase }}</p> }
+            @if (guardandoCvBase()) { <p>Estoy guardando la fuente. El editor y las acciones de archivo quedan pausados.</p> }
+            @if (leyendoCvBase()) { <p role="status">Leyendo archivo…</p> }
+            @if (errorCvBase) { <p role="alert">{{ errorCvBase }}</p> }
+            @if (cvBaseFecha) { <p>Último guardado de la fuente: <time [attr.datetime]="cvBaseFecha">{{ cvBaseFecha }}</time></p> }
+            <div class="importar-acciones">
+                <button id="guardar-cv-base" type="button" class="btn-guardar" (click)="guardarFuenteCv()"
+                    [disabled]="!cvBaseCargado || cargandoCvBase() || guardandoCvBase() || leyendoCvBase() || modoDemo() || (cvBaseGuardado !== null && !cambiosCvPendientes)">Guardar CV base</button>
+                <button id="analizar-cv-base" type="button" class="btn-detalle-secundario" (click)="analizarFuenteCv()"
+                    [disabled]="!cvBaseCargado || cargandoCvBase() || guardandoCvBase() || leyendoCvBase() || analizandoCv() || guardando() || modoDemo() || !cvBaseTexto.trim()">Analizar texto del editor con IA</button>
+            </div>
+            <small class="campo-ayuda">El análisis usa una copia exacta del texto actual, aunque todavía no lo hayas guardado. Usa el modelo de importación configurado y puede consumir saldo.</small>
+        </div>
+    </section>
+
     <section class="seccion perfil-ia" aria-labelledby="perfil-ia-titulo">
         <div class="seccion-cabecera"><h3 id="perfil-ia-titulo">Qué perfil usa la IA</h3></div>
         <div class="seccion-cuerpo">
@@ -411,8 +443,8 @@
                         <div class="seccion-cuerpo">
                             <small class="campo-ayuda">Usa <strong>{{ modeloIaImportacion }}</strong> por defecto para importar y completar el perfil con más precisión. El botón se habilita cuando seleccionás un archivo `.md` válido.</small>
                             <div class="importar-grupo">
-                                <input type="file" accept=".md,text/markdown,text/plain" (change)="onArchivoCvSeleccionado($event)" [disabled]="modoDemo()" class="importar-input" />
-                                <button class="btn-importar" [disabled]="!archivoCvSeleccionado || analizandoCv() || modoDemo()" (click)="analizarCv()">
+                                <input type="file" accept=".md,text/markdown,text/plain" (change)="onArchivoCvSeleccionado($event)" [disabled]="modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" class="importar-input" />
+                                <button class="btn-importar" [disabled]="!archivoCvSeleccionado || analizandoCv() || modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" (click)="analizarCv()">
                                     @if (analizandoCv()) {
                                         <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
                                         ANALIZANDO CV...
@@ -422,6 +454,10 @@
                                     }
                                 </button>
                             </div>
+
+                            <button type="button" class="btn-detalle-secundario" (click)="usarArchivoComoCvBase()"
+                                [disabled]="!archivoCvSeleccionado || !cvBaseCargado || cargandoCvBase() || guardandoCvBase() || leyendoCvBase() || modoDemo()">Usar este archivo como mi CV base</button>
+                            <small class="campo-ayuda">Esta acción carga el archivo en el editor sin guardar la fuente ni cambiar la revisión. Después elegí Guardar CV base.</small>
 
                             @if (!archivoCvSeleccionado && !analizandoCv()) {
                                 <small class="campo-ayuda">Seleccioná primero un archivo `.md` para habilitar el análisis.</small>
@@ -548,7 +584,7 @@
                                         </div>
                                     }
                                     <div class="importar-acciones">
-                                        <button class="btn-guardar" (click)="aplicarImportacion()"><span class="material-symbols-outlined" aria-hidden="true">check</span>APLICAR AL FORMULARIO</button>
+                                        <button class="btn-guardar" [disabled]="guardando() || analizandoCv()" (click)="aplicarImportacion()"><span class="material-symbols-outlined" aria-hidden="true">check</span>APLICAR AL FORMULARIO</button>
                                         <button class="btn-detalle-secundario" (click)="cancelarImportacion()">CANCELAR</button>
                                     </div>
                                 </div>
@@ -677,7 +713,7 @@
 
     <div class="acciones">
         <span class="sr-only" aria-live="polite" role="status">{{ mensajeAccesible() }}</span>
-        <button class="btn-guardar" [disabled]="guardando() || modoDemo()" (click)="guardar()" aria-label="Guardar preferencias">
+        <button class="btn-guardar" [disabled]="guardando() || analizandoCv() || modoDemo()" (click)="guardar()" aria-label="Guardar preferencias">
             @if (guardando()) {
                 <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
             } @else {

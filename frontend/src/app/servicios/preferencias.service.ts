@@ -5,6 +5,11 @@ import { environment } from '../../environments/environment';
 import { Preferencias, PreferenciasActualizar, PreguntaPerfil } from '../modelos/preferencia.model';
 import { RespuestaApi, RespuestaPreferencias } from '../modelos/respuesta-api.model';
 
+export interface CvBase {
+    cv_base: string | null;
+    cv_base_actualizado_en: string | null;
+}
+
 export interface ResultadoImportacionCv {
     nombre: string | null;
     nivel_experiencia: string | null;
@@ -52,6 +57,16 @@ export class PreferenciasService {
 
     actualizarPreferencias(datos: PreferenciasActualizar): Observable<RespuestaPreferencias<Preferencias>> {
         return this.http.put<RespuestaPreferencias<Preferencias>>(this.urlBase, datos);
+    }
+
+    obtenerCvBase(): Observable<RespuestaApi<CvBase>> {
+        return this.http.get<RespuestaApi<CvBase>>(`${this.urlBase}/cv-base`);
+    }
+
+    guardarCvBase(texto: string): Observable<RespuestaApi<CvBase>> {
+        return this.http.put<RespuestaApi<CvBase>>(`${this.urlBase}/cv-base`, texto, {
+            headers: { 'Content-Type': 'text/markdown; charset=utf-8' },
+        });
     }
 
     // Analiza un CV Markdown con DeepSeek. No guarda preferencias.

@@ -1,4 +1,4 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
+import { Component, inject, signal, OnInit, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/preferencias.service';
@@ -110,6 +110,146 @@ export class Preferencias implements OnInit {
     rolesObjetivoDetalle: Array<{ rol: string; prioridad: string; aliases: string[]; evidencia?: string }> = [];
     // scoringConfig fue eliminado en B1 (deprecación de scoring previo).
     // La evaluación ahora usa DeepSeek directo + reglas-exclusion, sin scoring previo.
+
+    // Mantengo la fuente separada del formulario y del borrador extraído.
+    cvBaseTexto = '';
+    cvBaseGuardado: string | null = null;
+    cvBaseFecha: string | null = null;
+    cvBaseCargado = false;
+    cargandoCvBase = signal(true);
+    guardandoCvBase = signal(false);
+    leyendoCvBase = signal(false);
+    errorCargaCvBase = '';
+    errorCvBase = '';
+    private cvBaseEditado = false;
+    private cvBaseExito = false;
+
+    get cambiosCvPendientes(): boolean {
+        return this.cvBaseCargado && (this.cvBaseGuardado === null
+            ? this.cvBaseEditado || this.cvBaseTexto !== '' : this.cvBaseTexto !== this.cvBaseGuardado);
+    }
+
+    get estadoCvBase(): string {
+        if (this.guardandoCvBase()) return 'Guardando';
+        if (this.errorCvBase) return 'Error al guardar';
+        if (this.cambiosCvPendientes) return 'Cambios pendientes';
+        return this.cvBaseExito ? 'Guardado correctamente' : 'Sin cambios';
+    }
+
+    editarCvBase(texto: string): void {
+        this.cvBaseTexto = texto;
+        this.cvBaseEditado = true;
+        this.cvBaseExito = false;
+        this.errorCvBase = '';
+    }
+
+    @HostListener('window:beforeunload', ['$event'])
+    advertirSalidaCv(evento: BeforeUnloadEvent): void {
+        if (!this.cambiosCvPendientes && !this.guardandoCvBase()) return;
+        evento.preventDefault();
+        evento.returnValue = '';
+    }
+
+    cargarCvBase(): void {
+        if (this.modoDemo() || this.guardandoCvBase() || this.cambiosCvPendientes) return;
+        this.cargandoCvBase.set(true);
+        this.errorCargaCvBase = '';
+        const textoInicial = this.cvBaseTexto;
+        this.servicio.obtenerCvBase().subscribe({
+            next: respuesta => {
+                this.cargandoCvBase.set(false);
+                if (!respuesta.exito || !respuesta.datos ||
+                    !(respuesta.datos.cv_base === null || typeof respuesta.datos.cv_base === 'string') ||
+                    !(respuesta.datos.cv_base_actualizado_en === null || typeof respuesta.datos.cv_base_actualizado_en === 'string')) {
+                    this.errorCargaCvBase = 'No pude cargar el CV base. Reintentá la carga antes de editar.';
+                    return;
+                }
+                this.cvBaseGuardado = respuesta.datos.cv_base;
+                this.cvBaseFecha = respuesta.datos.cv_base_actualizado_en;
+                // Conservo incluso ediciones programáticas realizadas mientras esperaba la carga.
+                if (this.cvBaseTexto === textoInicial && !this.cvBaseEditado) {
+                    this.cvBaseTexto = respuesta.datos.cv_base ?? '';
+                }
+                this.cvBaseCargado = true;
+            },
+            error: () => {
+                this.cargandoCvBase.set(false);
+                this.errorCargaCvBase = 'No pude cargar el CV base. Reintentá la carga antes de editar.';
+            },
+        });
+    }
+
+    private validarTextoCv(texto: string): string {
+        if (texto.includes('\u0000')) return 'El CV no puede contener caracteres NUL.';
+        if (new TextEncoder().encode(texto).byteLength > 1048576) return 'El CV no puede superar 1 MiB en UTF-8.';
+        // Rechazo sustitutos sueltos: codificarlos en UTF-8 perdería información.
+        if (new TextDecoder('utf-8', { ignoreBOM: true }).decode(new TextEncoder().encode(texto)) !== texto) {
+            return 'El CV debe contener texto UTF-8 válido.';
+        }
+        return '';
+    }
+
+    guardarFuenteCv(): void {
+        if (!this.cvBaseCargado || this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.cargandoCvBase()) return;
+        const texto = this.cvBaseTexto;
+        this.errorCvBase = this.validarTextoCv(texto);
+        if (this.errorCvBase) return;
+        this.guardandoCvBase.set(true);
+        this.cvBaseExito = false;
+        this.servicio.guardarCvBase(texto).subscribe({
+            next: respuesta => {
+                this.guardandoCvBase.set(false);
+                if (!respuesta.exito || !respuesta.datos || respuesta.datos.cv_base !== texto ||
+                    typeof respuesta.datos.cv_base_actualizado_en !== 'string') {
+                    this.errorCvBase = 'No pude confirmar el guardado. Reintentá sin cerrar el editor.';
+                    return;
+                }
+                this.cvBaseGuardado = texto;
+                this.cvBaseFecha = respuesta.datos.cv_base_actualizado_en;
+                this.cvBaseEditado = this.cvBaseTexto !== texto;
+                this.cvBaseExito = !this.cambiosCvPendientes;
+            },
+            error: () => {
+                this.guardandoCvBase.set(false);
+                this.errorCvBase = 'No pude guardar el CV base. Conservé el texto; reintentá.';
+            },
+        });
+    }
+
+    async usarArchivoComoCvBase(): Promise<void> {
+        const archivo = this.archivoCvSeleccionado;
+        if (!archivo || !this.cvBaseCargado || this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.cargandoCvBase()) return;
+        if (this.cambiosCvPendientes && !window.confirm('¿Reemplazar los cambios pendientes del CV base con este archivo?')) return;
+        const textoInicial = this.cvBaseTexto;
+        this.leyendoCvBase.set(true);
+        try {
+            if (archivo.size > 1048576) throw new Error('El CV no puede superar 1 MiB.');
+            const contenido = await archivo.arrayBuffer();
+            const texto = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(contenido);
+            const error = this.validarTextoCv(texto);
+            if (error) throw new Error(error);
+            if (archivo !== this.archivoCvSeleccionado || textoInicial !== this.cvBaseTexto || this.guardandoCvBase()) return;
+            this.editarCvBase(texto);
+        } catch {
+            if (archivo === this.archivoCvSeleccionado) {
+                this.mensajes.add({ severity: 'error', summary: 'Archivo inválido', detail: 'Necesito UTF-8 válido, sin NUL y de hasta 1 MiB. Conservé el editor.' });
+            }
+        } finally {
+            this.leyendoCvBase.set(false);
+        }
+    }
+
+    analizarFuenteCv(): void {
+        if (!this.cvBaseCargado || this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.guardando() || this.analizandoCv() || this.cargandoCvBase()) return;
+        const texto = this.cvBaseTexto;
+        const error = this.validarTextoCv(texto);
+        if (error || !texto.trim()) {
+            this.mensajes.add({ severity: 'warn', summary: 'CV inválido', detail: error || 'Escribí el CV antes de analizar.' });
+            return;
+        }
+        this.tabActiva.set(5);
+        this.ejecutarAnalisisCv(new File([texto], 'cv-base.md', { type: 'text/markdown' }));
+    }
 
     // Importación de CV Markdown.
     archivoCvSeleccionado: File | null = null;
@@ -248,9 +388,11 @@ export class Preferencias implements OnInit {
     ngOnInit(): void {
         if (this.demoService.esModoDemo()) {
             this.cargarPreferenciasMockup();
+            this.cargandoCvBase.set(false);
             return;
         }
         this.cargarPreferencias();
+        this.cargarCvBase();
     }
 
     // En modo entrada libre, devuelvo el texto escrito como sugerencia
@@ -359,7 +501,7 @@ export class Preferencias implements OnInit {
     }
 
     guardar(): void {
-        if (this.modoDemo() || this.guardando()) return;
+        if (this.modoDemo() || this.guardando() || this.analizandoCv()) return;
         this.guardando.set(true);
         const formulario = this.datosFormulario();
         const anterior = this.formularioGuardado ? JSON.parse(this.formularioGuardado) : null;
@@ -546,7 +688,12 @@ export class Preferencias implements OnInit {
     // --- Importación de CV Markdown ---
 
     onArchivoCvSeleccionado(evento: Event): void {
+        if (this.guardandoCvBase() || this.leyendoCvBase() || this.guardando()) return;
         const input = evento.target as HTMLInputElement;
+        if (this.resultadoImportacion && !window.confirm('¿Descartar la revisión actual para seleccionar otro archivo?')) {
+            input.value = '';
+            return;
+        }
         this.archivoCvSeleccionado = input.files?.[0] ?? null;
         this.solicitudCv++;
         this.analizandoCv.set(false);
@@ -557,24 +704,27 @@ export class Preferencias implements OnInit {
     }
 
     analizarCv(): void {
+        if (this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.guardando() || this.analizandoCv()) return;
+        if (this.archivoCvSeleccionado) this.ejecutarAnalisisCv(this.archivoCvSeleccionado);
+    }
+
+    private ejecutarAnalisisCv(archivo: File): void {
+        if (this.resultadoImportacion && !window.confirm('¿Descartar las correcciones y notas de la revisión actual para analizar nuevamente?')) return;
         const solicitud = ++this.solicitudCv;
-        const archivo = this.archivoCvSeleccionado;
         this.analizandoCv.set(false);
         // Descarto sugerencias anteriores antes de validar o iniciar otro análisis.
         this.resultadoImportacion = null;
         this.preguntasImportacion = [];
         this.preferenciasRevisadas.clear();
-        if (!this.archivoCvSeleccionado) return;
-
-        if (this.archivoCvSeleccionado.size > 1024 * 1024) {
+        if (archivo.size > 1024 * 1024) {
             this.mensajes.add({ severity: 'warn', summary: 'Archivo grande', detail: 'El CV no puede superar 1 MB.' });
             return;
         }
 
         this.analizandoCv.set(true);
-        this.servicio.analizarCvMarkdown(this.archivoCvSeleccionado).subscribe({
+        this.servicio.analizarCvMarkdown(archivo).subscribe({
             next: (resp) => {
-                if (solicitud !== this.solicitudCv || archivo !== this.archivoCvSeleccionado) return;
+                if (solicitud !== this.solicitudCv) return;
                 this.analizandoCv.set(false);
                 if (resp.exito && resp.datos) {
                     const datos = resp.datos;
@@ -620,7 +770,7 @@ export class Preferencias implements OnInit {
                 }
             },
             error: (error) => {
-                if (solicitud !== this.solicitudCv || archivo !== this.archivoCvSeleccionado) return;
+                if (solicitud !== this.solicitudCv) return;
                 this.analizandoCv.set(false);
                 const detalle = typeof error.error?.error === 'string' ? error.error.error : 'No se pudo analizar el CV.';
                 this.mensajes.add({ severity: 'error', summary: 'Error', detail: detalle });
@@ -641,7 +791,7 @@ export class Preferencias implements OnInit {
     }
 
     aplicarImportacion(): void {
-        if (!this.resultadoImportacion) return;
+        if (!this.resultadoImportacion || this.guardando() || this.analizandoCv()) return;
 
         const r = this.resultadoImportacion;
 
