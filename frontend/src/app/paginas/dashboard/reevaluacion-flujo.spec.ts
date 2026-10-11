@@ -22,6 +22,30 @@ const ofertaSintetica = (id: number, vigencia = 'anterior', dias = 1): Oferta =>
     datos_crudos: null, firma_criterios_evaluacion: null, vigencia_evaluacion: vigencia,
 } as Oferta);
 
+// Controlo solamente el reloj del polling; Angular y los demás timers siguen reales.
+function controlarPolling() {
+    const intervalos = new Map<number, () => void>();
+    const setIntervalReal = window.setInterval.bind(window);
+    const clearIntervalReal = window.clearInterval.bind(window);
+    let siguienteId = -1;
+    spyOn(window, 'setInterval').and.callFake((callback: TimerHandler, periodo?: number, ...args: any[]) => {
+        if (periodo !== 2000 || typeof callback !== 'function') {
+            return setIntervalReal(callback, periodo, ...args);
+        }
+        const id = siguienteId--;
+        intervalos.set(id, () => callback(...args));
+        return id;
+    });
+    spyOn(window, 'clearInterval').and.callFake((id?: number) => {
+        if (id !== undefined && intervalos.delete(id)) return;
+        clearIntervalReal(id);
+    });
+    return {
+        avanzar: () => [...intervalos.values()].forEach(callback => callback()),
+        activos: () => intervalos.size,
+    };
+}
+
 // Verifico respuestas persistidas con servicios HTTP reales, sin proveedor ni red.
 describe('Reevaluación — aviso del perfil guardado', () => {
     let fixture: ComponentFixture<Preferencias>;
@@ -218,6 +242,7 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
     const url = 'http://localhost:3000/api';
     let http: HttpTestingController;
     let harness: RouterTestingHarness;
+    let reloj: ReturnType<typeof controlarPolling>;
     const progreso = (activo: boolean) => ({ exito: true, datos: { activo, total: 2,
         evaluadas: activo ? 1 : 2, aprobadas: 2, rechazadas: 0, errores: 0, porcentaje: activo ? 50 : 100 } });
     const sincronizacion = (datos: Oferta[]) => ({ exito: true, datos, completada: true,
@@ -233,12 +258,16 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         spyOn(indexedDB, 'open').and.throwError('IndexedDB sintético no disponible');
         TestBed.inject(PersistenciaDashboardService).limpiarCache();
         http = TestBed.inject(HttpTestingController);
+        reloj = controlarPolling();
         harness = await RouterTestingHarness.create();
         harness.fixture.autoDetectChanges();
     });
 
     afterEach(() => {
         harness.fixture.destroy();
+        expect(reloj.activos()).toBe(0);
+        reloj.avanzar();
+        http.expectNone(`${url}/evaluacion/progreso`);
         http.verify();
         TestBed.inject(PersistenciaDashboardService).limpiarCache();
     });
@@ -266,6 +295,7 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         http.expectOne(`${url}/automatizacion/estado`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/automatizacion/progreso`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/evaluacion/progreso`).flush(progreso(false));
+        http.expectOne(`${url}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: [] } });
         await harness.fixture.whenStable();
         const dashboardAntes = harness.routeDebugElement!.componentInstance as Dashboard;
         expect(dashboardAntes.ofertas()[0].vigencia_evaluacion).toBe('actual');
@@ -304,7 +334,8 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         inicio.flush({ exito: true, mensaje: 'Evaluación iniciada.', en_curso: true, cantidad: 2, periodo_dias: 30 });
         await harness.fixture.whenStable();
         expect(raiz.querySelector('[aria-label="Cancelar evaluación en progreso"]')).not.toBeNull();
-        await new Promise(resolve => setTimeout(resolve, 2100));
+        expect(reloj.activos()).toBe(1);
+        reloj.avanzar();
         http.expectOne(`${url}/evaluacion/progreso`).flush(progreso(true));
         http.expectOne(`${url}/ofertas`).flush({ exito: true,
             datos: [ofertaSintetica(1), ofertaSintetica(2, 'desconocida')] });
@@ -313,8 +344,8 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         (raiz.querySelector('[aria-label="Cancelar evaluación en progreso"]') as HTMLButtonElement).click();
         http.expectOne(`${url}/evaluacion/cancelar`).flush({ exito: true });
         http.expectNone(req => req.url.includes('scraping'));
-        // Espero un tick real del polling reutilizado, con HTTP sintético.
-        await new Promise(resolve => setTimeout(resolve, 2100));
+        // Avanzo el polling reutilizado después de cancelar, con HTTP sintético.
+        reloj.avanzar();
         http.expectOne(`${url}/evaluacion/progreso`).flush(progreso(false));
         const actuales = [1, 2].map(id => ({ ...ofertaSintetica(id, 'actual'), estado_evaluacion: 'aprobada' as const,
             porcentaje_match: 90, razon_evaluacion: 'Nuevo resultado', firma_criterios_evaluacion: 'nueva' }));
@@ -330,12 +361,16 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         expect(dashboard.ofertas().every(o => o.estado_postulacion === 'cv_enviado')).toBeTrue();
         expect(dashboard.ofertas().every(o => o.razon_evaluacion === 'Nuevo resultado')).toBeTrue();
         expect(harness.routeDebugElement!.query(By.directive(PanelControl)).componentInstance.evaluando()).toBeFalse();
+        expect(reloj.activos()).toBe(0);
+        reloj.avanzar();
+        http.expectNone(`${url}/evaluacion/progreso`);
     });
 });
 
 describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
     let fixture: ComponentFixture<PanelControl>;
     let http: HttpTestingController;
+    let reloj: ReturnType<typeof controlarPolling>;
     const url = 'http://localhost:3000/api';
 
     beforeEach(async () => {
@@ -343,16 +378,21 @@ describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
             providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
         }).compileComponents();
         http = TestBed.inject(HttpTestingController);
+        reloj = controlarPolling();
         fixture = TestBed.createComponent(PanelControl);
         fixture.autoDetectChanges();
         http.expectOne(`${url}/automatizacion/estado`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/automatizacion/progreso`).flush({ exito: true, datos: { activo: false } });
         http.expectOne(`${url}/evaluacion/progreso`).flush({ exito: true, datos: { activo: false } });
+        http.expectOne(`${url}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: [] } });
         await fixture.whenStable();
     });
 
     afterEach(() => {
         fixture.destroy();
+        expect(reloj.activos()).toBe(0);
+        reloj.avanzar();
+        http.expectNone(`${url}/evaluacion/progreso`);
         http.verify();
     });
 
@@ -365,7 +405,8 @@ describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
             expect(fixture.componentInstance.evaluando()).toBeFalse();
             expect(fixture.nativeElement.querySelector('[role="alert"]')).not.toBeNull();
             expect(fixture.nativeElement.textContent).not.toContain('Evaluación completada');
-            await new Promise(resolve => setTimeout(resolve, 2100));
+            expect(reloj.activos()).toBe(0);
+            reloj.avanzar();
             http.expectNone(`${url}/evaluacion/progreso`);
             http.expectNone(req => req.url.includes('scraping'));
         });
@@ -381,7 +422,8 @@ describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
             const refrescar = spyOn(fixture.componentInstance.accionCompletada, 'emit');
             fixture.componentInstance.ejecutarEvaluacion([1, 2]);
             http.expectOne(`${url}/evaluacion/ejecutar`).flush({ exito: true, en_curso: true });
-            await new Promise(resolve => setTimeout(resolve, 2100));
+            expect(reloj.activos()).toBe(1);
+            reloj.avanzar();
             http.expectOne(`${url}/evaluacion/progreso`).flush({ exito: true, datos: {
                 activo: false, total: 2, evaluadas: 1, procesadas: 1 + terminal.errores,
                 pendientes: 1, aprobadas: 1, rechazadas: 0, porcentaje: 50, ...terminal,
@@ -397,10 +439,21 @@ describe('Reevaluación — errores y exclusión mutua con HTTP real', () => {
             }
             expect(fixture.componentInstance.evaluando()).toBeFalse();
             expect(refrescar).toHaveBeenCalledTimes(1);
-            await new Promise(resolve => setTimeout(resolve, 2100));
+            expect(reloj.activos()).toBe(0);
+            reloj.avanzar();
             http.expectNone(`${url}/evaluacion/progreso`);
         });
     }
+
+    it('limpia el intervalo al destruir el panel durante una evaluación activa', () => {
+        fixture.componentInstance.ejecutarEvaluacion([1]);
+        http.expectOne(`${url}/evaluacion/ejecutar`).flush({ exito: true, en_curso: true });
+        expect(reloj.activos()).toBe(1);
+        fixture.destroy();
+        expect(reloj.activos()).toBe(0);
+        reloj.avanzar();
+        http.expectNone(`${url}/evaluacion/progreso`);
+    });
 
     it('valida IDs, máximo, demo y ocupación antes del POST, y no duplica un inicio pendiente', () => {
         const componente = fixture.componentInstance;

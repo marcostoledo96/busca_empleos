@@ -1,3 +1,7 @@
+jest.mock('../../src/config/base-datos', () => ({ query: jest.fn(async () => {
+    const preferencias = await require('../../src/modelos/preferencia').obtenerPreferencias();
+    return { rows: preferencias ? [preferencias] : [] };
+}) }));
 // Tests del servicio de automatización — TDD, escritos ANTES de la implementación.
 //
 // ¿Qué es un cron job? Es una tarea programada que se ejecuta automáticamente
@@ -539,7 +543,7 @@ describe('Servicio de automatización', () => {
 
             await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            const opcionesEsperadas = { terminos: terminosPersonalizados };
+            const opcionesEsperadas = expect.objectContaining({ terminos: terminosPersonalizados });
             // Solo las activas reciben opciones; las inactivas no se invocan.
             expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(opcionesEsperadas);
             expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith(opcionesEsperadas);
@@ -554,34 +558,26 @@ describe('Servicio de automatización', () => {
             expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
         });
 
-        test('usa defaults si las preferencias no tienen términos de búsqueda', async () => {
-            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
-                terminos_busqueda: [],
-            });
-
+        test('usa defaults solo si faltan las preferencias', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue(null);
             await servicioAutomatizacion.ejecutarCicloCompleto();
-
-            // Sin términos, pasa un objeto vacío (los scrapers usan sus fallbacks).
-            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({});
-            expect(servicioScraping.ejecutarScrapingComputrabajo).toHaveBeenCalledWith({});
-            expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({});
-            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
-            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith({});
-            // Las inactivas no deben llamarse ni con {} ni con nada.
-            expect(servicioScraping.ejecutarScrapingGoogleJobs).not.toHaveBeenCalled();
-            expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(expect.objectContaining({
+                terminos: require('../../src/config/apify').TERMINOS_BUSQUEDA_DEFECTO,
+            }));
         });
 
-        test('si obtenerPreferencias falla, continúa con defaults sin crashear', async () => {
-            modeloPreferencia.obtenerPreferencias.mockRejectedValue(
-                new Error('BD no disponible')
-            );
+        test('preferencias vacías detienen el ciclo sin invocar proveedores', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({ terminos_busqueda: [] });
+            await expect(servicioAutomatizacion.ejecutarCicloCompleto()).rejects.toMatchObject({ statusCode: 400 });
+            expect(servicioScraping.ejecutarScrapingLinkedin).not.toHaveBeenCalled();
+            expect(servicioAutomatizacion.cicloEnProgreso()).toBe(false);
+        });
 
-            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
-
-            // El ciclo no crashea, usa defaults.
-            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({});
-            expect(resultado.exito).toBe(true);
+        test('falla de lectura detiene el ciclo sin defaults silenciosos', async () => {
+            modeloPreferencia.obtenerPreferencias.mockRejectedValue(new Error('BD no disponible'));
+            await expect(servicioAutomatizacion.ejecutarCicloCompleto()).rejects.toMatchObject({ statusCode: 503 });
+            expect(servicioScraping.ejecutarScrapingLinkedin).not.toHaveBeenCalled();
+            expect(servicioAutomatizacion.cicloEnProgreso()).toBe(false);
         });
     });
 

@@ -7,6 +7,7 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "jest --verbose",
+    "test:vertical": "NODE_ENV=test BUSQUEDAS_VERTICAL=1 jest tests/integracion/busquedas-vertical.test.js --runInBand --verbose",
     "test:modelos": "jest tests/modelos --verbose --runInBand",
     "test:integracion": "jest tests/integracion --verbose --runInBand",
     "test:db": "NODE_ENV=test ALLOW_DB_TESTS=true jest tests/modelos --verbose --runInBand",

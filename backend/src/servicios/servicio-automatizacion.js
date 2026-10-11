@@ -32,9 +32,9 @@ const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
 const bloqueo = require('../utils/bloqueo-concurrente');
-const { detectarIdioma } = require('./servicio-normalizacion');
+const { filtrarOfertasPorIdioma } = require('./servicio-ingreso-ofertas');
+const { resolverConfiguraciones } = require('./servicio-configuracion-busqueda');
 const modeloOferta = require('../modelos/oferta');
-const modeloPreferencia = require('../modelos/preferencia');
 const servicioNotificacionEmail = require('./servicio-notificacion-email');
 const { PLATAFORMAS_ACTIVAS, PLATAFORMAS, esPlataformaActiva } = require('../config/plataformas');
 
@@ -42,15 +42,15 @@ const { PLATAFORMAS_ACTIVAS, PLATAFORMAS, esPlataformaActiva } = require('../con
 // No está en config/plataformas.js porque eso crearía una dependencia circular
 // entre config y servicios. Este mapa es la "pista de ejecución" del servicio.
 const SCRAPERS = {
-    linkedin: servicioScraping.ejecutarScrapingLinkedin,
-    computrabajo: servicioScraping.ejecutarScrapingComputrabajo,
-    indeed: servicioScraping.ejecutarScrapingIndeed,
-    bumeran: servicioScraping.ejecutarScrapingBumeran,
-    glassdoor: servicioScraping.ejecutarScrapingGlassdoor,
-    jooble: servicioScraping.ejecutarScrapingJooble,
-    remotive: servicioScraping.ejecutarScrapingRemotive,
-    remoteok: servicioScraping.ejecutarScrapingRemoteOK,
-    adzuna: servicioScraping.ejecutarScrapingAdzuna,
+    linkedin: 'ejecutarScrapingLinkedin',
+    computrabajo: 'ejecutarScrapingComputrabajo',
+    indeed: 'ejecutarScrapingIndeed',
+    bumeran: 'ejecutarScrapingBumeran',
+    glassdoor: 'ejecutarScrapingGlassdoor',
+    jooble: 'ejecutarScrapingJooble',
+    remotive: 'ejecutarScrapingRemotive',
+    remoteok: 'ejecutarScrapingRemoteOK',
+    adzuna: 'ejecutarScrapingAdzuna',
 };
 
 // Expresión cron por defecto: todos los martes a las 20:00 (8 PM) hora Argentina (ART).
@@ -195,7 +195,7 @@ function obtenerProgreso() {
  * También recalcula el porcentaje total usando pesos dinámicos.
  *
  * @param {string} nombre - Nombre del paso (ej: 'linkedin').
- * @param {'pendiente'|'procesando'|'completada'|'error'} nuevoEstado - Nuevo estado.
+ * @param {'pendiente'|'procesando'|'completada'|'error'|'omitida'} nuevoEstado - Nuevo estado.
  * @param {number} [extraidas] - Ofertas extraídas (solo cuando se completa).
  */
 function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
@@ -207,9 +207,25 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     // Calculo pesos dinámicos según la cantidad de plataformas activas.
     const pesos = armarPesosDinamicos();
     const completadas = progreso.pasos
-        .filter(p => p.estado === 'completada' || p.estado === 'error')
+        .filter(p => p.estado === 'completada' || p.estado === 'error' || p.estado === 'omitida')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
     progreso.porcentaje = Math.min(Math.round(completadas), 100);
+}
+
+/** Reservo el ciclo antes de leer preferencias para evitar dos aceptaciones simultáneas. */
+async function prepararCiclo(opciones = {}) {
+    if (cicloEnProgreso()) {
+        throw Object.assign(new Error('Ya hay un ciclo de automatización en curso.'), { statusCode: 409 });
+    }
+    progreso = { activo: true, pasos: armarPasosProgreso(), porcentaje: 0, configuracion: [] };
+    try {
+        const configuraciones = await resolverConfiguraciones(opciones, { omitirIncompatibles: true });
+        progreso.configuracion = Object.values(configuraciones).map(configuracion => configuracion.resumen);
+        return configuraciones;
+    } catch (error) {
+        progreso.activo = false;
+        throw error;
+    }
 }
 
 /**
@@ -227,39 +243,19 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
  *
  * @returns {Object} Resumen completo del ciclo ejecutado.
  */
-async function ejecutarCicloCompleto() {
+async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
     console.log('[Automatización] Iniciando ciclo completo...');
     const inicio = new Date();
 
-    // Inicializo el progreso derivándolo del registry.
-    progreso = {
-        activo: true,
-        pasos: armarPasosProgreso(),
-        porcentaje: 0,
-    };
-
-    // Leo las preferencias UNA vez al inicio del ciclo.
-    // Si hay términos de búsqueda configurados, los uso; si no, los scrapers
-    // usan sus defaults internos (TERMINOS_BUSQUEDA_DEFECTO).
-    let terminosBusqueda;
-    try {
-        const prefs = await modeloPreferencia.obtenerPreferencias();
-        if (prefs && prefs.terminos_busqueda && prefs.terminos_busqueda.length > 0) {
-            terminosBusqueda = prefs.terminos_busqueda;
-            console.log(`[Automatización] Usando ${terminosBusqueda.length} términos de búsqueda de preferencias.`);
-        }
-    } catch (error) {
-        console.error(`[Automatización] Error al leer preferencias, usando defaults: ${error.message}`);
-    }
-
-    // Opciones de scraping con los términos dinámicos.
-    const opcionesScraping = terminosBusqueda ? { terminos: terminosBusqueda } : {};
+    const configuraciones = configuracionesPreparadas || await prepararCiclo(opciones);
 
     const resultado = {
         exito: true,
         scraping: inicializarResultadoScraping(),
+        configuracion: Object.values(configuraciones).map(configuracion => configuracion.resumen),
         evaluacion: null,
         errores: [],
+        omisiones: [],
         erroresGuardado: 0,  // Contador de ofertas que fallaron al guardar en BD.
     };
 
@@ -269,10 +265,17 @@ async function ejecutarCicloCompleto() {
 
     for (const plataforma of PLATAFORMAS_ACTIVAS) {
         const { id, label } = plataforma;
+        const motivo = configuraciones[id].resumen.motivoOmision;
+        if (motivo) {
+            resultado.omisiones.push({ plataforma: id, motivo });
+            actualizarPasoPorgreso(id, 'omitida', 0);
+            progreso.pasos.find(paso => paso.nombre === id).motivo = motivo;
+            continue;
+        }
         actualizarPasoPorgreso(id, 'procesando');
 
         // Busco la función de scraping correspondiente.
-        const scraperFn = SCRAPERS[id];
+        const scraperFn = servicioScraping[SCRAPERS[id]];
 
         if (!scraperFn) {
             // Si no hay scraper para una plataforma activa, reporto el error
@@ -284,7 +287,7 @@ async function ejecutarCicloCompleto() {
         }
 
         try {
-            const scraperResultado = await scraperFn(opcionesScraping);
+            const scraperResultado = await scraperFn(configuraciones[id].opciones);
 
             // Caso especial: scraper deshabilitado (ej: Adzuna sin credenciales).
             // Retorna { deshabilitado: true, ... } en vez de un array de ofertas.
@@ -324,13 +327,7 @@ async function ejecutarCicloCompleto() {
     // Filtro de idioma: descarto ofertas claramente en inglés antes de guardar.
     // Aplica a todas las plataformas. Jooble en particular trae resultados globales
     // (USA, UK) que no aplican porque el perfil del usuario no habla inglés.
-    const ofertasFiltradas = todasLasOfertas.filter((oferta) => {
-        if (detectarIdioma(oferta.titulo, oferta.descripcion) === 'en') {
-            console.log(`[Automatización] Descartando por idioma inglés: "${oferta.titulo}" (${oferta.plataforma})`);
-            return false;
-        }
-        return true;
-    });
+    const ofertasFiltradas = filtrarOfertasPorIdioma(todasLasOfertas);
     const descartadasPorIdioma = todasLasOfertas.length - ofertasFiltradas.length;
     if (descartadasPorIdioma > 0) {
         console.log(`[Automatización] ${descartadasPorIdioma} ofertas descartadas por estar en inglés.`);
@@ -532,6 +529,7 @@ function cicloEnProgreso() {
 
 module.exports = {
     ejecutarCicloCompleto,
+    prepararCiclo,
     programarCron,
     detenerCron,
     obtenerEstado,

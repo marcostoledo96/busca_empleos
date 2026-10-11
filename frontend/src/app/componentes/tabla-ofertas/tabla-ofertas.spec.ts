@@ -69,6 +69,30 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
         component = fixture.componentInstance;
     });
 
+    it('conservo IDs seleccionados al refrescar y excluyo solamente los que salieron de la vista', () => {
+        fixture.componentRef.setInput('ofertas', mockOfertas);
+        fixture.detectChanges();
+        component.toggleSeleccion(1);
+        component.toggleSeleccion(2);
+        component.confirmandoReevaluacion.set(true);
+        fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], titulo: 'Oferta actualizada' }]);
+        fixture.detectChanges();
+        expect([...component.seleccionadas()]).toEqual([1]);
+        expect(component.confirmandoReevaluacion()).toBeFalse();
+        expect(fixture.nativeElement.querySelector('input[aria-label="Seleccionar Oferta actualizada"]').checked).toBeTrue();
+    });
+
+    it('no limpio por el orden automático repetido y sí por un criterio nuevo', () => {
+        fixture.componentRef.setInput('ofertas', mockOfertas);
+        fixture.detectChanges();
+        component.onOrdenamiento({ field: 'porcentaje_match', order: -1 });
+        component.toggleSeleccion(1);
+        component.onOrdenamiento({ field: 'porcentaje_match', order: -1 });
+        expect([...component.seleccionadas()]).toEqual([1]);
+        component.onOrdenamiento({ field: 'titulo', order: 1 });
+        expect(component.seleccionadas().size).toBe(0);
+    });
+
     it('debería crear el componente', () => {
         expect(component).toBeTruthy();
     });

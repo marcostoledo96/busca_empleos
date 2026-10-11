@@ -13,6 +13,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
     let fixture: ComponentFixture<PanelControl>;
 
     const mockScrapingService = {
+        obtenerPrevisualizacion: () => of({ exito: true, datos: { plataformas: [] } }),
         scrapearLinkedin:     () => of({ exito: true, datos: { total_extraidas: 5, ofertas_nuevas: 3 } }),
         scrapearComputrabajo: () => of({ exito: true, datos: { total_extraidas: 2, ofertas_nuevas: 1 } }),
         scrapearIndeed:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0 } }),
@@ -90,6 +91,30 @@ describe('PanelControl — Selector mobile de scraping', () => {
             expect(progresoSpy).toHaveBeenCalledTimes(1);
         }));
     }
+
+    it('no emito éxito ni finalización ante un resultado individual fallido', () => {
+        spyOn(mockScrapingService, 'scrapearLinkedin').and.returnValue(of({
+            exito: false, datos: { total_extraidas: 0, ofertas_nuevas: 0 },
+        }));
+        const evento = spyOn(component.accionCompletada, 'emit');
+        const mensajes = spyOn((component as any).mensajes, 'add');
+        component.scrapearLinkedin();
+        expect(evento).not.toHaveBeenCalled();
+        expect(mensajes).toHaveBeenCalledWith(jasmine.objectContaining({ severity: 'error' }));
+        expect(component.mostrarOverlayIndividual()).toBeFalse();
+    });
+
+    it('modo demo bloquea también las llamadas directas sin spinner ni HTTP', () => {
+        fixture.componentRef.setInput('modoDemo', true);
+        const preview = spyOn(mockScrapingService, 'obtenerPrevisualizacion').and.callThrough();
+        const extraer = spyOn(mockScrapingService, 'scrapearLinkedin').and.callThrough();
+        component.scrapearLinkedin();
+        component.ejecutarCicloCompleto();
+        expect(preview).not.toHaveBeenCalled();
+        expect(extraer).not.toHaveBeenCalled();
+        expect(component.mostrarOverlayIndividual()).toBeFalse();
+        expect(component.mostrarOverlayCiclo()).toBeFalse();
+    });
 
     // --- Plataforma seleccionada por defecto ---
 
@@ -218,6 +243,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
         }));
 
         // Overrideo el servicio inyectado en el componente ya creado.
+        mockScrapingServiceLocal.obtenerPrevisualizacion = mockScrapingService.obtenerPrevisualizacion;
         (component as any).scrapingService = mockScrapingServiceLocal;
 
         const mensajesSpy = spyOn((component as any).mensajes, 'add');
@@ -252,6 +278,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
             },
         }));
 
+        mockScrapingServiceLocal.obtenerPrevisualizacion = mockScrapingService.obtenerPrevisualizacion;
         (component as any).scrapingService = mockScrapingServiceLocal;
 
         const mensajesSpy = spyOn((component as any).mensajes, 'add');
@@ -350,7 +377,7 @@ describe('PanelControl — Polling defensivo', () => {
         await TestBed.configureTestingModule({
             imports: [PanelControl],
             providers: [
-                { provide: ScrapingService, useValue: {} },
+                { provide: ScrapingService, useValue: { obtenerPrevisualizacion: () => of({ exito: true, datos: { plataformas: [] } }) } },
                 { provide: EvaluacionService, useValue: evalSpy },
                 { provide: AutomatizacionService, useValue: autoSpy },
                 MessageService,
@@ -659,7 +686,7 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         await TestBed.configureTestingModule({
             imports: [PanelControl],
             providers: [
-                { provide: ScrapingService, useValue: {} },
+                { provide: ScrapingService, useValue: { obtenerPrevisualizacion: () => of({ exito: true, datos: { plataformas: [] } }) } },
                 { provide: EvaluacionService, useValue: evalSpy },
                 { provide: AutomatizacionService, useValue: autoSpy },
                 MessageService,
@@ -884,7 +911,7 @@ describe('PanelControl — Ciclo completo: 202 Accepted y 409 Conflict', () => {
         await TestBed.configureTestingModule({
             imports: [PanelControl],
             providers: [
-                { provide: ScrapingService, useValue: {} },
+                { provide: ScrapingService, useValue: { obtenerPrevisualizacion: () => of({ exito: true, datos: { plataformas: [] } }) } },
                 { provide: EvaluacionService, useValue: {
                     ejecutarEvaluacion: () => of({ exito: true }),
                     cancelarEvaluacion: () => of({ exito: true }),

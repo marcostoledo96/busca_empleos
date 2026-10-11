@@ -1,5 +1,64 @@
 # Frontend — Busca Empleos
 
+## Búsquedas efectivas y actualización — issue #13
+
+Consulto `GET /api/scraping/previsualizacion` al montar el panel, al pedir actualizar
+la configuración y nuevamente antes de una extracción individual o ciclo. Muestro
+el DTO del backend: términos (hasta cinco y cantidad restante), origen, ubicación,
+ventana, `maxResultados`, filtros y advertencias. No deduzco capacidades por fuente
+ni envío overrides. Una advertencia de umbral no estricto se muestra literalmente;
+`null` indica ausencia del parámetro configurable. Conservo fuentes deshabilitadas
+como informativas, sin habilitar GetOnBrd. Si falla el preview, comunico el problema
+sin iniciar extracción ni simular filtros aplicados. En demo no consulto HTTP.
+
+Distingo configuración guardada actual, última búsqueda individual
+(`datos.configuracion`) y snapshot del ciclo aceptado/progreso/último resultado.
+Actualizar el preview no reemplaza el snapshot ejecutado. La disponibilidad sólo
+representa lo informado por el backend, no certifica conectividad del proveedor.
+Para un individual bloqueo una fuente no disponible; en el ciclo no bloqueo las
+compatibles por otra fuente incompatible. El snapshot indica `Omitida` cuando
+incluye `motivoOmision`; el overlay muestra el paso `omitida` y su motivo sin
+ícono de éxito. Al finalizar, las omisiones producen aviso `Ciclo con omisiones`
+(warn), no `Ciclo completo`; los errores conservan prioridad y también informo
+omisiones si existen. El cierre parcial emite igualmente `accionCompletada` para
+refrescar las ofertas de las fuentes ejecutadas, sin defaults ni overrides.
+
+La finalización del panel reutiliza `accionCompletada → cargarDatos`. Si ya estoy
+sincronizando o refrescando por polling, agrupo los eventos en una única recarga
+posterior desde un snapshot fresco. Mantengo un solo escritor, incluido el fallback
+legacy, y cancelo requests/recargas pendientes al destruir el dashboard. Preservo
+filtro visual, referencias locales y postulaciones optimistas mediante versiones:
+un cambio confirmado durante GET tampoco puede ser sobrescrito por su respuesta
+vieja. Los checkboxes conservan IDs presentes en la vista; descarto IDs removidos y
+renuevo la confirmación. Filtrar o paginar conserva las limpiezas explícitas previas.
+Si fallan sincronización y fallback, retengo los datos anteriores y aviso que no
+están confirmados como actualizados, sin certificar éxito por finalizar una acción.
+
+Las pruebas Angular usan componentes y servicios reales con HTTP sintético:
+guardado de preferencias, botones individuales/ciclo, eventos y ofertas/conteos
+visibles. Esas pruebas aisladas no constituyen un E2E con Express/PostgreSQL ni ejecutan proveedores reales.
+
+### Puente vertical opt-in
+
+Ejecuto `cd backend && npm run test:vertical` para unir ChromeHeadless y
+`HttpClient` real con Express (`app.js`, sin `index.js`) en `127.0.0.1:43193`.
+El harness espera el evento de escucha, verifica un nonce antes de usar la API y
+lanza únicamente `busquedas-vertical.spec.ts` mediante Karma. Un puerto ocupado
+falla sin terminar procesos ajenos; el `finally` espera al hijo/ciclo y cierra el servidor.
+La suite habitual informa tres pruebas Angular **SKIPPED** y una Jest **SKIPPED**;
+no interpreta ausencia del puente como éxito. El comando opt-in exige los flujos
+individual, ciclo y ciclo parcial QA completados.
+
+Compruebo PUT de preferencias, botones reales individuales/ciclo, snapshot ejecutado
+distinto del preview tras otro PUT, fuente simulada, persistencia, evento de finalización,
+DOM/conteos y conservación de filtro/postulación anterior. Uso el servicio IndexedDB
+real y leo sus ofertas desde una instancia nueva; el fallback de memoria no alcanza.
+El ciclo cruza aceptación 202, polling y evaluación real con respuesta externa de
+DeepSeek sintética. El flujo adicional guarda `['QA']`, exige 202 y omisiones
+explícitas sin llamadas a Indeed/Bumeran/Jooble/Adzuna, y comprueba oferta evaluada,
+evento final y conteos visibles. Restauro `environment.urlApi` después de cada prueba.
+Los límites del adaptador SQL y proveedores simulados están en [Scraping](scraping.md#evidencia-vertical-sin-proveedores-reales).
+
 ## CV base editable — issue #12
 
 En `/preferencias` mantengo un editor de texto Markdown cómodo, independiente del
@@ -142,7 +201,7 @@ Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. D
 - El `id` (snake_case) se usa como valor interno en filtros, preferencias, DTOs y BD. Ejemplo: `google_jobs`.
 - El `slugHttp` (kebab-case) se usa solo en URLs de la API (`/api/scraping/:slug`). Ejemplo: `google-jobs`.
 - Para la mayoría de las plataformas, `id` y `slugHttp` coinciden. Google Jobs es la excepción.
-- Plataformas con `activa: false` (Google Jobs, InfoJobs) NO aparecen en selectores de scraping ni en preferencias como opción seleccionable.
+- Plataformas con `activa: false` (GetOnBrd, Google Jobs, InfoJobs) NO aparecen en selectores de scraping ni en preferencias como opción seleccionable.
 - Los filtros de ofertas incluyen todas las plataformas (activas e inactivas) para permitir filtrar datos históricos.
 
 **Funciones principales:**
@@ -165,7 +224,7 @@ Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. D
 | Indeed | `indeed` | `indeed` | ✅ | — |
 | Bumeran | `bumeran` | `bumeran` | ✅ | — |
 | Glassdoor | `glassdoor` | `glassdoor` | ✅ | — |
-| GetOnBrd | `getonbrd` | `getonbrd` | ✅ | — |
+| GetOnBrd | `getonbrd` | `getonbrd` | ❌ | Piloto API-only deshabilitado hasta contar con autorización escrita verificable |
 | Jooble | `jooble` | `jooble` | ✅ | — |
 | Google Jobs | `google_jobs` | `google-jobs` | ❌ | Desactivado por costo y baja utilidad |
 | Remotive | `remotive` | `remotive` | ✅ | — |
@@ -518,8 +577,9 @@ las pendientes indican **Sin evaluación**. El filtro de plataforma continúa di
 Reutilizo los checkboxes y las acciones de la tabla; agrego selección en cards y una
 confirmación explícita con cantidad, ventana fija de extracción, perfil guardado y
 posibles llamadas pagas. Envío solamente `{ ids: [...] }`, entre 1 y 200 IDs válidos,
-sin preferencias entrantes ni scraping. Limpio selección al filtrar, paginar, ordenar,
-cambiar tamaño de ventana o refrescar datos, para no confirmar ofertas ocultas.
+sin preferencias entrantes ni scraping. Limpio selección al filtrar, paginar, ordenar
+manualmente o cambiar tamaño de ventana. Al refrescar datos conservo solamente los
+IDs que siguen visibles y cierro la confirmación previa, para no confirmar ofertas ocultas.
 
 Reutilizo progreso y cancelación de `PanelControl`. Inicio polling solamente después
 de una aceptación real; para una selección rechazada con 400/409 muestro el error,

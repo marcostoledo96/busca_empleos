@@ -1,5 +1,66 @@
 # Scraping — Busca Empleos
 
+## Preferencias comunes por ejecución (issue #13)
+
+Resuelvo opciones explícitas válidas > términos guardados > defaults solo ante
+campo/fila ausente, con `servicio-configuracion-busqueda.js`. Leo mediante SELECT
+para no crear preferencias al previsualizar. Si la lectura falla, detengo la
+preparación; no ejecuto una búsqueda distinta silenciosamente. Vacío persistido
+conserva su significado aunque PUT preferencias normalmente lo rechace.
+
+LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor, Jooble y Adzuna usan términos
+guardados tanto individualmente como en el ciclo. Mantengo la transformación de
+palabras de Indeed/Bumeran/Jooble/Adzuna y la limpieza de Computrabajo; el resumen
+informa esas transformaciones. LinkedIn construye URLs por término y zona guardada,
+conservando nivel internship/entry-level y ventana de 14 días; ubicación explícita
+prevalece en esa ejecución. Las otras integraciones mantienen ubicaciones fijas e
+informan que no aplican zonas preferidas: Argentina, Buenos Aires/Argentina,
+Remote (Jooble) o España (Adzuna), según la fuente.
+
+Remotive mantiene categoría `software-dev`; RemoteOK mantiene tags
+`frontend`, `react`, `angular`, `node`, `fullstack`, `javascript`, `qa`.
+No afirmo que apliquen términos personalizados. Mantengo caps, credenciales,
+ventanas, paginación y reglas de normalización existentes. Bumeran informa que
+su actor no consume maxResultados. La preview autenticada muestra esos límites
+sin hacer requests; no comprueba conectividad ni validez remota de credenciales.
+GetOnBrd sigue bloqueado; Google Jobs e InfoJobs permanecen inactivos.
+
+Comparto la limpieza de Computrabajo entre URL y validación: si algún término
+queda vacío después de quitar signos, devuelvo 400 antes del primer request.
+No genero `/trabajo-de-` ni sustituyo ese término por defaults. Conservo la
+transformación actual y las guardas de palabras utilizables de las demás fuentes.
+
+En Jooble/RemoteOK maxResultados es un umbral para dejar de pedir páginas/tags,
+no un recorte estricto de lo ya recibido: incorporar una página/lote completo
+puede superarlo. Conservo ese comportamiento y lo informo explícitamente en
+`advertencias` de preview y ejecución. Las pruebas comparan la configuración
+con el payload real simulado y conservan un overflow de 51 frente al umbral 50.
+
+Antes de persistir comparto `filtrarOfertasPorIdioma` en individuales y ciclo,
+que reutiliza sin modificaciones `detectarIdioma`: descarto solo lo detectado
+como inglés. No cambio matching contextual #7, exclusiones ni deduplicación por
+URL. El total extraído conserva descartadas; las cuento aparte de duplicadas.
+
+### Evidencia vertical sin proveedores reales
+
+Con `cd backend && npm run test:vertical` pruebo los recorridos individual y ciclo
+hasta el DOM Angular, usando controllers, resolver, scrapers, normalización,
+filtro de idioma y modelos reales. Simulo sólo Firebase, `pg`, actores/datasets,
+HTTP externo y SMTP; cron rechaza cualquier intento de programar tareas.
+LinkedIn devuelve una oferta sintética en español y otra en inglés; las demás
+fuentes activas devuelven lotes vacíos. GetOnBrd/Google Jobs/InfoJobs no hacen
+llamadas externas. DeepSeek se reemplaza en `fetch`, no en el servicio de evaluación:
+el ciclo ejercita reglas/parser, UPDATE, caché y lote terminal sin consumir APIs.
+Conservo incluso las pausas existentes de Adzuna; no acelero el código productivo.
+
+`backend/tests/helpers/bd-busquedas-memoria.js` reconoce únicamente SQL del recorrido.
+Su modo vertical agrega sincronización, evaluación/caché/lotes y advisory locks
+simulados; registra y rechaza consultas desconocidas. No es PostgreSQL: no verifica
+sintaxis SQL general, `xmin`/MVCC, aislamiento/rollback, locks concurrentes,
+constraints reales ni durabilidad tras reinicios. El filtro de fecha no se reproduce
+porque todas las fixtures son recientes; la firma del snapshot es una serialización
+en memoria, no `md5(string_agg(...))`. **PostgreSQL real y proveedores reales: NOT RUN.**
+
 ## Qué es y por qué se usa Apify
 
 Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) en sus servidores. En vez de hacer scraping directo desde nuestra PC (arriesgándonos a bloqueos de IP), le mandamos la orden a Apify, sus servidores ejecutan el scraping, y nosotros recibimos los resultados en JSON.

@@ -99,9 +99,13 @@ async function ejecutarCiclo(req, res) {
         });
     }
 
+    // Valido y fijo el snapshot antes del 202; una falla no lanza el ciclo.
+    const opciones = req.body === undefined ? {} : req.body;
+    const configuraciones = await servicioAutomatizacion.prepararCiclo(opciones);
+
     // Fire-and-forget: lanzo el ciclo sin await.
     // El frontend sigue el progreso vía polling a /progreso.
-    servicioAutomatizacion.ejecutarCicloCompleto()
+    servicioAutomatizacion.ejecutarCicloCompleto(opciones, configuraciones)
         .catch((error) => {
             // Logueo el error para que no quede como unhandled rejection.
             console.error(`[API] Error en ciclo en background: ${error.message}`);
@@ -116,6 +120,7 @@ async function ejecutarCiclo(req, res) {
             activo: progresoActual.activo,
             pasos: progresoActual.pasos,
             porcentaje: progresoActual.porcentaje,
+            configuracion: progresoActual.configuracion,
         },
     });
 }

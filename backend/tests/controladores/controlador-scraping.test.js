@@ -1,3 +1,5 @@
+jest.mock('../../src/config/base-datos', () => ({ query: jest.fn(async () => ({ rows: [] })) }));
+beforeEach(() => jest.clearAllMocks());
 // Tests del controlador de scraping — verifico que los endpoints ejecutan
 // el scraping, guardan las ofertas en BD, y retornan el resumen correcto.
 //
@@ -188,6 +190,7 @@ describe('Controlador de scraping', () => {
                 .send({ terminos: ['react junior'] });
 
             expect(servicioScraping.ejecutarScrapingBumeran).toHaveBeenCalledWith({
+                maxResultados: 50,
                 terminos: ['react junior'],
             });
         });
@@ -262,7 +265,7 @@ describe('Controlador de scraping', () => {
 
             expect(servicioScraping.ejecutarScrapingGlassdoor).toHaveBeenCalledWith({
                 maxResultados: 50,
-                terminos: undefined,
+                terminos: require('../../src/config/apify').TERMINOS_BUSQUEDA_DEFECTO,
             });
         });
     });
@@ -370,7 +373,7 @@ describe('Controlador de scraping', () => {
 
             await request(app)
                 .post('/api/scraping/adzuna')
-                .send({ maxResultados: 999 });
+                .send({ maxResultados: 500 });
 
             // El controlador limita a 50 antes de llamar al servicio.
             expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(
@@ -458,33 +461,11 @@ describe('Controlador de scraping', () => {
     // === Validacion de opciones de entrada (H018) ===
 
     describe('validacion de opciones de scraping', () => {
-        test('maxResultados negativo se normaliza al minimo (1)', async () => {
-            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
-
-            const res = await request(app)
-                .post('/api/scraping/linkedin')
-                .send({ maxResultados: -50 });
-
-            expect(res.status).toBe(200);
-            expect(res.body.exito).toBe(true);
-            // Math.max(-50, 1) → 1, Math.min(1, 500) → 1.
-            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(
-                expect.objectContaining({ maxResultados: 1 })
-            );
-        });
-
-        test('terminos con strings vacios se pasan tal cual (no crashea)', async () => {
-            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([]);
-
-            const res = await request(app)
-                .post('/api/scraping/linkedin')
-                .send({ terminos: ['', 'react'] });
-
-            expect(res.status).toBe(200);
-            expect(res.body.exito).toBe(true);
-            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(
-                expect.objectContaining({ terminos: ['', 'react'] })
-            );
+        test.each([{ maxResultados: -50 }, { terminos: ['', 'react'] }])('rechazo opciones inválidas sin invocar scraper: %j', async (opciones) => {
+            const res = await request(app).post('/api/scraping/linkedin').send(opciones);
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(servicioScraping.ejecutarScrapingLinkedin).not.toHaveBeenCalled();
         });
 
         test('opciones validas pasan sin error', async () => {
@@ -502,8 +483,3 @@ describe('Controlador de scraping', () => {
             expect(res.body.exito).toBe(true);
         });
     });
-
-    // Nota: El controlador de scraping NO tiene validacion explicita de tamaño
-    // de array ni longitud de strings en terminos. Estos tests documentan el
-    // comportamiento actual. Si en el futuro se agrega validacion (ej: body
-    // con terminos.length > 20 → 400), estos tests deberan actualizarse.

@@ -1,4 +1,7 @@
-import { Component, computed, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
+import { tap } from 'rxjs';
+import { JsonPipe } from '@angular/common';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { ToastModule } from 'primeng/toast';
 import { ToggleSwitchModule } from 'primeng/toggleswitch';
@@ -10,12 +13,12 @@ import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
-import { ProgresoAutomatizacion, ProgresoEvaluacion } from '../../modelos/respuesta-api.model';
+import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping } from '../../modelos/respuesta-api.model';
 import { obtenerOpcionesScrapingPlataforma, PLATAFORMAS_ACTIVAS, PLATAFORMAS } from '../../config/plataformas';
 
 @Component({
     selector: 'app-panel-control',
-    imports: [ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule, SelectModule],
+    imports: [JsonPipe, ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule, SelectModule],
     providers: [MessageService],
     templateUrl: './panel-control.html',
     styleUrl: './panel-control.css'
@@ -26,6 +29,64 @@ export class PanelControl implements OnInit, OnDestroy {
     private readonly evaluacionService = inject(EvaluacionService);
     private readonly automatizacionService = inject(AutomatizacionService);
     private readonly mensajes = inject(MessageService);
+    private readonly destroyRef = inject(DestroyRef);
+    private destruido = false;
+    readonly previsualizacion = signal<ResumenBusqueda[]>([]);
+    readonly configuracionIndividual = signal<ResumenBusqueda | null>(null);
+    readonly configuracionCiclo = signal<ResumenBusqueda[]>([]);
+    readonly cargandoPrevisualizacion = signal(false);
+    readonly errorPrevisualizacion = signal<string | null>(null);
+    readonly gruposResumen = computed(() => [
+        { titulo: 'Configuración guardada actual', resumenes: this.previsualizacion() },
+        { titulo: 'Configuración de la última búsqueda individual', resumenes: this.configuracionIndividual() ? [this.configuracionIndividual()!] : [] },
+        { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo(), esCiclo: true },
+    ]);
+
+    actualizarPrevisualizacion(continuar?: () => void): void {
+        if (this.modoDemo() || this.destruido || this.cargandoPrevisualizacion()) return;
+        this.cargandoPrevisualizacion.set(true);
+        this.errorPrevisualizacion.set(null);
+        this.previsualizacion.set([]);
+        this.scrapingService.obtenerPrevisualizacion().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: respuesta => {
+                this.cargandoPrevisualizacion.set(false);
+                if (continuar && this.busquedaOcupada()) return;
+                if (!respuesta.exito) {
+                    this.errorPrevisualizacion.set(respuesta.error || 'No pude consultar la configuración de búsqueda. No inicié la extracción.');
+                    return;
+                }
+                this.previsualizacion.set(respuesta.datos.plataformas);
+                continuar?.();
+            },
+            error: () => {
+                this.cargandoPrevisualizacion.set(false);
+                if (continuar && this.busquedaOcupada()) return;
+                this.errorPrevisualizacion.set('No pude consultar la configuración de búsqueda. No inicié la extracción; volvé a intentar.');
+            },
+        });
+    }
+
+    private observarResultado(respuesta: RespuestaApi<RespuestaScraping>): void {
+        if (!respuesta.exito) throw new Error(respuesta.error || 'No se completó la búsqueda.');
+        this.configuracionIndividual.set(respuesta.datos.configuracion ?? null);
+        if (respuesta.datos.configuracion && !respuesta.datos.configuracion.ejecutable) {
+            throw new Error('La fuente no ejecutó la búsqueda. Consultá sus advertencias.');
+        }
+    }
+
+    readonly busquedaOcupada = computed(() => this.modoDemo() || this.ejecutandoCiclo() || this.scrapeandoAlguno() || this.evaluando());
+
+    private prepararBusqueda(plataforma: string | null, continuar: () => void): void {
+        if (this.busquedaOcupada()) return;
+        this.actualizarPrevisualizacion(() => {
+            const resumen = this.previsualizacion().find(item => item.plataforma === plataforma);
+            if (resumen && (!resumen.habilitada || !resumen.ejecutable)) {
+                this.errorPrevisualizacion.set(`${resumen.nombre} no está disponible. ${resumen.advertencias.join(' ')}`);
+                return;
+            }
+            continuar();
+        });
+    }
 
     // Signals para controlar el estado de carga de cada botón.
     readonly scrapeandoLinkedin = signal(false);
@@ -125,23 +186,28 @@ export class PanelControl implements OnInit, OnDestroy {
 
     ngOnInit(): void {
         if (this.modoDemo()) return;
+        this.actualizarPrevisualizacion();
         this.consultarEstadoCron();
         this.rehidratarEvaluacion();
         this.rehidratarCiclo();
     }
 
     ngOnDestroy(): void {
+        this.destruido = true;
         this.detenerPolling();
         this.detenerPollingEvaluacion();
     }
 
     // Consulto el estado del cron al iniciar el componente.
     consultarEstadoCron(): void {
-        this.automatizacionService.obtenerEstado().subscribe({
+        this.automatizacionService.obtenerEstado().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito) {
                     this.cronActivo.set(respuesta.datos.activo);
                     this.ultimaEjecucion.set(respuesta.datos.ultimaEjecucion);
+                    if (!this.ejecutandoCiclo() && respuesta.datos.ultimoResultado?.configuracion) {
+                        this.configuracionCiclo.set(respuesta.datos.ultimoResultado.configuracion);
+                    }
                 }
             },
             error: () => {} // Silencioso — no es crítico si falla al iniciar.
@@ -152,7 +218,7 @@ export class PanelControl implements OnInit, OnDestroy {
     // Si el backend reporta activo === true, restauro las signals locales y
     // reanudo el polling para que la UI refleje el progreso real.
     private rehidratarEvaluacion(): void {
-        this.evaluacionService.obtenerProgreso().subscribe({
+        this.evaluacionService.obtenerProgreso().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos.activo) {
                     this.evaluando.set(true);
@@ -171,12 +237,13 @@ export class PanelControl implements OnInit, OnDestroy {
     // reanudo el polling para que la UI refleje el progreso real.
     // Patrón idéntico a rehidratarEvaluacion().
     private rehidratarCiclo(): void {
-        this.automatizacionService.obtenerProgreso().subscribe({
+        this.automatizacionService.obtenerProgreso().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos.activo) {
                     this.ejecutandoCiclo.set(true);
                     this.mostrarOverlayCiclo.set(true);
                     this.progresoCiclo.set(respuesta.datos);
+                    this.configuracionCiclo.set(respuesta.datos.configuracion ?? []);
                     this.iniciarPolling();
                 }
             },
@@ -194,12 +261,13 @@ export class PanelControl implements OnInit, OnDestroy {
                 return;
             }
             this.pollingCicloEnCurso = true;
-            this.automatizacionService.obtenerProgreso().subscribe({
+            this.automatizacionService.obtenerProgreso().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
                 next: (respuesta) => {
                     this.pollingCicloEnCurso = false;
                     this.errores429Ciclo = 0;
                     if (respuesta.exito) {
                         this.progresoCiclo.set(respuesta.datos);
+                        if (respuesta.datos.configuracion) this.configuracionCiclo.set(respuesta.datos.configuracion);
                         // Si el backend terminó, detengo el polling y cierro el overlay.
                         if (!respuesta.datos.activo && respuesta.datos.porcentaje >= 100) {
                             this.detenerPolling();
@@ -207,15 +275,19 @@ export class PanelControl implements OnInit, OnDestroy {
                             // Aseguro que el overlay muestre 100% antes de cerrar.
                             this.progresoCiclo.set({ ...respuesta.datos, porcentaje: 100, activo: false });
                             const fallo = respuesta.datos.pasos.some(paso => paso.estado === 'error');
+                            const omitidas = respuesta.datos.pasos.filter(paso => paso.estado === 'omitida');
+                            const detalleOmisiones = omitidas.map(paso => `${paso.label}: ${paso.motivo || 'Consulta incompatible con la fuente.'}`).join(' ');
                             setTimeout(() => {
+                                if (this.destruido) return;
                                 this.mostrarOverlayCiclo.set(false);
                                 this.progresoCiclo.set(null);
                                 this.mensajes.add({
-                                    severity: fallo ? 'error' : 'success',
-                                    summary: fallo ? 'Ciclo con errores' : 'Ciclo completo',
-                                    detail: fallo
+                                    severity: fallo ? 'error' : omitidas.length ? 'warn' : 'success',
+                                    summary: fallo ? 'Ciclo con errores' : omitidas.length ? 'Ciclo con omisiones' : 'Ciclo completo',
+                                    detail: (fallo
                                         ? 'El ciclo terminó con errores. Conservo los resultados parciales en el resumen del ciclo.'
-                                        : 'Scraping y evaluación finalizados.',
+                                        : omitidas.length ? 'Finalicé las fuentes compatibles y la evaluación.' : 'Scraping y evaluación finalizados.')
+                                        + (omitidas.length ? ` Fuentes omitidas: ${detalleOmisiones}` : ''),
                                     life: 5000
                                 });
                                 this.accionCompletada.emit();
@@ -259,7 +331,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 return;
             }
             this.pollingEvalEnCurso = true;
-            this.evaluacionService.obtenerProgreso().subscribe({
+            this.evaluacionService.obtenerProgreso().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
                 next: (respuesta) => {
                     this.pollingEvalEnCurso = false;
                     this.errores429Eval = 0;
@@ -313,7 +385,7 @@ export class PanelControl implements OnInit, OnDestroy {
         // Refresco también los resultados parciales; no certifico todas las ofertas como nuevas.
         this.accionCompletada.emit();
         if (!fallo && !cancelada) setTimeout(() => {
-            if (this.progresoEvaluacion() === p) this.progresoEvaluacion.set(null);
+            if (!this.destruido && this.progresoEvaluacion() === p) this.progresoEvaluacion.set(null);
         }, 1500);
     }
 
@@ -332,16 +404,30 @@ export class PanelControl implements OnInit, OnDestroy {
     // El frontend mantiene overlay y polling activos hasta que el progreso
     // indique que el ciclo terminó (activo=false + porcentaje>=100).
     ejecutarCicloCompleto(): void {
+        this.prepararBusqueda(null, () => this.iniciarCicloCompleto());
+    }
+
+    private iniciarCicloCompleto(): void {
         this.ejecutandoCiclo.set(true);
         this.mostrarOverlayCiclo.set(true);
         this.progresoCiclo.set(null);
 
         // Espero 500ms antes de iniciar el polling para que el backend
         // tenga tiempo de inicializar el objeto de progreso.
-        setTimeout(() => this.iniciarPolling(), 500);
+        setTimeout(() => {
+            if (!this.destruido && this.ejecutandoCiclo()) this.iniciarPolling();
+        }, 500);
 
-        this.automatizacionService.ejecutarCiclo().subscribe({
-            next: () => {
+        this.automatizacionService.ejecutarCiclo().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: (respuesta) => {
+                if (!respuesta.exito) {
+                    this.detenerPolling();
+                    this.ejecutandoCiclo.set(false);
+                    this.mostrarOverlayCiclo.set(false);
+                    this.errorPrevisualizacion.set(respuesta.error || 'No se inició el ciclo.');
+                    return;
+                }
+                this.configuracionCiclo.set(respuesta.datos?.configuracion ?? []);
                 // 202 Accepted: el ciclo arrancó correctamente en el backend.
                 // NO cerramos el overlay ni paramos el polling.
                 // El polling se encarga de detectar cuándo el ciclo termina
@@ -443,10 +529,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearLinkedin(): void {
+        this.prepararBusqueda('linkedin', () => this.extraerLinkedin());
+    }
+
+    private extraerLinkedin(): void {
         this.scrapeandoLinkedin.set(true);
         this.plataformaEnProceso.set('LinkedIn');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearLinkedin().subscribe({
+        this.scrapingService.scrapearLinkedin().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoLinkedin.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -473,10 +563,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearComputrabajo(): void {
+        this.prepararBusqueda('computrabajo', () => this.extraerComputrabajo());
+    }
+
+    private extraerComputrabajo(): void {
         this.scrapeandoComputrabajo.set(true);
         this.plataformaEnProceso.set('Computrabajo');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearComputrabajo().subscribe({
+        this.scrapingService.scrapearComputrabajo().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoComputrabajo.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -503,10 +597,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearIndeed(): void {
+        this.prepararBusqueda('indeed', () => this.extraerIndeed());
+    }
+
+    private extraerIndeed(): void {
         this.scrapeandoIndeed.set(true);
         this.plataformaEnProceso.set('Indeed');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearIndeed().subscribe({
+        this.scrapingService.scrapearIndeed().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoIndeed.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -533,10 +631,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearBumeran(): void {
+        this.prepararBusqueda('bumeran', () => this.extraerBumeran());
+    }
+
+    private extraerBumeran(): void {
         this.scrapeandoBumeran.set(true);
         this.plataformaEnProceso.set('Bumeran');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearBumeran().subscribe({
+        this.scrapingService.scrapearBumeran().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoBumeran.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -563,10 +665,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearGlassdoor(): void {
+        this.prepararBusqueda('glassdoor', () => this.extraerGlassdoor());
+    }
+
+    private extraerGlassdoor(): void {
         this.scrapeandoGlassdoor.set(true);
         this.plataformaEnProceso.set('Glassdoor');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearGlassdoor().subscribe({
+        this.scrapingService.scrapearGlassdoor().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoGlassdoor.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -593,10 +699,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearJooble(): void {
+        this.prepararBusqueda('jooble', () => this.extraerJooble());
+    }
+
+    private extraerJooble(): void {
         this.scrapeandoJooble.set(true);
         this.plataformaEnProceso.set('Jooble');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearJooble().subscribe({
+        this.scrapingService.scrapearJooble().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoJooble.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -623,10 +733,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearGoogleJobs(): void {
+        this.prepararBusqueda('google_jobs', () => this.extraerGoogleJobs());
+    }
+
+    private extraerGoogleJobs(): void {
         this.scrapeandoGoogleJobs.set(true);
         this.plataformaEnProceso.set('Google Jobs');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearGoogleJobs().subscribe({
+        this.scrapingService.scrapearGoogleJobs().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoGoogleJobs.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -653,10 +767,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearRemotive(): void {
+        this.prepararBusqueda('remotive', () => this.extraerRemotive());
+    }
+
+    private extraerRemotive(): void {
         this.scrapeandoRemotive.set(true);
         this.plataformaEnProceso.set('Remotive');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearRemotive().subscribe({
+        this.scrapingService.scrapearRemotive().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoRemotive.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -683,10 +801,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearRemoteOK(): void {
+        this.prepararBusqueda('remoteok', () => this.extraerRemoteOK());
+    }
+
+    private extraerRemoteOK(): void {
         this.scrapeandoRemoteOK.set(true);
         this.plataformaEnProceso.set('RemoteOK');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearRemoteOK().subscribe({
+        this.scrapingService.scrapearRemoteOK().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoRemoteOK.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -713,10 +835,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearInfojobs(): void {
+        this.prepararBusqueda('infojobs', () => this.extraerInfojobs());
+    }
+
+    private extraerInfojobs(): void {
         this.scrapeandoInfojobs.set(true);
         this.plataformaEnProceso.set('InfoJobs');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearInfojobs().subscribe({
+        this.scrapingService.scrapearInfojobs().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoInfojobs.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -757,10 +883,14 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     scrapearAdzuna(): void {
+        this.prepararBusqueda('adzuna', () => this.extraerAdzuna());
+    }
+
+    private extraerAdzuna(): void {
         this.scrapeandoAdzuna.set(true);
         this.plataformaEnProceso.set('Adzuna');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearAdzuna().subscribe({
+        this.scrapingService.scrapearAdzuna().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoAdzuna.set(false);
                 this.mostrarOverlayIndividual.set(false);

@@ -59,6 +59,7 @@ jest.mock('../../src/config/apify', () => {
         construirUrlsLinkedin: jest.fn(() => [
             'https://www.linkedin.com/jobs/search/?keywords=frontend+developer+junior&location=Argentina&f_E=1%2C2&f_TPR=r1209600',
         ]),
+        formatearTerminoComputrabajo: jest.requireActual('../../src/config/apify').formatearTerminoComputrabajo,
         construirUrlsComputrabajo: jest.fn(() => [
             'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
         ]),
@@ -163,6 +164,22 @@ describe('Servicio de scraping', () => {
     beforeEach(() => {
         // Limpio los mocks antes de cada test para evitar contaminación.
         jest.clearAllMocks();
+    });
+
+    test.each([
+        ['computrabajo', ejecutarScrapingComputrabajo], ['indeed', ejecutarScrapingIndeed],
+        ['bumeran', ejecutarScrapingBumeran], ['jooble', ejecutarScrapingJooble], ['adzuna', ejecutarScrapingAdzuna],
+    ])('%s rechaza consultas sin contenido tras transformar antes de llamar al proveedor', async (id, ejecutar) => {
+        const fetchOriginal = global.fetch;
+        const fetchSimulado = jest.fn();
+        global.fetch = fetchSimulado;
+        try {
+            await expect(ejecutar({ terminos: ['###'] })).rejects.toMatchObject({ statusCode: 400 });
+            expect(fetchSimulado).not.toHaveBeenCalled();
+            expect(clienteApify.actor).not.toHaveBeenCalled();
+        } finally {
+            global.fetch = fetchOriginal;
+        }
     });
 
     describe('ejecutarScrapingLinkedin()', () => {

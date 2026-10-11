@@ -8,6 +8,8 @@ const controlador = require('../controladores/controlador-scraping');
 
 const router = Router();
 
+router.get('/previsualizacion', controlador.previsualizarBusquedas);
+
 router.post('/linkedin', controlador.scrapearLinkedin);
 router.post('/computrabajo', controlador.scrapearComputrabajo);
 router.post('/indeed', controlador.scrapearIndeed);

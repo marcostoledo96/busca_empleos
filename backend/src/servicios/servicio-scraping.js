@@ -27,6 +27,7 @@ const {
     construirUrlsBumeran,
 } = require('../config/apify');
 
+const { resolverConfiguracion, palabrasBusqueda } = require('./servicio-configuracion-busqueda');
 const { normalizarLote } = require('./servicio-normalizacion');
 const cheerio = require('cheerio');
 const { randomUUID } = require('crypto');
@@ -57,6 +58,7 @@ const HEADERS_SCRAPING = {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingLinkedin(opciones = {}) {
+    opciones = resolverConfiguracion('linkedin', opciones).opciones;
     const maxResultados = opciones.maxResultados || 100;
 
     try {
@@ -64,6 +66,7 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
         const urls = construirUrlsLinkedin({
             terminos: opciones.terminos,
             ubicacion: opciones.ubicacion,
+            ubicaciones: opciones.ubicaciones,
         });
         console.log(`Scraping LinkedIn: ${urls.length} URL(s) de búsqueda generadas.`);
 
@@ -120,6 +123,7 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingComputrabajo(opciones = {}) {
+    opciones = resolverConfiguracion('computrabajo', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     // Lotes de 5 requests simultáneas al obtener detalles, con pausa entre lotes.
     const CONCURRENCIA_DETALLE = 5;
@@ -280,6 +284,7 @@ function _construirItemComputrabajo(ofertaListado, descripcion, modalidad) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingIndeed(opciones = {}) {
+    opciones = resolverConfiguracion('indeed', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
@@ -290,16 +295,7 @@ async function ejecutarScrapingIndeed(opciones = {}) {
         // ofertas sin perder relevancia (la evaluación IA filtra después).
         // Filtro palabras de menos de 3 letras (ej: "qa", "it", "c") porque
         // generan ruido al matchear demasiadas ofertas irrelevantes.
-        const palabras = [];
-        for (const termino of terminos) {
-            const terminoLimpio = termino
-                .toLowerCase()
-                .replace(/[^a-záéíóúüñ\s]/g, '')
-                .trim();
-            const partes = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
-            palabras.push(...partes);
-        }
-        const palabrasUnicas = [...new Set(palabras)];
+        const palabrasUnicas = palabrasBusqueda(terminos);
         const queryUnificada = palabrasUnicas.join(' OR ');
         console.log(`Scraping Indeed: ejecutando 1 run con ${palabrasUnicas.length} palabra(s): "${queryUnificada}"...`);
 
@@ -357,6 +353,7 @@ async function ejecutarScrapingIndeed(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingBumeran(opciones = {}) {
+    opciones = resolverConfiguracion('bumeran', opciones).opciones;
     try {
         console.log('Scraping Bumeran: construyendo URLs de búsqueda...');
         const urls = construirUrlsBumeran({
@@ -483,6 +480,7 @@ async function ejecutarScrapingBumeran(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingGlassdoor(opciones = {}) {
+    opciones = resolverConfiguracion('glassdoor', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
@@ -711,6 +709,7 @@ function normalizarUrlGetonbrd(url) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingJooble(opciones = {}) {
+    opciones = resolverConfiguracion('jooble', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
     // Fragmento los términos compuestos en palabras individuales para
@@ -718,16 +717,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
     // acepta una string en "keywords" — las palabras individuales matchean
     // más ofertas que frases compuestas tipo "frontend developer angular".
     // Filtro palabras de menos de 3 letras porque generan ruido.
-    const palabras = [];
-    for (const termino of terminosBase) {
-        const terminoLimpio = termino
-            .toLowerCase()
-            .replace(/[^a-záéíóúüñ\s]/g, '')
-            .trim();
-        const partes = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
-        palabras.push(...partes);
-    }
-    const terminos = [...new Set(palabras)];
+    const terminos = palabrasBusqueda(terminosBase);
     // La API de Jooble no tiene cobertura para 'Argentina' ni 'España' (devuelve 0
     // resultados). 'Remote' sí funciona y trae ofertas remotas relevantes.
     // La evaluación IA después descarta las que no aplican al perfil.
@@ -876,6 +866,7 @@ async function ejecutarScrapingGoogleJobs() {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingRemotive(opciones = {}) {
+    opciones = resolverConfiguracion('remotive', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     // Remotive tiene muy pocas ofertas activas (< 30 en software-dev).
     // En vez de buscar término por término (que da pocos hits), traigo TODA
@@ -932,6 +923,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingRemoteOK(opciones = {}) {
+    opciones = resolverConfiguracion('remoteok', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     // RemoteOK es un portal 100% en inglés — los términos en español no devuelven
     // resultados. Uso términos en inglés que cubren el mismo stack del perfil.
@@ -1159,6 +1151,7 @@ const ADZUNA_API_BASE = 'https://api.adzuna.com/v1/api/jobs';
  * @returns {Object[]|Object} Array de ofertas normalizadas, o { deshabilitado: true, ... }
  */
 async function ejecutarScrapingAdzuna(opciones = {}) {
+    opciones = resolverConfiguracion('adzuna', opciones).opciones;
     const appId = process.env.ADZUNA_APP_ID;
     const appKey = process.env.ADZUNA_APP_KEY;
 
@@ -1189,16 +1182,7 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     // una string en el parámetro "what" — las palabras individuales
     // matchean más ofertas que frases compuestas tipo "frontend developer
     // angular". Filtro palabras de menos de 3 letras porque generan ruido.
-    const palabras = [];
-    for (const termino of terminosBase) {
-        const terminoLimpio = termino
-            .toLowerCase()
-            .replace(/[^a-záéíóúüñ\s]/g, '')
-            .trim();
-        const partes = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
-        palabras.push(...partes);
-    }
-    const terminos = [...new Set(palabras)];
+    const terminos = palabrasBusqueda(terminosBase);
     // Solo España — Adzuna NO soporta Argentina (ar) → devuelve 404.
     // España tiene buen volumen de ofertas en español para trabajo remoto.
     const paises = ['es'];

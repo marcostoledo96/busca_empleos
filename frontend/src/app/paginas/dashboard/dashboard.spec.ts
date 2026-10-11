@@ -8,7 +8,7 @@ import { PersistenciaDashboardService } from '../../servicios/persistencia-dashb
 import { PreferenciasService } from '../../servicios/preferencias.service';
 import { RespuestaApi } from '../../modelos/respuesta-api.model';
 import { Oferta } from '../../modelos/oferta.model';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 
 const crearOferta = (id: number, porcentaje: number, bonus: number): Oferta => ({
     id,
@@ -106,6 +106,90 @@ describe('Dashboard', () => {
 
         fixture = TestBed.createComponent(Dashboard);
         componente = fixture.componentInstance;
+    });
+
+    it('encola una sola recarga cuando la acción termina durante una sincronización', async () => {
+        const bloque = new Subject<any>();
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValues(bloque, of({
+            exito: true, datos: [], total: 0, fecha_corte: '', max_id: 0,
+            total_inicial: 0, cursor_siguiente: null, completada: true,
+        }));
+        const trabajo = (componente as any).sincronizarOfertas();
+        await Promise.resolve();
+        componente.cargarDatos();
+        componente.cargarDatos();
+        bloque.next({ exito: true, datos: [], total: 0, fecha_corte: '', max_id: 0,
+            total_inicial: 0, cursor_siguiente: null, completada: true });
+        await trabajo;
+        await Promise.resolve();
+        expect(mockOfertasService.obtenerBloqueSincronizacion).toHaveBeenCalledTimes(2);
+    });
+
+    it('conserva una postulación que termina mientras el GET sigue pendiente', async () => {
+        const local = crearOferta(1, 80, 0);
+        componente.ofertas.set([local]);
+        componente.filtroPlataforma.set('linkedin');
+        componente.mostrarDetalle(local);
+        const bloque = new Subject<any>();
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(bloque);
+        const trabajo = (componente as any).sincronizarOfertas();
+        await Promise.resolve();
+        local.estado_postulacion = 'cv_enviado';
+        componente.onPostulacionPendiente({ id: 1, pendiente: true });
+        componente.onPostulacionPendiente({ id: 1, pendiente: false });
+        mockPersistenciaService.obtenerOfertasSincronizadas.and.resolveTo([crearOferta(1, 80, 0)]);
+        bloque.next({ exito: true, datos: [crearOferta(1, 80, 0)], total: 1, fecha_corte: '',
+            max_id: 1, total_inicial: 1, cursor_siguiente: null, completada: true });
+        await trabajo;
+        expect(componente.ofertas()[0].estado_postulacion).toBe('cv_enviado');
+        expect(componente.ofertaSeleccionada()).toBe(componente.ofertas()[0]);
+        expect(componente.filtroPlataforma()).toBe('linkedin');
+    });
+
+    it('no solapo polling y sincronización; la finalización espera el GET en curso', async () => {
+        const lectura = new Subject<any>();
+        mockOfertasService.obtenerOfertas.and.returnValue(lectura);
+        componente.onProgresoEvaluacion();
+        componente.cargarDatos();
+        componente.cargarDatos();
+        expect(mockOfertasService.obtenerBloqueSincronizacion).not.toHaveBeenCalled();
+        lectura.next({ exito: true, datos: [] });
+        lectura.complete();
+        await Promise.resolve();
+        expect(mockOfertasService.obtenerBloqueSincronizacion).toHaveBeenCalledTimes(1);
+        componente.onProgresoEvaluacion();
+        expect(mockOfertasService.obtenerOfertas).toHaveBeenCalledTimes(1);
+    });
+
+    it('destruir el dashboard cancela GET y descarta la recarga encolada', async () => {
+        const bloque = new Subject<any>();
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(bloque);
+        const trabajo = (componente as any).sincronizarOfertas();
+        await Promise.resolve();
+        componente.cargarDatos();
+        fixture.destroy();
+        await trabajo;
+        bloque.next({ exito: true, datos: [], completada: true });
+        expect(mockOfertasService.obtenerBloqueSincronizacion).toHaveBeenCalledTimes(1);
+        expect(mockOfertasService.obtenerOfertas).not.toHaveBeenCalled();
+    });
+
+    it('preservo el estado optimista también cuando la sincronización usa fallback', async () => {
+        const local = crearOferta(1, 80, 0);
+        componente.ofertas.set([local]);
+        const lectura = new Subject<any>();
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(throwError(() => new Error('sin cursor')));
+        mockOfertasService.obtenerOfertas.and.returnValue(lectura);
+        const trabajo = (componente as any).sincronizarOfertas();
+        await Promise.resolve();
+        local.estado_postulacion = 'en_proceso';
+        componente.onPostulacionPendiente({ id: 1, pendiente: true });
+        componente.onPostulacionPendiente({ id: 1, pendiente: false });
+        await Promise.resolve();
+        lectura.next({ exito: true, datos: [crearOferta(1, 80, 0)] });
+        await trabajo;
+        expect(componente.ofertas()[0].estado_postulacion).toBe('en_proceso');
+        expect(componente.sincronizando()).toBeFalse();
     });
 
     it('should create', () => {

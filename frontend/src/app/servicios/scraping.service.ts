@@ -2,13 +2,17 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RespuestaApi, RespuestaScraping } from '../modelos/respuesta-api.model';
+import { RespuestaApi, RespuestaScraping, ResumenBusqueda } from '../modelos/respuesta-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class ScrapingService {
 
     private readonly http = inject(HttpClient);
     private readonly urlBase = `${environment.urlApi}/scraping`;
+
+    obtenerPrevisualizacion(): Observable<RespuestaApi<{ plataformas: ResumenBusqueda[] }>> {
+        return this.http.get<RespuestaApi<{ plataformas: ResumenBusqueda[] }>>(`${this.urlBase}/previsualizacion`);
+    }
 
     // Ejecuta el scraping de LinkedIn. Llama al Actor de Apify y guarda en BD.
     scrapearLinkedin(): Observable<RespuestaApi<RespuestaScraping>> {

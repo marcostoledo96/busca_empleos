@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { TabsModule } from 'primeng/tabs';
 import { SelectModule } from 'primeng/select';
@@ -28,7 +28,7 @@ import { firstValueFrom, Subject, takeUntil } from 'rxjs';
     templateUrl: './dashboard.html',
     styleUrl: './dashboard.css'
 })
-export class Dashboard implements OnInit {
+export class Dashboard implements OnInit, OnDestroy {
 
     private readonly ofertasService = inject(OfertasService);
     private readonly ruta = inject(ActivatedRoute, { optional: true });
@@ -72,6 +72,52 @@ export class Dashboard implements OnInit {
 
     // Guarda para evitar requests superpuestos durante el refresh de polling.
     private refrescandoEnSegundoPlano = false;
+    private recargaPendiente = false;
+    private destruido = false;
+    private readonly destruccion = new Subject<void>();
+    private readonly versionesPostulacion = new Map<number, number>();
+
+    ngOnDestroy(): void {
+        this.destruido = true;
+        this.recargaPendiente = false;
+        this.cancelacionSincronizacion?.next();
+        this.destruccion.next();
+        this.destruccion.complete();
+    }
+
+    private continuarRecargaPendiente(): void {
+        if (!this.recargaPendiente || this.destruido) return;
+        this.recargaPendiente = false;
+        this.cursorSincronizacion = null;
+        this.cargarDatos();
+    }
+
+    // Capturo versiones antes del GET: también protejo cambios que se confirman
+    // durante la lectura, aunque ya no estén pendientes al recibir la respuesta.
+    private capturarPostulaciones(): Map<number, number> {
+        const versiones = new Map(this.versionesPostulacion);
+        for (const id of this.postulacionesPendientes()) versiones.set(id, -1);
+        return versiones;
+    }
+
+    private aplicarOfertas(ofertasApi: Oferta[], versiones: Map<number, number>, conservarAusentes = false): void {
+        const actuales = new Map(this.ofertas().map(oferta => [oferta.id, oferta]));
+        const combinadas = ofertasApi.map(api => {
+            const local = actuales.get(api.id);
+            if (!local) return api;
+            const proteger = this.postulacionesPendientes().has(api.id)
+                || (versiones.get(api.id) ?? 0) !== (this.versionesPostulacion.get(api.id) ?? 0);
+            const estado = local.estado_postulacion;
+            Object.assign(local, api);
+            if (proteger) local.estado_postulacion = estado;
+            return local;
+        });
+        if (conservarAusentes) {
+            const recibidas = new Set(ofertasApi.map(oferta => oferta.id));
+            combinadas.push(...this.ofertas().filter(oferta => !recibidas.has(oferta.id)));
+        }
+        this.ofertas.set(this.ordenarOfertas(combinadas));
+    }
 
     // Trackea IDs con optimistic update de postulación en curso.
     // Solo estos IDs preservan su estado local durante el merge del polling.
@@ -154,7 +200,11 @@ export class Dashboard implements OnInit {
     // Carga ofertas del backend. Las estadísticas se derivan de las ofertas
     // en computed signals, así que no necesita llamar a /estadisticas.
     cargarDatos(): void {
-        if (this.modoDemo() || this.sincronizando()) return;
+        if (this.modoDemo() || this.destruido) return;
+        if (this.sincronizando() || this.refrescandoEnSegundoPlano) {
+            this.recargaPendiente = true;
+            return;
+        }
         void this.sincronizarOfertas();
     }
 
@@ -166,25 +216,28 @@ export class Dashboard implements OnInit {
 
     private async sincronizarOfertas(): Promise<void> {
         this.sincronizando.set(true);
+        const versiones = this.capturarPostulaciones();
+        const ofertasAnteriores = this.ofertas().map(oferta => ({ ...oferta }));
         this.cancelarSincronizacionSolicitada = false;
         const cancelacion = new Subject<void>();
         this.cancelacionSincronizacion = cancelacion;
-        if (!this.cursorSincronizacion) {
-            await this.persistenciaDashboard.limpiarSincronizacion();
-            this.idsSincronizacion.clear();
-            this.estadoOperativoSincronizacion.set({
-                estado: 'en_progreso',
-                fecha_corte: '',
-                max_id: 0,
-                total_inicial: 0,
-                recibidos: 0,
-                duplicados: 0,
-            });
-            this.progresoSincronizacion.set(0);
-            this.fallbackSincronizacion.set(false);
-        }
-
         try {
+            if (!this.cursorSincronizacion) {
+                await this.persistenciaDashboard.limpiarSincronizacion();
+                if (this.destruido) return;
+                this.idsSincronizacion.clear();
+                this.estadoOperativoSincronizacion.set({
+                    estado: 'en_progreso',
+                    fecha_corte: '',
+                    max_id: 0,
+                    total_inicial: 0,
+                    recibidos: 0,
+                    duplicados: 0,
+                });
+                this.progresoSincronizacion.set(0);
+                this.fallbackSincronizacion.set(false);
+            }
+
             do {
                 if (this.cancelarSincronizacionSolicitada) {
                     this.estadoOperativoSincronizacion.update(estado => estado && estado.estado !== 'completada'
@@ -201,10 +254,13 @@ export class Dashboard implements OnInit {
                 const duplicados = (this.estadoOperativoSincronizacion()?.duplicados ?? 0)
                     + respuesta.datos.filter(oferta => this.idsSincronizacion.has(oferta.id)).length;
                 respuesta.datos.forEach(oferta => this.idsSincronizacion.add(oferta.id));
+                if (this.destruido) return;
                 const persistencia = await this.persistenciaDashboard.guardarBloqueSincronizacion(respuesta.datos);
+                if (this.destruido) return;
                 this.fallbackSincronizacion.set(persistencia.fallback);
                 const ofertasSincronizadas = await this.persistenciaDashboard.obtenerOfertasSincronizadas();
-                this.ofertas.set(this.ordenarOfertas(ofertasSincronizadas));
+                if (this.destruido) return;
+                this.aplicarOfertas(ofertasSincronizadas, versiones, !respuesta.completada);
                 this.cursorSincronizacion = respuesta.cursor_siguiente;
                 this.estadoOperativoSincronizacion.set({
                     estado: 'en_progreso',
@@ -232,6 +288,7 @@ export class Dashboard implements OnInit {
                 }
             } while (this.cursorSincronizacion);
         } catch (error) {
+            if (this.destruido) return;
             if (this.cancelarSincronizacionSolicitada) {
                 this.estadoOperativoSincronizacion.update(estado => estado && estado.estado !== 'completada'
                     ? { ...estado, estado: 'cancelada' }
@@ -241,39 +298,37 @@ export class Dashboard implements OnInit {
             }
             console.error('Error al sincronizar dashboard:', error);
             this.estadoOperativoSincronizacion.update(estado => estado && { ...estado, estado: 'fallida' });
-            this.cargarDatosLegacy();
+            this.aplicarOfertas(ofertasAnteriores, versiones);
+            await this.cargarDatosLegacy(versiones);
         } finally {
             cancelacion.complete();
             if (this.cancelacionSincronizacion === cancelacion) {
                 this.cancelacionSincronizacion = null;
             }
             this.sincronizando.set(false);
+            this.continuarRecargaPendiente();
         }
     }
 
-    private cargarDatosLegacy(): void {
+    private async cargarDatosLegacy(versiones: Map<number, number>): Promise<void> {
         this.cargando.set(true);
 
-        this.ofertasService.obtenerOfertas().subscribe({
-            next: (respuesta) => {
-                this.cargando.set(false);
-
-                if (!respuesta.exito) {
-                    this.manejarFalloSincronizacion();
-                    return;
-                }
-
-                this.ofertas.set(respuesta.datos);
-                this.guardarCacheActual();
-                this.datosDesdeCache.set(false);
-                this.mensajeEstado.set(null);
-            },
-            error: (error) => {
-                this.cargando.set(false);
+        try {
+            const respuesta = await firstValueFrom(this.ofertasService.obtenerOfertas().pipe(takeUntil(this.destruccion)));
+            if (this.destruido) return;
+            if (!respuesta.exito) throw new Error(respuesta.error || 'No pude cargar las ofertas.');
+            this.aplicarOfertas(respuesta.datos, versiones);
+            this.guardarCacheActual();
+            this.datosDesdeCache.set(false);
+            this.mensajeEstado.set(null);
+        } catch (error) {
+            if (!this.destruido) {
                 console.error('Error al cargar dashboard:', error);
                 this.manejarFalloSincronizacion();
             }
-        });
+        } finally {
+            this.cargando.set(false);
+        }
     }
 
     // Refresh liviano durante el polling de evaluación.
@@ -281,42 +336,25 @@ export class Dashboard implements OnInit {
     // Evita requests superpuestos con una guarda.
     // Hace merge con el estado local para no pisar optimistic updates en curso.
     onProgresoEvaluacion(): void {
-        if (this.refrescandoEnSegundoPlano) return;
+        if (this.modoDemo() || this.destruido || this.sincronizando() || this.refrescandoEnSegundoPlano) return;
         this.refrescandoEnSegundoPlano = true;
+        const versiones = this.capturarPostulaciones();
 
-        this.ofertasService.obtenerOfertas().subscribe({
+        this.ofertasService.obtenerOfertas().pipe(takeUntil(this.destruccion)).subscribe({
             next: (respuesta) => {
-                this.refrescandoEnSegundoPlano = false;
-                if (respuesta.exito) {
-                    const ofertasActuales = this.ofertas();
-                    const ofertasApi = respuesta.datos;
-
-                    // Merge: preservo el estado local de postulación SOLO si
-                    // hay un optimistic update en curso para ese ID.
-                    // Si no está pendiente, adoptamos el valor del backend
-                    // (puede que el usuario ya haya revertido o el backend se actualizó).
-                    const idsPendientes = this.postulacionesPendientes();
-                    const ofertasMergeadas = ofertasApi.map(api => {
-                        const local = ofertasActuales.find(o => o.id === api.id);
-                        if (local && idsPendientes.has(api.id) && local.estado_postulacion !== api.estado_postulacion) {
-                            return { ...api, estado_postulacion: local.estado_postulacion };
-                        }
-                        return api;
-                    });
-
-                    this.ofertas.set(ofertasMergeadas);
-                    this.persistenciaDashboard.guardarCache({
-                        ofertas: ofertasMergeadas,
-                        estadisticas: null,
-                        fechaGuardado: new Date().toISOString(),
-                        version: 1,
-                    });
+                if (respuesta.exito && !this.destruido) {
+                    this.aplicarOfertas(respuesta.datos, versiones);
+                    this.guardarCacheActual();
                 }
             },
             error: () => {
                 this.refrescandoEnSegundoPlano = false;
-                // Silencioso — no interrumpimos la UI por un fallo de polling.
-            }
+                this.continuarRecargaPendiente();
+            },
+            complete: () => {
+                this.refrescandoEnSegundoPlano = false;
+                this.continuarRecargaPendiente();
+            },
         });
     }
 
@@ -334,7 +372,7 @@ export class Dashboard implements OnInit {
     }
 
     private cargarPreferenciaPrioridadIa(): void {
-        this.preferenciasService.obtenerPreferencias().subscribe({
+        this.preferenciasService.obtenerPreferencias().pipe(takeUntil(this.destruccion)).subscribe({
             next: (respuesta) => {
                 this.priorizarOfertasIa.set(Boolean(respuesta.exito && respuesta.datos.priorizar_ofertas_ia));
                 this.bonusMaximoPrioridadIa.set(Math.min(6, Math.max(0, Number(respuesta.datos.bonus_maximo_prioridad_ia) || 0)));
@@ -385,6 +423,7 @@ export class Dashboard implements OnInit {
     // Solo los IDs marcados como pendientes preservan su estado local
     // durante el merge de datos del polling.
     onPostulacionPendiente(evento: { id: number; pendiente: boolean }): void {
+        this.versionesPostulacion.set(evento.id, (this.versionesPostulacion.get(evento.id) ?? 0) + 1);
         this.postulacionesPendientes.update(setActual => {
             const nuevo = new Set(setActual);
             if (evento.pendiente) {
@@ -398,7 +437,7 @@ export class Dashboard implements OnInit {
 
     // Cuando la tabla dispara una acción masiva de postulación.
     onAccionMasiva(evento: { ids: number[]; estadoPostulacion: string }): void {
-        this.ofertasService.actualizarPostulacionMasiva(evento.ids, evento.estadoPostulacion).subscribe({
+        this.ofertasService.actualizarPostulacionMasiva(evento.ids, evento.estadoPostulacion).pipe(takeUntil(this.destruccion)).subscribe({
             next: (resp) => {
                 if (resp.exito) {
                     this.cargarDatos();
@@ -425,6 +464,11 @@ export class Dashboard implements OnInit {
     }
 
     private manejarFalloSincronizacion(): void {
+        this.datosDesdeCache.set(true);
+        if (this.ofertas().length) {
+            this.mensajeEstado.set('No pude actualizar las ofertas. Conservo los datos anteriores; no están confirmados como actualizados. Volvé a intentar.');
+            return;
+        }
         const cache = this.persistenciaDashboard.leerCache();
 
         if (cache) {

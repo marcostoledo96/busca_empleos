@@ -32,6 +32,7 @@ beforeEach(() => {
     jest.clearAllMocks();
     propietario = null;
     clientes = [];
+    pool.query.mockResolvedValue({ rows: [] });
     pool.connect.mockImplementation(async () => {
         const cliente = { release: jest.fn(), query: jest.fn(async sql => {
             if (sql.includes('pg_try_advisory_lock')) {
