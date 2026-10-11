@@ -60,11 +60,13 @@ describe('Controlador de scraping', () => {
                     ubicacion: 'Buenos Aires',
                 });
 
-            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith({
-                maxResultados: 50,
-                terminos: ['react junior'],
-                ubicacion: 'Buenos Aires',
-            });
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    maxResultados: 50,
+                    terminos: ['react junior'],
+                    ubicacion: 'Buenos Aires',
+                })
+            );
         });
 
         test('retorna éxito aunque no haya resultados', async () => {
@@ -350,10 +352,12 @@ describe('Controlador de scraping', () => {
                     terminos: ['react junior', 'node junior'],
                 });
 
-            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith({
-                maxResultados: 30,
-                terminos: ['react junior', 'node junior'],
-            });
+            expect(servicioScraping.ejecutarScrapingAdzuna).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    maxResultados: 30,
+                    terminos: ['react junior', 'node junior'],
+                })
+            );
         });
 
         test('usa maxResultados=50 por defecto si no se envía', async () => {

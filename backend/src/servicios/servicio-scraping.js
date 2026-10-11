@@ -289,15 +289,8 @@ async function ejecutarScrapingIndeed(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
     try {
-        // Fragmento los términos compuestos en palabras individuales para
-        // aumentar la cobertura. Indeed interpreta "frontend developer angular"
-        // como una frase, pero con OR entre palabras sueltas matchea más
-        // ofertas sin perder relevancia (la evaluación IA filtra después).
-        // Filtro palabras de menos de 3 letras (ej: "qa", "it", "c") porque
-        // generan ruido al matchear demasiadas ofertas irrelevantes.
-        const palabrasUnicas = palabrasBusqueda(terminos);
-        const queryUnificada = palabrasUnicas.join(' OR ');
-        console.log(`Scraping Indeed: ejecutando 1 run con ${palabrasUnicas.length} palabra(s): "${queryUnificada}"...`);
+        const queryUnificada = opciones.queryIndeed || terminos.join(' OR ');
+        console.log(`Scraping Indeed: ejecutando 1 run con query: "${queryUnificada}"...`);
 
         // El actor de Indeed recibe keywords y país directamente.
         const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
@@ -712,12 +705,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
     opciones = resolverConfiguracion('jooble', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    // Fragmento los términos compuestos en palabras individuales para
-    // aumentar la cobertura (mismo patrón que Bumeran). La API de Jooble
-    // acepta una string en "keywords" — las palabras individuales matchean
-    // más ofertas que frases compuestas tipo "frontend developer angular".
-    // Filtro palabras de menos de 3 letras porque generan ruido.
-    const terminos = palabrasBusqueda(terminosBase);
+    const terminos = opciones.consultasJooble || terminosBase;
     // La API de Jooble no tiene cobertura para 'Argentina' ni 'España' (devuelve 0
     // resultados). 'Remote' sí funciona y trae ofertas remotas relevantes.
     // La evaluación IA después descarta las que no aplican al perfil.
@@ -868,25 +856,27 @@ async function ejecutarScrapingGoogleJobs() {
 async function ejecutarScrapingRemotive(opciones = {}) {
     opciones = resolverConfiguracion('remotive', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
-    // Remotive tiene muy pocas ofertas activas (< 30 en software-dev).
-    // En vez de buscar término por término (que da pocos hits), traigo TODA
-    // la categoría 'software-dev' de una sola llamada. Es más eficiente y
-    // captura todo lo relevante. La evaluación IA filtra después.
-    const CATEGORIA_REMOTIVE = 'software-dev';
+    const categorias = opciones.categoriasRemotive?.length ? opciones.categoriasRemotive : ['software-dev'];
 
     try {
-        console.log(`Scraping Remotive: buscando ofertas en categoría "${CATEGORIA_REMOTIVE}"...`);
+        let itemsCrudos = [];
+        for (const categoria of categorias) {
+            if (itemsCrudos.length >= maxResultados) break;
+            console.log(`Scraping Remotive: buscando ofertas en categoría "${categoria}"...`);
 
-        const url = `${REMOTIVE_API_BASE}/remote-jobs?category=${CATEGORIA_REMOTIVE}&limit=${maxResultados}`;
-        const respuesta = await fetch(url);
+            const url = `${REMOTIVE_API_BASE}/remote-jobs?category=${categoria}&limit=${maxResultados}`;
+            const respuesta = await fetch(url);
 
-        if (!respuesta.ok) {
-            throw new Error(`Error HTTP ${respuesta.status} al consultar Remotive.`);
+            if (!respuesta.ok) {
+                console.warn(`Scraping Remotive: error HTTP ${respuesta.status} para categoría ${categoria}. Saltando.`);
+                continue;
+            }
+
+            const json = await respuesta.json();
+            const jobs = json.jobs || [];
+            itemsCrudos = itemsCrudos.concat(jobs);
         }
-
-        const json = await respuesta.json();
-        const itemsCrudos = json.jobs || [];
-        console.log(`Scraping Remotive: ${itemsCrudos.length} ítem(s) en categoría "${CATEGORIA_REMOTIVE}".`);
+        console.log(`Scraping Remotive: ${itemsCrudos.length} ítem(s) en total.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remotive');
         const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
@@ -925,9 +915,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
 async function ejecutarScrapingRemoteOK(opciones = {}) {
     opciones = resolverConfiguracion('remoteok', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
-    // RemoteOK es un portal 100% en inglés — los términos en español no devuelven
-    // resultados. Uso términos en inglés que cubren el mismo stack del perfil.
-    const TERMINOS_REMOTEOK = [
+    const terminos = opciones.tagsRemoteOK?.length ? opciones.tagsRemoteOK : [
         'frontend',
         'react',
         'angular',
@@ -936,7 +924,6 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
         'javascript',
         'qa',
     ];
-    const terminos = TERMINOS_REMOTEOK;
 
     try {
         console.log(`Scraping RemoteOK: buscando ${terminos.length} término(s) con la API pública...`);
@@ -1176,13 +1163,7 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     // Limito a 50 como máximo porque la API gratuita tiene rate limits estrictos.
     // El cap lo garantizo acá en el servicio — no dependo del controlador.
     const maxResultados = Math.min(opciones.maxResultados || 50, 50);
-    const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    // Fragmento los términos compuestos en palabras individuales para
-    // aumentar la cobertura (mismo patrón que Bumeran). Adzuna acepta
-    // una string en el parámetro "what" — las palabras individuales
-    // matchean más ofertas que frases compuestas tipo "frontend developer
-    // angular". Filtro palabras de menos de 3 letras porque generan ruido.
-    const terminos = palabrasBusqueda(terminosBase);
+    const terminos = opciones.consultasAdzuna || terminosBase;
     // Solo España — Adzuna NO soporta Argentina (ar) → devuelve 404.
     // España tiene buen volumen de ofertas en español para trabajo remoto.
     const paises = ['es'];

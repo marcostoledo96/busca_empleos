@@ -2,9 +2,21 @@
 const pool = require('../config/base-datos');
 const { TERMINOS_BUSQUEDA_DEFECTO, construirUrlsBumeran, formatearTerminoComputrabajo } = require('../config/apify');
 const { PLATAFORMAS, normalizarIdPlataforma } = require('../config/plataformas');
+const {
+    traducirParaLinkedin,
+    traducirParaBumeran,
+    traducirParaIndeed,
+    traducirParaJooble,
+    traducirParaAdzuna,
+    traducirParaComputrabajo,
+    traducirParaRemotive,
+    traducirParaRemoteOK,
+    esTerminoUtilizable,
+    SIGLAS_VALIDAS,
+} = require('./servicio-traductor-consultas');
 
-const FUENTES_TERMINOS = new Set(['linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'jooble', 'adzuna']);
-const TAGS_REMOTEOK = ['frontend', 'react', 'angular', 'node', 'fullstack', 'javascript', 'qa'];
+const FUENTES_TERMINOS = new Set(['linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'jooble', 'adzuna', 'remotive', 'remoteok']);
+const TAGS_REMOTEOK_DEFECTO = ['frontend', 'react', 'angular', 'node', 'fullstack', 'javascript', 'qa'];
 
 function errorConfiguracion(mensaje, status = 400) {
     return Object.assign(new Error(mensaje), { status, statusCode: status });
@@ -21,7 +33,11 @@ function validarOpciones(opciones = {}) {
     if (!opciones || typeof opciones !== 'object' || Array.isArray(opciones)) {
         throw errorConfiguracion('Las opciones de búsqueda deben ser un objeto.');
     }
-    const camposPermitidos = new Set(['terminos', 'terminos_busqueda', 'maxResultados', 'ubicacion', 'ubicaciones']);
+    const camposPermitidos = new Set([
+        'terminos', 'terminos_busqueda', 'maxResultados', 'ubicacion', 'ubicaciones',
+        'filtrarNivelLinkedin', 'filtrar_nivel_linkedin',
+        'queryIndeed', 'consultasJooble', 'consultasAdzuna', 'categoriasRemotive', 'tagsRemoteOK',
+    ]);
     if (Object.keys(opciones).some(campo => !camposPermitidos.has(campo))) {
         throw errorConfiguracion('Recibí opciones de búsqueda no reconocidas.');
     }
@@ -42,11 +58,17 @@ function validarOpciones(opciones = {}) {
             throw errorConfiguracion('Necesito ubicaciones no vacías y no puedo combinarlas con ubicacion.');
         }
     }
+    if (opciones.filtrarNivelLinkedin !== undefined && typeof opciones.filtrarNivelLinkedin !== 'boolean') {
+        throw errorConfiguracion('filtrarNivelLinkedin debe ser un booleano.');
+    }
+    if (opciones.filtrar_nivel_linkedin !== undefined && typeof opciones.filtrar_nivel_linkedin !== 'boolean') {
+        throw errorConfiguracion('filtrar_nivel_linkedin debe ser un booleano.');
+    }
     return { ...opciones, ...(terminos !== undefined ? { terminos: validarLista(terminos, 'Los términos') } : {}) };
 }
 
 function palabrasBusqueda(terminos) {
-    return [...new Set(terminos.flatMap(termino => termino.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim().split(/\s+/).filter(palabra => palabra.length >= 3)))];
+    return [...new Set(terminos.flatMap(termino => termino.toLowerCase().replace(/[^a-z0-9áéíóúüñ#+\s]/g, '').trim().split(/\s+/).filter(palabra => palabra.length >= 3 || SIGLAS_VALIDAS.has(palabra))))];
 }
 
 function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { previsualizacion = false, omitirIncompatibles = false } = {}) {
@@ -79,7 +101,18 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         origenUbicacion = entrada.ubicacion !== undefined || entrada.ubicaciones !== undefined ? 'ejecucion' : zonas.length ? 'preferencias' : 'defecto';
         if (ubicacion.length === 1) opcionesResueltas.ubicacion = ubicacion[0];
         else opcionesResueltas.ubicaciones = ubicacion;
-        filtros.nivelesExperiencia = ['internship', 'entry_level'];
+
+        const filtrarNivel = entrada.filtrarNivelLinkedin !== undefined
+            ? entrada.filtrarNivelLinkedin
+            : entrada.filtrar_nivel_linkedin !== undefined
+                ? entrada.filtrar_nivel_linkedin
+                : (preferencias.filtrar_nivel_linkedin ?? true);
+        opcionesResueltas.filtrarNivelLinkedin = Boolean(filtrarNivel);
+        filtros.filtrarNivelLinkedin = Boolean(filtrarNivel);
+        filtros.nivelesExperiencia = filtrarNivel ? ['internship', 'entry_level'] : [];
+        if (!filtrarNivel) {
+            advertencias.push('Filtro de nivel de experiencia de LinkedIn desactivado (no aplico f_E).');
+        }
         ventanaDias = 14;
     } else {
         if (entrada.ubicacion !== undefined || entrada.ubicaciones !== undefined || preferencias.zonas_preferidas?.length) {
@@ -95,19 +128,90 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         if (id === 'adzuna') { ubicacion = ['España']; filtros.prefijo = 'remote'; filtros.normalizacion = 'solo_indicadores_remoto'; }
         if (['jooble', 'adzuna', 'remotive', 'remoteok'].includes(id)) ventanaDias = 14;
     }
-    if (['indeed', 'jooble', 'adzuna', 'bumeran'].includes(id)) {
-        filtros.transformacionTerminos = 'palabras_de_3_o_mas_letras';
-        filtros.palabras = palabrasBusqueda(terminos);
+
+    let consultasEfectivas = [];
+    let equivalenciasAplicadas = {};
+    let terminosUtiles = true;
+    let urlsUtiles = true;
+
+    if (id === 'linkedin') {
+        const tr = traducirParaLinkedin(terminos);
+        consultasEfectivas = tr.consultas;
+        equivalenciasAplicadas = tr.equivalencias;
+        terminosUtiles = terminos.length > 0;
+    } else if (id === 'computrabajo') {
+        filtros.transformacionTerminos = 'minusculas_sin_signos';
+        const tr = traducirParaComputrabajo(terminos);
+        consultasEfectivas = tr.consultas;
+        equivalenciasAplicadas = tr.equivalencias;
+        terminosUtiles = tr.consultas.length > 0;
+        urlsUtiles = tr.urls.length > 0 && terminos.every(termino => formatearTerminoComputrabajo(termino).length > 0);
+    } else if (id === 'bumeran') {
+        filtros.transformacionTerminos = 'slug_seguro_con_equivalencias';
+        const tr = traducirParaBumeran(terminos);
+        consultasEfectivas = tr.consultas;
+        equivalenciasAplicadas = tr.equivalencias;
+        terminosUtiles = tr.consultas.length > 0;
+        urlsUtiles = tr.urls.length > 0 && terminos.every(termino => traducirParaBumeran([termino]).urls.length > 0);
+        filtros.urls = tr.urls;
+    } else if (id === 'indeed') {
+        filtros.transformacionTerminos = 'frases_preservadas_con_or';
+        const tr = traducirParaIndeed(terminos);
+        consultasEfectivas = tr.terminosProcesados;
+        equivalenciasAplicadas = tr.equivalencias;
+        opcionesResueltas.queryIndeed = tr.query;
+        terminosUtiles = tr.terminosProcesados.length > 0 && terminos.every(termino => esTerminoUtilizable(termino));
+    } else if (id === 'jooble') {
+        filtros.transformacionTerminos = 'frases_completas';
+        const tr = traducirParaJooble(terminos);
+        consultasEfectivas = tr.consultas;
+        equivalenciasAplicadas = tr.equivalencias;
+        filtros.palabras = tr.consultas;
+        opcionesResueltas.consultasJooble = tr.consultas;
+        terminosUtiles = tr.consultas.length > 0 && terminos.every(termino => esTerminoUtilizable(termino));
+    } else if (id === 'adzuna') {
+        filtros.transformacionTerminos = 'frases_con_prefijo_remote';
+        const tr = traducirParaAdzuna(terminos);
+        consultasEfectivas = tr.consultas;
+        equivalenciasAplicadas = tr.equivalencias;
+        filtros.palabras = tr.consultas;
+        opcionesResueltas.consultasAdzuna = tr.consultas;
+        terminosUtiles = tr.consultas.length > 0 && terminos.every(termino => esTerminoUtilizable(termino));
+    } else if (id === 'remotive') {
+        const tr = traducirParaRemotive(terminos);
+        filtros.categorias = tr.categorias;
+        if (tr.categorias.length > 0) {
+            filtros.categoria = tr.categorias[0];
+            opcionesResueltas.categoriasRemotive = tr.categorias;
+            consultasEfectivas = tr.categorias;
+        } else {
+            filtros.categoria = null;
+            consultasEfectivas = [];
+        }
+        advertencias.push(...tr.advertencias);
+        if (!tr.compatible) {
+            terminosUtiles = false;
+        }
+    } else if (id === 'remoteok') {
+        const tr = traducirParaRemoteOK(terminos);
+        filtros.tags = tr.tags;
+        opcionesResueltas.tagsRemoteOK = tr.tags;
+        consultasEfectivas = tr.tags;
+        advertencias.push(...tr.advertencias);
+        if (!tr.compatible) {
+            terminosUtiles = false;
+        }
+    } else if (id === 'glassdoor') {
+        consultasEfectivas = terminos;
+        terminosUtiles = terminos.length > 0;
     }
-    if (id === 'computrabajo') filtros.transformacionTerminos = 'minusculas_sin_signos';
-    if (id === 'remotive') filtros.categoria = 'software-dev';
-    if (id === 'remoteok') filtros.tags = [...TAGS_REMOTEOK];
-    if (!usaTerminos && plataforma.activa) advertencias.push('No aplico términos personalizados: esta integración usa filtros fijos.');
+
     if (id === 'bumeran') advertencias.push('No aplico maxResultados: el actor existente no recibe ese límite.');
     if (['jooble', 'remoteok'].includes(id)) {
         advertencias.push(`maxResultados es un umbral de acumulación, no un límite estricto: puedo superar ${maxResultados} al incorporar una página o lote completo.`);
     }
     if (entrada.maxResultados > maxResultados) advertencias.push(`Limito maxResultados a ${maxResultados} para esta fuente.`);
+
     // Informo ausencia de credenciales sin exponerlas; no pruebo conectividad.
     let credencialesDisponibles = true;
     if (id === 'adzuna') {
@@ -122,9 +226,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         credencialesDisponibles = false;
         advertencias.push('Apify no tiene token configurado.');
     }
-    const terminosUtiles = !usaTerminos || (terminos.length > 0 && (!filtros.palabras || filtros.palabras.length > 0));
-    const urlsUtiles = (id !== 'bumeran' || construirUrlsBumeran({ terminos }).length > 0)
-        && (id !== 'computrabajo' || terminos.every(termino => formatearTerminoComputrabajo(termino).length > 0));
+
     let motivoOmision;
     if (plataforma.activa && (!terminosUtiles || !urlsUtiles)) {
         const mensaje = `Necesito términos de búsqueda utilizables para ${plataforma.label}; no envío consultas vacías ni las sustituyo por defaults.`;
@@ -134,14 +236,23 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         if (terminos.length) motivoOmision = mensaje;
         advertencias.push(mensaje);
     }
+
     return {
         opciones: opcionesResueltas,
         resumen: {
-            plataforma: id, nombre: plataforma.label, habilitada: plataforma.activa,
+            plataforma: id,
+            nombre: plataforma.label,
+            habilitada: plataforma.activa,
             ejecutable: plataforma.activa && terminosUtiles && urlsUtiles && credencialesDisponibles,
             ...(motivoOmision ? { motivoOmision } : {}),
-            terminos: usaTerminos ? terminos : [], ubicacion, ventanaDias,
-            maxResultados: id === 'bumeran' ? null : maxResultados, filtros, advertencias,
+            terminos: usaTerminos ? terminos : [],
+            consultasEfectivas,
+            equivalenciasAplicadas,
+            ubicacion,
+            ventanaDias,
+            maxResultados: id === 'bumeran' ? null : maxResultados,
+            filtros,
+            advertencias,
             origen: { terminos: usaTerminos ? origenTerminos : 'fijo', ubicacion: origenUbicacion },
         },
     };
@@ -163,4 +274,10 @@ async function resolverConfiguraciones(opciones = {}, modo = {}) {
     return Object.fromEntries(Object.keys(PLATAFORMAS).map(id => [id, resolverConfiguracion(id, opciones, preferencias, modo)]));
 }
 
-module.exports = { validarOpciones, resolverConfiguracion, resolverConfiguraciones, leerPreferenciasBusqueda, palabrasBusqueda };
+module.exports = {
+    validarOpciones,
+    resolverConfiguracion,
+    resolverConfiguraciones,
+    leerPreferenciasBusqueda,
+    palabrasBusqueda,
+};

@@ -362,11 +362,10 @@ describe('Servicio de scraping', () => {
                 maxResultados: 20,
             });
 
-            // El término compuesto 'react developer' se fragmenta en palabras
-            // individuales unidas con OR para aumentar la cobertura.
+            // La frase 'react developer' se preserva como unidad entre comillas.
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    title: 'react OR developer',
+                    title: '"react developer"',
                     country: 'ar',
                     limit: 20,
                 })
@@ -384,12 +383,11 @@ describe('Servicio de scraping', () => {
                 terminos: ['react developer', 'angular developer'],
             });
 
-            // Los términos compuestos se fragmentan en palabras individuales
-            // y se deduplican antes de unirlas con OR.
+            // Las frases se preservan como unidades entre comillas unidas con OR.
             expect(mockCall).toHaveBeenCalledTimes(1);
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    title: 'react OR developer OR angular',
+                    title: '"react developer" OR "angular developer"',
                 })
             );
         });

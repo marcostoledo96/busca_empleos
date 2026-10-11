@@ -28,7 +28,14 @@ describe('Configuración común de búsquedas', () => {
         expect(() => resolverConfiguracion('linkedin', {}, { terminos_busqueda: null })).toThrow(/términos/i);
     });
 
-    test.each([null, [], 'texto', { terminos: null }, { terminos: 'QA' }, { terminos: [1] }, { terminos: [' '] }, { terminos: Array(101).fill('QA') }, { terminos: ['x'.repeat(201)] }, { maxResultados: 0 }, { maxResultados: -1 }, { maxResultados: 1.5 }, { maxResultados: '10' }, { maxResultados: 501 }, { ubicacion: [] }, { ubicacion: '' }, { terminosBusqueda: ['QA'] }, { ubicaciones: [] }, { terminos: ['QA'], terminos_busqueda: ['IT'] }])('rechazo opciones inválidas %j', (opciones) => {
+    test.each([
+        null, [], 'texto', { terminos: null }, { terminos: 'QA' }, { terminos: [1] }, { terminos: [' '] },
+        { terminos: Array(101).fill('QA') }, { terminos: ['x'.repeat(201)] },
+        { maxResultados: 0 }, { maxResultados: -1 }, { maxResultados: 1.5 }, { maxResultados: '10' }, { maxResultados: 501 },
+        { ubicacion: [] }, { ubicacion: '' }, { terminosBusqueda: ['QA'] }, { ubicaciones: [] },
+        { terminos: ['QA'], terminos_busqueda: ['IT'] },
+        { filtrarNivelLinkedin: 'no' }, { filtrar_nivel_linkedin: 1 },
+    ])('rechazo opciones inválidas %j', (opciones) => {
         expect(() => validarOpciones(opciones)).toThrow();
     });
 
@@ -41,12 +48,13 @@ describe('Configuración común de búsquedas', () => {
         expect(glassdoor.resumen.advertencias.join(' ')).toMatch(/zonas/i);
     });
 
-    test('preview solo consulta, informa filtros fijos y bloqueo, no inventa términos', async () => {
+    test('preview solo consulta, mapea objetivos en Remotive y RemoteOK sin inventar términos', async () => {
         const configuraciones = await resolverConfiguraciones({}, { previsualizacion: true });
         expect(pool.query).toHaveBeenCalledTimes(1);
         expect(pool.query.mock.calls[0][0]).toMatch(/^SELECT/);
-        expect(configuraciones.remotive.resumen).toMatchObject({ terminos: [], filtros: { categoria: 'software-dev' } });
-        expect(configuraciones.remoteok.resumen.filtros.tags).toContain('frontend');
+        // Para 'soporte IT', Remotive debe mapear a customer-service y RemoteOK a support
+        expect(configuraciones.remotive.resumen).toMatchObject({ filtros: { categoria: 'customer-service' } });
+        expect(configuraciones.remoteok.resumen.filtros.tags).toContain('support');
         for (const id of ['getonbrd', 'google_jobs', 'infojobs']) {
             expect(configuraciones[id].resumen.habilitada).toBe(false);
         }
@@ -74,25 +82,36 @@ describe('Configuración común de búsquedas', () => {
         expect(resumen.advertencias.join(' ')).toMatch(/umbral de acumulación.*no.*límite estricto.*superar 10/i);
     });
 
-    test.each(['QA', '###', 'C++'])('batch omite solamente incompatibilidad por fuente para %s sin reescribir términos', async (termino) => {
-        pool.query.mockResolvedValue({ rows: [{ terminos_busqueda: [termino] }] });
+    test('batch ejecuta compatibles para QA y C# sin omitir', async () => {
+        for (const termino of ['QA', 'C#']) {
+            pool.query.mockResolvedValue({ rows: [{ terminos_busqueda: [termino] }] });
+            const configuraciones = await resolverConfiguraciones({}, { omitirIncompatibles: true });
+            expect(configuraciones.linkedin.resumen.motivoOmision).toBeUndefined();
+            expect(configuraciones.computrabajo.resumen.motivoOmision).toBeUndefined();
+            for (const id of ['indeed', 'bumeran', 'jooble', 'adzuna']) {
+                expect(configuraciones[id].opciones.terminos).toEqual([termino]);
+                expect(configuraciones[id].resumen.motivoOmision).toBeUndefined();
+            }
+        }
+    });
+
+    test('batch omite solamente incompatibilidad por fuente para ### sin reescribir términos', async () => {
+        pool.query.mockResolvedValue({ rows: [{ terminos_busqueda: ['###'] }] });
         const configuraciones = await resolverConfiguraciones({}, { omitirIncompatibles: true });
-        expect(configuraciones.linkedin.opciones.terminos).toEqual([termino]);
+        expect(configuraciones.linkedin.opciones.terminos).toEqual(['###']);
         expect(configuraciones.linkedin.resumen.motivoOmision).toBeUndefined();
-        for (const id of ['indeed', 'bumeran', 'jooble', 'adzuna']) {
-            expect(configuraciones[id].opciones.terminos).toEqual([termino]);
+        for (const id of ['indeed', 'bumeran', 'jooble', 'adzuna', 'computrabajo']) {
             expect(configuraciones[id].resumen.motivoOmision).toMatch(/no.*defaults/i);
             expect(configuraciones[id].resumen.advertencias).toContain(configuraciones[id].resumen.motivoOmision);
             try {
-                resolverConfiguracion(id, { terminos: [termino] });
+                resolverConfiguracion(id, { terminos: ['###'] });
                 throw new Error('Esperaba incompatibilidad individual');
             } catch (error) {
                 expect(error).toMatchObject({ status: 400, codigo: 'consulta_incompatible_fuente' });
             }
         }
-        expect(configuraciones.computrabajo.resumen.motivoOmision === undefined).toBe(termino === 'QA' || termino === 'C++');
         expect(configuraciones.glassdoor.resumen.motivoOmision).toBeUndefined();
-        for (const id of ['remotive', 'remoteok', 'getonbrd', 'google_jobs', 'infojobs']) {
+        for (const id of ['getonbrd', 'google_jobs', 'infojobs']) {
             expect(configuraciones[id].resumen.motivoOmision).toBeUndefined();
         }
     });
@@ -120,8 +139,23 @@ describe('Configuración común de búsquedas', () => {
         pool.query.mockRejectedValue(new Error('sin conexión'));
         await expect(resolverConfiguraciones()).rejects.toMatchObject({ status: 503 });
     });
-});
 
+    test('LinkedIn permite activar y desactivar su filtro de nivel de experiencia', () => {
+        const { construirUrlsLinkedin } = require('../../src/config/apify');
+        const conFiltro = resolverConfiguracion('linkedin', { filtrarNivelLinkedin: true }, {});
+        expect(conFiltro.opciones.filtrarNivelLinkedin).toBe(true);
+        expect(conFiltro.resumen.filtros.nivelesExperiencia).toEqual(['internship', 'entry_level']);
+        const urlsConFiltro = construirUrlsLinkedin(conFiltro.opciones);
+        expect(urlsConFiltro.every(url => url.includes('f_E=1%2C2'))).toBe(true);
+
+        const sinFiltro = resolverConfiguracion('linkedin', { filtrarNivelLinkedin: false }, {});
+        expect(sinFiltro.opciones.filtrarNivelLinkedin).toBe(false);
+        expect(sinFiltro.resumen.filtros.nivelesExperiencia).toEqual([]);
+        expect(sinFiltro.resumen.advertencias.join(' ')).toMatch(/filtro de nivel.*desactivado/i);
+        const urlsSinFiltro = construirUrlsLinkedin(sinFiltro.opciones);
+        expect(urlsSinFiltro.some(url => url.includes('f_E='))).toBe(false);
+    });
+});
 
 test('LinkedIn aplica todas las zonas guardadas en URLs reales sin alterar filtros', () => {
     const { construirUrlsLinkedin } = require('../../src/config/apify');
