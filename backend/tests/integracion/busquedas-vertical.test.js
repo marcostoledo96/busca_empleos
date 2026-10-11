@@ -12,6 +12,29 @@ const { randomUUID } = require('node:crypto');
 const path = require('node:path');
 const { iniciarServidorVertical } = require('../helpers/servidor-busquedas-vertical');
 
+test('el adaptador reutiliza caché dentro del flujo y reinicia todos los datos entre escenarios', async () => {
+    const pool = require('../helpers/bd-busquedas-memoria').crearAdaptadorBusqueda({ vertical: true });
+    const identidad = ['oferta-sintetica', 'perfil-sintetico', 'modelo-sintetico'];
+    const consultarCache = () => pool.query('SELECT resultado FROM evaluaciones_cache', identidad);
+    await pool.query('INSERT INTO evaluaciones_cache', [...identidad, JSON.stringify({ escenario: 'primero' })]);
+    for (let intento = 0; intento < 2; intento++) {
+        expect((await consultarCache()).rows).toEqual([{ resultado: { escenario: 'primero' } }]);
+    }
+    pool.ofertas.push({ id: 1 });
+    pool.lotes.push({ id: 1 });
+    pool.obtenerPreferencias().terminos_busqueda = ['QA'];
+    await expect(pool.query('consulta sintética desconocida')).rejects.toThrow(/no contemplada/);
+    pool.reiniciar();
+    expect(pool.query).not.toHaveBeenCalled();
+    expect(pool.ofertas).toEqual([]);
+    expect(pool.lotes).toEqual([]);
+    expect(pool.consultasNoContempladas).toEqual([]);
+    expect(pool.obtenerPreferencias()).toEqual({ id: 1, terminos_busqueda: ['anterior'], zonas_preferidas: [] });
+    expect((await consultarCache()).rows).toEqual([]);
+    await pool.query('INSERT INTO evaluaciones_cache', [...identidad, JSON.stringify({ escenario: 'segundo' })]);
+    expect((await consultarCache()).rows).toEqual([{ resultado: { escenario: 'segundo' } }]);
+});
+
 // La suite habitual informa SKIPPED y no importa app ni levanta Chrome/puertos.
 const suite = process.env.BUSQUEDAS_VERTICAL === '1' ? describe : describe.skip;
 suite('Puente opt-in Angular → Express → persistencia → dashboard', () => {
@@ -68,9 +91,7 @@ suite('Puente opt-in Angular → Express → persistencia → dashboard', () => 
                 reiniciar: async () => {
                     expect(automatizacion.cicloEnProgreso()).toBe(false);
                     automatizacion._resetearEstado();
-                    pool.ofertas.length = 0;
-                    pool.lotes.length = 0;
-                    pool.consultasNoContempladas.length = 0;
+                    pool.reiniciar();
                     Object.assign(pool.obtenerPreferencias(), { terminos_busqueda: ['anterior'], zonas_preferidas: [], reglas_exclusion: [], modalidad_aceptada: 'cualquiera' });
                     for (const lista of Object.values(observaciones)) lista.length = 0;
                     const existente = await modeloOferta.crearOferta({ titulo: 'Soporte existente', empresa: 'Sintética', ubicacion: 'CABA', modalidad: 'remoto', descripcion, url: 'https://linkedin.test/existente', plataforma: 'linkedin' });
@@ -94,7 +115,7 @@ suite('Puente opt-in Angular → Express → persistencia → dashboard', () => 
             salir = setTimeout(() => { if (hijo.exitCode === null) process.kill(-hijo.pid, 'SIGTERM'); }, 150000);
             const resultado = await salida;
             expect(resultado).toEqual({ codigo: 0, signal: null });
-            expect(completados.sort()).toEqual(['ciclo', 'individual']);
+            expect(completados.sort()).toEqual(['ciclo', 'individual', 'qa']);
             expect(pool.consultasNoContempladas).toEqual([]);
             expect(observaciones.redNoContemplada).toEqual([]);
             expect(require('node-cron').schedule).not.toHaveBeenCalled();

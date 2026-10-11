@@ -10,7 +10,7 @@ import { PreferenciasService } from '../../servicios/preferencias.service';
 import { PersistenciaDashboardService } from '../../servicios/persistencia-dashboard.service';
 import { environment } from '../../../environments/environment';
 
-// El harness pasa un nonce por --define; la suite habitual informa dos SKIPPED.
+// El harness pasa un nonce por --define; la suite habitual informa tres SKIPPED.
 declare const BUSQUEDAS_VERTICAL: string;
 const nonce = typeof BUSQUEDAS_VERTICAL === 'undefined' ? null : BUSQUEDAS_VERTICAL;
 const suite = nonce ? describe : xdescribe;
@@ -105,6 +105,40 @@ suite('Búsquedas verticales opt-in — Chrome/HttpClient/Express/IndexedDB', ()
         else localStorage.setItem('busca-empleos.dashboard.cache', cacheOriginal);
         if (configurado) await TestBed.inject(PersistenciaDashboardService).limpiarSincronizacion();
     });
+
+    it('QA guardado → ciclo parcial real → omisiones explícitas → ofertas y refresco final', async () => {
+        const dashboard = fixture!.componentInstance;
+        const elemento = fixture!.debugElement.query(By.directive(PanelControl));
+        const panel = elemento.componentInstance as PanelControl;
+        const evento = spyOn(panel.accionCompletada, 'emit').and.callThrough();
+        await firstValueFrom(TestBed.inject(PreferenciasService).actualizarPreferencias({ terminos_busqueda: ['QA'] }));
+        pulsar('Ejecutar ciclo completo de scraping y evaluación');
+        await esperar(async () => (await observar()).actores.some(a => a.entrada.urls?.some(url => url.includes('keywords=QA')) === true));
+        expect(evento).not.toHaveBeenCalled();
+        expect(panel.previsualizacion().find(p => p.plataforma === 'indeed')!.ejecutable).toBeFalse();
+        await firstValueFrom(http.post(`${control}/liberar`, {}));
+        await esperar(() => evento.calls.count() === 1 && dashboard.ofertas().length === 2 && !dashboard.sincronizando());
+        const omitidas = panel.configuracionCiclo().filter(p => p.motivoOmision);
+        expect(omitidas.map(p => p.plataforma).sort()).toEqual(['adzuna', 'bumeran', 'indeed', 'jooble']);
+        expect(omitidas.every(p => p.terminos.join() === 'QA' && p.advertencias.includes(p.motivoOmision!))).toBeTrue();
+        const estado = await firstValueFrom(http.get<{ datos: { ultimoResultado: { omisiones: unknown[]; errores: string[] } } }>(`${base}/api/automatizacion/estado`));
+        expect(estado.datos.ultimoResultado.omisiones.length).toBe(4);
+        expect(estado.datos.ultimoResultado.errores).toEqual([]);
+        const evidencia = await observar();
+        expect(evidencia.actores.length).toBe(2); // LinkedIn y Glassdoor; sin Indeed ni Bumeran.
+        expect(evidencia.actores[0].entrada.urls?.map(url => new URL(url).searchParams.get('keywords'))).toEqual(['QA']);
+        expect(evidencia.requestsExternas.some(url => /jooble|adzuna/.test(url))).toBeFalse();
+        expect(evidencia.requestsExternas).toContain('https://www.computrabajo.com.ar/trabajo-de-qa');
+        expect(evidencia.redNoContemplada).toEqual([]);
+        expect(evidencia.sqlNoContemplado).toEqual([]);
+        expect(evidencia.cronActivo).toBeFalse();
+        expect(evidencia.http.some(r => r.ruta === '/api/automatizacion/ejecutar' && r.estado === 202)).toBeTrue();
+        expect(evidencia.ofertas[1].estado_evaluacion).toBe('aprobada');
+        expect(fixture!.nativeElement.textContent).toContain('Omitida');
+        expect(fixture!.nativeElement.textContent).toContain('Soporte vertical nuevo');
+        expect(fixture!.nativeElement.querySelector('[aria-labelledby="stat-label-total"]').textContent.trim()).toBe('2');
+        await firstValueFrom(http.post(`${control}/completado`, { flujo: 'qa' }));
+    }, 45000);
 
     for (const ciclo of [false, true]) {
         it(`guardo preferencias → ${ciclo ? 'ciclo 202/poll/evaluación' : 'individual'} → oferta persistida → evento → DOM/conteos`, async () => {

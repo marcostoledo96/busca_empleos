@@ -74,6 +74,48 @@ describe('Configuración común de búsquedas', () => {
         expect(resumen.advertencias.join(' ')).toMatch(/umbral de acumulación.*no.*límite estricto.*superar 10/i);
     });
 
+    test.each(['QA', '###', 'C++'])('batch omite solamente incompatibilidad por fuente para %s sin reescribir términos', async (termino) => {
+        pool.query.mockResolvedValue({ rows: [{ terminos_busqueda: [termino] }] });
+        const configuraciones = await resolverConfiguraciones({}, { omitirIncompatibles: true });
+        expect(configuraciones.linkedin.opciones.terminos).toEqual([termino]);
+        expect(configuraciones.linkedin.resumen.motivoOmision).toBeUndefined();
+        for (const id of ['indeed', 'bumeran', 'jooble', 'adzuna']) {
+            expect(configuraciones[id].opciones.terminos).toEqual([termino]);
+            expect(configuraciones[id].resumen.motivoOmision).toMatch(/no.*defaults/i);
+            expect(configuraciones[id].resumen.advertencias).toContain(configuraciones[id].resumen.motivoOmision);
+            try {
+                resolverConfiguracion(id, { terminos: [termino] });
+                throw new Error('Esperaba incompatibilidad individual');
+            } catch (error) {
+                expect(error).toMatchObject({ status: 400, codigo: 'consulta_incompatible_fuente' });
+            }
+        }
+        expect(configuraciones.computrabajo.resumen.motivoOmision === undefined).toBe(termino === 'QA' || termino === 'C++');
+        expect(configuraciones.glassdoor.resumen.motivoOmision).toBeUndefined();
+        for (const id of ['remotive', 'remoteok', 'getonbrd', 'google_jobs', 'infojobs']) {
+            expect(configuraciones[id].resumen.motivoOmision).toBeUndefined();
+        }
+    });
+
+    test.each([[], null, 3, [' '], Array(101).fill('QA')].map(guardados => ({ guardados })))('batch no convierte global inválido %j en omisiones', async ({ guardados }) => {
+        pool.query.mockResolvedValue({ rows: [{ terminos_busqueda: guardados }] });
+        await expect(resolverConfiguraciones({}, { omitirIncompatibles: true })).rejects.toMatchObject({ status: 400 });
+    });
+
+    test('credenciales ausentes no son incompatibilidad de consulta', () => {
+        const original = process.env.JOOBLE_API_KEY;
+        delete process.env.JOOBLE_API_KEY;
+        try {
+            const { resumen } = resolverConfiguracion('jooble', { terminos: ['soporte'] }, {}, { omitirIncompatibles: true });
+            expect(resumen.ejecutable).toBe(false);
+            expect(resumen.motivoOmision).toBeUndefined();
+            expect(resumen.advertencias.join(' ')).toMatch(/API key/);
+        } finally {
+            if (original === undefined) delete process.env.JOOBLE_API_KEY;
+            else process.env.JOOBLE_API_KEY = original;
+        }
+    });
+
     test('falla de lectura no habilita defaults silenciosos', async () => {
         pool.query.mockRejectedValue(new Error('sin conexión'));
         await expect(resolverConfiguraciones()).rejects.toMatchObject({ status: 503 });

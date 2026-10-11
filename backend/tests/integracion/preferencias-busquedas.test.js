@@ -101,6 +101,67 @@ test('PUT → ciclo HTTP → persistencia → GET y status con configuración ej
     expect(JSON.stringify(listado.body)).toContain('Soporte técnico');
 });
 
+test('QA guardado ejecuta compatibles y omite únicamente consultas incompatibles en HTTP y cron', async () => {
+    simularOtrasFuentes();
+    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['QA'] })).status).toBe(200);
+    expect((await pedir('post', '/api/scraping/indeed').send({})).status).toBe(400);
+    expect(scraping.ejecutarScrapingIndeed).not.toHaveBeenCalled();
+    expect((await pedir('post', '/api/scraping/linkedin').send({})).status).toBe(200);
+    pool.ofertas.length = 0;
+    pool.query.mockClear();
+    const respuesta = await pedir('post', '/api/automatizacion/ejecutar').send({});
+    expect(respuesta.status).toBe(202);
+    await esperarCiclo();
+    const estado = (await pedir('get', '/api/automatizacion/estado')).body.datos;
+    const progreso = automatizacion.obtenerProgreso();
+    expect(pool.ofertas).toHaveLength(1);
+    expect(progreso).toMatchObject({ activo: false, porcentaje: 100 });
+    for (const id of ['indeed', 'jooble', 'adzuna', 'bumeran']) {
+        const funcion = compatibles.find(([fuente]) => fuente === id)[1];
+        expect(scraping[funcion]).not.toHaveBeenCalled();
+        expect(progreso.pasos.find(p => p.nombre === id)).toMatchObject({ estado: 'omitida', motivo: expect.any(String), extraidas: 0 });
+        expect(estado.ultimoResultado.omisiones).toContainEqual({ plataforma: id, motivo: expect.any(String) });
+        expect(estado.ultimoResultado.configuracion.find(p => p.plataforma === id)).toMatchObject({ motivoOmision: expect.any(String), advertencias: expect.arrayContaining([expect.any(String)]) });
+    }
+    for (const funcion of ['ejecutarScrapingComputrabajo', 'ejecutarScrapingGlassdoor']) {
+        expect(scraping[funcion]).toHaveBeenCalledWith(expect.objectContaining({ terminos: ['QA'] }));
+    }
+    expect(clienteApify.actor().call.mock.calls.at(-1)[0].urls[0]).toContain('keywords=QA');
+    expect(pool.query.mock.calls.some(([sql]) => /^UPDATE preferencias/i.test(sql))).toBe(false);
+    expect(pool.obtenerPreferencias().terminos_busqueda).toEqual(['QA']);
+    automatizacion.programarCron();
+    await cron.schedule.mock.calls.at(-1)[1]();
+    expect(scraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(2);
+    expect(scraping.ejecutarScrapingIndeed).not.toHaveBeenCalled();
+    expect(automatizacion.obtenerEstado().ultimoResultado.omisiones).toHaveLength(4);
+    automatizacion.detenerCron();
+});
+
+test('vacío global no se convierte en omisiones ni ejecuta filtros fijos', async () => {
+    await guardarPreferencias();
+    const preferenciasGuardadas = structuredClone(pool.obtenerPreferencias());
+    simularOtrasFuentes();
+    jest.spyOn(scraping, 'ejecutarScrapingLinkedin').mockResolvedValue([]);
+    for (const opciones of [{ terminos: [] }, { terminos: ['QA'], terminos_busqueda: ['QA'] }, { terminos: [3] }]) {
+        expect((await pedir('post', '/api/automatizacion/ejecutar').send(opciones)).status).toBe(400);
+    }
+    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: [] })).status).toBe(400);
+    expect(pool.obtenerPreferencias()).toEqual(preferenciasGuardadas);
+    // Simulo una fila legada inválida sin relajar la validación del PUT.
+    pool.obtenerPreferencias().terminos_busqueda = [];
+    try {
+        expect((await pedir('post', '/api/automatizacion/ejecutar').send({})).status).toBe(400);
+    } finally {
+        pool.obtenerPreferencias().terminos_busqueda = preferenciasGuardadas.terminos_busqueda;
+    }
+    expect(automatizacion.cicloEnProgreso()).toBe(false);
+    for (const [, funcion] of compatibles) expect(scraping[funcion]).not.toHaveBeenCalled();
+    expect(scraping.ejecutarScrapingRemotive).not.toHaveBeenCalled();
+    expect(scraping.ejecutarScrapingRemoteOK).not.toHaveBeenCalled();
+    expect(clienteApify.actor).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
+});
+
 test('inválidos y vacío controlados antes de llamadas y antes del 202', async () => {
     await guardarPreferencias();
     for (const opciones of [{ terminos: [] }, { terminos: 10 }, { maxResultados: -1 }, { maxResultados: 'abc' }]) {

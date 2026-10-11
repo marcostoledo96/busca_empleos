@@ -49,7 +49,7 @@ function palabrasBusqueda(terminos) {
     return [...new Set(terminos.flatMap(termino => termino.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim().split(/\s+/).filter(palabra => palabra.length >= 3)))];
 }
 
-function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { previsualizacion = false } = {}) {
+function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { previsualizacion = false, omitirIncompatibles = false } = {}) {
     const id = normalizarIdPlataforma(idOSlug);
     if (!id) throw errorConfiguracion('La plataforma solicitada no existe.');
     const plataforma = PLATAFORMAS[id];
@@ -59,6 +59,9 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     const guardados = preferencias.terminos_busqueda;
     const origenTerminos = explicitos !== undefined ? 'ejecucion' : guardados !== undefined ? 'preferencias' : 'defecto';
     const terminos = validarLista(explicitos !== undefined ? explicitos : guardados !== undefined ? guardados : TERMINOS_BUSQUEDA_DEFECTO, 'Los términos');
+    if (!terminos.length && !previsualizacion) {
+        throw errorConfiguracion('Necesito términos de búsqueda no vacíos; no los sustituyo por defaults.');
+    }
     const usaTerminos = FUENTES_TERMINOS.has(id);
     const advertencias = [];
     const defectoMax = ['linkedin', 'indeed'].includes(id) ? 100 : 50;
@@ -122,9 +125,13 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     const terminosUtiles = !usaTerminos || (terminos.length > 0 && (!filtros.palabras || filtros.palabras.length > 0));
     const urlsUtiles = (id !== 'bumeran' || construirUrlsBumeran({ terminos }).length > 0)
         && (id !== 'computrabajo' || terminos.every(termino => formatearTerminoComputrabajo(termino).length > 0));
+    let motivoOmision;
     if (plataforma.activa && (!terminosUtiles || !urlsUtiles)) {
         const mensaje = `Necesito términos de búsqueda utilizables para ${plataforma.label}; no envío consultas vacías ni las sustituyo por defaults.`;
-        if (!previsualizacion) throw errorConfiguracion(mensaje);
+        if (!previsualizacion && !omitirIncompatibles) {
+            throw Object.assign(errorConfiguracion(mensaje), { codigo: 'consulta_incompatible_fuente' });
+        }
+        if (terminos.length) motivoOmision = mensaje;
         advertencias.push(mensaje);
     }
     return {
@@ -132,6 +139,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         resumen: {
             plataforma: id, nombre: plataforma.label, habilitada: plataforma.activa,
             ejecutable: plataforma.activa && terminosUtiles && urlsUtiles && credencialesDisponibles,
+            ...(motivoOmision ? { motivoOmision } : {}),
             terminos: usaTerminos ? terminos : [], ubicacion, ventanaDias,
             maxResultados: id === 'bumeran' ? null : maxResultados, filtros, advertencias,
             origen: { terminos: usaTerminos ? origenTerminos : 'fijo', ubicacion: origenUbicacion },

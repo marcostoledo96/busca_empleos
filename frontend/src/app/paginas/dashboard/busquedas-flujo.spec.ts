@@ -191,6 +191,48 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
         expect(fixture.componentInstance.sincronizando()).toBeFalse();
     }));
 
+    it('QA parcial muestra omisiones sin éxito falso y refresca el dashboard al finalizar', fakeAsync(() => {
+        iniciar();
+        const elemento = fixture.debugElement.query(By.directive(PanelControl));
+        const panel = elemento.componentInstance as PanelControl;
+        const mensajes = spyOn(elemento.injector.get(MessageService), 'add');
+        const evento = spyOn(panel.accionCompletada, 'emit').and.callThrough();
+        const motivo = 'Necesito términos utilizables para Indeed; no los sustituyo por defaults.';
+        const configuracion = [
+            { ...resumen, terminos: ['QA'] },
+            { ...resumen, plataforma: 'indeed', nombre: 'Indeed', terminos: ['QA'], ejecutable: false,
+                motivoOmision: motivo, advertencias: [motivo] },
+        ];
+        fixture.nativeElement.querySelector('button[aria-label="Ejecutar ciclo completo de scraping y evaluación"]').click();
+        http.expectOne(`${base}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: configuracion } });
+        http.expectOne(`${base}/automatizacion/ejecutar`).flush({ exito: true, datos: { configuracion } }, { status: 202, statusText: 'Accepted' });
+        tick(2500);
+        http.expectOne(`${base}/automatizacion/progreso`).flush({ exito: true, datos: {
+            activo: false, porcentaje: 100, configuracion,
+            pasos: [
+                { nombre: 'linkedin', label: 'LinkedIn', estado: 'completada', extraidas: 1 },
+                { nombre: 'indeed', label: 'Indeed', estado: 'omitida', extraidas: 0, motivo },
+            ],
+        } });
+        fixture.detectChanges();
+        const omitida = fixture.nativeElement.querySelector('[data-estado="omitida"]');
+        expect(omitida.textContent).toContain('Omitida');
+        expect(omitida.textContent).toContain(motivo);
+        expect(omitida.textContent).not.toContain('check_circle');
+        tick(1200);
+        flushMicrotasks();
+        bloque([oferta(1)]);
+        expect(evento).toHaveBeenCalledTimes(1);
+        expect(mensajes).toHaveBeenCalledWith(jasmine.objectContaining({
+            severity: 'warn', summary: 'Ciclo con omisiones', detail: jasmine.stringMatching('Indeed'),
+        }));
+        expect(mensajes).not.toHaveBeenCalledWith(jasmine.objectContaining({ summary: 'Ciclo completo' }));
+        expect(fixture.nativeElement.textContent).toContain('Soporte nuevo 1');
+        expect(fixture.nativeElement.querySelector('[aria-labelledby="stat-label-total"]').textContent.trim()).toBe('1');
+        expect(fixture.nativeElement.textContent).toContain('Omitida');
+        tick(6000);
+    }));
+
     it('el ciclo aceptado conserva su snapshot y al terminar refresca ofertas y conteos', fakeAsync(() => {
         iniciar();
         fixture.nativeElement.querySelector('button[aria-label="Ejecutar ciclo completo de scraping y evaluación"]').click();

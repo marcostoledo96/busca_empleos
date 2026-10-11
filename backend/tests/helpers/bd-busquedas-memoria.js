@@ -11,6 +11,14 @@ function crearAdaptadorBusqueda({ vertical = false } = {}) {
         consultasNoContempladas,
         connect: async () => ({ query: adaptador.query, release: jest.fn() }),
         obtenerPreferencias: () => preferencias,
+        reiniciar: () => {
+            preferencias = { id: 1, terminos_busqueda: ['anterior'], zonas_preferidas: [] };
+            ofertas.length = 0;
+            lotes.length = 0;
+            cache.clear();
+            consultasNoContempladas.length = 0;
+            adaptador.query.mockClear();
+        },
         query: jest.fn(async (sql, valores = []) => {
             if (vertical) {
                 if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };

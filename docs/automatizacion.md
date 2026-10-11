@@ -5,9 +5,19 @@
 Reservo el ciclo antes de leer preferencias para impedir aceptaciones simultáneas.
 Resuelvo todas las configuraciones antes de invocar la primera fuente; el ciclo
 manual acepta los mismos overrides que un individual, sin guardarlos. Una lectura
-fallida devuelve 503 antes del 202 y libera la reserva; términos vacíos/inválidos
-para fuentes compatibles devuelven 400 sin calls. Después de la preparación,
-conservo extracción/evaluación asincrónicas, pasos, contadores y errores parciales.
+fallida devuelve 503 antes del 202 y libera la reserva; términos globales vacíos,
+tipos/aliases/límites inválidos devuelven 400 sin invocar ninguna fuente, incluidas
+las de filtros fijos. Después de la preparación, conservo extracción/evaluación
+asincrónicas, pasos, contadores y errores parciales.
+
+Distingo una consulta incompatible con una fuente de un error global. Por ejemplo,
+`['QA']` se ejecuta sin cambios en LinkedIn/Computrabajo/Glassdoor, pero la
+transformación existente de Indeed/Jooble/Adzuna/Bumeran no produce palabras
+utilizables. Omisión sólo para esas fuentes: snapshot con `motivoOmision` y
+advertencia, paso `omitida` con `motivo` y cero extraídas, resultado final con
+`omisiones: [{ plataforma, motivo }]` separado de errores. El progreso contabiliza
+el paso omitido como terminal, no como éxito del proveedor. No sustituyo términos,
+no escribo preferencias ni uso falta de credenciales como incompatibilidad.
 
 El 202 y el polling `/api/automatizacion/progreso` incluyen `datos.configuracion`;
 el estado final la conserva en `datos.ultimoResultado.configuracion`. Es el snapshot
@@ -76,6 +86,7 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
 
 ```
  1. Para cada plataforma activa (PLATAFORMAS_ACTIVAS):
+    ├─ Consulta incompatible → registrar motivo/omisión, NO invocar scraper
     ├─ Buscar SCRAPERS[id] → invocar scraper
     ├─ Si retorna { deshabilitado: true } → registrar 0, sin error
     ├─ Éxito → acumular ofertas normalizadas

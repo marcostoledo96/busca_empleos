@@ -15,6 +15,13 @@ Distingo configuración guardada actual, última búsqueda individual
 (`datos.configuracion`) y snapshot del ciclo aceptado/progreso/último resultado.
 Actualizar el preview no reemplaza el snapshot ejecutado. La disponibilidad sólo
 representa lo informado por el backend, no certifica conectividad del proveedor.
+Para un individual bloqueo una fuente no disponible; en el ciclo no bloqueo las
+compatibles por otra fuente incompatible. El snapshot indica `Omitida` cuando
+incluye `motivoOmision`; el overlay muestra el paso `omitida` y su motivo sin
+ícono de éxito. Al finalizar, las omisiones producen aviso `Ciclo con omisiones`
+(warn), no `Ciclo completo`; los errores conservan prioridad y también informo
+omisiones si existen. El cierre parcial emite igualmente `accionCompletada` para
+refrescar las ofertas de las fuentes ejecutadas, sin defaults ni overrides.
 
 La finalización del panel reutiliza `accionCompletada → cargarDatos`. Si ya estoy
 sincronizando o refrescando por polling, agrupo los eventos en una única recarga
@@ -38,15 +45,18 @@ Ejecuto `cd backend && npm run test:vertical` para unir ChromeHeadless y
 El harness espera el evento de escucha, verifica un nonce antes de usar la API y
 lanza únicamente `busquedas-vertical.spec.ts` mediante Karma. Un puerto ocupado
 falla sin terminar procesos ajenos; el `finally` espera al hijo/ciclo y cierra el servidor.
-La suite habitual informa dos pruebas Angular **SKIPPED** y una Jest **SKIPPED**;
-no interpreta ausencia del puente como éxito. El comando opt-in exige ambos flujos completados.
+La suite habitual informa tres pruebas Angular **SKIPPED** y una Jest **SKIPPED**;
+no interpreta ausencia del puente como éxito. El comando opt-in exige los flujos
+individual, ciclo y ciclo parcial QA completados.
 
 Compruebo PUT de preferencias, botones reales individuales/ciclo, snapshot ejecutado
 distinto del preview tras otro PUT, fuente simulada, persistencia, evento de finalización,
 DOM/conteos y conservación de filtro/postulación anterior. Uso el servicio IndexedDB
 real y leo sus ofertas desde una instancia nueva; el fallback de memoria no alcanza.
 El ciclo cruza aceptación 202, polling y evaluación real con respuesta externa de
-DeepSeek sintética. Restauro `environment.urlApi` después de cada prueba.
+DeepSeek sintética. El flujo adicional guarda `['QA']`, exige 202 y omisiones
+explícitas sin llamadas a Indeed/Bumeran/Jooble/Adzuna, y comprueba oferta evaluada,
+evento final y conteos visibles. Restauro `environment.urlApi` después de cada prueba.
 Los límites del adaptador SQL y proveedores simulados están en [Scraping](scraping.md#evidencia-vertical-sin-proveedores-reales).
 
 ## CV base editable — issue #12

@@ -39,7 +39,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly gruposResumen = computed(() => [
         { titulo: 'Configuración guardada actual', resumenes: this.previsualizacion() },
         { titulo: 'Configuración de la última búsqueda individual', resumenes: this.configuracionIndividual() ? [this.configuracionIndividual()!] : [] },
-        { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo() },
+        { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo(), esCiclo: true },
     ]);
 
     actualizarPrevisualizacion(continuar?: () => void): void {
@@ -275,16 +275,19 @@ export class PanelControl implements OnInit, OnDestroy {
                             // Aseguro que el overlay muestre 100% antes de cerrar.
                             this.progresoCiclo.set({ ...respuesta.datos, porcentaje: 100, activo: false });
                             const fallo = respuesta.datos.pasos.some(paso => paso.estado === 'error');
+                            const omitidas = respuesta.datos.pasos.filter(paso => paso.estado === 'omitida');
+                            const detalleOmisiones = omitidas.map(paso => `${paso.label}: ${paso.motivo || 'Consulta incompatible con la fuente.'}`).join(' ');
                             setTimeout(() => {
                                 if (this.destruido) return;
                                 this.mostrarOverlayCiclo.set(false);
                                 this.progresoCiclo.set(null);
                                 this.mensajes.add({
-                                    severity: fallo ? 'error' : 'success',
-                                    summary: fallo ? 'Ciclo con errores' : 'Ciclo completo',
-                                    detail: fallo
+                                    severity: fallo ? 'error' : omitidas.length ? 'warn' : 'success',
+                                    summary: fallo ? 'Ciclo con errores' : omitidas.length ? 'Ciclo con omisiones' : 'Ciclo completo',
+                                    detail: (fallo
                                         ? 'El ciclo terminó con errores. Conservo los resultados parciales en el resumen del ciclo.'
-                                        : 'Scraping y evaluación finalizados.',
+                                        : omitidas.length ? 'Finalicé las fuentes compatibles y la evaluación.' : 'Scraping y evaluación finalizados.')
+                                        + (omitidas.length ? ` Fuentes omitidas: ${detalleOmisiones}` : ''),
                                     life: 5000
                                 });
                                 this.accionCompletada.emit();

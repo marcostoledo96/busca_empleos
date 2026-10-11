@@ -13,6 +13,7 @@ interface ResumenBusqueda {
     nombre: string;
     habilitada: boolean; // Estado del registry, no prueba de conectividad.
     ejecutable: boolean; // Configuración utilizable y credenciales presentes cuando corresponden.
+    motivoOmision?: string; // Consulta incompatible con esta fuente; no falta de credenciales.
     terminos: string[]; // Vacío para integraciones de filtros fijos o inactivas.
     ubicacion: string[];
     ventanaDias: number | null; // null: esta integración no aplica ventana.
@@ -32,7 +33,7 @@ También admito `ubicaciones` no vacío para LinkedIn, sin combinarlo con `ubica
 Rechazo campos desconocidos, tipos inválidos y términos vacíos/blancos con 400 antes
 de invocar proveedores. Admito hasta 100 textos de 200 caracteres y `maxResultados`
 entero de 1 a 500; Adzuna conserva su cap de 50. `[]` explícito o persistido no activa
-defaults: una fuente que requiere términos devuelve 400; preview conserva `[]`,
+defaults: rechazo la ejecución individual/ciclo con 400 antes de todos los proveedores, incluso los de filtros fijos; preview conserva `[]` para fuentes que requieren términos,
 `ejecutable: false` y una advertencia. Los overrides nunca actualizan preferencias.
 Defaults: LinkedIn/Indeed 100, las demás fuentes 50; Bumeran no consume ese límite.
 Valido también la consulta luego de la transformación existente: Computrabajo
@@ -59,6 +60,18 @@ expone la misma lista en `datos.configuracion`; `/api/automatizacion/estado` con
 la lista ejecutada en `datos.ultimoResultado.configuracion` al finalizar. No confundo
 preview actual con el snapshot de un ciclo anterior. Ante error de preparación,
 libero la reserva y no acepto ni ejecuto el ciclo.
+
+Si los términos globales son válidos pero una transformación existente deja una
+consulta inutilizable, el individual devuelve 400. Ciclo y cron omiten únicamente
+esa fuente: el resumen incluye `motivoOmision` y la misma advertencia; el paso del
+polling informa `estado: "omitida"`, `motivo` y `extraidas: 0`. El resultado final
+incluye `omisiones: [{ plataforma, motivo }]`, separado de `errores` y de los
+contadores. Completar el proceso no significa que todas las fuentes se ejecutaron.
+Con `['QA']`, LinkedIn/Computrabajo/Glassdoor reciben los mismos términos;
+Indeed/Jooble/Adzuna/Bumeran se omiten, sin defaults ni escritura de preferencias.
+No uso `ejecutable: false` como causa genérica de omisión: los controles vigentes
+de credenciales y fuentes deshabilitadas se mantienen. Tipos/aliases/límites
+inválidos y lectura fallida siguen abortando todo el ciclo antes del 202.
 
 Ejemplo parcial de preview, cuando hay credenciales configuradas:
 

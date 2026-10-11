@@ -45,11 +45,15 @@
                                 @switch (paso.estado) {
                                     @case ('completada') { <span class="material-symbols-outlined">check_circle</span> }
                                     @case ('error') { <span class="material-symbols-outlined">cancel</span> }
+                                    @case ('omitida') { <span class="material-symbols-outlined">skip_next</span> }
                                     @case ('procesando') { <span class="overlay-paso__spin">◌</span> }
                                     @default { <span class="material-symbols-outlined">radio_button_unchecked</span> }
                                 }
                             </span>
                             <span class="overlay-paso__label">{{ paso.label }}</span>
+                            @if (paso.estado === 'omitida') {
+                                <span>Omitida: {{ paso.motivo }}</span>
+                            }
                             @if (paso.estado === 'completada' && paso.extraidas > 0) {
                                 <span class="overlay-paso__extra">{{ paso.extraidas }}</span>
                             }
@@ -82,7 +86,7 @@
                 </button>
                 @if (cargandoPrevisualizacion()) { <p role="status">Consultando configuración guardada...</p> }
                 @if (errorPrevisualizacion(); as error) { <p role="alert">{{ error }}</p> }
-                <p>Consulto nuevamente antes de extraer. La ejecución informa su configuración aplicada; no uso cambios sin guardar.</p>
+                <p>Consulto nuevamente antes de extraer. La ejecución informa su configuración aplicada; no uso cambios sin guardar. En el ciclo omito solamente las fuentes con consultas incompatibles, sin sustituir términos por defaults.</p>
                 @for (grupo of gruposResumen(); track grupo.titulo) {
                     @if (grupo.resumenes.length) {
                         <details>
@@ -90,7 +94,7 @@
                             @for (resumen of grupo.resumenes; track resumen.plataforma) {
                                 <article>
                                     <strong>{{ resumen.nombre }}</strong>
-                                    — {{ !resumen.habilitada ? 'Deshabilitada' : resumen.ejecutable ? 'Disponible' : 'No disponible' }}
+                                    — {{ !resumen.habilitada ? 'Deshabilitada' : grupo.esCiclo && resumen.motivoOmision ? 'Omitida' : resumen.ejecutable ? 'Disponible' : 'No disponible' }}
                                     <p>Términos: {{ resumen.terminos.slice(0, 5).join(', ') || 'Sin términos aplicables' }}
                                         @if (resumen.terminos.length > 5) { (+{{ resumen.terminos.length - 5 }} más) }
                                         · Origen: {{ resumen.origen.terminos }}</p>

@@ -195,7 +195,7 @@ function obtenerProgreso() {
  * También recalcula el porcentaje total usando pesos dinámicos.
  *
  * @param {string} nombre - Nombre del paso (ej: 'linkedin').
- * @param {'pendiente'|'procesando'|'completada'|'error'} nuevoEstado - Nuevo estado.
+ * @param {'pendiente'|'procesando'|'completada'|'error'|'omitida'} nuevoEstado - Nuevo estado.
  * @param {number} [extraidas] - Ofertas extraídas (solo cuando se completa).
  */
 function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
@@ -207,7 +207,7 @@ function actualizarPasoPorgreso(nombre, nuevoEstado, extraidas) {
     // Calculo pesos dinámicos según la cantidad de plataformas activas.
     const pesos = armarPesosDinamicos();
     const completadas = progreso.pasos
-        .filter(p => p.estado === 'completada' || p.estado === 'error')
+        .filter(p => p.estado === 'completada' || p.estado === 'error' || p.estado === 'omitida')
         .reduce((acc, p) => acc + (pesos[p.nombre] || 0), 0);
     progreso.porcentaje = Math.min(Math.round(completadas), 100);
 }
@@ -219,7 +219,7 @@ async function prepararCiclo(opciones = {}) {
     }
     progreso = { activo: true, pasos: armarPasosProgreso(), porcentaje: 0, configuracion: [] };
     try {
-        const configuraciones = await resolverConfiguraciones(opciones);
+        const configuraciones = await resolverConfiguraciones(opciones, { omitirIncompatibles: true });
         progreso.configuracion = Object.values(configuraciones).map(configuracion => configuracion.resumen);
         return configuraciones;
     } catch (error) {
@@ -255,6 +255,7 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
         configuracion: Object.values(configuraciones).map(configuracion => configuracion.resumen),
         evaluacion: null,
         errores: [],
+        omisiones: [],
         erroresGuardado: 0,  // Contador de ofertas que fallaron al guardar en BD.
     };
 
@@ -264,6 +265,13 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
 
     for (const plataforma of PLATAFORMAS_ACTIVAS) {
         const { id, label } = plataforma;
+        const motivo = configuraciones[id].resumen.motivoOmision;
+        if (motivo) {
+            resultado.omisiones.push({ plataforma: id, motivo });
+            actualizarPasoPorgreso(id, 'omitida', 0);
+            progreso.pasos.find(paso => paso.nombre === id).motivo = motivo;
+            continue;
+        }
         actualizarPasoPorgreso(id, 'procesando');
 
         // Busco la función de scraping correspondiente.

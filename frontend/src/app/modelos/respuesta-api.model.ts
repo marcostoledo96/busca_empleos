@@ -44,6 +44,7 @@ export interface ResumenBusqueda {
     nombre: string;
     habilitada: boolean;
     ejecutable: boolean;
+    motivoOmision?: string;
     terminos: string[];
     ubicacion: string[];
     ventanaDias: number | null;
@@ -119,7 +120,8 @@ export interface RespuestaAutomatizacion {
 export interface PasoProgreso {
     nombre: string;
     label: string;
-    estado: 'pendiente' | 'procesando' | 'completada' | 'error';
+    estado: 'pendiente' | 'procesando' | 'completada' | 'error' | 'omitida';
+    motivo?: string;
     extraidas: number;
 }
 
