@@ -1,5 +1,27 @@
 # Automatización — Busca Empleos
 
+## Snapshot de búsquedas y cron (issue #13)
+
+Reservo el ciclo antes de leer preferencias para impedir aceptaciones simultáneas.
+Resuelvo todas las configuraciones antes de invocar la primera fuente; el ciclo
+manual acepta los mismos overrides que un individual, sin guardarlos. Una lectura
+fallida devuelve 503 antes del 202 y libera la reserva; términos vacíos/inválidos
+para fuentes compatibles devuelven 400 sin calls. Después de la preparación,
+conservo extracción/evaluación asincrónicas, pasos, contadores y errores parciales.
+
+El 202 y el polling `/api/automatizacion/progreso` incluyen `datos.configuracion`;
+el estado final la conserva en `datos.ultimoResultado.configuracion`. Es el snapshot
+usado, no una nueva lectura de preferencias al consultar estado. Preview muestra
+las preferencias actuales; puede diferir de un ciclo ya ejecutado.
+
+Cada callback cron llama el mismo ciclo y vuelve a leer preferencias actuales,
+sin reutilizar términos de una ejecución anterior. El arranque en `src/index.js`
+no programa cron automáticamente: estado inicial `activo: false`, `expresionCron: null`.
+`programarCron` conserva default `0 20 * * 2`, timezone
+`America/Argentina/Buenos_Aires`; una expresión autorizada sustituye ese default.
+Las pruebas capturan callbacks de node-cron simulado, sin tareas reales, llamadas
+pagas ni BD productiva. Este cambio no habilita cron ni modifica su configuración.
+
 ## Qué es y cómo funciona
 
 El servicio de automatización ejecuta un ciclo completo de scraping + evaluación periódicamente usando `node-cron`. Es como una alarma programada: "cada martes a las 20:00 (ART), ejecutá el ciclo completo". Al finalizar, envía un resumen por email si las variables SMTP están configuradas (soft-disable si faltan).

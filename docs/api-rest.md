@@ -1,5 +1,93 @@
 # API REST — Busca Empleos
 
+## Configuración efectiva de búsquedas (issue #13)
+
+Consulto `GET /api/scraping/previsualizacion` con autenticación Firebase. Devuelve
+HTTP 200, `{ exito: true, datos: { plataformas: ResumenBusqueda[] } }`, sin llamar
+proveedores, evaluar ofertas ni crear/actualizar preferencias. Representa lo guardado,
+no el formulario local. Una falla de lectura devuelve 503; no sustituyo por defaults.
+
+```typescript
+interface ResumenBusqueda {
+    plataforma: string; // ID canónico: google_jobs, no google-jobs.
+    nombre: string;
+    habilitada: boolean; // Estado del registry, no prueba de conectividad.
+    ejecutable: boolean; // Configuración utilizable y credenciales presentes cuando corresponden.
+    terminos: string[]; // Vacío para integraciones de filtros fijos o inactivas.
+    ubicacion: string[];
+    ventanaDias: number | null; // null: esta integración no aplica ventana.
+    maxResultados: number | null; // null: Bumeran no aplica límite configurable.
+    filtros: Record<string, unknown>;
+    advertencias: string[];
+    origen: {
+        terminos: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
+        ubicacion: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
+    };
+}
+```
+
+Los POST individuales y `POST /api/automatizacion/ejecutar` admiten un objeto opcional
+con `terminos` (alias `terminos_busqueda`, nunca ambos), `maxResultados` y `ubicacion`.
+También admito `ubicaciones` no vacío para LinkedIn, sin combinarlo con `ubicacion`.
+Rechazo campos desconocidos, tipos inválidos y términos vacíos/blancos con 400 antes
+de invocar proveedores. Admito hasta 100 textos de 200 caracteres y `maxResultados`
+entero de 1 a 500; Adzuna conserva su cap de 50. `[]` explícito o persistido no activa
+defaults: una fuente que requiere términos devuelve 400; preview conserva `[]`,
+`ejecutable: false` y una advertencia. Los overrides nunca actualizan preferencias.
+Defaults: LinkedIn/Indeed 100, las demás fuentes 50; Bumeran no consume ese límite.
+Valido también la consulta luego de la transformación existente: Computrabajo
+rechaza cualquier término que quede vacío al quitar signos (por ejemplo `###`),
+sin enviar una URL genérica. Las fuentes que fragmentan palabras conservan su
+rechazo cuando no queda ninguna palabra utilizable. No agrego reglas nuevas de matching.
+
+`maxResultados` no significa un techo estricto universal. En Jooble y RemoteOK
+conservo el umbral de acumulación existente: una página/lote completo puede
+superarlo. Preview y ejecución lo aclaran en el campo existente `advertencias`,
+sin cambiar el DTO ni recortar resultados. Ejemplo con valor 50:
+`"maxResultados es un umbral de acumulación, no un límite estricto: puedo superar 50 al incorporar una página o lote completo."`
+El frontend muestra ese texto tal cual; no etiqueta el valor como límite estricto
+ni interpreta capacidades por nombre. Bumeran sigue informando ausencia de límite
+configurable (`maxResultados: null`); los demás proveedores conservan sus parámetros/caps.
+
+Un POST individual activo agrega `datos.configuracion: ResumenBusqueda` y
+`datos.descartadas_por_idioma`, manteniendo contadores existentes. Adzuna sin
+credenciales también devuelve su configuración y advertencia existente.
+El ciclo valida y reserva antes del 202, sin esperar extracción/evaluación; conserva
+409 si otro ciclo está activo y 503 ante falla de lectura. El 202 agrega
+`datos.configuracion: ResumenBusqueda[]`. Polling de `/api/automatizacion/progreso`
+expone la misma lista en `datos.configuracion`; `/api/automatizacion/estado` conserva
+la lista ejecutada en `datos.ultimoResultado.configuracion` al finalizar. No confundo
+preview actual con el snapshot de un ciclo anterior. Ante error de preparación,
+libero la reserva y no acepto ni ejecuto el ciclo.
+
+Ejemplo parcial de preview, cuando hay credenciales configuradas:
+
+```json
+{
+    "exito": true,
+    "datos": {
+        "plataformas": [{
+            "plataforma": "linkedin",
+            "nombre": "LinkedIn",
+            "habilitada": true,
+            "ejecutable": true,
+            "terminos": ["soporte IT", "mesa de ayuda"],
+            "ubicacion": ["CABA", "GBA Oeste"],
+            "ventanaDias": 14,
+            "maxResultados": 100,
+            "filtros": { "nivelesExperiencia": ["internship", "entry_level"] },
+            "advertencias": [],
+            "origen": { "terminos": "preferencias", "ubicacion": "preferencias" }
+        }]
+    }
+}
+```
+
+La lista real incluye todas las plataformas del registry. Muestro los filtros y
+advertencias del backend sin deducir capacidades por nombre desde el frontend.
+GetOnBrd conserva su respuesta bloqueada; Google Jobs e InfoJobs conservan su
+respuesta inactiva y cero requests. No activo cron al consultar ni al ejecutar manualmente.
+
 ## CV base editable — documento fuente (issue #12)
 
 Uso GET y PUT `/api/preferencias/cv-base`, con la misma autenticación Firebase

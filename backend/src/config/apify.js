@@ -102,15 +102,15 @@ const FILTRO_FECHA_LINKEDIN = 'r1209600';
  */
 function construirUrlsLinkedin(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    const ubicacion = opciones.ubicacion || 'Argentina';
+    const ubicaciones = opciones.ubicaciones || [opciones.ubicacion || 'Argentina'];
 
-    return terminos.map(termino => {
+    return ubicaciones.flatMap(ubicacion => terminos.map(termino => {
         // Reemplazo espacios por + para la URL.
         const terminoEncoded = encodeURIComponent(termino).replace(/%20/g, '+');
         const ubicacionEncoded = encodeURIComponent(ubicacion).replace(/%20/g, '+');
 
         return `https://www.linkedin.com/jobs/search/?keywords=${terminoEncoded}&location=${ubicacionEncoded}&f_E=${NIVELES_EXPERIENCIA_LINKEDIN}&f_TPR=${FILTRO_FECHA_LINKEDIN}`;
-    });
+    }));
 }
 
 /**
@@ -125,18 +125,13 @@ function construirUrlsLinkedin(opciones = {}) {
  */
 function construirUrlsComputrabajo(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
+    return terminos.map(termino => `https://www.computrabajo.com.ar/trabajo-de-${formatearTerminoComputrabajo(termino)}`);
+}
 
-    return terminos.map(termino => {
-        // Elimino caracteres especiales (ej: "#" de "c#") que rompen la URL.
-        // El "#" es un fragment identifier en HTTP: el servidor recibe la URL
-        // cortada antes del "#", lo que genera una búsqueda inválida y Computrabajo
-        // devuelve resultados genéricos (no IT). Solo dejo letras, números,
-        // espacios y caracteres del español.
-        const terminoLimpio = termino.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/g, '').trim();
-        // Computrabajo usa guiones en vez de espacios en la URL.
-        const terminoFormateado = terminoLimpio.replace(/\s+/g, '-');
-        return `https://www.computrabajo.com.ar/trabajo-de-${terminoFormateado}`;
-    });
+function formatearTerminoComputrabajo(termino) {
+    // Elimino signos que rompen la URL y comparto esta limpieza con la validación.
+    // Conservo letras, números y caracteres del español; uso guiones entre palabras.
+    return termino.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/g, '').trim().replace(/\s+/g, '-');
 }
 
 /**
@@ -209,5 +204,6 @@ module.exports = {
     JOOBLE_API_KEY,
     construirUrlsLinkedin,
     construirUrlsComputrabajo,
+    formatearTerminoComputrabajo,
     construirUrlsBumeran,
 };

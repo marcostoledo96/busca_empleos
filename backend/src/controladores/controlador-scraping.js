@@ -12,22 +12,18 @@
 
 const servicioScraping = require('../servicios/servicio-scraping');
 const modeloOferta = require('../modelos/oferta');
-const { PLATAFORMAS, esPlataformaActiva } = require('../config/plataformas');
+const { PLATAFORMAS } = require('../config/plataformas');
+const { resolverConfiguracion, resolverConfiguraciones, leerPreferenciasBusqueda, validarOpciones } = require('../servicios/servicio-configuracion-busqueda');
+const { filtrarOfertasPorIdioma } = require('../servicios/servicio-ingreso-ofertas');
 
-// --- helpers ---
+async function resolverIndividual(plataforma, body = {}) {
+    validarOpciones(body);
+    return resolverConfiguracion(plataforma, body, await leerPreferenciasBusqueda());
+}
 
-/**
- * Normaliza el parametro maxResultados del body.
- *
- * @param {any} raw     - valor enviado por el cliente (ej: "-5", "abc", 20).
- * @param {number} def  - default si el valor no es parseable.
- * @param {number} cap  - limite maximo admitido.
- * @returns {number}    - numero entero entre 1 y cap.
- */
-function normalizarMaxResultados(raw, def, cap) {
-    const parsed = parseInt(raw, 10);
-    const conDefecto = Number.isNaN(parsed) ? def : parsed;
-    return Math.min(Math.max(conDefecto, 1), cap);
+async function previsualizarBusquedas(req, res) {
+    const configuraciones = await resolverConfiguraciones({}, { previsualizacion: true });
+    res.json({ exito: true, datos: { plataformas: Object.values(configuraciones).map(configuracion => configuracion.resumen) } });
 }
 
 /**
@@ -40,12 +36,7 @@ function normalizarMaxResultados(raw, def, cap) {
  * - ubicacion: ubicación personalizada (default: "Argentina")
  */
 async function scrapearLinkedin(req, res) {
-    const maxResultados = normalizarMaxResultados(req.body.maxResultados, 100, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-        ubicacion: req.body.ubicacion,
-    };
+    const { opciones, resumen } = await resolverIndividual('linkedin', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingLinkedin(opciones);
 
@@ -53,7 +44,8 @@ async function scrapearLinkedin(req, res) {
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -67,6 +59,8 @@ async function scrapearLinkedin(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -80,18 +74,15 @@ async function scrapearLinkedin(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearComputrabajo(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('computrabajo', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingComputrabajo(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -105,6 +96,8 @@ async function scrapearComputrabajo(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -118,18 +111,15 @@ async function scrapearComputrabajo(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearIndeed(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 100, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('indeed', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingIndeed(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -143,6 +133,8 @@ async function scrapearIndeed(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -155,16 +147,15 @@ async function scrapearIndeed(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearBumeran(req, res) {
-    const opciones = {
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('bumeran', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingBumeran(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -178,6 +169,8 @@ async function scrapearBumeran(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -191,18 +184,15 @@ async function scrapearBumeran(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGlassdoor(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('glassdoor', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGlassdoor(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -216,6 +206,8 @@ async function scrapearGlassdoor(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -255,18 +247,15 @@ async function scrapearGetonbrd(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearJooble(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('jooble', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingJooble(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -280,6 +269,8 @@ async function scrapearJooble(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -329,18 +320,15 @@ async function scrapearGoogleJobs(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearRemotive(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('remotive', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemotive(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -354,6 +342,8 @@ async function scrapearRemotive(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -371,18 +361,15 @@ async function scrapearRemotive(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearRemoteOK(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 500);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('remoteok', req.body);
 
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemoteOK(opciones);
 
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -396,6 +383,8 @@ async function scrapearRemoteOK(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
@@ -458,11 +447,7 @@ async function scrapearInfojobs(req, res) {
  * Atribución: la API de Adzuna requiere mostrar "Jobs by Adzuna" en el frontend.
  */
 async function scrapearAdzuna(req, res) {
-    const maxResultados = Math.min(parseInt(req.body.maxResultados, 10) || 50, 50);
-    const opciones = {
-        maxResultados,
-        terminos: req.body.terminos,
-    };
+    const { opciones, resumen } = await resolverIndividual('adzuna', req.body);
 
     const resultadoServicio = await servicioScraping.ejecutarScrapingAdzuna(opciones);
 
@@ -477,6 +462,7 @@ async function scrapearAdzuna(req, res) {
                 ofertas_duplicadas: 0,
                 total_extraidas: 0,
                 codigo_resultado: resultadoServicio.codigo_resultado,
+                configuracion: resumen,
                 advertencia: resultadoServicio.advertencia,
             },
         });
@@ -487,7 +473,8 @@ async function scrapearAdzuna(req, res) {
     let guardadas = 0;
     let duplicadas = 0;
 
-    for (const oferta of ofertasNormalizadas) {
+    const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
+    for (const oferta of ofertasParaGuardar) {
         const resultado = await modeloOferta.crearOferta(oferta);
         if (resultado) guardadas++;
         else duplicadas++;
@@ -501,8 +488,10 @@ async function scrapearAdzuna(req, res) {
             ofertas_nuevas: guardadas,
             ofertas_duplicadas: duplicadas,
             total_extraidas: ofertasNormalizadas.length,
+            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+            configuracion: resumen,
         },
     });
 }
 
-module.exports = { scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK, scrapearInfojobs, scrapearAdzuna };
+module.exports = { previsualizarBusquedas, scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK, scrapearInfojobs, scrapearAdzuna };
