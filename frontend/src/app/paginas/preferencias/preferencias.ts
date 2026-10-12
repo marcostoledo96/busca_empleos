@@ -20,6 +20,20 @@ import { MessageService } from 'primeng/api';
 
 type PreguntaImportacion = PreguntaPerfil;
 
+const EQUIVALENCIAS_SUGERIDAS_PREFERENCIAS: Record<string, string[]> = {
+    'qa manual': ['tester manual'],
+    'tester manual': ['qa manual'],
+    'soporte it': ['mesa de ayuda', 'help desk'],
+    'mesa de ayuda': ['soporte it', 'help desk'],
+    'help desk': ['soporte it', 'mesa de ayuda'],
+    'frontend angular': ['desarrollador angular'],
+    'desarrollador angular': ['frontend angular'],
+    'angular': ['frontend angular'],
+    'c#': ['c sharp', '.net'],
+    'c sharp': ['c#', '.net'],
+    '.net': ['c#', 'c sharp'],
+};
+
 @Component({
     selector: 'app-preferencias',
     imports: [
@@ -86,6 +100,7 @@ export class Preferencias implements OnInit {
     modeloIaImportacion: 'deepseek-v4-flash' | 'deepseek-v4-pro' = 'deepseek-v4-pro';
     priorizarOfertasIa = false;
     bonusMaximoPrioridadIa = 6;
+    filtrarNivelLinkedin = true;
     disponibilidad: 'full_time' | 'part_time' | 'freelance' | 'a_coordinar' = 'full_time';
     expectativaSalarialMin: number | null = null;
     expectativaSalarialMax: number | null = null;
@@ -385,6 +400,32 @@ export class Preferencias implements OnInit {
         ];
     }
 
+    get equivalenciasSugeridasDisponibles(): Array<{ terminoOrigen: string; sugerencia: string }> {
+        const resultado: Array<{ terminoOrigen: string; sugerencia: string }> = [];
+        const terminosActuales = (this.terminosBusqueda || []).map(t => t.trim().toLowerCase());
+        const vistos = new Set<string>();
+
+        for (const termino of this.terminosBusqueda || []) {
+            const normalizado = termino.trim().toLowerCase();
+            const sugerencias = EQUIVALENCIAS_SUGERIDAS_PREFERENCIAS[normalizado] || [];
+            for (const sug of sugerencias) {
+                const sugNorm = sug.toLowerCase();
+                if (!terminosActuales.includes(sugNorm) && !vistos.has(sugNorm)) {
+                    vistos.add(sugNorm);
+                    resultado.push({ terminoOrigen: termino, sugerencia: sug });
+                }
+            }
+        }
+        return resultado;
+    }
+
+    agregarTerminoSugerido(sugerencia: string): void {
+        const normalizada = sugerencia.trim().toLowerCase();
+        if (!this.terminosBusqueda.some(t => t.trim().toLowerCase() === normalizada)) {
+            this.terminosBusqueda = [...this.terminosBusqueda, sugerencia];
+        }
+    }
+
     ngOnInit(): void {
         if (this.demoService.esModoDemo()) {
             this.cargarPreferenciasMockup();
@@ -427,6 +468,7 @@ export class Preferencias implements OnInit {
         this.keywordsNegativas = ['java', 'cableado', 'soporte hardware'];
         this.plataformasPreferidas = ['linkedin', 'getonbrd'];
         this.plataformasExcluidas = [];
+        this.filtrarNivelLinkedin = true;
         this.tecnologiasDetalle = this.crearTecnologiasSugeridas();
         this.rolesObjetivoDetalle = this.crearRolesSugeridos();
         this.cargando.set(false);
@@ -474,6 +516,7 @@ export class Preferencias implements OnInit {
             modelo_ia: this.modeloIa,
             priorizar_ofertas_ia: this.priorizarOfertasIa,
             bonus_maximo_prioridad_ia: this.bonusMaximoPrioridadIa,
+            filtrar_nivel_linkedin: this.filtrarNivelLinkedin,
             tecnologias_detalle: this.tecnologiasDetalle as any,
             roles_objetivo_detalle: this.rolesObjetivoDetalle as any,
             // scoring_config eliminado en B1: ya no se envía al backend.
@@ -565,6 +608,7 @@ export class Preferencias implements OnInit {
         this.modeloIaImportacion = prefs.modelo_ia_importacion ?? 'deepseek-v4-pro';
         this.priorizarOfertasIa = prefs.priorizar_ofertas_ia ?? false;
         this.bonusMaximoPrioridadIa = prefs.bonus_maximo_prioridad_ia ?? 6;
+        this.filtrarNivelLinkedin = prefs.filtrar_nivel_linkedin !== false;
         this.disponibilidad = prefs.disponibilidad ?? 'full_time';
         this.expectativaSalarialMin = prefs.expectativa_salarial_min ?? null;
         this.expectativaSalarialMax = prefs.expectativa_salarial_max ?? null;

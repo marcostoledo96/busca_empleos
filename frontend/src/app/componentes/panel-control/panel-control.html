@@ -102,6 +102,15 @@
                                         Ventana: {{ resumen.ventanaDias === null ? 'No aplica' : resumen.ventanaDias + ' días' }}.
                                         maxResultados: {{ resumen.maxResultados === null ? 'Sin valor configurable' : resumen.maxResultados }}.</p>
                                     <p>Filtros informados: {{ resumen.filtros | json }}</p>
+                                    @if (resumen.consultasEfectivas) {
+                                        <p>Consultas efectivas: {{ formatearConsultas(resumen.consultasEfectivas) }}</p>
+                                    }
+                                    @if (resumen.equivalenciasAplicadas && hayEquivalencias(resumen.equivalenciasAplicadas)) {
+                                        <p>Equivalencias aplicadas: {{ resumen.equivalenciasAplicadas | json }}</p>
+                                    }
+                                    @if (resumen.equivalenciasSugeridas && hayEquivalencias(resumen.equivalenciasSugeridas)) {
+                                        <p>Sugerencias disponibles (no enviadas): {{ resumen.equivalenciasSugeridas | json }}</p>
+                                    }
                                     @for (aviso of resumen.advertencias; track $index) { <p role="note">{{ aviso }}</p> }
                                 </article>
                             }

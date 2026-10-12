@@ -349,6 +349,19 @@
                                 <label class="campo-etiqueta">Términos de búsqueda</label>
                                 <p-autocomplete [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" appendTo="body" />
                             </div>
+                            @if (equivalenciasSugeridasDisponibles.length > 0) {
+                                <div class="campo campo-equivalencias-sugeridas">
+                                    <label class="campo-etiqueta">Equivalencias sugeridas para tus términos</label>
+                                    <small class="campo-ayuda">Sugerencias conocidas que no se agregan automáticamente a tus consultas. Hacé clic para agregarlas a tus términos de búsqueda.</small>
+                                    <div class="lista-chips-sugerencias">
+                                        @for (item of equivalenciasSugeridasDisponibles; track item.sugerencia) {
+                                            <button type="button" class="chip-sugerencia" (click)="agregarTerminoSugerido(item.sugerencia)" [title]="'Para: ' + item.terminoOrigen">
+                                                + {{ item.sugerencia }} <span class="chip-sugerencia-origen">({{ item.terminoOrigen }})</span>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
                                     <label class="campo-etiqueta">Keywords positivas</label>
@@ -374,6 +387,11 @@
                                 <small class="campo-ayuda">Esta lista no permite desactivar las políticas obligatorias del sistema mostradas en el perfil guardado.</small>
                                 <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" appendTo="body" />
                             </div>
+                            <div class="campo campo-toggle">
+                                <p-toggleswitch [(ngModel)]="filtrarNivelLinkedin" inputId="toggle-nivel-linkedin" />
+                                <label for="toggle-nivel-linkedin" class="campo-etiqueta campo-etiqueta--inline">Filtrar nivel entry-level / pasantía en LinkedIn (f_E=1,2)</label>
+                            </div>
+                            <small class="campo-ayuda">Si lo desactivás, LinkedIn no restringirá los resultados con el filtro de nivel f_E en la búsqueda, ampliando la cobertura de ofertas sin cambiar tu nivel profesional.</small>
                         </div>
                     </section>
                 </p-tabpanel>

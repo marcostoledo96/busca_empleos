@@ -53,7 +53,7 @@ function crearAdaptadorBusqueda({ vertical = false } = {}) {
             if (/SELECT \* FROM preferencias/.test(sql)) return { rows: [{ ...preferencias }] };
             if (/UPDATE preferencias SET backup_preferencias/.test(sql)) return { rows: [] };
             if (/UPDATE preferencias\s+SET/.test(sql)) {
-                for (const coincidencia of sql.matchAll(/(terminos_busqueda|zonas_preferidas) = \$(\d+)/g)) {
+                for (const coincidencia of sql.matchAll(/(terminos_busqueda|zonas_preferidas|filtrar_nivel_linkedin) = \$(\d+)/g)) {
                     preferencias[coincidencia[1]] = valores[Number(coincidencia[2]) - 1];
                 }
                 return { rows: [{ ...preferencias }] };

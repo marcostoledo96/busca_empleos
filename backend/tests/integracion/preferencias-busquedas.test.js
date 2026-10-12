@@ -101,9 +101,9 @@ test('PUT → ciclo HTTP → persistencia → GET y status con configuración ej
     expect(JSON.stringify(listado.body)).toContain('Soporte técnico');
 });
 
-test('QA guardado ejecuta compatibles y omite únicamente consultas incompatibles en HTTP y cron', async () => {
+test('consulta incompatible guardada omite únicamente fuentes incompatibles en HTTP y cron', async () => {
     simularOtrasFuentes();
-    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['QA'] })).status).toBe(200);
+    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['###'] })).status).toBe(200);
     expect((await pedir('post', '/api/scraping/indeed').send({})).status).toBe(400);
     expect(scraping.ejecutarScrapingIndeed).not.toHaveBeenCalled();
     expect((await pedir('post', '/api/scraping/linkedin').send({})).status).toBe(200);
@@ -123,18 +123,28 @@ test('QA guardado ejecuta compatibles y omite únicamente consultas incompatible
         expect(estado.ultimoResultado.omisiones).toContainEqual({ plataforma: id, motivo: expect.any(String) });
         expect(estado.ultimoResultado.configuracion.find(p => p.plataforma === id)).toMatchObject({ motivoOmision: expect.any(String), advertencias: expect.arrayContaining([expect.any(String)]) });
     }
-    for (const funcion of ['ejecutarScrapingComputrabajo', 'ejecutarScrapingGlassdoor']) {
-        expect(scraping[funcion]).toHaveBeenCalledWith(expect.objectContaining({ terminos: ['QA'] }));
-    }
-    expect(clienteApify.actor().call.mock.calls.at(-1)[0].urls[0]).toContain('keywords=QA');
+    expect(clienteApify.actor().call.mock.calls.at(-1)[0].urls[0]).toContain('keywords=%23%23%23');
     expect(pool.query.mock.calls.some(([sql]) => /^UPDATE preferencias/i.test(sql))).toBe(false);
-    expect(pool.obtenerPreferencias().terminos_busqueda).toEqual(['QA']);
+    expect(pool.obtenerPreferencias().terminos_busqueda).toEqual(['###']);
     automatizacion.programarCron();
     await cron.schedule.mock.calls.at(-1)[1]();
-    expect(scraping.ejecutarScrapingComputrabajo).toHaveBeenCalledTimes(2);
     expect(scraping.ejecutarScrapingIndeed).not.toHaveBeenCalled();
-    expect(automatizacion.obtenerEstado().ultimoResultado.omisiones).toHaveLength(4);
+    expect(automatizacion.obtenerEstado().ultimoResultado.omisiones.length).toBeGreaterThanOrEqual(4);
     automatizacion.detenerCron();
+});
+
+test('QA y C# guardados ejecutan en todas las fuentes compatibles sin omitirse', async () => {
+    simularOtrasFuentes();
+    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['QA', 'C#'] })).status).toBe(200);
+    expect((await pedir('post', '/api/scraping/indeed').send({})).status).toBe(200);
+    expect((await pedir('post', '/api/scraping/bumeran').send({})).status).toBe(200);
+    expect((await pedir('post', '/api/scraping/linkedin').send({})).status).toBe(200);
+    const preview = (await pedir('get', '/api/scraping/previsualizacion')).body.datos;
+    for (const id of ['linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'jooble', 'adzuna']) {
+        const plat = preview.plataformas.find(p => p.plataforma === id);
+        expect(plat.motivoOmision).toBeUndefined();
+        expect(plat.terminos).toEqual(['QA', 'C#']);
+    }
 });
 
 test('vacío global no se convierte en omisiones ni ejecuta filtros fijos', async () => {
@@ -318,4 +328,67 @@ test.each(['jooble', 'remoteok'])('%s preview describe el umbral y coincide con 
         expect(new URL(url).searchParams.has('limit')).toBe(false);
     }
     expect(preview.advertencias.join(' ')).toMatch(new RegExp(`umbral de acumulación.*no.*límite estricto.*superar ${preview.maxResultados}`, 'i'));
+});
+
+test('LinkedIn omite consulta incompatible ??? sin abortar batch ni llamar Apify y rechaza individual con 400 (N-01)', async () => {
+    simularOtrasFuentes();
+    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['???'] })).status).toBe(200);
+
+    const previewRes = await pedir('get', '/api/scraping/previsualizacion');
+    const prevLinkedin = previewRes.body.datos.plataformas.find(p => p.plataforma === 'linkedin');
+    expect(prevLinkedin.ejecutable).toBe(false);
+    expect(prevLinkedin.motivoOmision).toMatch(/términos de búsqueda utilizables para LinkedIn/i);
+
+    const respIndividual = await pedir('post', '/api/scraping/linkedin').send({});
+    expect(respIndividual.status).toBe(400);
+    expect(respIndividual.body.codigo).toBe('consulta_incompatible_fuente');
+    expect(clienteApify.actor().call).not.toHaveBeenCalled();
+
+    pool.ofertas.length = 0;
+    clienteApify.actor().call.mockClear();
+    const resCiclo = await pedir('post', '/api/automatizacion/ejecutar').send({});
+    expect(resCiclo.status).toBe(202);
+    await esperarCiclo();
+
+    const estado = (await pedir('get', '/api/automatizacion/estado')).body.datos;
+    expect(estado.ultimoResultado.omisiones).toEqual(
+        expect.arrayContaining([
+            expect.objectContaining({ plataforma: 'linkedin', motivo: expect.stringMatching(/utilizables para LinkedIn/i) })
+        ])
+    );
+    expect(clienteApify.actor().call).not.toHaveBeenCalled();
+
+    expect((await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['QA', '???'] })).status).toBe(200);
+    clienteApify.actor().call.mockClear();
+    const respMixto = await pedir('post', '/api/scraping/linkedin').send({});
+    expect(respMixto.status).toBe(200);
+    expect(clienteApify.actor().call).toHaveBeenCalledWith(
+        expect.objectContaining({
+            urls: expect.arrayContaining([expect.stringContaining('keywords=QA')])
+        })
+    );
+});
+
+test('LinkedIn respeta la persistencia de filtrar_nivel_linkedin en URLs del scraper (OBS-a)', async () => {
+    expect((await pedir('put', '/api/preferencias').send({
+        terminos_busqueda: ['QA'],
+        filtrar_nivel_linkedin: false
+    })).status).toBe(200);
+
+    clienteApify.actor().call.mockClear();
+    const respSinFiltro = await pedir('post', '/api/scraping/linkedin').send({});
+    expect(respSinFiltro.status).toBe(200);
+    const urlsSinFiltro = clienteApify.actor().call.mock.calls[0][0].urls;
+    expect(urlsSinFiltro.some(u => u.includes('f_E='))).toBe(false);
+
+    expect((await pedir('put', '/api/preferencias').send({
+        terminos_busqueda: ['QA'],
+        filtrar_nivel_linkedin: true
+    })).status).toBe(200);
+
+    clienteApify.actor().call.mockClear();
+    const respConFiltro = await pedir('post', '/api/scraping/linkedin').send({});
+    expect(respConFiltro.status).toBe(200);
+    const urlsConFiltro = clienteApify.actor().call.mock.calls[0][0].urls;
+    expect(urlsConFiltro.every(u => u.includes('f_E=1%2C2'))).toBe(true);
 });

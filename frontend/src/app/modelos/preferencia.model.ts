@@ -76,6 +76,7 @@ export interface Preferencias {
     limitaciones_explicitas?: string | null;
     priorizar_ofertas_ia?: boolean;
     bonus_maximo_prioridad_ia?: number;
+    filtrar_nivel_linkedin?: boolean;
 }
 
 // Campos actualizables. Excluyo id, fecha_creacion y fecha_actualizacion

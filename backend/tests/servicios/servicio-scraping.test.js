@@ -237,6 +237,22 @@ describe('Servicio de scraping', () => {
             expect(inputLlamada.urls[0]).toContain('f_TPR=r1209600');
         });
 
+        test('pasa filtrarNivelLinkedin a construirUrlsLinkedin al ejecutar scraping', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-linkedin-123' });
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsLinkedinFalsos });
+
+            const { construirUrlsLinkedin } = require('../../src/config/apify');
+            construirUrlsLinkedin.mockClear();
+
+            await ejecutarScrapingLinkedin({ filtrarNivelLinkedin: false });
+
+            expect(construirUrlsLinkedin).toHaveBeenCalledWith(
+                expect.objectContaining({ filtrarNivelLinkedin: false })
+            );
+        });
+
         test('tira error descriptivo si falla la API de Apify', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockRejectedValue(new Error('API rate limit exceeded'));
@@ -362,11 +378,10 @@ describe('Servicio de scraping', () => {
                 maxResultados: 20,
             });
 
-            // El término compuesto 'react developer' se fragmenta en palabras
-            // individuales unidas con OR para aumentar la cobertura.
+            // La frase 'react developer' se preserva como unidad entre comillas.
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    title: 'react OR developer',
+                    title: '"react developer"',
                     country: 'ar',
                     limit: 20,
                 })
@@ -384,12 +399,11 @@ describe('Servicio de scraping', () => {
                 terminos: ['react developer', 'angular developer'],
             });
 
-            // Los términos compuestos se fragmentan en palabras individuales
-            // y se deduplican antes de unirlas con OR.
+            // Las frases se preservan como unidades entre comillas unidas con OR.
             expect(mockCall).toHaveBeenCalledTimes(1);
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    title: 'react OR developer OR angular',
+                    title: '"react developer" OR "angular developer"',
                 })
             );
         });
@@ -1485,6 +1499,10 @@ describe('Servicio de scraping', () => {
                 const urlObj = new URL(url);
                 expect(urlObj.searchParams.get('what')).toBe('remote frontend');
             });
+        });
+
+        test('usa terminos cuando consultasAdzuna no está definido sin lanzar ReferenceError', async () => {
+            await expect(ejecutarScrapingAdzuna({ terminos: ['QA'] })).resolves.toBeDefined();
         });
 
     }); // fin describe('ejecutarScrapingAdzuna')

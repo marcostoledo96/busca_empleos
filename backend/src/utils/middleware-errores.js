@@ -75,6 +75,7 @@ function manejarErrores(error, req, res, next) {
     res.status(statusCode).json({
         exito: false,
         error: mensaje,
+        ...(error.codigo ? { codigo: error.codigo } : {}),
     });
 }
 

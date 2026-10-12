@@ -103,13 +103,17 @@ const FILTRO_FECHA_LINKEDIN = 'r1209600';
 function construirUrlsLinkedin(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
     const ubicaciones = opciones.ubicaciones || [opciones.ubicacion || 'Argentina'];
+    const filtrarNivel = opciones.filtrarNivelLinkedin !== undefined
+        ? Boolean(opciones.filtrarNivelLinkedin)
+        : (opciones.filtrar_nivel_linkedin !== undefined ? Boolean(opciones.filtrar_nivel_linkedin) : true);
+    const parteNivel = filtrarNivel ? `&f_E=${NIVELES_EXPERIENCIA_LINKEDIN}` : '';
 
     return ubicaciones.flatMap(ubicacion => terminos.map(termino => {
         // Reemplazo espacios por + para la URL.
         const terminoEncoded = encodeURIComponent(termino).replace(/%20/g, '+');
         const ubicacionEncoded = encodeURIComponent(ubicacion).replace(/%20/g, '+');
 
-        return `https://www.linkedin.com/jobs/search/?keywords=${terminoEncoded}&location=${ubicacionEncoded}&f_E=${NIVELES_EXPERIENCIA_LINKEDIN}&f_TPR=${FILTRO_FECHA_LINKEDIN}`;
+        return `https://www.linkedin.com/jobs/search/?keywords=${terminoEncoded}&location=${ubicacionEncoded}${parteNivel}&f_TPR=${FILTRO_FECHA_LINKEDIN}`;
     }));
 }
 
@@ -129,19 +133,24 @@ function construirUrlsComputrabajo(opciones = {}) {
 }
 
 function formatearTerminoComputrabajo(termino) {
+    if (typeof termino !== 'string') return '';
+    let t = termino.toLowerCase();
+    if (t === 'c#' || t.includes('c#')) {
+        t = t.replace(/c#/g, 'c-sharp');
+    }
     // Elimino signos que rompen la URL y comparto esta limpieza con la validación.
     // Conservo letras, números y caracteres del español; uso guiones entre palabras.
-    return termino.toLowerCase().replace(/[^a-z0-9áéíóúüñ\s]/g, '').trim().replace(/\s+/g, '-');
+    return t.replace(/[^a-z0-9áéíóúüñ\s-]/g, '').trim().replace(/[\s-]+/g, '-');
 }
 
 /**
  * Construyo las URLs de búsqueda de Bumeran Argentina.
  *
- * Bumeran (que también cubre ZonaJobs, porque son del mismo grupo Jobint)
- * usa un formato de URL simple para las búsquedas:
+ * Bumeran usa URLs con el slug del término:
  * https://www.bumeran.com.ar/empleos-busqueda-{termino}.html
  *
- * Los espacios se reemplazan por guiones en la URL.
+ * Preservo frases completas con guiones, siglas técnicas (QA, IT) y traduzco C#
+ * a c-sharp para evitar truncamiento por fragmento hash (#).
  *
  * @param {Object} opciones - Opciones de búsqueda.
  * @param {string[]} [opciones.terminos] - Términos de búsqueda.
@@ -149,31 +158,8 @@ function formatearTerminoComputrabajo(termino) {
  */
 function construirUrlsBumeran(opciones = {}) {
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
-    const urls = [];
-
-    for (const termino of terminos) {
-        // Elimino caracteres especiales (ej: "#" de "c#") que rompen la URL
-        // porque el navegador los interpreta como fragmento hash.
-        // Solo dejo letras, espacios y caracteres del español.
-        const terminoLimpio = termino.toLowerCase().replace(/[^a-záéíóúüñ\s]/g, '').trim();
-
-        // Separo en palabras individuales. Bumeran no maneja bien términos
-        // compuestos con guiones (ej: "qa-tester" trae pocos resultados),
-        // pero funciona perfecto con palabras sueltas (ej: "tester").
-        // Filtro palabras muy cortas (< 3 letras) porque generan ruido
-        // (ej: "qa", "it", "c" solas matchean demasiadas ofertas irrelevantes).
-        const palabras = terminoLimpio.split(/\s+/).filter(p => p.length >= 3);
-
-        for (const palabra of palabras) {
-            const url = `https://www.bumeran.com.ar/empleos-busqueda-${palabra}.html`;
-            // Evito duplicados (ej: "programador" aparece en "programador" a secas
-            // y también podría aparecer en "desarrollador programador").
-            if (!urls.includes(url)) {
-                urls.push(url);
-            }
-        }
-    }
-
+    const { traducirParaBumeran } = require('../servicios/servicio-traductor-consultas');
+    const { urls } = traducirParaBumeran(terminos);
     return urls;
 }
 
