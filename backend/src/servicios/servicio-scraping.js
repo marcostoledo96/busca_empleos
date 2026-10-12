@@ -70,6 +70,12 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
             filtrarNivelLinkedin: opciones.filtrarNivelLinkedin,
         });
         console.log(`Scraping LinkedIn: ${urls.length} URL(s) de búsqueda generadas.`);
+        if (!urls.length) {
+            const error = new Error('Necesito términos de búsqueda utilizables para LinkedIn; no envío consultas vacías ni las sustituyo por defaults.');
+            error.codigo = 'consulta_incompatible_fuente';
+            error.status = 400;
+            throw error;
+        }
 
         // Actor restaurado: curious_coder/linkedin-jobs-scraper (hKByXkMQaC5Qt9UMN).
         // Input del actor:

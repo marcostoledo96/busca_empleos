@@ -139,7 +139,8 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         const tr = traducirParaLinkedin(terminos);
         consultasEfectivas = tr.consultas;
         equivalenciasAplicadas = tr.equivalencias;
-        terminosUtiles = terminos.length > 0;
+        terminosUtiles = tr.consultas.length > 0;
+        urlsUtiles = tr.consultas.length > 0;
         opcionesResueltas.terminos = consultasEfectivas;
     } else if (id === 'computrabajo') {
         filtros.transformacionTerminos = 'minusculas_sin_signos';

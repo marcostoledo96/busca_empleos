@@ -321,6 +321,7 @@ function traducirParaRemotive(terminos) {
             t.includes('fullstack') ||
             contieneToken(t, 'c#') ||
             contieneToken(t, '.net') ||
+            contieneToken(t, 'net') ||
             contieneToken(t, 'c sharp') ||
             contieneToken(t, 'dotnet')
         ) {
@@ -377,7 +378,7 @@ function traducirParaRemoteOK(terminos) {
             tags.add('csharp');
             encontroTag = true;
         }
-        if (contieneToken(t, '.net') || t.includes('dotnet') || t.includes('net')) {
+        if (contieneToken(t, '.net') || contieneToken(t, 'net') || t.includes('dotnet')) {
             tags.add('net');
             tags.add('dotnet');
             encontroTag = true;

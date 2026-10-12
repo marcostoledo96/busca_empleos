@@ -162,6 +162,41 @@ describe('Configuración común de búsquedas', () => {
         expect(resumen.equivalenciasSugeridas['QA manual']).toEqual(['tester manual']);
         expect(resumen.equivalenciasSugeridas['C#']).toEqual(expect.arrayContaining(['c sharp', '.net']));
     });
+
+    test('LinkedIn omite o rechaza términos vacíos al sanitizar (N-01)', async () => {
+        // Individual con ??? lanza 400 con codigo consulta_incompatible_fuente
+        expect(() => {
+            resolverConfiguracion('linkedin', { terminos: ['???'] });
+        }).toThrow(expect.objectContaining({ status: 400, codigo: 'consulta_incompatible_fuente' }));
+
+        // Individual con "" lanza 400 con codigo consulta_incompatible_fuente
+        expect(() => {
+            resolverConfiguracion('linkedin', { terminos: ['""'] });
+        }).toThrow(expect.objectContaining({ status: 400, codigo: 'consulta_incompatible_fuente' }));
+
+        const originalToken = process.env.APIFY_TOKEN;
+        try {
+            process.env.APIFY_TOKEN = 'token_test';
+            // Preview con ??? no es ejecutable y muestra motivoOmision
+            const preview = resolverConfiguracion('linkedin', { terminos: ['???'] }, {}, { previsualizacion: true });
+            expect(preview.resumen.ejecutable).toBe(false);
+            expect(preview.resumen.motivoOmision).toMatch(/términos de búsqueda utilizables para LinkedIn/i);
+
+            // Batch con ??? omite LinkedIn con motivoOmision sin abortar
+            const batch = resolverConfiguracion('linkedin', { terminos: ['???'] }, {}, { omitirIncompatibles: true });
+            expect(batch.resumen.ejecutable).toBe(false);
+            expect(batch.resumen.motivoOmision).toMatch(/términos de búsqueda utilizables para LinkedIn/i);
+
+            // Lista con término válido y término que queda vacío ('QA', '???') procesa el válido
+            const mixto = resolverConfiguracion('linkedin', { terminos: ['QA', '???'] });
+            expect(mixto.resumen.ejecutable).toBe(true);
+            expect(mixto.resumen.motivoOmision).toBeUndefined();
+            expect(mixto.opciones.terminos).toEqual(['QA']);
+        } finally {
+            if (originalToken === undefined) delete process.env.APIFY_TOKEN;
+            else process.env.APIFY_TOKEN = originalToken;
+        }
+    });
 });
 
 test('LinkedIn aplica todas las zonas guardadas en URLs reales sin alterar filtros', () => {

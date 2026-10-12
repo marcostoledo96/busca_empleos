@@ -204,6 +204,63 @@ describe('Servicio traductor de consultas laborales', () => {
             expect(compatible).toBe(false);
             expect(advertencias[0]).toMatch(/no dispone de etiquetas/i);
         });
+
+        test('no asigna tags .NET por coincidencia parcial en palabras como internet o network (N-02)', () => {
+            const resInternet = traducirParaRemoteOK(['internet']);
+            expect(resInternet.compatible).toBe(false);
+            expect(resInternet.tags).not.toContain('net');
+            expect(resInternet.tags).not.toContain('dotnet');
+            expect(resInternet.advertencias[0]).toMatch(/no dispone de etiquetas compatibles para: internet/i);
+
+            const resNetwork = traducirParaRemoteOK(['network']);
+            expect(resNetwork.compatible).toBe(false);
+            expect(resNetwork.tags).not.toContain('net');
+            expect(resNetwork.tags).not.toContain('dotnet');
+
+            const resSoporteNetwork = traducirParaRemoteOK(['soporte network']);
+            expect(resSoporteNetwork.compatible).toBe(true);
+            expect(resSoporteNetwork.tags).toEqual(['support']);
+            expect(resSoporteNetwork.tags).not.toContain('net');
+            expect(resSoporteNetwork.tags).not.toContain('dotnet');
+
+            const resNet = traducirParaRemoteOK(['net']);
+            expect(resNet.compatible).toBe(true);
+            expect(resNet.tags).toEqual(expect.arrayContaining(['net', 'dotnet']));
+
+            const resDotNet = traducirParaRemoteOK(['dotnet']);
+            expect(resDotNet.compatible).toBe(true);
+            expect(resDotNet.tags).toEqual(expect.arrayContaining(['net', 'dotnet']));
+        });
+    });
+
+    describe('Traducción para Remotive - límites de tokens (N-02)', () => {
+        test('no clasifica internet ni network como software-dev', () => {
+            const resInternet = traducirParaRemotive(['internet']);
+            expect(resInternet.compatible).toBe(false);
+            expect(resInternet.categorias).not.toContain('software-dev');
+
+            const resNetwork = traducirParaRemotive(['network']);
+            expect(resNetwork.compatible).toBe(false);
+            expect(resNetwork.categorias).not.toContain('software-dev');
+
+            const resNet = traducirParaRemotive(['net']);
+            expect(resNet.compatible).toBe(true);
+            expect(resNet.categorias).toContain('software-dev');
+        });
+    });
+
+    describe('Traducción para LinkedIn (N-01)', () => {
+        test('preserva frases completas y siglas', () => {
+            const { consultas } = traducirParaLinkedin(['QA', 'soporte IT', 'C#']);
+            expect(consultas).toEqual(['QA', 'soporte IT', 'C#']);
+        });
+
+        test('descarta términos que quedan completamente vacíos al sanitizar (N-01)', () => {
+            expect(traducirParaLinkedin(['???']).consultas).toEqual([]);
+            expect(traducirParaLinkedin(['""']).consultas).toEqual([]);
+            expect(traducirParaLinkedin(['   ']).consultas).toEqual([]);
+            expect(traducirParaLinkedin(['QA', '???']).consultas).toEqual(['QA']);
+        });
     });
 
     describe('Equivalencias aplicadas vs no aplicadas', () => {
