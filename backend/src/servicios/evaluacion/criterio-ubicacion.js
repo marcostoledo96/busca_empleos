@@ -5,105 +5,130 @@
  * Tabla de equivalencias y localidades conocidas para zonas preferidas comunes.
  * Las claves están en minúsculas y sin acentos.
  */
+const ZONAS_AMPLIAS = {
+    caba: {
+        sinonimos: [
+            'caba',
+            'capital federal',
+            'ciudad autonoma de buenos aires',
+            'ciudad de buenos aires',
+            'buenos aires caba',
+            'caba buenos aires',
+            'capital federal buenos aires',
+            'buenos aires capital federal',
+        ],
+        localidades: [
+            'palermo',
+            'recoleta',
+            'belgrano',
+            'microcentro',
+            'puerto madero',
+            'caballito',
+            'almagro',
+            'villa urquiza',
+            'villa crespo',
+            'nunez',
+            'nuñez',
+            'saavedra',
+            'colegiales',
+            'barracas',
+            'parque patricios',
+            'san telmo',
+            'retiro',
+            'balvanera',
+            'monserrat',
+            'constitucion',
+            'flores',
+            'floresta',
+            'villa devoto',
+            'villa del parque',
+            'chacarita',
+        ],
+    },
+    'gba oeste': {
+        sinonimos: ['gba oeste', 'zona oeste', 'oeste'],
+        localidades: [
+            'moron',
+            'morón',
+            'hurlingham',
+            'castelar',
+            'haedo',
+            'ituzaingo',
+            'ituzaingó',
+            'merlo',
+            'moreno',
+            'san justo',
+            'la matanza',
+            'ramos mejia',
+            'ramos mejía',
+            'tres de febrero',
+            'caseros',
+            'ciudadela',
+            'el palomar',
+            'palomar',
+            'villa sarmiento',
+            'san antonio de padua',
+            'padua',
+            'paso del rey',
+            'villa luzuriaga',
+            'lomas del mirador',
+        ],
+    },
+    'gba norte': {
+        sinonimos: ['gba norte', 'zona norte', 'norte'],
+        localidades: [
+            'vicente lopez',
+            'vicente lópez',
+            'olivos',
+            'florida',
+            'san isidro',
+            'martinez',
+            'martínez',
+            'acassuso',
+            'beccar',
+            'tigre',
+            'san fernando',
+            'victoria',
+            'pilar',
+            'escobar',
+            'nordelta',
+        ],
+    },
+    'gba sur': {
+        sinonimos: ['gba sur', 'zona sur', 'sur'],
+        localidades: [
+            'avellaneda',
+            'lanus',
+            'lanús',
+            'quilmes',
+            'bernal',
+            'lomas de zamora',
+            'banfield',
+            'temperley',
+            'adrogue',
+            'adrogué',
+            'berazategui',
+            'florencio varela',
+        ],
+    },
+};
+
+// Variantes directas para localidades individuales específicas
+const SINONIMOS_LOCALIDADES = {
+    'el palomar': ['palomar'],
+    palomar: ['el palomar'],
+    'san antonio de padua': ['padua'],
+    padua: ['san antonio de padua'],
+};
+
+/**
+ * Tabla plana de equivalencias y localidades para compatibilidad con consumidores externos.
+ */
 const ALIASES_ZONAS = {
-    caba: [
-        'caba',
-        'capital federal',
-        'ciudad autonoma de buenos aires',
-        'ciudad de buenos aires',
-        'buenos aires caba',
-        'caba buenos aires',
-        'capital federal buenos aires',
-        'buenos aires capital federal',
-        'palermo',
-        'recoleta',
-        'belgrano',
-        'microcentro',
-        'puerto madero',
-        'caballito',
-        'almagro',
-        'villa urquiza',
-        'villa crespo',
-        'nunez',
-        'nuñez',
-        'saavedra',
-        'colegiales',
-        'barracas',
-        'parque patricios',
-        'san telmo',
-        'retiro',
-        'balvanera',
-        'monserrat',
-        'constitucion',
-        'flores',
-        'floresta',
-        'villa devoto',
-        'villa del parque',
-        'chacarita',
-    ],
-    'gba oeste': [
-        'gba oeste',
-        'zona oeste',
-        'moron',
-        'morón',
-        'hurlingham',
-        'castelar',
-        'haedo',
-        'ituzaingo',
-        'ituzaingó',
-        'merlo',
-        'moreno',
-        'san justo',
-        'la matanza',
-        'ramos mejia',
-        'ramos mejía',
-        'tres de febrero',
-        'caseros',
-        'ciudadela',
-        'el palomar',
-        'palomar',
-        'villa sarmiento',
-        'san antonio de padua',
-        'padua',
-        'paso del rey',
-        'villa luzuriaga',
-        'lomas del mirador',
-    ],
-    'gba norte': [
-        'gba norte',
-        'zona norte',
-        'vicente lopez',
-        'vicente lópez',
-        'olivos',
-        'florida',
-        'san isidro',
-        'martinez',
-        'martínez',
-        'acassuso',
-        'beccar',
-        'tigre',
-        'san fernando',
-        'victoria',
-        'pilar',
-        'escobar',
-        'nordelta',
-    ],
-    'gba sur': [
-        'gba sur',
-        'zona sur',
-        'avellaneda',
-        'lanus',
-        'lanús',
-        'quilmes',
-        'bernal',
-        'lomas de zamora',
-        'banfield',
-        'temperley',
-        'adrogue',
-        'adrogué',
-        'berazategui',
-        'florencio varela',
-    ],
+    caba: [...ZONAS_AMPLIAS.caba.sinonimos, ...ZONAS_AMPLIAS.caba.localidades],
+    'gba oeste': [...ZONAS_AMPLIAS['gba oeste'].sinonimos, ...ZONAS_AMPLIAS['gba oeste'].localidades],
+    'gba norte': [...ZONAS_AMPLIAS['gba norte'].sinonimos, ...ZONAS_AMPLIAS['gba norte'].localidades],
+    'gba sur': [...ZONAS_AMPLIAS['gba sur'].sinonimos, ...ZONAS_AMPLIAS['gba sur'].localidades],
 };
 
 /**
@@ -125,8 +150,27 @@ function normalizarTextoGeografico(texto = '') {
 }
 
 /**
- * Determina si una zona dada (ej: "CABA" o "GBA Oeste") coincide con una localidad/ubicación
- * utilizando la tabla de aliases y correspondencias geográficas conocidas.
+ * Verifica si un texto normalizado contiene un término específico respetando límites de palabra.
+ *
+ * @param {string} textoNorm
+ * @param {string} terminoNorm
+ * @returns {boolean}
+ */
+function contieneTerminoConLimites(textoNorm, terminoNorm) {
+    if (!textoNorm || !terminoNorm) return false;
+    const escaped = terminoNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return new RegExp(`\\b${escaped}\\b`, 'i').test(textoNorm);
+}
+
+/**
+ * Determina si una zona dada (ej: "CABA" o "GBA Oeste") coincide con una localidad/ubicación.
+ *
+ * Reglas:
+ * - Si la preferencia es una ZONA AMPLIA (ej: "GBA Oeste", "CABA", "Capital Federal"),
+ *   coincide tanto con el nombre de la zona como con cualquiera de sus localidades o barrios componentes.
+ * - Si la preferencia es una LOCALIDAD ESPECÍFICA (ej: "Morón", "Caseros", "Palermo"),
+ *   solo coincide con dicha localidad o sus variantes directas exactas con límites de palabra,
+ *   evitando expandir indebidamente a otras localidades del mismo cordón geográfico.
  *
  * @param {string} ubicacionTextoNorm - Ubicación ya normalizada.
  * @param {string} zonaTextoNorm - Zona preferida ya normalizada.
@@ -135,27 +179,43 @@ function normalizarTextoGeografico(texto = '') {
 function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
     if (!ubicacionTextoNorm || !zonaTextoNorm) return false;
 
-    // Coincidencia directa de subcadena.
-    if (ubicacionTextoNorm.includes(zonaTextoNorm)) {
+    // 1. Coincidencia directa con límites de palabra (ej: "Morón" en "Morón, Buenos Aires").
+    if (contieneTerminoConLimites(ubicacionTextoNorm, zonaTextoNorm)) {
         return true;
     }
 
-    // Búsqueda en la tabla de equivalencias conocidas bidireccional (zona y ubicación pertenecen al mismo clúster).
-    for (const [claveZona, aliases] of Object.entries(ALIASES_ZONAS)) {
-        const claveZonaNorm = normalizarTextoGeografico(claveZona);
-        const coincideConClave = zonaTextoNorm.includes(claveZonaNorm) || claveZonaNorm.includes(zonaTextoNorm);
-        const zonaPerteneceACluster = coincideConClave || aliases.some(a => {
-            const aNorm = normalizarTextoGeografico(a);
-            return zonaTextoNorm.includes(aNorm) || aNorm.includes(zonaTextoNorm);
+    // 2. Determino si la zona preferida es una ZONA AMPLIA (ej: "CABA", "Capital Federal", "GBA Oeste", "Zona Oeste").
+    let zonaAmpliaDefinida = null;
+    for (const def of Object.values(ZONAS_AMPLIAS)) {
+        const coincideSinonimo = def.sinonimos.some(sin => {
+            const sinNorm = normalizarTextoGeografico(sin);
+            return contieneTerminoConLimites(zonaTextoNorm, sinNorm) || contieneTerminoConLimites(sinNorm, zonaTextoNorm);
         });
+        if (coincideSinonimo) {
+            zonaAmpliaDefinida = def;
+            break;
+        }
+    }
 
-        if (zonaPerteneceACluster) {
-            for (const alias of [claveZona, ...aliases]) {
-                const aliasNorm = normalizarTextoGeografico(alias);
-                if (ubicacionTextoNorm.includes(aliasNorm)) {
-                    return true;
-                }
+    // Si la preferencia es una zona amplia, cualquier sinónimo o localidad contenida satisface la preferencia.
+    if (zonaAmpliaDefinida) {
+        const terminosPermitidos = [...zonaAmpliaDefinida.sinonimos, ...zonaAmpliaDefinida.localidades];
+        for (const termino of terminosPermitidos) {
+            const termNorm = normalizarTextoGeografico(termino);
+            if (contieneTerminoConLimites(ubicacionTextoNorm, termNorm)) {
+                return true;
             }
+        }
+        return false;
+    }
+
+    // 3. Si la preferencia es una LOCALIDAD ESPECÍFICA (ej: "Morón", "Caseros", "Palermo"),
+    // NO se expande a todo el clúster. Solo se cotejan sus variantes directas conocidas con límites de palabra.
+    const sinonimosLoc = SINONIMOS_LOCALIDADES[zonaTextoNorm] || [];
+    for (const sin of sinonimosLoc) {
+        const sinNorm = normalizarTextoGeografico(sin);
+        if (contieneTerminoConLimites(ubicacionTextoNorm, sinNorm)) {
+            return true;
         }
     }
 
@@ -202,6 +262,11 @@ function estaEnZonasPreferidas(ubicacionOferta, zonasPreferidas = []) {
  * Detecta si una oferta de modalidad remota posee una restricción territorial excluyente
  * incompatible con un candidato radicado en Argentina (ej: "Remote — US residents only", "residentes en España").
  *
+ * Prioriza requisitos explícitos en el texto del puesto y en candidate_required_location.
+ * Una mención incidental a la sede administrativa o de búsqueda (ej: "Buenos Aires, Argentina")
+ * no invalida un requisito explícito de residencia extranjera en la descripción, ni una sede foránea
+ * descarta una posición remota sin restricción territorial demostrada.
+ *
  * @param {Object} oferta - Oferta laboral con titulo, descripcion, ubicacion, datos_crudos.
  * @returns {{ detectado: boolean, patron: string|null, evidencia: string|null }}
  */
@@ -211,51 +276,54 @@ function detectarRestriccionRemotaIncompatible(oferta = {}) {
         return { detectado: false, patron: null, evidencia: null };
     }
 
-    const campos = [
-        oferta.titulo || '',
-        oferta.descripcion || '',
-        oferta.ubicacion || '',
-    ];
+    // 1. Verificación estructurada si la plataforma provee candidate_required_location (ej. Remotive, etc.)
+    if (oferta.datos_crudos && typeof oferta.datos_crudos === 'object' && oferta.datos_crudos.candidate_required_location) {
+        const reqLocRaw = String(oferta.datos_crudos.candidate_required_location).trim();
+        const reqLocNorm = normalizarTextoGeografico(reqLocRaw);
 
-    if (oferta.datos_crudos && typeof oferta.datos_crudos === 'object') {
-        if (oferta.datos_crudos.candidate_required_location) {
-            campos.push(`candidate_required_location: ${oferta.datos_crudos.candidate_required_location}`);
-        }
-        if (oferta.datos_crudos.location) {
-            campos.push(`location: ${oferta.datos_crudos.location}`);
+        const esAptaReqLoc = /\b(?:argentina|latam|latin\s+america|sudamerica|south\s+america|worldwide|anywhere|global)\b/i.test(reqLocNorm);
+        const esRestriccionTerritorialReqLoc = /\b(?:us|usa|united\s+states|u\s*s\s*a|canada|uk|united\s+kingdom|europe|europa|spain|espana|germany|alemania|france|francia)\b/i.test(reqLocNorm);
+
+        if (esRestriccionTerritorialReqLoc && !esAptaReqLoc) {
+            return {
+                detectado: true,
+                patron: 'remoto_restringido_pais',
+                evidencia: `candidate_required_location: ${reqLocRaw}`,
+            };
         }
     }
 
-    const textoUnido = campos.join(' \n ');
-    const textoNorm = normalizarTextoGeografico(textoUnido);
-
-    // Si la restricción incluye expresamente Argentina, Latam, Sudamérica o Worldwide, es compatible.
-    const esAptaArgentina = /\b(?:argentina|latam|latin\s+america|sudamerica|south\s+america|worldwide|anywhere|global)\b/i.test(textoNorm);
-    if (esAptaArgentina) {
-        return { detectado: false, patron: null, evidencia: null };
-    }
+    // 2. Verificación en el texto del puesto (título y descripción).
+    // No se incluye oferta.ubicacion para que la sede de la empresa no anule un requisito explícito
+    // de residencia extranjera ni descarte indebidamente puestos remotos internacionales.
+    const textoPuesto = `${oferta.titulo || ''} \n ${oferta.descripcion || ''}`;
+    const textoPuestoNorm = normalizarTextoGeografico(textoPuesto);
 
     // Patrones de restricción territorial a otros países / regiones.
     // Para "us" exijo calificadores territoriales/cívicos ("us residents only", "us based only")
     // para evitar colisiones con el pronombre en inglés ("send us only your resume").
     const PATRONES_RESTRICCION = [
-        /\b(?:usa|united\s+states|u\s*s\s*a|ee\s*uu)\s+(?:residents?\s+only|based\s+only|only\b)/i,
+        /\b(?:usa|united\s+states|u\s*s\s*a|ee\s*uu)\s+(?:residents?\s+only|based\s+only|citizens?\s+only|only\b)/i,
         /\bus\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
-        /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|spain|espana|uk|europe|europa|canada)/i,
-        /\b(?:only|solo)\s+(?:para\s+)?(?:residentes\s+en\s+)?(?:us|usa|united\s+states|spain|espana|uk|europa|europe)\s+residents?\b/i,
-        /\bmust\s+reside\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|spain|uk|europe)\b/i,
-        /\bremote\s*[-–—:]\s*(?:us|usa|united\s+states|spain|espana)\s+residents?\s+only\b/i,
-        /\bcandidate_required_location\s*:\s*(?:usa|united\s+states|spain|uk|europe)\b/i,
+        /\bcanada\s+(?:residents?\s+only|based\s+only|citizens?\s+only|only\b)/i,
+        /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europe|europa)\b/i,
+        /\b(?:only|solo)\s+(?:para\s+)?(?:residentes\s+en\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europa|europe)\s+residents?\b/i,
+        /\bmust\s+reside\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|uk|europe)\b/i,
+        /\bremote\s*[-–—:]\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:residents?\s+only|only\b)/i,
     ];
 
     for (const patron of PATRONES_RESTRICCION) {
-        const coincidencia = textoNorm.match(patron);
+        const coincidencia = textoPuestoNorm.match(patron);
         if (coincidencia) {
-            return {
-                detectado: true,
-                patron: 'remoto_restringido_pais',
-                evidencia: coincidencia[0],
-            };
+            // Verifico si el mismo requisito incluye explícitamente apertura a Argentina o Latam
+            const incluyeAperturaLocal = /\b(?:us|canada|spain|uk|europe)\s+(?:or|y)\s+(?:argentina|latam|latin\s+america)\b/i.test(textoPuestoNorm);
+            if (!incluyeAperturaLocal) {
+                return {
+                    detectado: true,
+                    patron: 'remoto_restringido_pais',
+                    evidencia: coincidencia[0],
+                };
+            }
         }
     }
 

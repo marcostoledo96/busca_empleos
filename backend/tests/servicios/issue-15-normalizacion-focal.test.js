@@ -90,6 +90,7 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(_mapearModalidadComputrabajo('hibrido')).toBe('hibrido');
             expect(_mapearModalidadComputrabajo('Remoto')).toBe('remoto');
             expect(_mapearModalidadComputrabajo('remoto')).toBe('remoto');
+            expect(_mapearModalidadComputrabajo('No remoto')).toBe('presencial');
             expect(_mapearModalidadComputrabajo('Presencial')).toBe('presencial');
             expect(_mapearModalidadComputrabajo('presencial')).toBe('presencial');
             expect(_mapearModalidadComputrabajo('Jornada completa')).toBeNull();
@@ -192,6 +193,19 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(estaEnZonasPreferidas('Castelar, Buenos Aires', ['Zona Oeste'])).toBe(true);
         });
 
+        test('13c. Preferencias de localidades específicas no se expanden a todo el clúster (B-01)', () => {
+            // Si la preferencia es Morón, Moreno NO debe coincidir
+            expect(estaEnZonasPreferidas('Moreno, Buenos Aires', ['Morón'])).toBe(false);
+            // Si la preferencia es Caseros, Hurlingham NO debe coincidir
+            expect(estaEnZonasPreferidas('Hurlingham, Buenos Aires', ['Caseros'])).toBe(false);
+            // Localidad configurada exacta sí coincide
+            expect(estaEnZonasPreferidas('Morón, Buenos Aires', ['Morón'])).toBe(true);
+            expect(estaEnZonasPreferidas('Caseros, Buenos Aires', ['Caseros'])).toBe(true);
+            // Zonas amplias sí aceptan cualquiera de sus localidades
+            expect(estaEnZonasPreferidas('Moreno, Buenos Aires', ['GBA Oeste'])).toBe(true);
+            expect(estaEnZonasPreferidas('Hurlingham, Buenos Aires', ['GBA Oeste'])).toBe(true);
+        });
+
         test('14. Ubicación ausente no activa una exclusión geográfica automática (conserva incertidumbre)', () => {
             expect(estaEnZonasPreferidas('', zonas)).toBeNull();
             expect(estaEnZonasPreferidas(null, zonas)).toBeNull();
@@ -247,6 +261,36 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(res.detectado).toBe(false);
         });
 
+        test('16c. Restricción remota explícita no se invalida por mención incidental de sede argentina ni foránea (B-02)', () => {
+            // Sede en Buenos Aires con descripción US residents only debe detectarse como incompatible
+            const ofertaSedeArg = {
+                modalidad: 'remoto',
+                titulo: 'Remote React Engineer',
+                descripcion: 'Remote — US residents only.',
+                ubicacion: 'Buenos Aires, Argentina',
+            };
+            expect(detectarRestriccionRemotaIncompatible(ofertaSedeArg).detectado).toBe(true);
+
+            // Candidate required location estructurado con 'US' o 'Canada'
+            expect(detectarRestriccionRemotaIncompatible({
+                modalidad: 'remoto',
+                datos_crudos: { candidate_required_location: 'US' },
+            }).detectado).toBe(true);
+
+            expect(detectarRestriccionRemotaIncompatible({
+                modalidad: 'remoto',
+                datos_crudos: { candidate_required_location: 'Canada' },
+            }).detectado).toBe(true);
+
+            // Sede en el exterior sin restricción de residencia no debe rechazarse
+            expect(detectarRestriccionRemotaIncompatible({
+                modalidad: 'remoto',
+                titulo: 'Worldwide Fullstack Developer',
+                descripcion: 'Global team hiring anywhere in the world.',
+                ubicacion: 'San Francisco, CA, USA',
+            }).detectado).toBe(false);
+        });
+
         test('17. Ambas defensas de ubicación llegan a la misma decisión', () => {
             const ofertaCaba = { modalidad: 'presencial', ubicacion: 'Capital Federal, Buenos Aires' };
             const ofertaFuera = { modalidad: 'presencial', ubicacion: 'Rosario, Santa Fe' };
@@ -294,7 +338,7 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             const normalizada = normalizarOfertaJooble(itemJooble);
             expect(normalizada.salario_min).toBe(80000);
             expect(normalizada.salario_max).toBe(120000);
-            expect(normalizada.moneda).toBe('USD');
+            expect(normalizada.moneda).toBeNull(); // $ aislado sin divisa explícita no inventa USD
             expect(normalizada.modalidad).toBe('remoto');
         });
 
@@ -333,6 +377,39 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(_parsearSalario('USD 3000 / mes').periodo).toBe('mes');
             expect(_parsearSalario('$40,000 / año').periodo).toBe('año');
             expect(_parsearSalario('USD 25 por hora').periodo).toBe('hora');
+        });
+
+        test('22b. Reconoce moneda explícita, períodos con barra (/year, /hr) y preserva texto_original (B-03)', () => {
+            // $80,000 - $120,000 / year -> moneda null, periodo año
+            const resYear = _parsearSalario('$80,000 - $120,000 / year');
+            expect(resYear.min).toBe(80000);
+            expect(resYear.max).toBe(120000);
+            expect(resYear.moneda).toBeNull();
+            expect(resYear.periodo).toBe('año');
+            expect(resYear.texto_original).toBe('$80,000 - $120,000 / year');
+
+            // USD explícito con / hr
+            const resHr = _parsearSalario('USD 25 / hr');
+            expect(resHr.min).toBe(25);
+            expect(resHr.moneda).toBe('USD');
+            expect(resHr.periodo).toBe('hora');
+
+            // Texto sin montos ("A convenir") conserva texto_original
+            const resConvenir = _parsearSalario('A convenir');
+            expect(resConvenir.min).toBeNull();
+            expect(resConvenir.max).toBeNull();
+            expect(resConvenir.texto_original).toBe('A convenir');
+
+            // Cifras decimales
+            const resDecimal = _parsearSalario('USD 25.50 / hr');
+            expect(resDecimal.min).toBe(25.5);
+            expect(resDecimal.moneda).toBe('USD');
+            expect(resDecimal.periodo).toBe('hora');
+
+            const resDecimalArg = _parsearSalario('AR$1.500.000,50 por mes');
+            expect(resDecimalArg.min).toBe(1500000.5);
+            expect(resDecimalArg.moneda).toBe('ARS');
+            expect(resDecimalArg.periodo).toBe('mes');
         });
 
         test('23. La ausencia de salario no se convierte en cero', () => {

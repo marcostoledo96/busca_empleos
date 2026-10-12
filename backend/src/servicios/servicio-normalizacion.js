@@ -85,8 +85,9 @@ function normalizarOfertaLinkedin(item) {
 function mapearModalidadComputrabajo(modalidadDetalle) {
     if (!modalidadDetalle || typeof modalidadDetalle !== 'string') return null;
     const m = modalidadDetalle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    if (m.includes('remoto')) return 'remoto';
+    if (/\b(?:no\s+remoto|sin\s+posibilidad\s+de\s+remoto)\b/i.test(m)) return 'presencial';
     if (m.includes('hibrido')) return 'hibrido';
+    if (m.includes('remoto')) return 'remoto';
     if (m.includes('presencial')) return 'presencial';
     return null;
 }
@@ -450,7 +451,8 @@ function parsearSalario(salarioStr) {
 
     const texto = salarioStr.trim();
 
-    // 1. Detección de moneda: distingo ARS, USD, EUR y reconozco "$" aislado como moneda no especificada.
+    // 1. Detección de moneda: distingo ARS, USD, EUR explícitos.
+    // Un símbolo "$" aislado sin país ni divisa demostrable permanece como null (no inventa moneda).
     let moneda = null;
     if (/\b(?:ar\$|ars)\b/i.test(texto) || /ar\$/i.test(texto)) {
         moneda = 'ARS';
@@ -458,24 +460,20 @@ function parsearSalario(salarioStr) {
         moneda = 'USD';
     } else if (/\b(?:eur)\b/i.test(texto) || /€/.test(texto)) {
         moneda = 'EUR';
-    } else if (/\$/.test(texto)) {
-        // Si el símbolo "$" viene acompañado de periodicidad anglosajona explícita (/yr, /year, per year), se infiere USD.
-        // En caso contrario (ej: "$100.000" en contexto local sin país ni divisa), se preserva como moneda desconocida.
-        if (/\b(?:per\s+year|yearly|annually|annual|year|yr)\b/i.test(texto) || /\/\s*(?:yr|year)\b/i.test(texto)) {
-            moneda = 'USD';
-        } else {
-            moneda = null;
-        }
+    } else {
+        moneda = null;
     }
 
     // 2. Detección de período
     let periodo = null;
-    if (/\b(?:mes|mensual|mensuales|per\s+month|monthly|\/mes|\/month|\/mo)\b/i.test(texto)) {
+    if (/(?:(?:\b(?:mes|mensual|mensuales|per\s+month|monthly)\b)|(?:\/\s*(?:mes|month|mo)\b))/i.test(texto)) {
         periodo = 'mes';
-    } else if (/\b(?:a[ñn]o|anual|anuales|per\s+year|yearly|annually|annual|\/a[ñn]o|\/year|\/yr)\b/i.test(texto)) {
+    } else if (/(?:(?:\b(?:a[ñn]o|anual|anuales|per\s+year|yearly|annually|annual)\b)|(?:\/\s*(?:a[ñn]o|year|yr)\b))/i.test(texto)) {
         periodo = 'año';
-    } else if (/\b(?:hora|por\s+hora|hourly|per\s+hour|\/hora|\/hr|\/h)\b/i.test(texto)) {
+    } else if (/(?:(?:\b(?:hora|por\s+hora|hourly|per\s+hour)\b)|(?:\/\s*(?:hora|hr|h)\b))/i.test(texto)) {
         periodo = 'hora';
+    } else if (/(?:(?:\b(?:semana|semanal|weekly|per\s+week)\b)|(?:\/\s*(?:semana|week|wk)\b))/i.test(texto)) {
+        periodo = 'semana';
     }
 
     // 3. Extracción de importes respetando separadores argentinos e internacionales
@@ -531,7 +529,12 @@ function parsearSalario(salarioStr) {
 
     const coincidencias = texto.match(/\d+(?:[.,]\d+)*k?/gi);
     if (!coincidencias || coincidencias.length === 0) {
-        return vacio;
+        return {
+            ...vacio,
+            moneda,
+            periodo,
+            texto_original: texto,
+        };
     }
 
     const valores = coincidencias
@@ -539,7 +542,12 @@ function parsearSalario(salarioStr) {
         .filter(n => n !== null && !isNaN(n) && n > 0);
 
     if (valores.length === 0) {
-        return vacio;
+        return {
+            ...vacio,
+            moneda,
+            periodo,
+            texto_original: texto,
+        };
     }
 
     let min = valores[0];

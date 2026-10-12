@@ -166,13 +166,25 @@ describe('Servicio de normalización', () => {
         test('extrae rango salarial cuando viene con formato USD', () => {
             const itemConSalario = {
                 ...itemLinkedinReal,
-                salary: '$50,000.00/yr - $70,000.00/yr',
+                salary: 'USD 50,000.00/yr - 70,000.00/yr',
             };
             const resultado = normalizarOfertaLinkedin(itemConSalario);
 
             expect(resultado.salario_min).toBe(50000);
             expect(resultado.salario_max).toBe(70000);
             expect(resultado.moneda).toBe('USD');
+        });
+
+        test('deja moneda null cuando viene solo con símbolo $ sin divisa explícita', () => {
+            const itemConSalario = {
+                ...itemLinkedinReal,
+                salary: '$50,000.00/yr - $70,000.00/yr',
+            };
+            const resultado = normalizarOfertaLinkedin(itemConSalario);
+
+            expect(resultado.salario_min).toBe(50000);
+            expect(resultado.salario_max).toBe(70000);
+            expect(resultado.moneda).toBeNull();
         });
 
         test('detecta nivel junior desde seniorityLevel', () => {
