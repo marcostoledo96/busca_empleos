@@ -519,10 +519,9 @@ const PATRONES_RESTRICCION = [
     /\bus\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
     /\bus\s*[-–—]?\s*based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
     /\bcanada\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
-    /\bcanada\s*[-–—]?\s*based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
-    /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europe|europa)\s+(?:only|solamente|unicamente)\b/i,
-    /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europe|europa)\b/i,
-    /\b(?:only|solo)\s+(?:para\s+)?(?:residentes\s+en\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europa|europe)\s+residents?\b/i,
+    /\b(?:residents?\s+(?:of|in)|residentes\s+(?:de|en))\s+(?:the\s+)?(?:us|usa|united\s+states|ee\s*uu|canada|spain|espana|uk|europe|europa)\s+(?:only|solamente|unicamente)\b/i,
+    /\b(?:residents?\s+(?:of|in)|residentes\s+(?:de|en))\s+(?:the\s+)?(?:us|usa|united\s+states|ee\s*uu|canada|spain|espana|uk|europe|europa)\b/i,
+    /\b(?:only|solo)\s+(?:para\s+)?(?:residentes\s+(?:de|en)\s+)?(?:us|usa|united\s+states|ee\s*uu|canada|spain|espana|uk|europa|europe)\s+(?:residents?|residentes)\b/i,
     /\bmust\s+reside\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|uk|europe)\b/i,
     /\bremote\s*[-–—:]\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:residents?\s+only|only\b)/i,
     /\bremote\s*\(\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:only|residents?\s+only)\s*\)/i,
@@ -567,18 +566,42 @@ function detectarRestriccionRemotaIncompatible(oferta = {}) {
     // 2. Verificación en el texto del puesto (título y descripción).
     const textoPuesto = `${oferta.titulo || ''} \n ${oferta.descripcion || ''}`;
 
-    // Dividimos por oraciones y separadores mayores, contemplando también cortes cuando una coma
-    // da paso a menciones sobre otros roles o clientes de la empresa.
+    // Dividimos por oraciones y separadores mayores, contemplando también cortes cuando una coma,
+    // una conjunción («and», «y», «while», «mientras», «but», «pero») o espacio da paso a menciones sobre otros roles
+    // o clientes/oficinas de la empresa (evitando que queden fusionados en una sola cláusula).
     const clausulas = textoPuesto
-        .split(/[.\n;!–—]+|,\s*(?=(?:for\s+other|para\s+otr|our\s+clients|nuestros\s+clientes|our\s+offices|nuestras\s+oficinas)\b)/i)
+        .split(/[.\n;!–—]+|(?:\s*,\s*|\s+(?:and|y|while|mientras|but|pero)\s+|\s+)(?=(?:for\s+other|para\s+otr|our\s+clients|nuestros\s+clientes|our\s+offices|nuestras\s+oficinas)\b)/i)
         .map(c => normalizarTextoGeografico(c))
         .filter(Boolean);
 
     for (const clausula of clausulas) {
-        // Ignoramos cláusulas expresamente dirigidas a OTROS roles
-        // (ej: "For other roles we hire US or Argentina residents")
-        const esOtroRol = /\b(?:for\s+other\s+(?:roles?|positions?|jobs?|openings?)|para\s+otr(?:os?|as?)\s+(?:puestos?|roles?|posiciones?))\b/i.test(clausula);
-        if (esOtroRol) {
+        // Si la cláusula contiene una referencia a otros roles:
+        // Evaluamos si el texto previo a dicha mención contiene una restricción explícita para la vacante actual.
+        const regexOtroRol = /\b(?:for\s+other\s+(?:roles?|positions?|jobs?|openings?)|para\s+otr(?:os?|as?)\s+(?:puestos?|roles?|posiciones?))\b/i;
+        const coincidenciaOtroRol = clausula.match(regexOtroRol);
+
+        if (coincidenciaOtroRol) {
+            const indiceOtroRol = coincidenciaOtroRol.index;
+            const subfrasePrevia = clausula.slice(0, indiceOtroRol).trim();
+
+            if (subfrasePrevia) {
+                // Comprobamos si la subfrase previa para esta vacante contiene restricción explícita
+                const tieneAperturaPrevia = PATRONES_APERTURA_ELEGIBILIDAD.some(patron => patron.test(subfrasePrevia));
+                if (!tieneAperturaPrevia) {
+                    for (const patron of PATRONES_RESTRICCION) {
+                        const coincidencia = subfrasePrevia.match(patron);
+                        if (coincidencia) {
+                            return {
+                                detectado: true,
+                                patron: 'remoto_restringido_pais',
+                                evidencia: coincidencia[0],
+                            };
+                        }
+                    }
+                }
+            }
+
+            // Descartamos la subfrase correspondiente a otros roles para que no confunda aperturas ni restricciones.
             continue;
         }
 

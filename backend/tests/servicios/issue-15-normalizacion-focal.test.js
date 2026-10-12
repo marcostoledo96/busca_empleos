@@ -25,6 +25,14 @@ const {
     },
 } = require('../../src/servicios/evaluacion/reglas-exclusion');
 
+const {
+    VERSION_CONTRATO_EVALUACION,
+    construirCriteriosEvaluacion,
+    crearFirmaCriterios,
+    crearHash,
+    obtenerVigenciaEvaluacion,
+} = require('../../src/servicios/evaluacion/identidad-evaluacion');
+
 describe('Issue #15: Pruebas focales de normalización', () => {
 
     // ──────────────────────────────────────────────────────────
@@ -418,17 +426,60 @@ describe('Issue #15: Pruebas focales de normalización', () => {
                 descripcion: 'Remote position: US or Argentina residents only.',
             }).detectado).toBe(false);
 
-            // Apertura para OTROS roles no cancela la exclusión remota explícita de este aviso (B-02)
-            const ofertaOtrosRoles = {
+            // Apertura para OTROS roles no cancela la exclusión remota explícita de este aviso (B-01)
+            const ofertaOtrosRolesPunto = {
                 modalidad: 'remoto',
                 titulo: 'Senior DevOps',
                 descripcion: 'Remote: US residents only. For other roles we hire US or Argentina residents.',
                 ubicacion: 'Remoto',
             };
-            const resOtrosRoles = detectarRestriccionRemotaIncompatible(ofertaOtrosRoles);
-            expect(resOtrosRoles.detectado).toBe(true);
-            expect(resOtrosRoles.patron).toBe('remoto_restringido_pais');
-            expect(detectarUbicacionIncompatible(ofertaOtrosRoles, { zonas_preferidas: zonas }).detectado).toBe(true);
+            const resOtrosRolesPunto = detectarRestriccionRemotaIncompatible(ofertaOtrosRolesPunto);
+            expect(resOtrosRolesPunto.detectado).toBe(true);
+            expect(resOtrosRolesPunto.patron).toBe('remoto_restringido_pais');
+            expect(detectarUbicacionIncompatible(ofertaOtrosRolesPunto, { zonas_preferidas: zonas }).detectado).toBe(true);
+
+            // Variante con conjunción «and» sin puntuación de cierre
+            const ofertaOtrosRolesAnd = {
+                modalidad: 'remoto',
+                titulo: 'Senior DevOps',
+                descripcion: 'Remote: US residents only and for other roles we hire US or Argentina residents.',
+                ubicacion: 'Remoto',
+            };
+            const resOtrosRolesAnd = detectarRestriccionRemotaIncompatible(ofertaOtrosRolesAnd);
+            expect(resOtrosRolesAnd.detectado).toBe(true);
+            expect(resOtrosRolesAnd.patron).toBe('remoto_restringido_pais');
+            expect(detectarUbicacionIncompatible(ofertaOtrosRolesAnd, { zonas_preferidas: zonas }).detectado).toBe(true);
+
+            // Variante con solo espacio sin puntuación
+            const ofertaOtrosRolesSinPunt = {
+                modalidad: 'remoto',
+                titulo: 'Senior DevOps',
+                descripcion: 'Remote: US residents only for other roles we hire US or Argentina residents.',
+                ubicacion: 'Remoto',
+            };
+            const resOtrosRolesSinPunt = detectarRestriccionRemotaIncompatible(ofertaOtrosRolesSinPunt);
+            expect(resOtrosRolesSinPunt.detectado).toBe(true);
+            expect(resOtrosRolesSinPunt.patron).toBe('remoto_restringido_pais');
+            expect(detectarUbicacionIncompatible(ofertaOtrosRolesSinPunt, { zonas_preferidas: zonas }).detectado).toBe(true);
+
+            // Variante en español con «y para otros roles»
+            const ofertaOtrosRolesEspanol = {
+                modalidad: 'remoto',
+                titulo: 'Desarrollador Senior',
+                descripcion: 'Remoto: solo residentes de USA y para otros roles contratamos en Argentina.',
+                ubicacion: 'Remoto',
+            };
+            const resOtrosRolesEspanol = detectarRestriccionRemotaIncompatible(ofertaOtrosRolesEspanol);
+            expect(resOtrosRolesEspanol.detectado).toBe(true);
+            expect(resOtrosRolesEspanol.patron).toBe('remoto_restringido_pais');
+
+            // US-based candidates only
+            const ofertaUsBasedRol = {
+                modalidad: 'remoto',
+                titulo: 'React Engineer',
+                descripcion: 'Remote role. US-based candidates only.',
+            };
+            expect(detectarRestriccionRemotaIncompatible(ofertaUsBasedRol).detectado).toBe(true);
 
             // Sede en el exterior sin restricción de residencia no debe rechazarse
             expect(detectarRestriccionRemotaIncompatible({
@@ -607,4 +658,45 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(resNull.max).toBeNull();
         });
     });
+
+    // ──────────────────────────────────────────────────────────
+    // 5. Vigencia e identidad de evaluación (#9 y #15 - B-02)
+    // ──────────────────────────────────────────────────────────
+    describe('Vigencia e identidad de evaluación (B-02)', () => {
+        test('24. Versión del contrato de evaluación se incrementó a evaluacion-v3', () => {
+            expect(VERSION_CONTRATO_EVALUACION).toBe('evaluacion-v3');
+        });
+
+        test('25. Cambio de contrato de evaluación provoca miss de firma y marca evaluaciones v2 como vigencia anterior', () => {
+            const prefs = {
+                nombre: 'Perfil sintético',
+                zonas_preferidas: ['CABA'],
+                modelo_ia: 'deepseek-v4-flash',
+            };
+
+            // Firma calculada bajo contrato anterior v2
+            const firmaV2 = crearHash(construirCriteriosEvaluacion(prefs, { version: 'evaluacion-v2' }));
+            // Firma actual bajo contrato vigente v3
+            const firmaV3 = crearFirmaCriterios(prefs);
+
+            expect(firmaV3).not.toBe(firmaV2);
+
+            // Una oferta previamente evaluada y guardada con firma v2 se reconoce como vigencia anterior
+            const evaluacionGuardadaV2 = {
+                id: 101,
+                estado_evaluacion: 'rechazada',
+                firma_criterios_evaluacion: firmaV2,
+            };
+            expect(obtenerVigenciaEvaluacion(evaluacionGuardadaV2, firmaV3)).toBe('anterior');
+
+            // Una evaluación calculada con el contrato vigente v3 tiene vigencia actual
+            const evaluacionGuardadaV3 = {
+                id: 102,
+                estado_evaluacion: 'aprobada',
+                firma_criterios_evaluacion: firmaV3,
+            };
+            expect(obtenerVigenciaEvaluacion(evaluacionGuardadaV3, firmaV3)).toBe('actual');
+        });
+    });
 });
+
