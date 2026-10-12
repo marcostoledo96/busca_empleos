@@ -85,7 +85,7 @@ function normalizarOfertaLinkedin(item) {
 function mapearModalidadComputrabajo(modalidadDetalle) {
     if (!modalidadDetalle || typeof modalidadDetalle !== 'string') return null;
     const m = modalidadDetalle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-    if (/\b(?:no\s+remoto|sin\s+posibilidad\s+de\s+remoto)\b/i.test(m)) return 'presencial';
+    if (/\b(?:no\s+remoto|sin\s+posibilidad\s+de\s+remoto)\b/i.test(m)) return null;
     if (m.includes('hibrido')) return 'hibrido';
     if (m.includes('remoto')) return 'remoto';
     if (m.includes('presencial')) return 'presencial';

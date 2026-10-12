@@ -90,7 +90,7 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(_mapearModalidadComputrabajo('hibrido')).toBe('hibrido');
             expect(_mapearModalidadComputrabajo('Remoto')).toBe('remoto');
             expect(_mapearModalidadComputrabajo('remoto')).toBe('remoto');
-            expect(_mapearModalidadComputrabajo('No remoto')).toBe('presencial');
+            expect(_mapearModalidadComputrabajo('No remoto')).toBeNull();
             expect(_mapearModalidadComputrabajo('Presencial')).toBe('presencial');
             expect(_mapearModalidadComputrabajo('presencial')).toBe('presencial');
             expect(_mapearModalidadComputrabajo('Jornada completa')).toBeNull();
@@ -206,6 +206,28 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(estaEnZonasPreferidas('Hurlingham, Buenos Aires', ['GBA Oeste'])).toBe(true);
         });
 
+        test('13d. Zonas amplias de GBA no se asimilan a otras provincias (Córdoba, Rosario, Tierra del Fuego) (B-01)', () => {
+            // "Zona Oeste de Córdoba" no debe asimilarse a GBA Oeste
+            expect(estaEnZonasPreferidas('Zona Oeste de Córdoba', ['GBA Oeste'])).toBe(false);
+            // "Zona Norte de Rosario" no debe asimilarse a GBA Norte
+            expect(estaEnZonasPreferidas('Zona Norte de Rosario', ['GBA Norte'])).toBe(false);
+            // "Sur de Tierra del Fuego" no debe asimilarse a GBA Sur
+            expect(estaEnZonasPreferidas('Sur de Tierra del Fuego', ['GBA Sur'])).toBe(false);
+
+            // Presencial en Zona Oeste de Córdoba activa la exclusión presencial_fuera_de_zona
+            const resCordoba = detectarUbicacionIncompatible(
+                { modalidad: 'presencial', ubicacion: 'Zona Oeste de Córdoba' },
+                { zonas_preferidas: ['GBA Oeste'] }
+            );
+            expect(resCordoba.detectado).toBe(true);
+            expect(resCordoba.patron).toBe('presencial_fuera_de_zona');
+
+            // En cambio, localidades y referencias reales a GBA/Buenos Aires sí se aceptan
+            expect(estaEnZonasPreferidas('Morón, Buenos Aires', ['GBA Oeste'])).toBe(true);
+            expect(estaEnZonasPreferidas('Zona Oeste, Buenos Aires', ['GBA Oeste'])).toBe(true);
+            expect(estaEnZonasPreferidas('Zona Oeste', ['GBA Oeste'])).toBe(true);
+        });
+
         test('14. Ubicación ausente no activa una exclusión geográfica automática (conserva incertidumbre)', () => {
             expect(estaEnZonasPreferidas('', zonas)).toBeNull();
             expect(estaEnZonasPreferidas(null, zonas)).toBeNull();
@@ -261,8 +283,30 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(res.detectado).toBe(false);
         });
 
-        test('16c. Restricción remota explícita no se invalida por mención incidental de sede argentina ni foránea (B-02)', () => {
-            // Sede en Buenos Aires con descripción US residents only debe detectarse como incompatible
+        test('16c. Restricción remota explícita no se anula por menciones ajenas de Argentina en otra cláusula (B-02)', () => {
+            // Caso del repro de auditoría: "Remote — US residents only. Our clients are in the US or Argentina."
+            const ofertaClientesArg = {
+                modalidad: 'remoto',
+                titulo: 'Senior Backend Engineer',
+                descripcion: 'Remote — US residents only. Our clients are in the US or Argentina.',
+                ubicacion: 'Remoto',
+            };
+            const res = detectarRestriccionRemotaIncompatible(ofertaClientesArg);
+            expect(res.detectado).toBe(true);
+            expect(res.patron).toBe('remoto_restringido_pais');
+
+            // Requisito explícito de "US-based candidates only"
+            const ofertaUsBased = {
+                modalidad: 'remoto',
+                titulo: 'DevOps Engineer',
+                descripcion: 'We are hiring for our cloud platform. US-based candidates only.',
+                ubicacion: 'Remoto',
+            };
+            const resUsBased = detectarRestriccionRemotaIncompatible(ofertaUsBased);
+            expect(resUsBased.detectado).toBe(true);
+            expect(resUsBased.patron).toBe('remoto_restringido_pais');
+
+            // Combinación sede Buenos Aires + US residents only
             const ofertaSedeArg = {
                 modalidad: 'remoto',
                 titulo: 'Remote React Engineer',
@@ -281,6 +325,13 @@ describe('Issue #15: Pruebas focales de normalización', () => {
                 modalidad: 'remoto',
                 datos_crudos: { candidate_required_location: 'Canada' },
             }).detectado).toBe(true);
+
+            // Apertura genuina en la misma cláusula ("US or Argentina residents only")
+            expect(detectarRestriccionRemotaIncompatible({
+                modalidad: 'remoto',
+                titulo: 'Fullstack Dev',
+                descripcion: 'Remote position: US or Argentina residents only.',
+            }).detectado).toBe(false);
 
             // Sede en el exterior sin restricción de residencia no debe rechazarse
             expect(detectarRestriccionRemotaIncompatible({
