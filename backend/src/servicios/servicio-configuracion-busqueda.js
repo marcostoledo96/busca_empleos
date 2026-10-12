@@ -91,7 +91,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     const maxResultados = Math.min(entrada.maxResultados ?? defectoMax, id === 'adzuna' ? 50 : 500);
     const filtros = {};
     let ubicacion = [];
-    let ventanaDias = null;
+    let ventanaDias = (id === 'linkedin' || id === 'glassdoor') ? 14 : 30;
     let origenUbicacion = 'fijo';
     const opcionesResueltas = { maxResultados, ...(usaTerminos ? { terminos } : {}) };
 
@@ -114,7 +114,6 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         if (!filtrarNivel) {
             advertencias.push('Filtro de nivel de experiencia de LinkedIn desactivado (no aplico f_E).');
         }
-        ventanaDias = 14;
     } else {
         if (entrada.ubicacion !== undefined || entrada.ubicaciones !== undefined || preferencias.zonas_preferidas?.length) {
             advertencias.push('No aplico ubicación ni zonas preferidas: esta integración conserva su ubicación fija.');
@@ -122,12 +121,10 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         if (['computrabajo', 'bumeran', 'indeed'].includes(id)) ubicacion = ['Argentina'];
         if (id === 'glassdoor') {
             ubicacion = ['Buenos Aires', 'Argentina'];
-            ventanaDias = 14;
             Object.assign(filtros, { soloUnicas: true, incluirSinSalario: true });
         }
         if (id === 'jooble') { ubicacion = ['Remote']; filtros.maxPaginasPorTermino = 2; }
         if (id === 'adzuna') { ubicacion = ['España']; filtros.prefijo = 'remote'; filtros.normalizacion = 'solo_indicadores_remoto'; }
-        if (['jooble', 'adzuna', 'remotive', 'remoteok'].includes(id)) ventanaDias = 14;
     }
 
     let consultasEfectivas = [];

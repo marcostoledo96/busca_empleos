@@ -14,7 +14,7 @@ const servicioScraping = require('../servicios/servicio-scraping');
 const modeloOferta = require('../modelos/oferta');
 const { PLATAFORMAS } = require('../config/plataformas');
 const { resolverConfiguracion, resolverConfiguraciones, leerPreferenciasBusqueda, validarOpciones } = require('../servicios/servicio-configuracion-busqueda');
-const { filtrarOfertasPorIdioma } = require('../servicios/servicio-ingreso-ofertas');
+const { filtrarOfertasPorIdioma, guardarLoteOfertasAislado } = require('../servicios/servicio-ingreso-ofertas');
 
 async function resolverIndividual(plataforma, body = {}) {
     validarOpciones(body);
@@ -24,6 +24,38 @@ async function resolverIndividual(plataforma, body = {}) {
 async function previsualizarBusquedas(req, res) {
     const configuraciones = await resolverConfiguraciones({}, { previsualizacion: true });
     res.json({ exito: true, datos: { plataformas: Object.values(configuraciones).map(configuracion => configuracion.resumen) } });
+}
+
+function construirRespuestaScraping({
+    plataforma,
+    nombre,
+    ofertasNormalizadas,
+    ofertasParaGuardar,
+    guardadas,
+    duplicadas,
+    errores = 0,
+    resumen,
+}) {
+    return {
+        mensaje: `Scraping de ${nombre} completado: ${guardadas} ofertas nuevas.`,
+        plataforma,
+        ofertas_nuevas: guardadas,
+        ofertas_duplicadas: duplicadas,
+        ofertas_errores: errores,
+        total_extraidas: ofertasNormalizadas.length,
+        descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
+        maxResultados: ofertasNormalizadas.maxResultados ?? resumen?.maxResultados ?? 50,
+        ventanaDias: ofertasNormalizadas.ventanaDias ?? 30,
+        consultasEjecutadas: ofertasNormalizadas.consultasEjecutadas ?? 1,
+        consultasOmitidas: ofertasNormalizadas.consultasOmitidas ?? 0,
+        totalCrudos: ofertasNormalizadas.totalCrudos ?? ofertasNormalizadas.length,
+        totalElegibles: ofertasNormalizadas.totalElegibles ?? ofertasNormalizadas.length,
+        duplicadasDescartadas: ofertasNormalizadas.duplicadasDescartadas ?? 0,
+        antiguasDescartadas: ofertasNormalizadas.antiguasDescartadas ?? 0,
+        sinFechaConocida: ofertasNormalizadas.sinFechaConocida ?? 0,
+        motivoFinalizacion: ofertasNormalizadas.motivoFinalizacion ?? 'agotado',
+        configuracion: resumen,
+    };
 }
 
 /**
@@ -37,31 +69,23 @@ async function previsualizarBusquedas(req, res) {
  */
 async function scrapearLinkedin(req, res) {
     const { opciones, resumen } = await resolverIndividual('linkedin', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingLinkedin(opciones);
 
-    // Guardo cada oferta en la BD. crearOferta retorna null si es duplicada.
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de LinkedIn completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'linkedin',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'LinkedIn',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -75,30 +99,23 @@ async function scrapearLinkedin(req, res) {
  */
 async function scrapearComputrabajo(req, res) {
     const { opciones, resumen } = await resolverIndividual('computrabajo', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingComputrabajo(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Computrabajo completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'computrabajo',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Computrabajo',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -112,30 +129,23 @@ async function scrapearComputrabajo(req, res) {
  */
 async function scrapearIndeed(req, res) {
     const { opciones, resumen } = await resolverIndividual('indeed', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingIndeed(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Indeed completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'indeed',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Indeed',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -148,30 +158,23 @@ async function scrapearIndeed(req, res) {
  */
 async function scrapearBumeran(req, res) {
     const { opciones, resumen } = await resolverIndividual('bumeran', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingBumeran(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Bumeran completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'bumeran',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Bumeran',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -185,30 +188,23 @@ async function scrapearBumeran(req, res) {
  */
 async function scrapearGlassdoor(req, res) {
     const { opciones, resumen } = await resolverIndividual('glassdoor', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGlassdoor(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Glassdoor completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'glassdoor',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Glassdoor',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -248,30 +244,23 @@ async function scrapearGetonbrd(req, res) {
  */
 async function scrapearJooble(req, res) {
     const { opciones, resumen } = await resolverIndividual('jooble', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingJooble(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Jooble completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'jooble',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Jooble',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -289,9 +278,6 @@ async function scrapearJooble(req, res) {
  * - terminos: array de términos de búsqueda personalizados
  */
 async function scrapearGoogleJobs(req, res) {
-    // Google Jobs está desactivado en el registry.
-    // El endpoint sigue activo para no romper el frontend, pero retorna 0 resultados
-    // sin llamar al servicio ni a la base de datos.
     const plataforma = PLATAFORMAS.google_jobs;
     return res.json({
         exito: true,
@@ -321,30 +307,23 @@ async function scrapearGoogleJobs(req, res) {
  */
 async function scrapearRemotive(req, res) {
     const { opciones, resumen } = await resolverIndividual('remotive', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemotive(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Remotive completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'remotive',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Remotive',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -362,30 +341,23 @@ async function scrapearRemotive(req, res) {
  */
 async function scrapearRemoteOK(req, res) {
     const { opciones, resumen } = await resolverIndividual('remoteok', req.body);
-
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemoteOK(opciones);
 
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de RemoteOK completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'remoteok',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'RemoteOK',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
@@ -394,28 +366,9 @@ async function scrapearRemoteOK(req, res) {
  * Ejecuto el scraping de InfoJobs España usando su API REST oficial
  * y guardo las ofertas en la BD.
  *
- * A diferencia de otras plataformas, InfoJobs usa su API oficial con
- * autenticación HTTP Basic (no usa Apify). Solo extrae ofertas de
- * remoto puro (teleworking=solo-teletrabajo); híbridas y presenciales
- * son descartadas en origen por el filtro de la API y en la normalización.
- *
- * Las credenciales se configuran en .env:
- *   INFOJOBS_CLIENT_ID=...
- *   INFOJOBS_CLIENT_SECRET=...
- *
- * Si ambas credenciales están ausentes, el servicio retorna un objeto
- * con { deshabilitado: true, codigo_resultado, advertencia, ofertas: [] }
- * para que el frontend pueda mostrar una advertencia informativa en lugar
- * de un toast de éxito engañoso con 0 extraídas.
- * Si solo una está presente, el servicio lanza un error de configuración.
- *
- * Body opcional:
- * - maxResultados: número máximo de ofertas a extraer (default: 50, máx: 50)
- * - terminos: array de términos de búsqueda personalizados
+ * InfoJobs está desactivado en el registry — no se debe invocar como plataforma activa.
  */
 async function scrapearInfojobs(req, res) {
-    // InfoJobs está desactivado en el registry — no se debe invocar como plataforma activa.
-    // Retorno respuesta controlada sin llamar al servicio ni a la base de datos.
     const plataforma = PLATAFORMAS.infojobs;
     return res.json({
         exito: true,
@@ -468,30 +421,37 @@ async function scrapearAdzuna(req, res) {
         });
     }
 
-    // Caso normal: el servicio retornó un array de ofertas normalizadas.
     const ofertasNormalizadas = resultadoServicio;
-    let guardadas = 0;
-    let duplicadas = 0;
-
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    for (const oferta of ofertasParaGuardar) {
-        const resultado = await modeloOferta.crearOferta(oferta);
-        if (resultado) guardadas++;
-        else duplicadas++;
-    }
+    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     res.json({
         exito: true,
-        datos: {
-            mensaje: `Scraping de Adzuna completado: ${guardadas} ofertas nuevas.`,
+        datos: construirRespuestaScraping({
             plataforma: 'adzuna',
-            ofertas_nuevas: guardadas,
-            ofertas_duplicadas: duplicadas,
-            total_extraidas: ofertasNormalizadas.length,
-            descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-            configuracion: resumen,
-        },
+            nombre: 'Adzuna',
+            ofertasNormalizadas,
+            ofertasParaGuardar,
+            guardadas,
+            duplicadas,
+            errores,
+            resumen,
+        }),
     });
 }
 
-module.exports = { previsualizarBusquedas, scrapearLinkedin, scrapearComputrabajo, scrapearIndeed, scrapearBumeran, scrapearGlassdoor, scrapearGetonbrd, scrapearJooble, scrapearGoogleJobs, scrapearRemotive, scrapearRemoteOK, scrapearInfojobs, scrapearAdzuna };
+module.exports = {
+    previsualizarBusquedas,
+    scrapearLinkedin,
+    scrapearComputrabajo,
+    scrapearIndeed,
+    scrapearBumeran,
+    scrapearGlassdoor,
+    scrapearGetonbrd,
+    scrapearJooble,
+    scrapearGoogleJobs,
+    scrapearRemotive,
+    scrapearRemoteOK,
+    scrapearInfojobs,
+    scrapearAdzuna,
+};

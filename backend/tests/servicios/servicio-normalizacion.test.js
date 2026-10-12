@@ -18,6 +18,8 @@ const {
     normalizarLote,
     detectarIdioma,
     _canonizarUrlLinkedin,
+    _sanitizarFecha,
+    _parsearFechaRelativaComputrabajo,
 } = require('../../src/servicios/servicio-normalizacion');
 
 // Dato crudo real de LinkedIn (obtenido del actor curious_coder/linkedin-jobs-scraper).
@@ -1148,6 +1150,126 @@ describe('Servicio de normalización', () => {
             const descripcion = 'Buscamos desarrollador con experiencia en React y Angular. Sueldo a convenir.';
 
             expect(detectarIdioma(titulo, descripcion)).toBe('es');
+        });
+    });
+
+    describe('_sanitizarFecha()', () => {
+        const ahora = new Date('2026-10-12T12:00:00.000Z');
+
+        test('devuelve objeto Date para fechas pasadas válidas', () => {
+            const resultado = _sanitizarFecha('2026-10-10T12:00:00.000Z', ahora);
+            expect(resultado).toBeInstanceOf(Date);
+            expect(resultado.toISOString()).toBe('2026-10-10T12:00:00.000Z');
+        });
+
+        test('sanitiza string inválido a null (nunca devuelve Invalid Date)', () => {
+            expect(_sanitizarFecha('fecha-invalida', ahora)).toBeNull();
+        });
+
+        test('sanitiza objeto Invalid Date a null', () => {
+            expect(_sanitizarFecha(new Date('invalida'), ahora)).toBeNull();
+        });
+
+        test('sanitiza null o undefined a null', () => {
+            expect(_sanitizarFecha(null, ahora)).toBeNull();
+            expect(_sanitizarFecha(undefined, ahora)).toBeNull();
+            expect(_sanitizarFecha('', ahora)).toBeNull();
+        });
+
+        test('permite fechas futuras cercanas dentro de 24 horas', () => {
+            const dentroDe12Horas = new Date(ahora.getTime() + 12 * 3600000);
+            const resultado = _sanitizarFecha(dentroDe12Horas, ahora);
+            expect(resultado).toBeInstanceOf(Date);
+        });
+
+        test('sanitiza fechas futuras improbables (> 24 horas) a null', () => {
+            const dentroDe3Dias = new Date(ahora.getTime() + 3 * 86400000);
+            expect(_sanitizarFecha(dentroDe3Dias, ahora)).toBeNull();
+        });
+    });
+
+    describe('_parsearFechaRelativaComputrabajo()', () => {
+        const ahora = new Date('2026-10-12T12:00:00.000Z');
+
+        test('interpreta "Hoy"', () => {
+            const resultado = _parsearFechaRelativaComputrabajo('Hoy', ahora);
+            expect(resultado).toBeInstanceOf(Date);
+            expect(resultado.getTime()).toBe(ahora.getTime());
+        });
+
+        test('interpreta "Ayer"', () => {
+            const resultado = _parsearFechaRelativaComputrabajo('Ayer', ahora);
+            expect(resultado).toBeInstanceOf(Date);
+            expect(resultado.getTime()).toBe(ahora.getTime() - 86400000);
+        });
+
+        test('interpreta "Hace X horas"', () => {
+            const resultado = _parsearFechaRelativaComputrabajo('Hace 4 horas', ahora);
+            expect(resultado).toBeInstanceOf(Date);
+            expect(resultado.getTime()).toBe(ahora.getTime() - 4 * 3600000);
+        });
+
+        test('interpreta "Hace X días" y "Hace X dia"', () => {
+            const resDias = _parsearFechaRelativaComputrabajo('Hace 3 días', ahora);
+            expect(resDias.getTime()).toBe(ahora.getTime() - 3 * 86400000);
+
+            const resDia = _parsearFechaRelativaComputrabajo('Hace 1 dia', ahora);
+            expect(resDia.getTime()).toBe(ahora.getTime() - 1 * 86400000);
+        });
+
+        test('interpreta "Hace X semanas" y "Hace X semana"', () => {
+            const resSemanas = _parsearFechaRelativaComputrabajo('Hace 2 semanas', ahora);
+            expect(resSemanas.getTime()).toBe(ahora.getTime() - 14 * 86400000);
+
+            const resSemana = _parsearFechaRelativaComputrabajo('Hace 1 semana', ahora);
+            expect(resSemana.getTime()).toBe(ahora.getTime() - 7 * 86400000);
+        });
+
+        test('retorna null para expresiones desconocidas o ambiguas', () => {
+            expect(_parsearFechaRelativaComputrabajo('Publicado hace un mes', ahora)).toBeNull();
+            expect(_parsearFechaRelativaComputrabajo('Urgente', ahora)).toBeNull();
+            expect(_parsearFechaRelativaComputrabajo('', ahora)).toBeNull();
+            expect(_parsearFechaRelativaComputrabajo(null, ahora)).toBeNull();
+        });
+    });
+
+    describe('Computrabajo: normalización de fechas relativas y preservación en datos_crudos', () => {
+        const ahora = new Date('2026-10-12T12:00:00.000Z');
+
+        test('interpreta fechaTexto relativa y preserva el texto en datos_crudos', () => {
+            const item = {
+                url: 'https://ar.computrabajo.com/oferta-relativa-1',
+                title: 'Desarrollador Fullstack',
+                fechaTexto: 'Hace 2 días',
+            };
+
+            const normalizada = normalizarOfertaComputrabajo(item, ahora);
+            expect(normalizada.fecha_publicacion).toBeInstanceOf(Date);
+            expect(normalizada.fecha_publicacion.getTime()).toBe(ahora.getTime() - 2 * 86400000);
+            expect(normalizada.datos_crudos.fechaTexto).toBe('Hace 2 días');
+        });
+
+        test('deja fecha_publicacion en null si la expresión es ambigua pero preserva fechaTexto', () => {
+            const item = {
+                url: 'https://ar.computrabajo.com/oferta-ambigua-1',
+                title: 'Soporte Técnico',
+                fechaTexto: 'Publicado recientemente',
+            };
+
+            const normalizada = normalizarOfertaComputrabajo(item, ahora);
+            expect(normalizada.fecha_publicacion).toBeNull();
+            expect(normalizada.datos_crudos.fechaTexto).toBe('Publicado recientemente');
+        });
+
+        test('sanitiza postedDate inválido a null sin arrojar error', () => {
+            const item = {
+                url: 'https://ar.computrabajo.com/oferta-invalida',
+                title: 'QA Tester',
+                postedDate: 'no-es-fecha-valida',
+            };
+
+            const normalizada = normalizarOfertaComputrabajo(item, ahora);
+            expect(normalizada.fecha_publicacion).toBeNull();
         });
     });
 });

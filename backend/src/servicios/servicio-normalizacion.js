@@ -11,6 +11,76 @@
 // fuentes a un formato común.
 
 /**
+ * Sanitizo una fecha comprobando validez y límites temporales razonables.
+ * Si es inválida (NaN), nula, o en el futuro improbable (> 24 horas), devuelvo null.
+ * Nunca devuelvo un objeto Invalid Date ni un string corrupto.
+ *
+ * @param {Date|string|number|null|undefined} fecha - Fecha a evaluar.
+ * @param {Date} [ahora=new Date()] - Fecha actual de referencia.
+ * @returns {Date|null} Objeto Date válido o null.
+ */
+function sanitizarFecha(fecha, ahora = new Date()) {
+    if (fecha === null || fecha === undefined || fecha === '') return null;
+    const d = fecha instanceof Date ? fecha : new Date(fecha);
+    const ms = d.getTime();
+    if (Number.isNaN(ms)) return null;
+    const limiteFuturo = ahora.getTime() + 24 * 60 * 60 * 1000;
+    if (ms > limiteFuturo) return null;
+    return d;
+}
+
+/**
+ * Interpreto expresiones temporales relativas comunes en español emitidas por Computrabajo:
+ * - "Hace X horas" / "Hace X hora" → ahora - X * 3600000
+ * - "Hace X días" / "Hace X dia" / "Hace X dias" → ahora - X * 86400000
+ * - "Hace X semanas" / "Hace X semana" → ahora - X * 7 * 86400000
+ * - "Ayer" → ahora - 86400000
+ * - "Hoy" → ahora
+ *
+ * Si la expresión es desconocida, ambigua o vacía, devuelvo null.
+ *
+ * @param {string|null|undefined} texto - Expresión temporal en español.
+ * @param {Date} [ahora=new Date()] - Momento actual de referencia.
+ * @returns {Date|null} Fecha aproximada calculada o null.
+ */
+function parsearFechaRelativaComputrabajo(texto, ahora = new Date()) {
+    if (!texto || typeof texto !== 'string') return null;
+    const normalizado = texto
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    if (/\bhoy\b/.test(normalizado)) {
+        return new Date(ahora.getTime());
+    }
+
+    if (/\bayer\b/.test(normalizado)) {
+        return new Date(ahora.getTime() - 24 * 60 * 60 * 1000);
+    }
+
+    const matchHoras = normalizado.match(/hace\s+(\d+)\s*hora/);
+    if (matchHoras) {
+        const horas = parseInt(matchHoras[1], 10);
+        return new Date(ahora.getTime() - horas * 3600000);
+    }
+
+    const matchDias = normalizado.match(/hace\s+(\d+)\s*dia/);
+    if (matchDias) {
+        const dias = parseInt(matchDias[1], 10);
+        return new Date(ahora.getTime() - dias * 86400000);
+    }
+
+    const matchSemanas = normalizado.match(/hace\s+(\d+)\s*semana/);
+    if (matchSemanas) {
+        const semanas = parseInt(matchSemanas[1], 10);
+        return new Date(ahora.getTime() - semanas * 7 * 86400000);
+    }
+
+    return null;
+}
+
+/**
  * Normalizo una oferta cruda de LinkedIn al esquema de nuestra tabla `ofertas`.
  *
  * Soporta dos schemas de actor:
@@ -70,7 +140,7 @@ function normalizarOfertaLinkedin(item) {
         salario_min: salario.min,
         salario_max: salario.max,
         moneda: salario.moneda,
-        fecha_publicacion: fechaCruda ? new Date(fechaCruda) : null,
+        fecha_publicacion: sanitizarFecha(fechaCruda),
         datos_crudos: item,
     };
 }
@@ -79,6 +149,7 @@ function normalizarOfertaLinkedin(item) {
  * Normalizo una oferta cruda de Computrabajo al esquema de nuestra tabla `ofertas`.
  *
  * @param {Object} item - Objeto crudo del actor de Computrabajo.
+ * @param {Date} [ahora=new Date()] - Momento actual para cálculo relativo.
  * @returns {Object} Oferta en el formato de nuestra tabla.
  * @throws {Error} Si el item no tiene URL.
  */
@@ -92,11 +163,27 @@ function mapearModalidadComputrabajo(modalidadDetalle) {
     return null;
 }
 
-function normalizarOfertaComputrabajo(item) {
+function normalizarOfertaComputrabajo(item, ahora = new Date()) {
     const url = item.url;
     if (!url) {
         throw new Error('El item de Computrabajo no tiene URL.');
     }
+
+    const fechaTexto = item.fechaTexto || (typeof item.postedDate === 'string' && isNaN(new Date(item.postedDate).getTime()) ? item.postedDate : null);
+    let fechaCalculada = null;
+
+    if (fechaTexto) {
+        fechaCalculada = parsearFechaRelativaComputrabajo(fechaTexto, ahora);
+    }
+
+    if (!fechaCalculada && item.postedDate) {
+        fechaCalculada = sanitizarFecha(item.postedDate, ahora);
+    }
+
+    // Conservo siempre fechaTexto dentro de datos_crudos
+    const datosCrudos = (fechaTexto && item.fechaTexto === undefined)
+        ? { ...item, fechaTexto }
+        : item;
 
     return {
         titulo: item.title || null,
@@ -112,8 +199,8 @@ function normalizarOfertaComputrabajo(item) {
         salario_min: null,
         salario_max: null,
         moneda: null,
-        fecha_publicacion: item.postedDate ? new Date(item.postedDate) : null,
-        datos_crudos: item,
+        fecha_publicacion: sanitizarFecha(fechaCalculada, ahora),
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -164,7 +251,7 @@ function normalizarOfertaIndeed(item) {
         salario_min: salarioMin,
         salario_max: salarioMax,
         moneda,
-        fecha_publicacion: item.datePublished ? new Date(item.datePublished) : null,
+        fecha_publicacion: sanitizarFecha(item.datePublished),
         datos_crudos: item,
     };
 }
@@ -610,7 +697,7 @@ function normalizarOfertaGlassdoor(item) {
         salario_min: item.baseSalary_min || null,
         salario_max: item.baseSalary_max || null,
         moneda: item.salary_currency || null,
-        fecha_publicacion: item.datePublished ? new Date(item.datePublished) : null,
+        fecha_publicacion: sanitizarFecha(item.datePublished),
         datos_crudos: item,
     };
 }
@@ -683,9 +770,7 @@ function normalizarOfertaGetonbrd(item) {
         salario_max: atributos.max_salary || null,
         // GetOnBrd publica salarios exclusivamente en dólares.
         moneda: (atributos.min_salary || atributos.max_salary) ? 'USD' : null,
-        fecha_publicacion: atributos.published_at
-            ? new Date(atributos.published_at * 1000)
-            : null,
+        fecha_publicacion: sanitizarFecha(atributos.published_at ? atributos.published_at * 1000 : null),
         datos_crudos: item,
     };
 }
@@ -731,8 +816,7 @@ function normalizarOfertaJooble(item) {
     const { salario_min, salario_max, moneda } = salario;
 
     // La fecha viene como ISO 8601 con microsegundos: "2026-03-28T12:00:00.0000000".
-    // new Date() lo maneja correctamente.
-    const fechaPublicacion = item.updated ? new Date(item.updated) : null;
+    const fechaPublicacion = sanitizarFecha(item.updated);
 
     return {
         titulo: item.title || null,
@@ -1042,7 +1126,7 @@ function normalizarOfertaRemotive(item) {
         salario_min: salario.min,
         salario_max: salario.max,
         moneda: salario.moneda,
-        fecha_publicacion: item.publication_date ? new Date(item.publication_date) : null,
+        fecha_publicacion: sanitizarFecha(item.publication_date),
         datos_crudos: item,
     };
 }
@@ -1094,7 +1178,7 @@ function normalizarOfertaRemoteOK(item) {
         salario_max: item.salary_max || null,
         // RemoteOK publica salarios exclusivamente en dólares.
         moneda: (item.salary_min || item.salary_max) ? 'USD' : null,
-        fecha_publicacion: item.date ? new Date(item.date) : null,
+        fecha_publicacion: sanitizarFecha(item.date),
         datos_crudos: item,
     };
 }
@@ -1218,7 +1302,7 @@ function normalizarOfertaInfojobs(item) {
         salario_max: salarioMax,
         // La moneda se infiere del campo salaryDescription si existe.
         moneda: inferirMonedaInfojobs(item.salaryDescription),
-        fecha_publicacion: item.published ? new Date(item.published) : null,
+        fecha_publicacion: sanitizarFecha(item.published),
         datos_crudos: item,
     };
 }
@@ -1440,8 +1524,8 @@ function normalizarOfertaAdzuna(item) {
         ? (MONEDA_POR_PAIS[item._pais] || null)
         : null;
 
-    // Fecha de publicación: Adzuna la da en ISO-8601, así que la uso directamente.
-    const fechaPublicacion = item.created || null;
+    // Fecha de publicación: Adzuna la da en ISO-8601, sanitizo por validez.
+    const fechaPublicacion = sanitizarFecha(item.created);
 
     return {
         titulo,
@@ -1488,5 +1572,7 @@ module.exports = {
     _mapearModalidadComputrabajo: mapearModalidadComputrabajo,
     _detectarModalidadTexto: detectarModalidadTexto,
     _canonizarUrlLinkedin: canonizarUrlLinkedin,
+    _sanitizarFecha: sanitizarFecha,
+    _parsearFechaRelativaComputrabajo: parsearFechaRelativaComputrabajo,
     detectarIdioma,
 };

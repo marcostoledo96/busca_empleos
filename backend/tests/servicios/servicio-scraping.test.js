@@ -86,7 +86,10 @@ const {
     ejecutarScrapingJooble,
     ejecutarScrapingInfojobs,
     ejecutarScrapingGoogleJobs,
+    ejecutarScrapingRemotive,
+    ejecutarScrapingRemoteOK,
     ejecutarScrapingAdzuna,
+    _filtrarPorVentanaPublicacion,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -334,6 +337,69 @@ describe('Servicio de scraping', () => {
             await expect(ejecutarScrapingComputrabajo()).rejects.toThrow(
                 'Error al ejecutar scraping de Computrabajo'
             );
+        });
+
+        test('deduplica tempranamente con Set evitando llamadas redundantes de detalle', async () => {
+            const htmlConDuplicadas = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-repetida">Dev Duplicado</a></h2>
+                        <p class="fs16 fc_base mt5">EmpresaTest <span class="mr10">CABA</span></p>
+                    </article>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-repetida">Dev Duplicado</a></h2>
+                        <p class="fs16 fc_base mt5">EmpresaTest <span class="mr10">CABA</span></p>
+                    </article>
+                </body></html>
+            `;
+            const htmlVacio = '<html><body></body></html>';
+
+            global.fetch
+                .mockResolvedValueOnce({ ok: true, text: jest.fn().mockResolvedValue(htmlConDuplicadas) })
+                .mockResolvedValueOnce({ ok: true, text: jest.fn().mockResolvedValue(htmlVacio) })
+                .mockResolvedValue({ ok: true, text: jest.fn().mockResolvedValue(htmlDetalleFalso) });
+
+            const resultado = await ejecutarScrapingComputrabajo({ terminos: ['frontend'], maxResultados: 10 });
+
+            expect(resultado.length).toBe(1);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(1);
+            expect(global.fetch).toHaveBeenCalledTimes(3);
+        });
+
+        test('paginación acotada con p=2 cuando maxResultados supera la capacidad de una página', async () => {
+            const htmlPagina1 = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-p1">Dev P1</a></h2>
+                    </article>
+                </body></html>
+            `;
+            const htmlPagina2 = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-p2">Dev P2</a></h2>
+                    </article>
+                </body></html>
+            `;
+
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('p=2')) {
+                    return { ok: true, text: async () => htmlPagina2 };
+                }
+                if (url.includes('trabajo-de-frontend')) {
+                    return { ok: true, text: async () => htmlPagina1 };
+                }
+                return { ok: true, text: async () => htmlDetalleFalso };
+            });
+
+            const resultado = await ejecutarScrapingComputrabajo({
+                terminos: ['frontend'],
+                maxResultados: 2,
+            });
+
+            expect(resultado.length).toBe(2);
+            const urlsLlamadas = global.fetch.mock.calls.map(c => c[0]);
+            expect(urlsLlamadas.some(u => u.includes('p=2'))).toBe(true);
         });
     });
 
@@ -830,6 +896,112 @@ describe('Servicio de scraping', () => {
             await expect(ejecutarScrapingJooble()).rejects.toThrow(
                 'Error al ejecutar scraping de Jooble'
             );
+        });
+
+        test('caso sintético 60/50: respeta el hard cap de maxResultados=50 aunque la API devuelva 60', async () => {
+            const sesentaOfertas = Array.from({ length: 60 }, (_, i) => ({
+                title: `Puesto ${i + 1}`,
+                location: 'Remote',
+                snippet: 'Descripción...',
+                source: 'Jooble',
+                link: `https://ar.jooble.org/desc/${i + 1}`,
+                company: `Empresa ${i + 1}`,
+                updated: new Date().toISOString(),
+            }));
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue({
+                    totalCount: 60,
+                    jobs: sesentaOfertas,
+                }),
+            });
+
+            const resultado = await ejecutarScrapingJooble({
+                terminos: ['frontend'],
+                maxResultados: 50,
+            });
+
+            expect(resultado.length).toBe(50);
+            expect(resultado.metricas.maxResultados).toBe(50);
+            expect(resultado.metricas.motivoFinalizacion).toBe('limite_resultados');
+        });
+
+        test('round-robin multi-término: consulta tester, soporte y angular equitativamente', async () => {
+            global.fetch.mockImplementation(async (url, opts) => {
+                const body = JSON.parse(opts.body);
+                return {
+                    ok: true,
+                    json: async () => ({
+                        totalCount: 1,
+                        jobs: [{
+                            title: `Job ${body.keywords}`,
+                            location: 'Remote',
+                            snippet: 'Desc',
+                            link: `https://ar.jooble.org/desc/${body.keywords}`,
+                            company: 'Test Corp',
+                            updated: new Date().toISOString(),
+                        }],
+                    }),
+                };
+            });
+
+            const resultado = await ejecutarScrapingJooble({
+                terminos: ['tester', 'soporte', 'angular'],
+                maxResultados: 10,
+            });
+
+            const keywordsConsultados = global.fetch.mock.calls.map(call => JSON.parse(call[1].body).keywords);
+            expect(keywordsConsultados).toContain('tester');
+            expect(keywordsConsultados).toContain('soporte');
+            expect(keywordsConsultados).toContain('angular');
+            expect(resultado.length).toBe(3);
+        });
+
+        test('primer término con ofertas antiguas o duplicadas no bloquea los siguientes términos', async () => {
+            const fechaVieja = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+            const fechaReciente = new Date().toISOString();
+
+            global.fetch.mockImplementation(async (url, opts) => {
+                const body = JSON.parse(opts.body);
+                if (body.keywords === 'tester') {
+                    return {
+                        ok: true,
+                        json: async () => ({
+                            totalCount: 5,
+                            jobs: [{
+                                title: 'Tester Viejo',
+                                location: 'Remote',
+                                link: 'https://ar.jooble.org/desc/tester-1',
+                                company: 'Vieja Corp',
+                                updated: fechaVieja,
+                            }],
+                        }),
+                    };
+                }
+                return {
+                    ok: true,
+                    json: async () => ({
+                        totalCount: 5,
+                        jobs: [{
+                            title: 'Angular Fresco',
+                            location: 'Remote',
+                            link: 'https://ar.jooble.org/desc/angular-1',
+                            company: 'Fresca Corp',
+                            updated: fechaReciente,
+                        }],
+                    }),
+                };
+            });
+
+            const resultado = await ejecutarScrapingJooble({
+                terminos: ['tester', 'angular'],
+                maxResultados: 10,
+            });
+
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].titulo).toBe('Angular Fresco');
+            expect(resultado.metricas.antiguasDescartadas).toBeGreaterThan(0);
         });
     });
 
@@ -1441,10 +1613,10 @@ describe('Servicio de scraping', () => {
             });
         });
 
-        test('descarta ofertas más antiguas que 14 días', async () => {
+        test('descarta ofertas más antiguas que 30 días', async () => {
             const ofertaVieja = {
                 ...ofertaAdzunaFalsa,
-                created: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
+                created: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
             };
             global.fetch.mockResolvedValue({
                 ok: true,
@@ -1577,6 +1749,140 @@ describe('Servicio de scraping', () => {
 
         test('retorna array vacío si el input está vacío', () => {
             expect(_filtrarPorUltimasDosemanas([])).toEqual([]);
+        });
+    });
+
+    describe('ejecutarScrapingRemoteOK()', () => {
+        const respuestaLegal = { legal: 'Aviso legal obligatorio' };
+
+        beforeEach(() => {
+            global.fetch = jest.fn();
+        });
+
+        test('caso sintético 70/50: respeta el hard cap de maxResultados=50 aunque la API devuelva 70', async () => {
+            const setentaTrabajos = Array.from({ length: 70 }, (_, i) => ({
+                id: String(i + 1),
+                position: `Dev ${i + 1}`,
+                company: `Empresa ${i + 1}`,
+                url: `https://remoteok.com/remote-jobs/${i + 1}`,
+                date: new Date().toISOString(),
+                tags: ['frontend', 'react'],
+            }));
+
+            global.fetch.mockResolvedValue({
+                ok: true,
+                json: jest.fn().mockResolvedValue([respuestaLegal, ...setentaTrabajos]),
+            });
+
+            const resultado = await ejecutarScrapingRemoteOK({
+                maxResultados: 50,
+                terminos: ['frontend'],
+            });
+
+            expect(resultado.length).toBe(50);
+            expect(resultado.metricas.maxResultados).toBe(50);
+            expect(resultado.metricas.motivoFinalizacion).toBe('limite_resultados');
+        });
+
+        test('distribuye cupo equitativamente entre múltiples tags', async () => {
+            global.fetch.mockImplementation(async (url) => {
+                const isReact = url.includes('react');
+                const tag = isReact ? 'react' : 'angular';
+                const jobs = Array.from({ length: 30 }, (_, i) => ({
+                    id: `${tag}-${i + 1}`,
+                    position: `${tag.toUpperCase()} Dev ${i + 1}`,
+                    company: `Company ${tag}`,
+                    url: `https://remoteok.com/remote-jobs/${tag}-${i + 1}`,
+                    date: new Date().toISOString(),
+                    tags: [tag],
+                }));
+                return {
+                    ok: true,
+                    json: async () => [respuestaLegal, ...jobs],
+                };
+            });
+
+            const resultado = await ejecutarScrapingRemoteOK({
+                terminos: ['react', 'angular'],
+                maxResultados: 20,
+            });
+
+            expect(resultado.length).toBe(20);
+            const reactCount = resultado.filter(o => o.titulo.includes('REACT')).length;
+            const angularCount = resultado.filter(o => o.titulo.includes('ANGULAR')).length;
+            expect(reactCount).toBe(10);
+            expect(angularCount).toBe(10);
+        });
+    });
+
+    describe('_filtrarPorVentanaPublicacion()', () => {
+        const ahora = Date.now();
+        const hace10Dias = new Date(ahora - 10 * 24 * 60 * 60 * 1000);
+        const hace20Dias = new Date(ahora - 20 * 24 * 60 * 60 * 1000);
+        const hace40Dias = new Date(ahora - 40 * 24 * 60 * 60 * 1000);
+        const enElFuturo = new Date(ahora + 48 * 60 * 60 * 1000);
+
+        test('conserva ofertas dentro de la ventana de 30 días (10d y 20d)', () => {
+            const ofertas = [
+                { titulo: '10 días', fecha_publicacion: hace10Dias },
+                { titulo: '20 días', fecha_publicacion: hace20Dias },
+            ];
+            const resultado = _filtrarPorVentanaPublicacion(ofertas, 30, ahora);
+            expect(resultado.length).toBe(2);
+        });
+
+        test('descarta ofertas más antiguas que la ventana de 30 días (40d)', () => {
+            const ofertas = [
+                { titulo: '40 días', fecha_publicacion: hace40Dias },
+            ];
+            const resultado = _filtrarPorVentanaPublicacion(ofertas, 30, ahora);
+            expect(resultado.length).toBe(0);
+            expect(resultado.antiguasDescartadas).toBe(1);
+        });
+
+        test('conserva ofertas sin fecha conocida (null)', () => {
+            const ofertas = [
+                { titulo: 'Sin fecha', fecha_publicacion: null },
+            ];
+            const resultado = _filtrarPorVentanaPublicacion(ofertas, 30, ahora);
+            expect(resultado.length).toBe(1);
+            expect(resultado.sinFechaConocida).toBe(1);
+        });
+
+        test('sanitiza fechas inválidas a null y las conserva defensivamente', () => {
+            const ofertas = [
+                { titulo: 'Fecha corrupta', fecha_publicacion: new Date('fecha-invalida') },
+            ];
+            const resultado = _filtrarPorVentanaPublicacion(ofertas, 30, ahora);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].fecha_publicacion).toBeNull();
+            expect(resultado.sinFechaConocida).toBe(1);
+        });
+
+        test('sanitiza fechas futuras improbables (>24h) a null y las conserva', () => {
+            const ofertas = [
+                { titulo: 'Del futuro', fecha_publicacion: enElFuturo },
+            ];
+            const resultado = _filtrarPorVentanaPublicacion(ofertas, 30, ahora);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].fecha_publicacion).toBeNull();
+            expect(resultado.sinFechaConocida).toBe(1);
+        });
+
+        test('admite ventana personalizada (ej. 14 días descarta 20 días)', () => {
+            const ofertas = [
+                { titulo: '10 días', fecha_publicacion: hace10Dias },
+                { titulo: '20 días', fecha_publicacion: hace20Dias },
+            ];
+            const resultado = _filtrarPorVentanaPublicacion(ofertas, 14, ahora);
+            expect(resultado.length).toBe(1);
+            expect(resultado[0].titulo).toBe('10 días');
+            expect(resultado.antiguasDescartadas).toBe(1);
+        });
+
+        test('retorna array vacío si el input está vacío', () => {
+            const resultado = _filtrarPorVentanaPublicacion([], 30, ahora);
+            expect(resultado).toEqual([]);
         });
     });
 

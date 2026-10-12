@@ -42,6 +42,50 @@ const HEADERS_SCRAPING = {
 };
 
 /**
+ * Canonizo una URL genérica para deduplicación intra-ejecución con Set.
+ * Remuevo fragmentos (#) y trailing slashes.
+ *
+ * @param {string} url - URL cruda.
+ * @returns {string|null} URL normalizada o null.
+ */
+function canonizarUrlGeneral(url) {
+    if (!url || typeof url !== 'string') return null;
+    try {
+        const u = new URL(url);
+        u.hash = '';
+        return u.toString().replace(/\/$/, '');
+    } catch {
+        return url.split('#')[0].trim().replace(/\/$/, '');
+    }
+}
+
+/**
+ * Adjunto métricas extendidas al array resultado de forma no enumerable para no alterar
+ * comparaciones de igualdad profunda (toEqual) en suites de pruebas preexistentes.
+ *
+ * @param {Array<Object>} resultado - Array de ofertas resultantes.
+ * @param {Object} metricas - Diccionario con métricas extendidas.
+ * @returns {Array<Object>} El mismo array con propiedades no enumerables adjuntas.
+ */
+function adjuntarMetricas(resultado, metricas) {
+    for (const [clave, valor] of Object.entries(metricas)) {
+        Object.defineProperty(resultado, clave, {
+            value: valor,
+            enumerable: false,
+            configurable: true,
+            writable: true,
+        });
+    }
+    Object.defineProperty(resultado, 'metricas', {
+        value: metricas,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+    });
+    return resultado;
+}
+
+/**
  * Ejecuto el scraping de LinkedIn Jobs.
  *
  * El flujo es:
@@ -100,7 +144,21 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(items, 'linkedin');
         console.log(`Scraping LinkedIn: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        return ofertasNormalizadas;
+        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: 14,
+            consultasEjecutadas: urls.length,
+            consultasOmitidas: 0,
+            totalCrudos: items.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas: 0,
+            antiguasDescartadas: 0,
+            sinFechaConocida: 0,
+            motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -135,66 +193,95 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
     // Lotes de 5 requests simultáneas al obtener detalles, con pausa entre lotes.
     const CONCURRENCIA_DETALLE = 5;
     const PAUSA_ENTRE_LOTES_MS = 300;
+    const MAX_PAGINAS_COMPUTRABAJO = 2;
+    const diasVentana = 30;
 
     try {
         const urls = construirUrlsComputrabajo({ terminos: opciones.terminos });
         console.log(`Scraping Computrabajo: ${urls.length} URL(s) de búsqueda generadas.`);
 
         // === Paso 1: Extraer cards básicos del listado ===
-        // Cada article.box_offer tiene: título, URL, empresa, ubicación, fecha.
+        // Deduplicación temprana en memoria con Set antes de fetchear detalles.
+        const urlsVistas = new Set();
         const ofertasParciales = [];
+        let duplicadasDescartadas = 0;
+        let peticionesListado = 0;
 
-        for (const urlBusqueda of urls) {
-            if (ofertasParciales.length >= maxResultados) break;
+        buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
+            let tarjetasEncontradasRonda = 0;
 
-            console.log(`Scraping Computrabajo: extrayendo listado de ${urlBusqueda}...`);
+            for (const urlBase of urls) {
+                if (ofertasParciales.length >= maxResultados) break buclePaginas;
 
-            const respListado = await fetch(urlBusqueda, { headers: HEADERS_SCRAPING });
+                const urlBusqueda = pagina === 1
+                    ? urlBase
+                    : (urlBase.includes('?') ? `${urlBase}&p=${pagina}` : `${urlBase}?p=${pagina}`);
 
-            if (!respListado.ok) {
-                console.warn(`Scraping Computrabajo: HTTP ${respListado.status} en ${urlBusqueda}. Saltando.`);
-                continue;
+                peticionesListado++;
+                console.log(`Scraping Computrabajo: extrayendo listado de ${urlBusqueda} (página ${pagina})...`);
+
+                const respListado = await fetch(urlBusqueda, { headers: HEADERS_SCRAPING });
+
+                if (!respListado.ok) {
+                    console.warn(`Scraping Computrabajo: HTTP ${respListado.status} en ${urlBusqueda}. Saltando.`);
+                    continue;
+                }
+
+                const htmlListado = await respListado.text();
+                const $listado = cheerio.load(htmlListado);
+
+                $listado('article.box_offer').each((_, el) => {
+                    if (ofertasParciales.length >= maxResultados) return false;
+
+                    const link = $listado(el).find('h2 a.js-o-link');
+                    const href = link.attr('href');
+                    const titulo = link.text().trim();
+
+                    if (!href || !titulo) return;
+
+                    tarjetasEncontradasRonda++;
+
+                    // Elimino el fragment #lc=... que Computrabajo usa para tracking.
+                    const urlRelativa = href.split('#')[0];
+                    const urlAbsoluta = `https://ar.computrabajo.com${urlRelativa}`;
+
+                    if (urlsVistas.has(urlAbsoluta)) {
+                        duplicadasDescartadas++;
+                        return;
+                    }
+
+                    urlsVistas.add(urlAbsoluta);
+
+                    // Empresa: primer párrafo con las clases fs16 fc_base mt5.
+                    const empresa = $listado(el).find('p.fs16.fc_base.mt5').first().text().trim() || null;
+
+                    // Ubicación: span.mr10 dentro del segundo párrafo de ese estilo.
+                    const ubicacion = $listado(el).find('p.fs16.fc_base.mt5 span.mr10').text().trim() || null;
+
+                    // Fecha en texto plano: "Hace 2 horas", "Hace 6 días", etc.
+                    const fechaTexto = $listado(el).find('p.fs13.fc_aux.mt15').text().trim() || null;
+
+                    ofertasParciales.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
+                });
+
+                console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas únicas en listado hasta ahora.`);
             }
 
-            const htmlListado = await respListado.text();
-            const $listado = cheerio.load(htmlListado);
-
-            $listado('article.box_offer').each((_, el) => {
-                if (ofertasParciales.length >= maxResultados) return false;
-
-                const link = $listado(el).find('h2 a.js-o-link');
-                const href = link.attr('href');
-                const titulo = link.text().trim();
-
-                if (!href || !titulo) return;
-
-                // Elimino el fragment #lc=... que Computrabajo usa para tracking.
-                const urlRelativa = href.split('#')[0];
-                const urlAbsoluta = `https://ar.computrabajo.com${urlRelativa}`;
-
-                // Empresa: primer párrafo con las clases fs16 fc_base mt5.
-                const empresa = $listado(el).find('p.fs16.fc_base.mt5').first().text().trim() || null;
-
-                // Ubicación: span.mr10 dentro del segundo párrafo de ese estilo.
-                const ubicacion = $listado(el).find('p.fs16.fc_base.mt5 span.mr10').text().trim() || null;
-
-                // Fecha en texto plano: "Hace 2 horas", "Hace 6 días", etc.
-                const fechaTexto = $listado(el).find('p.fs13.fc_aux.mt15').text().trim() || null;
-
-                ofertasParciales.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
-            });
-
-            console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas en listado hasta ahora.`);
+            if (tarjetasEncontradasRonda === 0) {
+                break;
+            }
         }
 
-        console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas en listado. Obteniendo descripciones...`);
+        // Acotamos estrictamente las tarjetas antes del fetch de detalle para no hacer requests innecesarias.
+        const tarjetasAProcesar = ofertasParciales.slice(0, maxResultados);
+        console.log(`Scraping Computrabajo: ${tarjetasAProcesar.length} ofertas en listado. Obteniendo descripciones...`);
 
         // === Paso 2: Fetch de cada página de detalle para obtener descripción y modalidad ===
         // Proceso en lotes para no sobrecargar el servidor con requests simultáneas.
         const itemsCrudos = [];
 
-        for (let i = 0; i < ofertasParciales.length; i += CONCURRENCIA_DETALLE) {
-            const lote = ofertasParciales.slice(i, i + CONCURRENCIA_DETALLE);
+        for (let i = 0; i < tarjetasAProcesar.length; i += CONCURRENCIA_DETALLE) {
+            const lote = tarjetasAProcesar.slice(i, i + CONCURRENCIA_DETALLE);
 
             const resultadosLote = await Promise.all(lote.map(async (oferta) => {
                 try {
@@ -233,7 +320,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
             itemsCrudos.push(...resultadosLote);
 
             // Pausa entre lotes para no martillar el servidor.
-            if (i + CONCURRENCIA_DETALLE < ofertasParciales.length) {
+            if (i + CONCURRENCIA_DETALLE < tarjetasAProcesar.length) {
                 await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
             }
         }
@@ -241,9 +328,24 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         console.log(`Scraping Computrabajo: ${itemsCrudos.length} ofertas crudas obtenidas.`);
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'computrabajo');
-        console.log(`Scraping Computrabajo: ${ofertasNormalizadas.length} ofertas normalizadas.`);
+        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasNormalizadas, diasVentana);
+        console.log(`Scraping Computrabajo: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
 
-        return ofertasNormalizadas;
+        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: diasVentana,
+            consultasEjecutadas: peticionesListado,
+            consultasOmitidas: 0,
+            totalCrudos: itemsCrudos.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas,
+            antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
+            sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
+            motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -315,7 +417,21 @@ async function ejecutarScrapingIndeed(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'indeed');
         console.log(`Scraping Indeed: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        return ofertasNormalizadas;
+        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: 30,
+            consultasEjecutadas: 1,
+            consultasOmitidas: 0,
+            totalCrudos: itemsCrudos.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas: 0,
+            antiguasDescartadas: 0,
+            sinFechaConocida: 0,
+            motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
+        });
+
+        return resultado;
 
     } catch (error) {
         // Envuelvo el error con un mensaje descriptivo para facilitar el debugging.
@@ -454,7 +570,22 @@ async function ejecutarScrapingBumeran(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(itemsAplanados, 'bumeran');
         console.log(`Scraping Bumeran: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        return ofertasNormalizadas;
+        const maxResultados = opciones.maxResultados || 100;
+        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: 30,
+            consultasEjecutadas: urls.length,
+            consultasOmitidas: 0,
+            totalCrudos: itemsAplanados.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas: 0,
+            antiguasDescartadas: 0,
+            sinFechaConocida: resultado.length,
+            motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -509,7 +640,21 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(items, 'glassdoor');
         console.log(`Scraping Glassdoor: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        return ofertasNormalizadas;
+        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: 14,
+            consultasEjecutadas: 1,
+            consultasOmitidas: 0,
+            totalCrudos: items.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas: 0,
+            antiguasDescartadas: 0,
+            sinFechaConocida: 0,
+            motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -713,90 +858,144 @@ async function ejecutarScrapingJooble(opciones = {}) {
     const maxResultados = opciones.maxResultados || 50;
     const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
     const terminos = opciones.consultasJooble || terminosBase;
-    // La API de Jooble no tiene cobertura para 'Argentina' ni 'España' (devuelve 0
-    // resultados). 'Remote' sí funciona y trae ofertas remotas relevantes.
-    // La evaluación IA después descarta las que no aplican al perfil.
     const UBICACIONES_JOOBLE = ['Remote'];
-    // Dos páginas por combinación término+país: suficiente cobertura sin inflar llamadas.
-    // (N palabras únicas × 1 país × 2 páginas = 2N llamadas máximo)
-    const MAX_PAGINAS_POR_TERMINO = 2;
+    const MAX_PAGINAS_POR_TERMINO = opciones.maxPaginasPorTermino || 2;
+    const MAX_PETICIONES = opciones.maxPeticiones || (terminos.length * MAX_PAGINAS_POR_TERMINO * UBICACIONES_JOOBLE.length);
+    const diasVentana = 30;
+    const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
 
     try {
-        console.log(`Scraping Jooble: buscando ${terminos.length} palabra(s) en ${UBICACIONES_JOOBLE.join(', ')}...`);
-        let itemsCrudos = [];
+        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) con round-robin en ${UBICACIONES_JOOBLE.join(', ')}...`);
+        const urlsVistas = new Set();
+        const ofertasElegibles = [];
+        let totalCrudos = 0;
+        let duplicadasDescartadas = 0;
+        let antiguasDescartadas = 0;
+        let sinFechaConocida = 0;
+        let peticionesEjecutadas = 0;
+        let huboLimitePaginas = false;
 
-        for (const termino of terminos) {
-            if (itemsCrudos.length >= maxResultados) break;
+        const estadosTerminos = terminos.map(termino => ({
+            termino,
+            totalPaginas: Infinity,
+            agotado: false,
+        }));
 
-            for (const pais of UBICACIONES_JOOBLE) {
-                if (itemsCrudos.length >= maxResultados) break;
+        const urlApi = `${JOOBLE_API_URL}${JOOBLE_API_KEY}`;
 
-                console.log(`Scraping Jooble: buscando "${termino}" en ${pais}...`);
+        bucleRondas: for (let numeroPagina = 1; numeroPagina <= MAX_PAGINAS_POR_TERMINO; numeroPagina++) {
+            let huboPeticionEnRonda = false;
 
-                // Pido la primera página para obtener totalCount y los primeros resultados.
-                const urlApi = `${JOOBLE_API_URL}${JOOBLE_API_KEY}`;
-                const respuestaPrimeraPagina = await fetch(urlApi, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        keywords: termino,
-                        location: pais,
-                        page: 1,
-                    }),
-                });
+            for (const estado of estadosTerminos) {
+                if (ofertasElegibles.length >= maxResultados) break bucleRondas;
+                if (peticionesEjecutadas >= MAX_PETICIONES) break bucleRondas;
+                if (estado.agotado || numeroPagina > estado.totalPaginas) continue;
 
-                if (!respuestaPrimeraPagina.ok) {
-                    console.warn(`Scraping Jooble: error HTTP ${respuestaPrimeraPagina.status} para "${termino}" en ${pais}. Saltando.`);
-                    continue;
-                }
+                for (const pais of UBICACIONES_JOOBLE) {
+                    if (ofertasElegibles.length >= maxResultados) break bucleRondas;
+                    if (peticionesEjecutadas >= MAX_PETICIONES) break bucleRondas;
 
-                const jsonPrimeraPagina = await respuestaPrimeraPagina.json();
-                const totalCount = jsonPrimeraPagina.totalCount || 0;
-                // La API gratuita devuelve 20 resultados por página.
-                const totalPaginas = Math.min(
-                    Math.ceil(totalCount / 20),
-                    MAX_PAGINAS_POR_TERMINO
-                );
-
-                // Acumulo los ítems de la primera página.
-                const jobsPrimeraPagina = jsonPrimeraPagina.jobs || [];
-                itemsCrudos = itemsCrudos.concat(jobsPrimeraPagina);
-                console.log(`Scraping Jooble: página 1/${totalPaginas} → ${jobsPrimeraPagina.length} ítem(s) para "${termino}" (${pais}).`);
-
-                // Si hay más páginas y no llegué al máximo, las pido.
-                for (let pagina = 2; pagina <= totalPaginas; pagina++) {
-                    if (itemsCrudos.length >= maxResultados) break;
+                    huboPeticionEnRonda = true;
+                    peticionesEjecutadas++;
+                    console.log(`Scraping Jooble: [Ronda ${numeroPagina}] buscando "${estado.termino}" en ${pais}...`);
 
                     const respuestaPagina = await fetch(urlApi, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
-                            keywords: termino,
+                            keywords: estado.termino,
                             location: pais,
-                            page: pagina,
+                            page: numeroPagina,
                         }),
                     });
 
                     if (!respuestaPagina.ok) {
-                        console.warn(`Scraping Jooble: error HTTP ${respuestaPagina.status} en página ${pagina} para "${termino}" en ${pais}. Deteniendo paginación.`);
-                        break;
+                        console.warn(`Scraping Jooble: error HTTP ${respuestaPagina.status} en página ${numeroPagina} para "${estado.termino}" en ${pais}. Saltando.`);
+                        estado.agotado = true;
+                        continue;
                     }
 
                     const jsonPagina = await respuestaPagina.json();
-                    const jobsPagina = jsonPagina.jobs || [];
-                    itemsCrudos = itemsCrudos.concat(jobsPagina);
-                    console.log(`Scraping Jooble: página ${pagina}/${totalPaginas} → ${jobsPagina.length} ítem(s) para "${termino}" (${pais}).`);
+                    const totalCount = jsonPagina.totalCount || 0;
+                    const totalPaginasPosibles = Math.ceil(totalCount / 20) || 1;
+                    estado.totalPaginas = Math.min(totalPaginasPosibles, MAX_PAGINAS_POR_TERMINO);
+
+                    if (totalPaginasPosibles > MAX_PAGINAS_POR_TERMINO) {
+                        huboLimitePaginas = true;
+                    }
+
+                    const jobs = Array.isArray(jsonPagina.jobs) ? jsonPagina.jobs : [];
+                    totalCrudos += jobs.length;
+                    console.log(`Scraping Jooble: página ${numeroPagina}/${estado.totalPaginas} → ${jobs.length} ítem(s) para "${estado.termino}" (${pais}).`);
+
+                    if (jobs.length === 0 || numeroPagina >= estado.totalPaginas) {
+                        estado.agotado = true;
+                    }
+
+                    // Normalizo y evalúo elegibilidad de inmediato por página
+                    const normalizadas = normalizarLote(jobs, 'jooble');
+
+                    for (const oferta of normalizadas) {
+                        const urlCanonica = canonizarUrlGeneral(oferta.url);
+                        if (!urlCanonica) continue;
+
+                        if (urlsVistas.has(urlCanonica)) {
+                            duplicadasDescartadas++;
+                            continue;
+                        }
+
+                        if (oferta.fecha_publicacion) {
+                            const d = new Date(oferta.fecha_publicacion);
+                            if (isNaN(d.getTime()) || d.getTime() > Date.now() + 24 * 3600000) {
+                                oferta.fecha_publicacion = null;
+                            }
+                        }
+
+                        if (oferta.fecha_publicacion) {
+                            if (oferta.fecha_publicacion.getTime() < limite30Dias) {
+                                antiguasDescartadas++;
+                                continue;
+                            }
+                        } else {
+                            sinFechaConocida++;
+                        }
+
+                        urlsVistas.add(urlCanonica);
+                        ofertasElegibles.push(oferta);
+                        if (ofertasElegibles.length >= maxResultados) break;
+                    }
                 }
             }
+
+            if (!huboPeticionEnRonda) break;
         }
 
-        console.log(`Scraping Jooble: ${itemsCrudos.length} ofertas crudas en total.`);
+        let motivoFinalizacion = 'agotado';
+        if (ofertasElegibles.length >= maxResultados) {
+            motivoFinalizacion = 'limite_resultados';
+        } else if (peticionesEjecutadas >= MAX_PETICIONES) {
+            motivoFinalizacion = 'limite_peticiones';
+        } else if (huboLimitePaginas) {
+            motivoFinalizacion = 'limite_paginas';
+        }
 
-        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'jooble');
-        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
-        console.log(`Scraping Jooble: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
+        // HARD CAP: nunca retorno más de maxResultados
+        const resultado = ofertasElegibles.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: diasVentana,
+            consultasEjecutadas: peticionesEjecutadas,
+            consultasOmitidas: 0,
+            totalCrudos,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas,
+            antiguasDescartadas,
+            sinFechaConocida,
+            motivoFinalizacion,
+        });
 
-        return ofertasFiltradas;
+        console.log(`Scraping Jooble: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas.`);
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -864,11 +1063,14 @@ async function ejecutarScrapingRemotive(opciones = {}) {
     opciones = resolverConfiguracion('remotive', opciones).opciones;
     const maxResultados = opciones.maxResultados || 50;
     const categorias = opciones.categoriasRemotive?.length ? opciones.categoriasRemotive : ['software-dev'];
+    const diasVentana = 30;
 
     try {
         let itemsCrudos = [];
+        let consultasEjecutadas = 0;
         for (const categoria of categorias) {
             if (itemsCrudos.length >= maxResultados) break;
+            consultasEjecutadas++;
             console.log(`Scraping Remotive: buscando ofertas en categoría "${categoria}"...`);
 
             const url = `${REMOTIVE_API_BASE}/remote-jobs?category=${categoria}&limit=${maxResultados}`;
@@ -885,11 +1087,41 @@ async function ejecutarScrapingRemotive(opciones = {}) {
         }
         console.log(`Scraping Remotive: ${itemsCrudos.length} ítem(s) en total.`);
 
+        const urlsVistas = new Set();
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remotive');
-        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
-        console.log(`Scraping Remotive: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
+        let duplicadasDescartadas = 0;
+        const ofertasSinDuplicados = [];
+        for (const oferta of ofertasNormalizadas) {
+            const urlCanonica = canonizarUrlGeneral(oferta.url);
+            if (!urlCanonica || urlsVistas.has(urlCanonica)) {
+                duplicadasDescartadas++;
+                continue;
+            }
+            urlsVistas.add(urlCanonica);
+            ofertasSinDuplicados.push(oferta);
+        }
 
-        return ofertasFiltradas;
+        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasSinDuplicados, diasVentana);
+        console.log(`Scraping Remotive: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
+
+        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        const consultasOmitidas = Math.max(0, categorias.length - consultasEjecutadas);
+        const motivoFinalizacion = resultado.length >= maxResultados ? 'limite_resultados' : 'agotado';
+
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: diasVentana,
+            consultasEjecutadas,
+            consultasOmitidas,
+            totalCrudos: itemsCrudos.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas,
+            antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
+            sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
+            motivoFinalizacion,
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -931,15 +1163,26 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
         'javascript',
         'qa',
     ];
+    const diasVentana = 30;
+    const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
+    const cupoObjetivoPorTag = Math.max(1, Math.ceil(maxResultados / terminos.length));
 
     try {
-        console.log(`Scraping RemoteOK: buscando ${terminos.length} término(s) con la API pública...`);
-        let itemsCrudos = [];
+        console.log(`Scraping RemoteOK: buscando ${terminos.length} término(s) con reparto equitativo de cupo...`);
+        const urlsVistas = new Set();
+        const ofertasElegibles = [];
+        const ofertasSobrantes = [];
+        let totalCrudos = 0;
+        let duplicadasDescartadas = 0;
+        let antiguasDescartadas = 0;
+        let sinFechaConocida = 0;
+        let consultasEjecutadas = 0;
 
         for (const termino of terminos) {
-            if (itemsCrudos.length >= maxResultados) break;
+            if (ofertasElegibles.length >= maxResultados) break;
 
-            console.log(`Scraping RemoteOK: buscando "${termino}"...`);
+            consultasEjecutadas++;
+            console.log(`Scraping RemoteOK: buscando tag "${termino}"...`);
 
             // RemoteOK filtra por etiquetas (tags). Convierto el término al formato
             // que espera la API: minúsculas, espacios a guiones, sin caracteres especiales.
@@ -967,17 +1210,71 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
             // El primer elemento del array es SIEMPRE el aviso legal de RemoteOK.
             // Lo saltamos con slice(1) para no intentar normalizarlo como oferta.
             const trabajos = Array.isArray(json) ? json.slice(1) : [];
-            itemsCrudos = itemsCrudos.concat(trabajos);
+            totalCrudos += trabajos.length;
             console.log(`Scraping RemoteOK: ${trabajos.length} ítem(s) para "${termino}".`);
+
+            const normalizadas = normalizarLote(trabajos, 'remoteok');
+            let elegiblesTag = 0;
+
+            for (const oferta of normalizadas) {
+                const urlCanonica = canonizarUrlGeneral(oferta.url);
+                if (!urlCanonica) continue;
+
+                if (urlsVistas.has(urlCanonica)) {
+                    duplicadasDescartadas++;
+                    continue;
+                }
+
+                if (oferta.fecha_publicacion) {
+                    const d = new Date(oferta.fecha_publicacion);
+                    if (isNaN(d.getTime()) || d.getTime() > Date.now() + 24 * 3600000) {
+                        oferta.fecha_publicacion = null;
+                    }
+                }
+
+                if (oferta.fecha_publicacion) {
+                    if (oferta.fecha_publicacion.getTime() < limite30Dias) {
+                        antiguasDescartadas++;
+                        continue;
+                    }
+                } else {
+                    sinFechaConocida++;
+                }
+
+                urlsVistas.add(urlCanonica);
+
+                if (elegiblesTag < cupoObjetivoPorTag && ofertasElegibles.length < maxResultados) {
+                    ofertasElegibles.push(oferta);
+                    elegiblesTag++;
+                } else {
+                    ofertasSobrantes.push(oferta);
+                }
+            }
         }
 
-        console.log(`Scraping RemoteOK: ${itemsCrudos.length} ofertas crudas en total.`);
+        while (ofertasElegibles.length < maxResultados && ofertasSobrantes.length > 0) {
+            ofertasElegibles.push(ofertasSobrantes.shift());
+        }
 
-        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remoteok');
-        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
-        console.log(`Scraping RemoteOK: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
+        const consultasOmitidas = Math.max(0, terminos.length - consultasEjecutadas);
+        const motivoFinalizacion = ofertasElegibles.length >= maxResultados ? 'limite_resultados' : 'agotado';
 
-        return ofertasFiltradas;
+        const resultado = ofertasElegibles.slice(0, maxResultados);
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: diasVentana,
+            consultasEjecutadas,
+            consultasOmitidas,
+            totalCrudos,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas,
+            antiguasDescartadas,
+            sinFechaConocida,
+            motivoFinalizacion,
+        });
+
+        console.log(`Scraping RemoteOK: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas.`);
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -1099,11 +1396,41 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
 
         console.log(`Scraping InfoJobs: ${itemsCrudos.length} ofertas crudas en total.`);
 
+        const diasVentana = 30;
+        const urlsVistas = new Set();
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'infojobs');
-        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
-        console.log(`Scraping InfoJobs: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
+        let duplicadasDescartadas = 0;
+        const ofertasSinDuplicados = [];
+        for (const oferta of ofertasNormalizadas) {
+            const urlCanonica = canonizarUrlGeneral(oferta.url);
+            if (!urlCanonica || urlsVistas.has(urlCanonica)) {
+                duplicadasDescartadas++;
+                continue;
+            }
+            urlsVistas.add(urlCanonica);
+            ofertasSinDuplicados.push(oferta);
+        }
 
-        return ofertasFiltradas;
+        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasSinDuplicados, diasVentana);
+        console.log(`Scraping InfoJobs: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
+
+        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        const motivoFinalizacion = resultado.length >= maxResultados ? 'limite_resultados' : 'agotado';
+
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: diasVentana,
+            consultasEjecutadas: terminos.length,
+            consultasOmitidas: 0,
+            totalCrudos: itemsCrudos.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas,
+            antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
+            sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
+            motivoFinalizacion,
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -1242,11 +1569,41 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
 
         console.log(`Scraping Adzuna: ${itemsCrudos.length} ofertas crudas en total.`);
 
+        const diasVentana = 30;
+        const urlsVistas = new Set();
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'adzuna');
-        const ofertasFiltradas = filtrarPorUltimasDosemanas(ofertasNormalizadas);
-        console.log(`Scraping Adzuna: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de las últimas 2 semanas.`);
+        let duplicadasDescartadas = 0;
+        const ofertasSinDuplicados = [];
+        for (const oferta of ofertasNormalizadas) {
+            const urlCanonica = canonizarUrlGeneral(oferta.url);
+            if (!urlCanonica || urlsVistas.has(urlCanonica)) {
+                duplicadasDescartadas++;
+                continue;
+            }
+            urlsVistas.add(urlCanonica);
+            ofertasSinDuplicados.push(oferta);
+        }
 
-        return ofertasFiltradas;
+        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasSinDuplicados, diasVentana);
+        console.log(`Scraping Adzuna: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
+
+        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        const motivoFinalizacion = resultado.length >= maxResultados ? 'limite_resultados' : 'agotado';
+
+        adjuntarMetricas(resultado, {
+            maxResultados,
+            ventanaDias: diasVentana,
+            consultasEjecutadas: paises.length * terminos.length,
+            consultasOmitidas: 0,
+            totalCrudos: itemsCrudos.length,
+            totalElegibles: resultado.length,
+            duplicadasDescartadas,
+            antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
+            sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
+            motivoFinalizacion,
+        });
+
+        return resultado;
 
     } catch (error) {
         throw new Error(
@@ -1257,35 +1614,71 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
 }
 
 /**
- * Filtro un array de ofertas normalizadas para retener solo las de las últimas
- * dos semanas (14 días).
+ * Filtro un lote de ofertas reteniendo las que caen dentro de la ventana de publicación configurada
+ * o que no tienen fecha conocida verificable.
  *
- * Regla de conservación: si fecha_publicacion es null, la oferta SE CONSERVA.
- * Esto es intencional — Bumeran, Computrabajo y Google Jobs no tienen fecha ISO
- * confiable. Descartarlas sería peor que incluirlas; la evaluación IA después
- * filtra las que no aplican al perfil. Solo descartamos cuando SABEMOS que la
- * oferta es vieja (fecha presente y fuera del rango de 14 días).
+ * Reglas:
+ * 1. Fechas inválidas o futuras (>24h respecto a 'ahora') se sanitizan defensivamente a null.
+ * 2. Ofertas sin fecha (null) se conservan por precaución (sinFechaConocida++).
+ * 3. Ofertas con fecha previa a (ahora - diasVentana) se descartan (antiguasDescartadas++).
  *
  * @param {Object[]} ofertas - Array de ofertas normalizadas.
- * @returns {Object[]} Ofertas dentro del rango de 14 días + las sin fecha.
+ * @param {number} [diasVentana=30] - Días de ventana (default: 30).
+ * @param {number} [ahora=Date.now()] - Timestamp de referencia para reloj controlado.
+ * @returns {Object[]} Array de ofertas elegibles dentro de la ventana.
+ */
+function filtrarPorVentanaPublicacion(ofertas, diasVentana = 30, ahora = Date.now()) {
+    const ventanaMs = diasVentana * 24 * 60 * 60 * 1000;
+    const limite = ahora - ventanaMs;
+    let antiguasDescartadas = 0;
+    let sinFechaConocida = 0;
+
+    const filtradas = ofertas.filter(oferta => {
+        if (!oferta.fecha_publicacion) {
+            sinFechaConocida++;
+            return true;
+        }
+
+        const d = new Date(oferta.fecha_publicacion);
+        const fechaMs = d.getTime();
+
+        if (isNaN(fechaMs) || fechaMs > ahora + 24 * 60 * 60 * 1000) {
+            oferta.fecha_publicacion = null;
+            sinFechaConocida++;
+            return true;
+        }
+
+        if (fechaMs < limite) {
+            antiguasDescartadas++;
+            return false;
+        }
+
+        return true;
+    });
+
+    Object.defineProperty(filtradas, 'antiguasDescartadas', {
+        value: antiguasDescartadas,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+    });
+    Object.defineProperty(filtradas, 'sinFechaConocida', {
+        value: sinFechaConocida,
+        enumerable: false,
+        configurable: true,
+        writable: true,
+    });
+    return filtradas;
+}
+
+/**
+ * Helper de compatibilidad: filtra reteniendo ofertas de los últimos 14 días.
+ *
+ * @param {Object[]} ofertas - Array de ofertas normalizadas.
+ * @returns {Object[]} Ofertas dentro de 14 días + sin fecha.
  */
 function filtrarPorUltimasDosemanas(ofertas) {
-    const CATORCE_DIAS_MS = 14 * 24 * 60 * 60 * 1000;
-    const ahora = Date.now();
-    const limite = ahora - CATORCE_DIAS_MS;
-
-    return ofertas.filter(oferta => {
-        // Sin fecha → conservar (no sabemos cuándo fue publicada).
-        if (!oferta.fecha_publicacion) return true;
-
-        const fechaMs = new Date(oferta.fecha_publicacion).getTime();
-
-        // Fecha inválida (NaN) → conservar por precaución.
-        if (isNaN(fechaMs)) return true;
-
-        // Solo descartamos si la fecha está fuera del rango de 14 días.
-        return fechaMs >= limite;
-    });
+    return filtrarPorVentanaPublicacion(ofertas, 14);
 }
 
 module.exports = {
@@ -1301,7 +1694,8 @@ module.exports = {
     ejecutarScrapingRemoteOK,
     ejecutarScrapingInfojobs,
     ejecutarScrapingAdzuna,
-    // Exporto el helper para poder testearlo directamente.
+    // Exporto los helpers para poder testearlos directamente.
     _filtrarPorUltimasDosemanas: filtrarPorUltimasDosemanas,
+    _filtrarPorVentanaPublicacion: filtrarPorVentanaPublicacion,
     _normalizarUrlGetonbrd: normalizarUrlGetonbrd,
 };
