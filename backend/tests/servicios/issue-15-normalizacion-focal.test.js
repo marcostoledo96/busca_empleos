@@ -248,6 +248,24 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(resFloridaUsa.detectado).toBe(true);
             expect(resFloridaUsa.patron).toBe('presencial_fuera_de_zona');
 
+            // Direcciones con nombres de calles que coinciden con provincias/países pero declaradas en CABA (B-01)
+            expect(estaEnZonasPreferidas('Avenida Santa Fe 1600, Recoleta, CABA', ['CABA'])).toBe(true);
+            expect(estaEnZonasPreferidas('Calle Chile 1200, San Telmo, CABA', ['CABA'])).toBe(true);
+            expect(estaEnZonasPreferidas('Santa Fe 1600, CABA', ['CABA'])).toBe(true);
+            expect(estaEnZonasPreferidas('Chile 1200, CABA', ['CABA'])).toBe(true);
+
+            const resAvSantaFe = detectarUbicacionIncompatible(
+                { modalidad: 'presencial', ubicacion: 'Avenida Santa Fe 1600, Recoleta, CABA' },
+                { zonas_preferidas: ['CABA'] }
+            );
+            expect(resAvSantaFe.detectado).toBe(false);
+
+            const resCalleChile = detectarUbicacionIncompatible(
+                { modalidad: 'presencial', ubicacion: 'Calle Chile 1200, San Telmo, CABA' },
+                { zonas_preferidas: ['CABA'] }
+            );
+            expect(resCalleChile.detectado).toBe(false);
+
             // Cadena con sedes alternativas disyuntivas: si una alternativa es compatible, la oferta es compatible
             expect(estaEnZonasPreferidas('Palermo, CABA o Rosario, Santa Fe', ['CABA'])).toBe(true);
             expect(estaEnZonasPreferidas('Palermo, CABA / Rosario, Santa Fe', ['CABA'])).toBe(true);
@@ -400,6 +418,18 @@ describe('Issue #15: Pruebas focales de normalización', () => {
                 descripcion: 'Remote position: US or Argentina residents only.',
             }).detectado).toBe(false);
 
+            // Apertura para OTROS roles no cancela la exclusión remota explícita de este aviso (B-02)
+            const ofertaOtrosRoles = {
+                modalidad: 'remoto',
+                titulo: 'Senior DevOps',
+                descripcion: 'Remote: US residents only. For other roles we hire US or Argentina residents.',
+                ubicacion: 'Remoto',
+            };
+            const resOtrosRoles = detectarRestriccionRemotaIncompatible(ofertaOtrosRoles);
+            expect(resOtrosRoles.detectado).toBe(true);
+            expect(resOtrosRoles.patron).toBe('remoto_restringido_pais');
+            expect(detectarUbicacionIncompatible(ofertaOtrosRoles, { zonas_preferidas: zonas }).detectado).toBe(true);
+
             // Sede en el exterior sin restricción de residencia no debe rechazarse
             expect(detectarRestriccionRemotaIncompatible({
                 modalidad: 'remoto',
@@ -420,6 +450,10 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             const ofertaRemotaComa = { modalidad: 'remoto', descripcion: 'Remote — US residents only, our clients are in the US or Argentina.' };
             const ofertaOficinasUs = { modalidad: 'remoto', descripcion: 'We have offices in the United States only. Fully remote worldwide.' };
 
+            const ofertaAvSantaFe = { modalidad: 'presencial', ubicacion: 'Avenida Santa Fe 1600, Recoleta, CABA' };
+            const ofertaCalleChile = { modalidad: 'presencial', ubicacion: 'Calle Chile 1200, San Telmo, CABA' };
+            const ofertaOtrosRoles = { modalidad: 'remoto', descripcion: 'Remote: US residents only. For other roles we hire US or Argentina residents.' };
+
             // Comprobación de reglas-exclusion
             const exclCaba = detectarUbicacionIncompatible(ofertaCaba, { zonas_preferidas: zonas });
             const exclFuera = detectarUbicacionIncompatible(ofertaFuera, { zonas_preferidas: zonas });
@@ -430,6 +464,9 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             const exclSedesMixtas = detectarUbicacionIncompatible(ofertaSedesMixtas, { zonas_preferidas: zonas });
             const exclRemotaComa = detectarUbicacionIncompatible(ofertaRemotaComa, { zonas_preferidas: zonas });
             const exclOficinasUs = detectarUbicacionIncompatible(ofertaOficinasUs, { zonas_preferidas: zonas });
+            const exclAvSantaFe = detectarUbicacionIncompatible(ofertaAvSantaFe, { zonas_preferidas: zonas });
+            const exclCalleChile = detectarUbicacionIncompatible(ofertaCalleChile, { zonas_preferidas: zonas });
+            const exclOtrosRoles = detectarUbicacionIncompatible(ofertaOtrosRoles, { zonas_preferidas: zonas });
 
             expect(exclCaba.detectado).toBe(false);
             expect(exclFuera.detectado).toBe(true);
@@ -440,6 +477,9 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(exclSedesMixtas.detectado).toBe(false);
             expect(exclRemotaComa.detectado).toBe(true);
             expect(exclOficinasUs.detectado).toBe(false);
+            expect(exclAvSantaFe.detectado).toBe(false);
+            expect(exclCalleChile.detectado).toBe(false);
+            expect(exclOtrosRoles.detectado).toBe(true);
 
             // Comprobación de criterio unificado directo
             expect(estaEnZonasPreferidas(ofertaCaba.ubicacion, zonas)).toBe(true);
@@ -451,6 +491,9 @@ describe('Issue #15: Pruebas focales de normalización', () => {
             expect(estaEnZonasPreferidas(ofertaSedesMixtas.ubicacion, zonas)).toBe(true);
             expect(detectarRestriccionRemotaIncompatible(ofertaRemotaComa).detectado).toBe(true);
             expect(detectarRestriccionRemotaIncompatible(ofertaOficinasUs).detectado).toBe(false);
+            expect(estaEnZonasPreferidas(ofertaAvSantaFe.ubicacion, zonas)).toBe(true);
+            expect(estaEnZonasPreferidas(ofertaCalleChile.ubicacion, zonas)).toBe(true);
+            expect(detectarRestriccionRemotaIncompatible(ofertaOtrosRoles).detectado).toBe(true);
         });
     });
 

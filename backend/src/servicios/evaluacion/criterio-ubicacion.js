@@ -284,9 +284,44 @@ function contieneTerminoConLimites(textoNorm, terminoNorm) {
 }
 
 /**
+ * Determina si una mención de un marcador geográfico corresponde exclusivamente al nombre de una calle
+ * dentro de una dirección declarada en CABA o AMBA (ej: "Avenida Santa Fe 1600, Recoleta, CABA",
+ * "Calle Chile 1200, San Telmo, CABA").
+ *
+ * @param {string} textoNorm - Ubicación normalizada.
+ * @param {string} marcadorNorm - Marcador geográfico a comprobar (ej: "santa fe", "chile").
+ * @returns {boolean}
+ */
+function esSoloNombreDeCalleLocal(textoNorm, marcadorNorm) {
+    if (!textoNorm || !marcadorNorm) return false;
+
+    // Verificar si la sede declara pertenecer a CABA o AMBA
+    const tieneJurisdiccionLocal = /\b(?:caba|capital federal|ciudad autonoma de buenos aires|ciudad de buenos aires|buenos aires|gran buenos aires|gba)\b/i.test(textoNorm) ||
+        Object.values(ZONAS_AMPLIAS).some(def =>
+            def.localidades.some(loc => contieneTerminoConLimites(textoNorm, normalizarTextoGeografico(loc)))
+        );
+
+    if (!tieneJurisdiccionLocal) return false;
+
+    const regexCalle = new RegExp(
+        `(?:\\b(?:av|ave|avenida|calle|pasaje|diagonal|bv|boulevard|ruta)\\s+${marcadorNorm}\\b|\\b${marcadorNorm}\\s+\\d{1,5}\\b)`,
+        'gi'
+    );
+
+    if (!regexCalle.test(textoNorm)) return false;
+
+    // Quitamos las ocurrencias de calles y verificamos si aún queda el marcador como jurisdicción aislada
+    const sinCalles = textoNorm.replace(regexCalle, ' ');
+    return !contieneTerminoConLimites(sinCalles, marcadorNorm);
+}
+
+/**
  * Determina si una zona dada (ej: "CABA" o "GBA Oeste") coincide con una localidad/ubicación.
  *
  * Reglas:
+ * - Si la ubicación contiene una jurisdicción extranjera explícita y la preferencia no es dicho país,
+ *   no se asimila a CABA ni GBA (evita homonimias como "Palermo, Italia" o "Florida, USA"),
+ *   salvo que se trate exclusivamente del nombre de una calle en una dirección local (ej: "Calle Chile 1200, CABA").
  * - Si la preferencia es una ZONA AMPLIA (ej: "GBA Oeste", "CABA", "Capital Federal"),
  *   coincide tanto con el nombre de la zona como con cualquiera de sus localidades o barrios componentes,
  *   siempre que la ubicación no pertenezca expresamente a otra provincia o jurisdicción exterior.
@@ -311,10 +346,16 @@ function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
 
     // 1. Verificación de jurisdicción extranjera explícita:
     // Si la ubicación contiene un país o región del exterior y NO menciona "argentina",
-    // no se asimila a CABA, GBA ni a ninguna localidad local (evita falsos positivos por homonimia
-    // como "Palermo, Italia" frente a CABA o "Florida, USA" frente a GBA Norte).
-    const esExtranjera = MARCADORES_EXTRANJEROS.some(p => contieneTerminoConLimites(ubicacionTextoNorm, p)) &&
-        !contieneTerminoConLimites(ubicacionTextoNorm, 'argentina');
+    // comprobamos si dicho marcador es en realidad el nombre de una calle dentro de una dirección
+    // explícitamente ubicada en CABA / Buenos Aires (ej: "Calle Chile 1200, San Telmo, CABA").
+    // Si no es un nombre de calle en CABA/AMBA, es una jurisdicción extranjera incompatible.
+    const esExtranjera = MARCADORES_EXTRANJEROS.some(p => {
+        if (!contieneTerminoConLimites(ubicacionTextoNorm, p)) return false;
+        if (contieneTerminoConLimites(ubicacionTextoNorm, 'argentina')) return false;
+        if (esSoloNombreDeCalleLocal(ubicacionTextoNorm, p)) return false;
+        return true;
+    });
+
     if (esExtranjera) {
         const coincideConPais = MARCADORES_EXTRANJEROS.some(
             p => contieneTerminoConLimites(ubicacionTextoNorm, p) && contieneTerminoConLimites(zonaTextoNorm, p)
@@ -339,7 +380,7 @@ function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
 
     // 3. Si la preferencia corresponde al AMBA (zona amplia o localidad específica del AMBA),
     // comprobamos si la ubicación contiene un marcador extraprovincial explícito (ej: "Zona Oeste de Córdoba").
-    // En tal caso, NO debe coincidir.
+    // Si el marcador corresponde a una calle local (ej: "Avenida Santa Fe 1600, CABA"), no se trata de otra provincia.
     const esZonaAmba = Boolean(zonaAmpliaDefinida) ||
         Object.values(ZONAS_AMPLIAS).some(def =>
             def.localidades.some(loc => {
@@ -349,7 +390,11 @@ function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
         );
 
     if (esZonaAmba) {
-        const esExtraprovincial = MARCADORES_EXTRAPROVINCIALES.some(m => contieneTerminoConLimites(ubicacionTextoNorm, m));
+        const esExtraprovincial = MARCADORES_EXTRAPROVINCIALES.some(m => {
+            if (!contieneTerminoConLimites(ubicacionTextoNorm, m)) return false;
+            if (esSoloNombreDeCalleLocal(ubicacionTextoNorm, m)) return false;
+            return true;
+        });
         if (esExtraprovincial) {
             return false;
         }
@@ -522,24 +567,34 @@ function detectarRestriccionRemotaIncompatible(oferta = {}) {
     // 2. Verificación en el texto del puesto (título y descripción).
     const textoPuesto = `${oferta.titulo || ''} \n ${oferta.descripcion || ''}`;
 
-    // Si el texto incluye una apertura explícita dentro del mismo requisito de elegibilidad
-    // (ej: "US or Argentina residents only", "Remote - US or Latam only"), no es incompatible.
-    for (const patronApertura of PATRONES_APERTURA_ELEGIBILIDAD) {
-        if (patronApertura.test(textoPuesto)) {
-            return { detectado: false, patron: null, evidencia: null };
-        }
-    }
-
-    // Dividimos por oraciones y separadores mayores
-    const clausulas = textoPuesto.split(/[.\n;!–—]+/).map(c => normalizarTextoGeografico(c)).filter(Boolean);
+    // Dividimos por oraciones y separadores mayores, contemplando también cortes cuando una coma
+    // da paso a menciones sobre otros roles o clientes de la empresa.
+    const clausulas = textoPuesto
+        .split(/[.\n;!–—]+|,\s*(?=(?:for\s+other|para\s+otr|our\s+clients|nuestros\s+clientes|our\s+offices|nuestras\s+oficinas)\b)/i)
+        .map(c => normalizarTextoGeografico(c))
+        .filter(Boolean);
 
     for (const clausula of clausulas) {
+        // Ignoramos cláusulas expresamente dirigidas a OTROS roles
+        // (ej: "For other roles we hire US or Argentina residents")
+        const esOtroRol = /\b(?:for\s+other\s+(?:roles?|positions?|jobs?|openings?)|para\s+otr(?:os?|as?)\s+(?:puestos?|roles?|posiciones?))\b/i.test(clausula);
+        if (esOtroRol) {
+            continue;
+        }
+
         // Ignoramos cláusulas que solo describen presencia de oficinas, sedes o clientes
         // (ej: "We have offices in the United States only", "Our clients are in the US or Argentina")
         // sin establecer requisitos hacia los candidatos/postulantes.
         const esMencionExclusivaSedesOClientes = /\b(?:offices?|oficinas?|headquarters?|hq|clientes?|clients?|customers?)\b/i.test(clausula) &&
             !/\b(?:residents?|candidates?|applicants?|engineers?|developers?|roles?|contratacion|hiring)\b/i.test(clausula);
         if (esMencionExclusivaSedesOClientes) {
+            continue;
+        }
+
+        // Si esta cláusula específica incluye una apertura explícita de elegibilidad conjunta para el puesto
+        // (ej: "US or Argentina residents only", "Remote - US or Latam only"), no constituye una restricción excluyente.
+        const tieneAperturaLocal = PATRONES_APERTURA_ELEGIBILIDAD.some(patron => patron.test(clausula));
+        if (tieneAperturaLocal) {
             continue;
         }
 
