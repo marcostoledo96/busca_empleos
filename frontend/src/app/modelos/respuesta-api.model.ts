@@ -54,6 +54,13 @@ export interface ResumenBusqueda {
     equivalenciasAplicadas?: Record<string, string | string[]>;
     equivalenciasSugeridas?: Record<string, string[]>;
     advertencias: string[];
+    consultasOmitidasPorPresupuesto?: string[];
+    motivoFinalizacion?: string;
+    totalCrudos?: number;
+    totalElegibles?: number;
+    duplicadasDescartadas?: number;
+    antiguasDescartadas?: number;
+    sinFechaConocida?: number;
     origen: {
         terminos: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
         ubicacion: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';
@@ -79,6 +86,16 @@ export interface RespuestaScraping {
     descartadas_por_idioma?: number;
     codigo_resultado?: string;
     advertencia?: string;
+    max_resultados?: number;
+    ventana_dias?: number;
+    consultas_ejecutadas?: string[] | number;
+    consultas_omitidas?: string[] | number;
+    total_crudos?: number;
+    total_elegibles?: number;
+    duplicadas_descartadas?: number;
+    antiguas_descartadas?: number;
+    sin_fecha_conocida?: number;
+    motivo_finalizacion?: string;
 }
 
 // Respuesta específica del endpoint de evaluación.

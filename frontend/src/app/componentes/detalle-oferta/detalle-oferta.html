@@ -121,12 +121,17 @@
             <div class="detalle-fechas">
                 <span class="fecha-item">
                     <span class="material-symbols-outlined">calendar_today</span>
-                    Extraída: {{ o.fecha_extraccion | date:'dd/MM/yyyy HH:mm' }}
+                    Detectada: {{ o.fecha_extraccion | date:'dd/MM/yyyy HH:mm' }}
                 </span>
                 @if (o.fecha_publicacion) {
                     <span class="fecha-item">
                         <span class="material-symbols-outlined">event_available</span>
                         Publicada: {{ o.fecha_publicacion | date:'dd/MM/yyyy' }}
+                    </span>
+                } @else {
+                    <span class="fecha-item" style="opacity: 0.7;">
+                        <span class="material-symbols-outlined">event_busy</span>
+                        Publicación: Desconocida / No informada
                     </span>
                 }
             </div>

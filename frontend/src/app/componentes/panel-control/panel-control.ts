@@ -543,6 +543,16 @@ export class PanelControl implements OnInit, OnDestroy {
         this.prepararBusqueda('linkedin', () => this.extraerLinkedin());
     }
 
+    private formatearDetalleScraping(datos: RespuestaScraping, conDuplicadas: boolean = true): string {
+        const base = conDuplicadas && datos.ofertas_duplicadas !== undefined
+            ? `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`
+            : `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`;
+        const motivo = (datos.motivo_finalizacion && datos.motivo_finalizacion !== 'agotado')
+            ? ` [Corte: ${datos.motivo_finalizacion}]`
+            : '';
+        return `${base}${motivo}`;
+    }
+
     private extraerLinkedin(): void {
         this.scrapeandoLinkedin.set(true);
         this.plataformaEnProceso.set('LinkedIn');
@@ -555,7 +565,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'LinkedIn completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -589,7 +599,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Computrabajo completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -623,7 +633,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Indeed completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -657,7 +667,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Bumeran completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -691,7 +701,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Glassdoor completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -725,7 +735,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Jooble completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -793,7 +803,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Remotive completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -827,7 +837,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'RemoteOK completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -875,7 +885,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'InfoJobs completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -922,7 +932,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Adzuna completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();

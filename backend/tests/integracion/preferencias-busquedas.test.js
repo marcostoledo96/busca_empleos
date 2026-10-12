@@ -316,8 +316,8 @@ test.each(['jooble', 'remoteok'])('%s preview describe el umbral y coincide con 
     const respuesta = await pedir('post', `/api/scraping/${id}`).send({});
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.datos.configuracion).toEqual(preview);
-    expect(respuesta.body.datos.total_extraidas).toBe(preview.maxResultados + 1);
-    expect(pool.ofertas).toHaveLength(preview.maxResultados + 1);
+    expect(respuesta.body.datos.total_extraidas).toBe(preview.maxResultados);
+    expect(pool.ofertas).toHaveLength(preview.maxResultados);
     expect(global.fetch).toHaveBeenCalledTimes(1);
     const [url, opciones] = global.fetch.mock.calls[0];
     if (id === 'jooble') {
@@ -391,4 +391,58 @@ test('LinkedIn respeta la persistencia de filtrar_nivel_linkedin en URLs del scr
     expect(respConFiltro.status).toBe(200);
     const urlsConFiltro = clienteApify.actor().call.mock.calls[0][0].urls;
     expect(urlsConFiltro.every(u => u.includes('f_E=1%2C2'))).toBe(true);
+});
+
+test('Integración Issue #16: Preferencias → reparto Jooble (tester, soporte, angular) → 60 items crudos con repetidas/antiguas → cupo final max 50 y métricas', async () => {
+    await pedir('put', '/api/preferencias').send({
+        terminos_busqueda: ['tester', 'soporte', 'angular']
+    });
+
+    const ahora = new Date();
+    const fechaReciente = new Date(ahora.getTime() - 5 * 86400000).toISOString();
+    const fechaAntigua = new Date(ahora.getTime() - 40 * 86400000).toISOString();
+
+    global.fetch = jest.fn(async (url, opciones) => {
+        const body = JSON.parse(opciones.body);
+        const termino = body.keywords;
+        const page = body.page;
+
+        const jobs = Array.from({ length: 20 }, (_, i) => {
+            const idItem = (i < 5) ? `repetida-${i}` : `${termino}-p${page}-${i}`;
+            const fecha = (i % 4 === 0) ? fechaAntigua : fechaReciente;
+            return {
+                title: `${termino} Developer ${i}`,
+                company: 'Empresa Test',
+                location: 'Remoto',
+                snippet: descripcionEs,
+                link: `https://jooble.org/desc/${idItem}`,
+                updated: fecha
+            };
+        });
+
+        return {
+            ok: true,
+            status: 200,
+            json: async () => ({ totalCount: 100, jobs })
+        };
+    });
+
+    const respuesta = await pedir('post', '/api/scraping/jooble').send({ maxResultados: 50 });
+    expect(respuesta.status).toBe(200);
+
+    const datos = respuesta.body.datos;
+    expect(datos.total_extraidas).toBeLessThanOrEqual(50);
+    expect(pool.ofertas.length).toBeLessThanOrEqual(50);
+    expect(datos.total_extraidas).toBe(pool.ofertas.length);
+
+    const terminosConsultados = global.fetch.mock.calls.map(c => JSON.parse(c[1].body).keywords);
+    expect(terminosConsultados).toContain('tester');
+    expect(terminosConsultados).toContain('soporte');
+    expect(terminosConsultados).toContain('angular');
+
+    expect(datos.motivo_finalizacion).toBeDefined();
+    expect(datos.ventana_dias).toBe(30);
+    expect(datos.max_resultados).toBe(50);
+    expect(datos.duplicadas_descartadas).toBeGreaterThan(0);
+    expect(datos.antiguas_descartadas).toBeGreaterThan(0);
 });
