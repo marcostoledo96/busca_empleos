@@ -147,6 +147,78 @@ const MARCADORES_EXTRAPROVINCIALES = [
     'tandil',
 ];
 
+/**
+ * Marcadores geográficos de países y jurisdicciones extranjeras explícitas.
+ * Evita que homonimias (ej: "Palermo, Italia" con CABA o "Florida, USA" con GBA Norte)
+ * pasen indebidamente como compatibles con el AMBA o la Argentina.
+ */
+const MARCADORES_EXTRANJEROS = [
+    'italia',
+    'italy',
+    'usa',
+    'eeuu',
+    'u s a',
+    'united states',
+    'estados unidos',
+    'espana',
+    'spain',
+    'mexico',
+    'colombia',
+    'chile',
+    'peru',
+    'uruguay',
+    'brasil',
+    'brazil',
+    'canada',
+    'uk',
+    'united kingdom',
+    'reino unido',
+    'england',
+    'inglaterra',
+    'alemania',
+    'germany',
+    'deutschland',
+    'francia',
+    'france',
+    'portugal',
+    'australia',
+    'paraguay',
+    'bolivia',
+    'ecuador',
+    'venezuela',
+    'netherlands',
+    'paises bajos',
+    'holanda',
+    'irlanda',
+    'ireland',
+    'polonia',
+    'poland',
+    'suiza',
+    'switzerland',
+    'austria',
+    'belgica',
+    'belgium',
+    'europa',
+    'europe',
+];
+
+/**
+ * Marcadores textuales que representan ubicación no especificada, a convenir o desconocida.
+ * Permite preservar la incertidumbre (null) sin forzar compatibilidad ni incompatibilidad.
+ */
+const MARCADORES_UBICACION_DESCONOCIDA = [
+    'a convenir',
+    'sin especificar',
+    'no especificada',
+    'no especificado',
+    'indistinto',
+    'desconocida',
+    'desconocido',
+    'unknown',
+    'n a',
+    'presencial',
+];
+
 // Variantes directas para localidades individuales específicas
 const SINONIMOS_LOCALIDADES = {
     'el palomar': ['palomar'],
@@ -154,6 +226,21 @@ const SINONIMOS_LOCALIDADES = {
     'san antonio de padua': ['padua'],
     padua: ['san antonio de padua'],
 };
+
+/**
+ * Divide una cadena de ubicación que declara múltiples sedes o alternativas
+ * (ej: "Palermo, CABA o Rosario, Santa Fe", "CABA / Córdoba").
+ *
+ * @param {string} ubicacionRaw
+ * @returns {string[]}
+ */
+function dividirUbicacionesAlternativas(ubicacionRaw) {
+    if (!ubicacionRaw || typeof ubicacionRaw !== 'string') return [];
+    return ubicacionRaw
+        .split(/\s+(?:o|or)\s+|[/|;\n]+/i)
+        .map(p => p.trim())
+        .filter(Boolean);
+}
 
 /**
  * Tabla plana de equivalencias y localidades para compatibilidad con consumidores externos.
@@ -214,7 +301,30 @@ function contieneTerminoConLimites(textoNorm, terminoNorm) {
 function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
     if (!ubicacionTextoNorm || !zonaTextoNorm) return false;
 
-    // 1. Determino si la zona preferida es una ZONA AMPLIA del AMBA (ej: "CABA", "Capital Federal", "GBA Oeste", "Zona Oeste").
+    // Si la cadena normalizada aún conserva una disyunción ("o", "or"), se evalúa cada rama.
+    if (/\b(?:o|or)\b/i.test(ubicacionTextoNorm)) {
+        const partes = ubicacionTextoNorm.split(/\b(?:o|or)\b/i).map(p => p.trim()).filter(Boolean);
+        if (partes.length > 1) {
+            return partes.some(p => coincideZonaConUbicacion(p, zonaTextoNorm));
+        }
+    }
+
+    // 1. Verificación de jurisdicción extranjera explícita:
+    // Si la ubicación contiene un país o región del exterior y NO menciona "argentina",
+    // no se asimila a CABA, GBA ni a ninguna localidad local (evita falsos positivos por homonimia
+    // como "Palermo, Italia" frente a CABA o "Florida, USA" frente a GBA Norte).
+    const esExtranjera = MARCADORES_EXTRANJEROS.some(p => contieneTerminoConLimites(ubicacionTextoNorm, p)) &&
+        !contieneTerminoConLimites(ubicacionTextoNorm, 'argentina');
+    if (esExtranjera) {
+        const coincideConPais = MARCADORES_EXTRANJEROS.some(
+            p => contieneTerminoConLimites(ubicacionTextoNorm, p) && contieneTerminoConLimites(zonaTextoNorm, p)
+        );
+        if (!coincideConPais) {
+            return false;
+        }
+    }
+
+    // 2. Determino si la zona preferida es una ZONA AMPLIA del AMBA (ej: "CABA", "Capital Federal", "GBA Oeste", "Zona Oeste").
     let zonaAmpliaDefinida = null;
     for (const def of Object.values(ZONAS_AMPLIAS)) {
         const coincideSinonimo = def.sinonimos.some(sin => {
@@ -227,15 +337,25 @@ function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
         }
     }
 
-    // 2. Si la preferencia es una zona amplia del AMBA (CABA o GBA),
+    // 3. Si la preferencia corresponde al AMBA (zona amplia o localidad específica del AMBA),
     // comprobamos si la ubicación contiene un marcador extraprovincial explícito (ej: "Zona Oeste de Córdoba").
-    // En tal caso, NO debe coincidir con el GBA/CABA.
-    if (zonaAmpliaDefinida) {
+    // En tal caso, NO debe coincidir.
+    const esZonaAmba = Boolean(zonaAmpliaDefinida) ||
+        Object.values(ZONAS_AMPLIAS).some(def =>
+            def.localidades.some(loc => {
+                const locNorm = normalizarTextoGeografico(loc);
+                return contieneTerminoConLimites(zonaTextoNorm, locNorm);
+            })
+        );
+
+    if (esZonaAmba) {
         const esExtraprovincial = MARCADORES_EXTRAPROVINCIALES.some(m => contieneTerminoConLimites(ubicacionTextoNorm, m));
         if (esExtraprovincial) {
             return false;
         }
+    }
 
+    if (zonaAmpliaDefinida) {
         const terminosPermitidos = [...zonaAmpliaDefinida.sinonimos, ...zonaAmpliaDefinida.localidades];
         for (const termino of terminosPermitidos) {
             const termNorm = normalizarTextoGeografico(termino);
@@ -246,12 +366,12 @@ function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
         return false;
     }
 
-    // 3. Coincidencia directa con límites de palabra para preferencias generales (ej: "Córdoba" en "Córdoba, Argentina").
+    // 4. Coincidencia directa con límites de palabra para preferencias generales (ej: "Córdoba" en "Córdoba, Argentina").
     if (contieneTerminoConLimites(ubicacionTextoNorm, zonaTextoNorm)) {
         return true;
     }
 
-    // 4. Si la preferencia es una LOCALIDAD ESPECÍFICA (ej: "Morón", "Caseros", "Palermo"),
+    // 5. Si la preferencia es una LOCALIDAD ESPECÍFICA (ej: "Morón", "Caseros", "Palermo"),
     // NO se expande a todo el clúster. Solo se cotejan sus variantes directas conocidas con límites de palabra.
     const sinonimosLoc = SINONIMOS_LOCALIDADES[zonaTextoNorm] || [];
     for (const sin of sinonimosLoc) {
@@ -272,6 +392,9 @@ function coincideZonaConUbicacion(ubicacionTextoNorm, zonaTextoNorm) {
  * - false si la ubicación está especificada y no coincide con ninguna zona preferida.
  * - null si la ubicación está ausente o no especificada (incertidumbre conservada).
  *
+ * Soporta sedes alternativas (ej: "Palermo, CABA o Rosario, Santa Fe", "CABA / Córdoba"):
+ * si al menos una de las alternativas coincide con las zonas preferidas, devuelve true.
+ *
  * @param {string|null} ubicacionOferta - Ubicación declarada en la oferta.
  * @param {string[]} zonasPreferidas - Zonas preferidas del candidato.
  * @returns {boolean|null}
@@ -285,20 +408,81 @@ function estaEnZonasPreferidas(ubicacionOferta, zonasPreferidas = []) {
         return null; // Ubicación desconocida: no afirma compatibilidad ni incompatibilidad.
     }
 
-    const ubicacionNorm = normalizarTextoGeografico(ubicacionOferta);
-    if (!ubicacionNorm) {
+    const sedes = dividirUbicacionesAlternativas(ubicacionOferta);
+    if (sedes.length === 0) {
         return null;
     }
 
-    for (const zona of zonasPreferidas) {
-        const zonaNorm = normalizarTextoGeografico(zona);
-        if (coincideZonaConUbicacion(ubicacionNorm, zonaNorm)) {
-            return true;
+    let algunNull = false;
+    let algunTrue = false;
+
+    for (const sede of sedes) {
+        const sedeNorm = normalizarTextoGeografico(sede);
+        if (!sedeNorm || MARCADORES_UBICACION_DESCONOCIDA.includes(sedeNorm)) {
+            algunNull = true;
+            continue;
+        }
+
+        let sedeCoincide = false;
+        for (const zona of zonasPreferidas) {
+            const zonaNorm = normalizarTextoGeografico(zona);
+            if (coincideZonaConUbicacion(sedeNorm, zonaNorm)) {
+                sedeCoincide = true;
+                break;
+            }
+        }
+
+        if (sedeCoincide) {
+            algunTrue = true;
+            break;
         }
     }
 
+    // Si al menos una sede alternativa es compatible (ej: "Palermo, CABA o Rosario, Santa Fe"),
+    // la oferta ofrece una ubicación compatible.
+    if (algunTrue) {
+        return true;
+    }
+
+    // Si no hubo ninguna sede confirmada como compatible pero hay incertidumbre en alguna sede,
+    // se conserva la incertidumbre (null).
+    if (algunNull) {
+        return null;
+    }
+
+    // Si todas las sedes evaluadas son confirmadamente incompatibles, devuelve false.
     return false;
 }
+
+// Patrones donde Argentina o Latam forman parte explícita de la misma cláusula de elegibilidad
+const PATRONES_APERTURA_ELEGIBILIDAD = [
+    /\b(?:us|usa|united\s+states|canada|spain|espana)\s+(?:or|y|\/)\s+(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\s+residents?\b/i,
+    /\b(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\s+(?:or|y|\/)\s+(?:us|usa|united\s+states|canada|spain|espana)\s+residents?\b/i,
+    /\b(?:us|usa|united\s+states|canada|spain|espana)\s+(?:or|y|\/)\s+(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\s*[-–—]?\s*based\b/i,
+    /\b(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\s+(?:or|y|\/)\s+(?:us|usa|united\s+states|canada|spain|espana)\s*[-–—]?\s*based\b/i,
+    /\bmust\s+reside\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana)\s+(?:or|y|\/)\s+(?:the\s+)?(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\b/i,
+    /\bremote\s*[-–—:]\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:or|y|\/)\s+(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\s*(?:only\b|residents?\s+only)?/i,
+    /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana)\s+(?:or|y|\/)\s+(?:the\s+)?(?:argentina|latam|latin\s+america|sudamerica|south\s+america)\b/i,
+];
+
+// Patrones estrictos de restricción territorial a otros países / regiones.
+// Requieren contexto expreso de contratación, residencia o elegibilidad para evitar colisiones
+// con presencia de oficinas ("offices in the US only") o con el pronombre en inglés ("send us only your resume").
+const PATRONES_RESTRICCION = [
+    /\b(?:usa|united\s+states|u\s*s\s*a|ee\s*uu)\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
+    /\b(?:usa|united\s+states|u\s*s\s*a|ee\s*uu)\s*[-–—]?\s*based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
+    /\bus\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
+    /\bus\s*[-–—]?\s*based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
+    /\bcanada\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
+    /\bcanada\s*[-–—]?\s*based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
+    /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europe|europa)\s+(?:only|solamente|unicamente)\b/i,
+    /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europe|europa)\b/i,
+    /\b(?:only|solo)\s+(?:para\s+)?(?:residentes\s+en\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europa|europe)\s+residents?\b/i,
+    /\bmust\s+reside\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|uk|europe)\b/i,
+    /\bremote\s*[-–—:]\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:residents?\s+only|only\b)/i,
+    /\bremote\s*\(\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:only|residents?\s+only)\s*\)/i,
+    /\b(?:candidates?|applicants?)\s+must\s+be\s+(?:located|based)\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|uk|europe)\b/i,
+];
 
 /**
  * Detecta si una oferta de modalidad remota posee una restricción territorial excluyente
@@ -336,42 +520,37 @@ function detectarRestriccionRemotaIncompatible(oferta = {}) {
     }
 
     // 2. Verificación en el texto del puesto (título y descripción).
-    // Evaluamos cláusula por cláusula para que una frase ajena ("Our clients are in the US or Argentina")
-    // no anule un requisito excluyente ("Remote — US residents only", "US-based candidates only").
     const textoPuesto = `${oferta.titulo || ''} \n ${oferta.descripcion || ''}`;
+
+    // Si el texto incluye una apertura explícita dentro del mismo requisito de elegibilidad
+    // (ej: "US or Argentina residents only", "Remote - US or Latam only"), no es incompatible.
+    for (const patronApertura of PATRONES_APERTURA_ELEGIBILIDAD) {
+        if (patronApertura.test(textoPuesto)) {
+            return { detectado: false, patron: null, evidencia: null };
+        }
+    }
+
     // Dividimos por oraciones y separadores mayores
     const clausulas = textoPuesto.split(/[.\n;!–—]+/).map(c => normalizarTextoGeografico(c)).filter(Boolean);
 
-    // Patrones de restricción territorial a otros países / regiones.
-    // Para "us" exigimos calificadores cívicos/territoriales ("us residents only", "us based only", "us-based candidates only")
-    // para evitar colisiones con el pronombre en inglés ("send us only your resume").
-    const PATRONES_RESTRICCION = [
-        /\b(?:usa|united\s+states|u\s*s\s*a|ee\s*uu)\s+(?:residents?\s+only|based\s+only|citizens?\s+only|only\b)/i,
-        /\b(?:usa|united\s+states|u\s*s\s*a|ee\s*uu)\s+based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
-        /\bus\s+(?:residents?\s+only|based\s+only|citizens?\s+only)\b/i,
-        /\bus\s+based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
-        /\bcanada\s+(?:residents?\s+only|based\s+only|citizens?\s+only|only\b)/i,
-        /\bcanada\s+based\s+(?:candidates?|applicants?|engineers?|developers?|roles?)?\s*only\b/i,
-        /\b(?:residents?\s+(?:of|in)|residentes\s+en)\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europe|europa)\b/i,
-        /\b(?:only|solo)\s+(?:para\s+)?(?:residentes\s+en\s+)?(?:us|usa|united\s+states|canada|spain|espana|uk|europa|europe)\s+residents?\b/i,
-        /\bmust\s+reside\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|uk|europe)\b/i,
-        /\bremote\s*[-–—:]\s*(?:us|usa|united\s+states|canada|spain|espana)\s+(?:residents?\s+only|only\b)/i,
-        /\b(?:candidates?|applicants?)\s+must\s+be\s+(?:located|based)\s+in\s+(?:the\s+)?(?:us|usa|united\s+states|canada|spain|uk|europe)\b/i,
-    ];
-
     for (const clausula of clausulas) {
+        // Ignoramos cláusulas que solo describen presencia de oficinas, sedes o clientes
+        // (ej: "We have offices in the United States only", "Our clients are in the US or Argentina")
+        // sin establecer requisitos hacia los candidatos/postulantes.
+        const esMencionExclusivaSedesOClientes = /\b(?:offices?|oficinas?|headquarters?|hq|clientes?|clients?|customers?)\b/i.test(clausula) &&
+            !/\b(?:residents?|candidates?|applicants?|engineers?|developers?|roles?|contratacion|hiring)\b/i.test(clausula);
+        if (esMencionExclusivaSedesOClientes) {
+            continue;
+        }
+
         for (const patron of PATRONES_RESTRICCION) {
             const coincidencia = clausula.match(patron);
             if (coincidencia) {
-                // Verifico si ESTA CLÁUSULA ESPECÍFICA incluye explícitamente apertura a Argentina o Latam
-                const incluyeAperturaLocal = /\b(?:argentina|latam|latin\s+america|sudamerica|south\s+america|worldwide|anywhere|global)\b/i.test(clausula);
-                if (!incluyeAperturaLocal) {
-                    return {
-                        detectado: true,
-                        patron: 'remoto_restringido_pais',
-                        evidencia: coincidencia[0],
-                    };
-                }
+                return {
+                    detectado: true,
+                    patron: 'remoto_restringido_pais',
+                    evidencia: coincidencia[0],
+                };
             }
         }
     }
@@ -382,6 +561,7 @@ function detectarRestriccionRemotaIncompatible(oferta = {}) {
 module.exports = {
     ALIASES_ZONAS,
     normalizarTextoGeografico,
+    dividirUbicacionesAlternativas,
     coincideZonaConUbicacion,
     estaEnZonasPreferidas,
     detectarRestriccionRemotaIncompatible,
