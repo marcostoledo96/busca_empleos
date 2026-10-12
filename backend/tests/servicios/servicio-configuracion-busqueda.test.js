@@ -155,6 +155,13 @@ describe('Configuración común de búsquedas', () => {
         const urlsSinFiltro = construirUrlsLinkedin(sinFiltro.opciones);
         expect(urlsSinFiltro.some(url => url.includes('f_E='))).toBe(false);
     });
+
+    test('resumen expone equivalenciasAplicadas y equivalenciasSugeridas separadas', () => {
+        const { resumen } = resolverConfiguracion('bumeran', { terminos: ['QA manual', 'C#'] }, {});
+        expect(resumen.equivalenciasAplicadas).toEqual({ 'C#': 'c-sharp' });
+        expect(resumen.equivalenciasSugeridas['QA manual']).toEqual(['tester manual']);
+        expect(resumen.equivalenciasSugeridas['C#']).toEqual(expect.arrayContaining(['c sharp', '.net']));
+    });
 });
 
 test('LinkedIn aplica todas las zonas guardadas en URLs reales sin alterar filtros', () => {

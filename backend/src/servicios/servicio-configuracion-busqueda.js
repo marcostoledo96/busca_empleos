@@ -12,6 +12,7 @@ const {
     traducirParaRemotive,
     traducirParaRemoteOK,
     esTerminoUtilizable,
+    obtenerEquivalenciasSugeridas,
     SIGLAS_VALIDAS,
 } = require('./servicio-traductor-consultas');
 
@@ -139,6 +140,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         consultasEfectivas = tr.consultas;
         equivalenciasAplicadas = tr.equivalencias;
         terminosUtiles = terminos.length > 0;
+        opcionesResueltas.terminos = consultasEfectivas;
     } else if (id === 'computrabajo') {
         filtros.transformacionTerminos = 'minusculas_sin_signos';
         const tr = traducirParaComputrabajo(terminos);
@@ -237,6 +239,8 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         advertencias.push(mensaje);
     }
 
+    const equivalenciasSugeridas = usaTerminos ? obtenerEquivalenciasSugeridas(terminos) : {};
+
     return {
         opciones: opcionesResueltas,
         resumen: {
@@ -248,6 +252,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
             terminos: usaTerminos ? terminos : [],
             consultasEfectivas,
             equivalenciasAplicadas,
+            equivalenciasSugeridas,
             ubicacion,
             ventanaDias,
             maxResultados: id === 'bumeran' ? null : maxResultados,

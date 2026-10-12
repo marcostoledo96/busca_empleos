@@ -2,6 +2,8 @@ const {
     sanitizarTermino,
     esTerminoUtilizable,
     obtenerEquivalencias,
+    obtenerEquivalenciasSugeridas,
+    contieneToken,
     traducirParaLinkedin,
     traducirParaBumeran,
     traducirParaIndeed,
@@ -47,11 +49,29 @@ describe('Servicio traductor de consultas laborales', () => {
     });
 
     describe('Equivalencias pequeñas y acotadas', () => {
-        test('equivalencias de QA manual, soporte IT, Angular y C#', () => {
+        test('equivalencias de QA manual, soporte IT, Angular, C# y .NET', () => {
             expect(obtenerEquivalencias('qa manual')).toContain('tester manual');
             expect(obtenerEquivalencias('soporte it')).toEqual(expect.arrayContaining(['mesa de ayuda', 'help desk']));
             expect(obtenerEquivalencias('frontend angular')).toContain('desarrollador angular');
+            expect(obtenerEquivalencias('angular')).toContain('frontend angular');
             expect(obtenerEquivalencias('c#')).toEqual(expect.arrayContaining(['c sharp', '.net']));
+            expect(obtenerEquivalencias('.net')).toEqual(expect.arrayContaining(['c#', 'c sharp']));
+        });
+
+        test('contieneToken detecta tokens con caracteres especiales como # y .', () => {
+            expect(contieneToken('c#', 'c#')).toBe(true);
+            expect(contieneToken('desarrollador c# junior', 'c#')).toBe(true);
+            expect(contieneToken('lenguaje c', 'c#')).toBe(false);
+            expect(contieneToken('.net', '.net')).toBe(true);
+            expect(contieneToken('backend .net core', '.net')).toBe(true);
+            expect(contieneToken('internet', '.net')).toBe(false);
+        });
+
+        test('obtenerEquivalenciasSugeridas retorna sugerencias solo para términos reconocidos', () => {
+            const sugerencias = obtenerEquivalenciasSugeridas(['C#', 'QA manual', 'desconocido']);
+            expect(sugerencias['C#']).toEqual(expect.arrayContaining(['c sharp', '.net']));
+            expect(sugerencias['QA manual']).toEqual(['tester manual']);
+            expect(sugerencias['desconocido']).toBeUndefined();
         });
 
         test('no inventa equivalencias para términos sin mapeo explícito', () => {
@@ -129,6 +149,20 @@ describe('Servicio traductor de consultas laborales', () => {
             expect(compatible).toBe(true);
         });
 
+        test('mapea C#, .NET y full stack aislados a software-dev sin considerarlos incompatibles', () => {
+            const resCSharp = traducirParaRemotive(['C#']);
+            expect(resCSharp.compatible).toBe(true);
+            expect(resCSharp.categorias).toEqual(['software-dev']);
+
+            const resDotNet = traducirParaRemotive(['.NET']);
+            expect(resDotNet.compatible).toBe(true);
+            expect(resDotNet.categorias).toEqual(['software-dev']);
+
+            const resFullStack = traducirParaRemotive(['full stack']);
+            expect(resFullStack.compatible).toBe(true);
+            expect(resFullStack.categorias).toEqual(['software-dev']);
+        });
+
         test('informa limitación cuando no hay categoría compatible', () => {
             const { compatible, advertencias } = traducirParaRemotive(['secretario médico']);
             expect(compatible).toBe(false);
@@ -146,10 +180,49 @@ describe('Servicio traductor de consultas laborales', () => {
             expect(compatible).toBe(true);
         });
 
+        test('mapea full stack, full stack node, C# y .NET a sus respectivos tags', () => {
+            const resFullStack = traducirParaRemoteOK(['full stack']);
+            expect(resFullStack.compatible).toBe(true);
+            expect(resFullStack.tags).toContain('fullstack');
+
+            const resFullStackNode = traducirParaRemoteOK(['full stack node']);
+            expect(resFullStackNode.compatible).toBe(true);
+            expect(resFullStackNode.tags).toContain('fullstack');
+            expect(resFullStackNode.tags).toContain('node');
+
+            const resCSharp = traducirParaRemoteOK(['C#']);
+            expect(resCSharp.compatible).toBe(true);
+            expect(resCSharp.tags).toContain('csharp');
+
+            const resDotNet = traducirParaRemoteOK(['.NET']);
+            expect(resDotNet.compatible).toBe(true);
+            expect(resDotNet.tags).toEqual(expect.arrayContaining(['net', 'dotnet']));
+        });
+
         test('informa limitación cuando un término no tiene tag compatible', () => {
             const { compatible, advertencias } = traducirParaRemoteOK(['secretario médico']);
             expect(compatible).toBe(false);
             expect(advertencias[0]).toMatch(/no dispone de etiquetas/i);
+        });
+    });
+
+    describe('Equivalencias aplicadas vs no aplicadas', () => {
+        test('LinkedIn, Indeed, Jooble y Adzuna no mutan términos y reportan equivalencias vacías', () => {
+            expect(traducirParaLinkedin(['QA manual']).equivalencias).toEqual({});
+            expect(traducirParaIndeed(['QA manual']).equivalencias).toEqual({});
+            expect(traducirParaJooble(['QA manual']).equivalencias).toEqual({});
+            expect(traducirParaAdzuna(['QA manual']).equivalencias).toEqual({});
+        });
+
+        test('Bumeran y Computrabajo reportan equivalencias aplicadas solo cuando transforman C# a c-sharp', () => {
+            const resBumeran = traducirParaBumeran(['C#']);
+            expect(resBumeran.equivalencias['C#']).toBe('c-sharp');
+
+            const resComputrabajo = traducirParaComputrabajo(['C#']);
+            expect(resComputrabajo.equivalencias['C#']).toBe('c-sharp');
+
+            const resComputrabajoSinMutacion = traducirParaComputrabajo(['QA']);
+            expect(resComputrabajoSinMutacion.equivalencias).toEqual({});
         });
     });
 });

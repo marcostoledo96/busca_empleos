@@ -20,6 +20,20 @@ import { MessageService } from 'primeng/api';
 
 type PreguntaImportacion = PreguntaPerfil;
 
+const EQUIVALENCIAS_SUGERIDAS_PREFERENCIAS: Record<string, string[]> = {
+    'qa manual': ['tester manual'],
+    'tester manual': ['qa manual'],
+    'soporte it': ['mesa de ayuda', 'help desk'],
+    'mesa de ayuda': ['soporte it', 'help desk'],
+    'help desk': ['soporte it', 'mesa de ayuda'],
+    'frontend angular': ['desarrollador angular'],
+    'desarrollador angular': ['frontend angular'],
+    'angular': ['frontend angular'],
+    'c#': ['c sharp', '.net'],
+    'c sharp': ['c#', '.net'],
+    '.net': ['c#', 'c sharp'],
+};
+
 @Component({
     selector: 'app-preferencias',
     imports: [
@@ -384,6 +398,32 @@ export class Preferencias implements OnInit {
             { rol: 'Full Stack Developer Jr', prioridad: 'media', aliases: ['full stack', 'fullstack', 'node developer'], evidencia: 'Rol secundario buscado' },
             { rol: 'Soporte IT / Aplicaciones', prioridad: 'media', aliases: ['soporte it', 'soporte de aplicaciones', 'help desk'], evidencia: 'Rol secundario buscado' },
         ];
+    }
+
+    get equivalenciasSugeridasDisponibles(): Array<{ terminoOrigen: string; sugerencia: string }> {
+        const resultado: Array<{ terminoOrigen: string; sugerencia: string }> = [];
+        const terminosActuales = (this.terminosBusqueda || []).map(t => t.trim().toLowerCase());
+        const vistos = new Set<string>();
+
+        for (const termino of this.terminosBusqueda || []) {
+            const normalizado = termino.trim().toLowerCase();
+            const sugerencias = EQUIVALENCIAS_SUGERIDAS_PREFERENCIAS[normalizado] || [];
+            for (const sug of sugerencias) {
+                const sugNorm = sug.toLowerCase();
+                if (!terminosActuales.includes(sugNorm) && !vistos.has(sugNorm)) {
+                    vistos.add(sugNorm);
+                    resultado.push({ terminoOrigen: termino, sugerencia: sug });
+                }
+            }
+        }
+        return resultado;
+    }
+
+    agregarTerminoSugerido(sugerencia: string): void {
+        const normalizada = sugerencia.trim().toLowerCase();
+        if (!this.terminosBusqueda.some(t => t.trim().toLowerCase() === normalizada)) {
+            this.terminosBusqueda = [...this.terminosBusqueda, sugerencia];
+        }
     }
 
     ngOnInit(): void {

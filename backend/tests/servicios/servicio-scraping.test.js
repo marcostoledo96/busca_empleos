@@ -237,6 +237,22 @@ describe('Servicio de scraping', () => {
             expect(inputLlamada.urls[0]).toContain('f_TPR=r1209600');
         });
 
+        test('pasa filtrarNivelLinkedin a construirUrlsLinkedin al ejecutar scraping', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-linkedin-123' });
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: itemsLinkedinFalsos });
+
+            const { construirUrlsLinkedin } = require('../../src/config/apify');
+            construirUrlsLinkedin.mockClear();
+
+            await ejecutarScrapingLinkedin({ filtrarNivelLinkedin: false });
+
+            expect(construirUrlsLinkedin).toHaveBeenCalledWith(
+                expect.objectContaining({ filtrarNivelLinkedin: false })
+            );
+        });
+
         test('tira error descriptivo si falla la API de Apify', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockRejectedValue(new Error('API rate limit exceeded'));
@@ -1483,6 +1499,10 @@ describe('Servicio de scraping', () => {
                 const urlObj = new URL(url);
                 expect(urlObj.searchParams.get('what')).toBe('remote frontend');
             });
+        });
+
+        test('usa terminos cuando consultasAdzuna no está definido sin lanzar ReferenceError', async () => {
+            await expect(ejecutarScrapingAdzuna({ terminos: ['QA'] })).resolves.toBeDefined();
         });
 
     }); // fin describe('ejecutarScrapingAdzuna')

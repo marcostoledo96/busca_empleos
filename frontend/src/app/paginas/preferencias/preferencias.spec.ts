@@ -1271,4 +1271,42 @@ describe('Preferencias — Filtro de nivel de LinkedIn (Issue #14)', () => {
         const form = (comp as any).datosFormulario();
         expect(form.filtrar_nivel_linkedin).toBeFalse();
     });
+
+    it('calcula equivalencias sugeridas disponibles y permite agregarlas a los términos de búsqueda', () => {
+        TestBed.configureTestingModule({
+            imports: [Preferencias],
+            providers: [
+                provideRouter([]),
+                provideHttpClient(),
+                provideHttpClientTesting(),
+                provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => false } },
+            ],
+        });
+        const http = TestBed.inject(HttpTestingController);
+        const fixture = TestBed.createComponent(Preferencias);
+        const comp = fixture.componentInstance;
+        fixture.autoDetectChanges();
+
+        http.expectOne('http://localhost:3000/api/preferencias').flush({
+            exito: true,
+            datos: { id: 1, terminos_busqueda: ['QA manual', 'C#'] },
+        });
+        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({
+            exito: true,
+            datos: { cv_base: null, cv_base_actualizado_en: null },
+        });
+
+        const sugerencias = comp.equivalenciasSugeridasDisponibles;
+        expect(sugerencias.some(s => s.sugerencia === 'tester manual')).toBeTrue();
+        expect(sugerencias.some(s => s.sugerencia === '.net')).toBeTrue();
+
+        comp.agregarTerminoSugerido('tester manual');
+        expect(comp.terminosBusqueda).toContain('tester manual');
+        expect(comp.cambiosSinGuardar).toBeTrue();
+
+        const cantidadAntes = comp.terminosBusqueda.length;
+        comp.agregarTerminoSugerido('tester manual');
+        expect(comp.terminosBusqueda.length).toBe(cantidadAntes);
+    });
 });

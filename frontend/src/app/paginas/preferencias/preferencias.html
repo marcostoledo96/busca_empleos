@@ -349,6 +349,19 @@
                                 <label class="campo-etiqueta">Términos de búsqueda</label>
                                 <p-autocomplete [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" appendTo="body" />
                             </div>
+                            @if (equivalenciasSugeridasDisponibles.length > 0) {
+                                <div class="campo campo-equivalencias-sugeridas">
+                                    <label class="campo-etiqueta">Equivalencias sugeridas para tus términos</label>
+                                    <small class="campo-ayuda">Sugerencias conocidas que no se agregan automáticamente a tus consultas. Hacé clic para agregarlas a tus términos de búsqueda.</small>
+                                    <div class="lista-chips-sugerencias">
+                                        @for (item of equivalenciasSugeridasDisponibles; track item.sugerencia) {
+                                            <button type="button" class="chip-sugerencia" (click)="agregarTerminoSugerido(item.sugerencia)" [title]="'Para: ' + item.terminoOrigen">
+                                                + {{ item.sugerencia }} <span class="chip-sugerencia-origen">({{ item.terminoOrigen }})</span>
+                                            </button>
+                                        }
+                                    </div>
+                                </div>
+                            }
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
                                     <label class="campo-etiqueta">Keywords positivas</label>

@@ -9,8 +9,10 @@ const EQUIVALENCIAS_LABORALES = Object.freeze({
     'help desk': ['soporte it', 'mesa de ayuda'],
     'frontend angular': ['desarrollador angular'],
     'desarrollador angular': ['frontend angular'],
+    'angular': ['frontend angular'],
     'c#': ['c sharp', '.net'],
     'c sharp': ['c#', '.net'],
+    '.net': ['c#', 'c sharp'],
 });
 
 // Siglas y términos técnicos cortos válidos (<= 2 letras) que no deben eliminarse
@@ -85,8 +87,45 @@ function obtenerEquivalencias(termino) {
 }
 
 /**
+ * Compruebo si un texto contiene un token técnico exacto, respetando signos como # o .
+ *
+ * @param {string} texto - Texto donde buscar.
+ * @param {string} token - Token técnico (ej: 'c#', '.net').
+ * @returns {boolean} True si el token aparece como unidad léxica independiente.
+ */
+function contieneToken(texto, token) {
+    if (!texto || !token) return false;
+    const escapado = token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(?:^|[^a-zA-Z0-9_#+])${escapado}(?:[^a-zA-Z0-9_#+]|$)`, 'i');
+    return regex.test(texto);
+}
+
+/**
+ * Obtengo un diccionario de equivalencias sugeridas conocidas para una lista de términos.
+ * Estas sugerencias no se aplican automáticamente para no alterar la búsqueda del usuario,
+ * pero se informan para revisión y edición desde Preferencias.
+ *
+ * @param {string[]} terminos - Lista de términos.
+ * @returns {Record<string, string[]>} Diccionario de sugerencias por término.
+ */
+function obtenerEquivalenciasSugeridas(terminos) {
+    const sugerencias = {};
+    if (!Array.isArray(terminos)) return sugerencias;
+    for (const termino of terminos) {
+        if (typeof termino !== 'string') continue;
+        const sanitizado = sanitizarTermino(termino);
+        const eq = obtenerEquivalencias(sanitizado);
+        if (eq.length > 0) {
+            sugerencias[termino] = eq;
+        }
+    }
+    return sugerencias;
+}
+
+/**
  * Traduzco términos para la plataforma LinkedIn.
  * LinkedIn acepta frases y términos codificados en el parámetro keywords.
+ * No muta términos ni aplica equivalencias automáticamente.
  *
  * @param {string[]} terminos - Lista de términos.
  * @returns {{ consultas: string[], equivalencias: Record<string, string[]> }}
@@ -97,10 +136,8 @@ function traducirParaLinkedin(terminos) {
 
     for (const termino of terminos) {
         const sanitizado = sanitizarTermino(termino);
-        if (!esTerminoUtilizable(sanitizado)) continue;
+        if (!sanitizado) continue;
         consultas.push(sanitizado);
-        const eq = obtenerEquivalencias(sanitizado);
-        if (eq.length) equivalencias[sanitizado] = eq;
     }
 
     return { consultas, equivalencias };
@@ -173,11 +210,6 @@ function traducirParaIndeed(terminos) {
         // Si es una frase con espacios, la preservo con comillas para que Indeed busque la frase íntegra
         const consulta = sanitizado.includes(' ') ? `"${sanitizado}"` : sanitizado;
         terminosProcesados.push(consulta);
-
-        const eq = obtenerEquivalencias(sanitizado);
-        if (eq.length) {
-            equivalencias[sanitizado] = eq.join(', ');
-        }
     }
 
     const query = terminosProcesados.join(' OR ');
@@ -199,8 +231,6 @@ function traducirParaJooble(terminos) {
         const sanitizado = sanitizarTermino(termino);
         if (!esTerminoUtilizable(sanitizado)) continue;
         consultas.push(sanitizado);
-        const eq = obtenerEquivalencias(sanitizado);
-        if (eq.length) equivalencias[sanitizado] = eq;
     }
 
     return { consultas, equivalencias };
@@ -224,9 +254,6 @@ function traducirParaAdzuna(terminos) {
         // Para frases compuestas uso comillas en el parámetro what de Adzuna
         const terminoParaQuery = sanitizado.includes(' ') ? `"${sanitizado}"` : sanitizado;
         consultas.push(terminoParaQuery);
-
-        const eq = obtenerEquivalencias(sanitizado);
-        if (eq.length) equivalencias[sanitizado] = eq;
     }
 
     return { consultas, equivalencias };
@@ -284,15 +311,23 @@ function traducirParaRemotive(terminos) {
         const t = sanitizarTermino(termino).toLowerCase();
         if (!esTerminoUtilizable(t)) continue;
 
-        if (/\b(qa|tester|testing|calidad)\b/.test(t)) {
+        if (/\b(qa|tester|testing|calidad)\b/i.test(t)) {
             categorias.add(CATEGORIAS_REMOTIVE.QA);
-        } else if (/\b(soporte|help\s*desk|mesa\s*de\s*ayuda|customer|support)\b/.test(t)) {
+        } else if (/\b(soporte|help\s*desk|mesa\s*de\s*ayuda|customer|support)\b/i.test(t)) {
             categorias.add(CATEGORIAS_REMOTIVE.SOPORTE);
-        } else if (/\b(dev|developer|desarrollador|programador|frontend|backend|full\s*stack|angular|react|node|c#|\.net|javascript|typescript|software)\b/.test(t)) {
+        } else if (
+            /\b(dev|developer|desarrollador|programador|frontend|backend|angular|react|node|javascript|typescript|software)\b/i.test(t) ||
+            /full\s*stack/i.test(t) ||
+            t.includes('fullstack') ||
+            contieneToken(t, 'c#') ||
+            contieneToken(t, '.net') ||
+            contieneToken(t, 'c sharp') ||
+            contieneToken(t, 'dotnet')
+        ) {
             categorias.add(CATEGORIAS_REMOTIVE.DESARROLLO);
-        } else if (/\b(data|datos|sql|analytics|bi)\b/.test(t)) {
+        } else if (/\b(data|datos|sql|analytics|bi)\b/i.test(t)) {
             categorias.add(CATEGORIAS_REMOTIVE.DATA);
-        } else if (/\b(devops|sysadmin|infraestructura|cloud)\b/.test(t)) {
+        } else if (/\b(devops|sysadmin|infraestructura|cloud)\b/i.test(t)) {
             categorias.add(CATEGORIAS_REMOTIVE.DEVOPS);
         } else {
             noCompatibles.push(termino);
@@ -330,20 +365,21 @@ function traducirParaRemoteOK(terminos) {
 
         let encontroTag = false;
 
-        if (/\b(qa|tester|testing)\b/.test(t)) {
+        if (/\b(qa|tester|testing)\b/i.test(t)) {
             tags.add('qa');
             encontroTag = true;
         }
-        if (/\b(soporte|help\s*desk|mesa\s*de\s*ayuda|support)\b/.test(t)) {
+        if (/\b(soporte|help\s*desk|mesa\s*de\s*ayuda|support)\b/i.test(t)) {
             tags.add('support');
             encontroTag = true;
         }
-        if (t.includes('c#') || t.includes('c sharp')) {
+        if (contieneToken(t, 'c#') || t.includes('c sharp') || t.includes('csharp')) {
             tags.add('csharp');
             encontroTag = true;
         }
-        if (t.includes('.net') || t.includes('dotnet')) {
+        if (contieneToken(t, '.net') || t.includes('dotnet') || t.includes('net')) {
             tags.add('net');
+            tags.add('dotnet');
             encontroTag = true;
         }
         if (t.includes('angular')) {
@@ -366,15 +402,15 @@ function traducirParaRemoteOK(terminos) {
             tags.add('backend');
             encontroTag = true;
         }
-        if (t.includes('full\s*stack') || t.includes('fullstack')) {
+        if (/full\s*stack/i.test(t) || t.includes('fullstack')) {
             tags.add('fullstack');
             encontroTag = true;
         }
-        if (t.includes('javascript') || t.includes('js')) {
+        if (t.includes('javascript') || /\bjs\b/i.test(t)) {
             tags.add('javascript');
             encontroTag = true;
         }
-        if (t.includes('typescript') || t.includes('ts')) {
+        if (t.includes('typescript') || /\bts\b/i.test(t)) {
             tags.add('typescript');
             encontroTag = true;
         }
@@ -386,7 +422,7 @@ function traducirParaRemoteOK(terminos) {
             tags.add('python');
             encontroTag = true;
         }
-        if (t.includes('devops')) {
+        if (t.includes('devops') || t.includes('sysadmin')) {
             tags.add('devops');
             encontroTag = true;
         }
@@ -414,6 +450,8 @@ module.exports = {
     sanitizarTermino,
     esTerminoUtilizable,
     obtenerEquivalencias,
+    obtenerEquivalenciasSugeridas,
+    contieneToken,
     traducirParaLinkedin,
     traducirParaBumeran,
     traducirParaIndeed,

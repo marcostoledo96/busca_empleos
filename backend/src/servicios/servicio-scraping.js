@@ -67,6 +67,7 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
             terminos: opciones.terminos,
             ubicacion: opciones.ubicacion,
             ubicaciones: opciones.ubicaciones,
+            filtrarNivelLinkedin: opciones.filtrarNivelLinkedin,
         });
         console.log(`Scraping LinkedIn: ${urls.length} URL(s) de búsqueda generadas.`);
 
@@ -1163,7 +1164,7 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     // Limito a 50 como máximo porque la API gratuita tiene rate limits estrictos.
     // El cap lo garantizo acá en el servicio — no dependo del controlador.
     const maxResultados = Math.min(opciones.maxResultados || 50, 50);
-    const terminos = opciones.consultasAdzuna || terminosBase;
+    const terminos = opciones.consultasAdzuna || opciones.terminos || [];
     // Solo España — Adzuna NO soporta Argentina (ar) → devuelve 404.
     // España tiene buen volumen de ofertas en español para trabajo remoto.
     const paises = ['es'];

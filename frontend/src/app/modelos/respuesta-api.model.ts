@@ -52,6 +52,7 @@ export interface ResumenBusqueda {
     filtros: Record<string, unknown>;
     consultasEfectivas?: string[] | Record<string, unknown>;
     equivalenciasAplicadas?: Record<string, string | string[]>;
+    equivalenciasSugeridas?: Record<string, string[]>;
     advertencias: string[];
     origen: {
         terminos: 'ejecucion' | 'preferencias' | 'defecto' | 'fijo';

@@ -1128,7 +1128,8 @@ describe('PanelControl — Visualización de consultas efectivas y equivalencias
                             maxResultados: 50,
                             filtros: { country: 'ar' },
                             consultasEfectivas: ['"soporte IT"'],
-                            equivalenciasAplicadas: { 'soporte it': 'mesa de ayuda' },
+                            equivalenciasAplicadas: { 'c#': 'c-sharp' },
+                            equivalenciasSugeridas: { 'soporte it': ['help desk', 'mesa de ayuda'] },
                             advertencias: [],
                             origen: { terminos: 'preferencias' as const, ubicacion: 'preferencias' as const },
                         },
@@ -1160,15 +1161,16 @@ describe('PanelControl — Visualización de consultas efectivas y equivalencias
         fixture.detectChanges();
     });
 
-    it('renderiza consultas efectivas y equivalencias en el resumen', () => {
+    it('renderiza consultas efectivas, equivalencias aplicadas y sugerencias en el resumen', () => {
         component.actualizarPrevisualizacion();
         fixture.detectChanges();
 
         const texto = fixture.nativeElement.textContent;
         expect(texto).toContain('Consultas efectivas: "soporte IT"');
         expect(texto).toContain('Equivalencias aplicadas:');
+        expect(texto).toContain('Sugerencias disponibles (no enviadas):');
         expect(component.formatearConsultas(['"soporte IT"'])).toBe('"soporte IT"');
-        expect(component.hayEquivalencias({ 'soporte it': 'mesa de ayuda' })).toBeTrue();
+        expect(component.hayEquivalencias({ 'c#': 'c-sharp' })).toBeTrue();
         expect(component.hayEquivalencias({})).toBeFalse();
     });
 });
