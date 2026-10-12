@@ -24,6 +24,7 @@ const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
 const { evaluarReglasExclusion } = require('./evaluacion/reglas-exclusion');
+const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
 const { construirPerfilDesdePreferencias, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
 const { construirIdentidadEvaluacion } = require('./evaluacion/identidad-evaluacion');
@@ -75,8 +76,7 @@ function cancelarEvaluacionPendiente() {
  * @returns {boolean}
  */
 function ubicacionEnZonas(ubicacion, zonas) {
-    const textoUbicacion = (ubicacion || '').toLowerCase();
-    return zonas.some(zona => textoUbicacion.includes((zona || '').toLowerCase()));
+    return estaEnZonasPreferidas(ubicacion, zonas) === true;
 }
 
 /**
@@ -146,22 +146,36 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             }
         }
 
-        // Defensa programática: presencial fuera de zona → rechazo sin consultar IA.
-        // (Esta defensa se mantiene por compatibilidad y como respaldo extra.)
+        // Defensa programática: presencial fuera de zona o remoto restringido a otro país → rechazo sin consultar IA.
+        // (Esta defensa se mantiene unificada con las reglas de exclusión como respaldo extra.)
         const modalidadOferta = (oferta.modalidad || '').toLowerCase().trim();
         const zonasPreferidas = (preferenciasFinal || {}).zonas_preferidas || [];
         const ubicacionOferta = oferta.ubicacion || '';
-        const esPresencial = modalidadOferta === 'presencial';
-        const estaEnZonas = zonasPreferidas.length === 0 || ubicacionEnZonas(ubicacionOferta, zonasPreferidas);
 
-        if (esPresencial && !estaEnZonas) {
-            const rechazo = {
-                match: false,
-                porcentaje: 0,
-                razon: `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas) => rechazada.`,
-                firma_criterios_evaluacion: firma,
-            };
-            return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
+        if (modalidadOferta === 'presencial') {
+            const compatibilidadPresencial = estaEnZonasPreferidas(ubicacionOferta, zonasPreferidas);
+            // Solo rechaza si está confirmadamente fuera de zona (false).
+            // Si la ubicación está ausente o desconocida (null), conservo la incertidumbre y no fuerzo rechazo.
+            if (zonasPreferidas.length > 0 && compatibilidadPresencial === false) {
+                const rechazo = {
+                    match: false,
+                    porcentaje: 0,
+                    razon: `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas) => rechazada.`,
+                    firma_criterios_evaluacion: firma,
+                };
+                return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
+            }
+        } else if (modalidadOferta === 'remoto') {
+            const restriccionRemota = detectarRestriccionRemotaIncompatible(oferta);
+            if (restriccionRemota.detectado) {
+                const rechazo = {
+                    match: false,
+                    porcentaje: 0,
+                    razon: `La oferta es remota pero está restringida a residentes de otro país («${restriccionRemota.evidencia}») => rechazada.`,
+                    firma_criterios_evaluacion: firma,
+                };
+                return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
+            }
         }
 
         // ── Paso 2: Llamada a DeepSeek ──

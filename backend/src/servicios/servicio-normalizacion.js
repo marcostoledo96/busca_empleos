@@ -82,6 +82,16 @@ function normalizarOfertaLinkedin(item) {
  * @returns {Object} Oferta en el formato de nuestra tabla.
  * @throws {Error} Si el item no tiene URL.
  */
+function mapearModalidadComputrabajo(modalidadDetalle) {
+    if (!modalidadDetalle || typeof modalidadDetalle !== 'string') return null;
+    const m = modalidadDetalle.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+    if (/\b(?:no\s+remoto|sin\s+posibilidad\s+de\s+remoto)\b/i.test(m)) return null;
+    if (m.includes('hibrido')) return 'hibrido';
+    if (m.includes('remoto')) return 'remoto';
+    if (m.includes('presencial')) return 'presencial';
+    return null;
+}
+
 function normalizarOfertaComputrabajo(item) {
     const url = item.url;
     if (!url) {
@@ -94,7 +104,7 @@ function normalizarOfertaComputrabajo(item) {
         ubicacion: item.location || null,
         // Con el scraping directo (cheerio) extraemos la modalidad del detalle.
         // Con el actor de Apify (legacy) este campo no estaba disponible.
-        modalidad: item.modalidadDetalle || null,
+        modalidad: mapearModalidadComputrabajo(item.modalidadDetalle),
         descripcion: item.descriptionText || null,
         url,
         plataforma: 'computrabajo',
@@ -422,39 +432,141 @@ function mapearModalidadBumeran(modalidad) {
  * - "" (vacío = sin dato)
  *
  * @param {string} salarioStr - El string de salario crudo.
- * @returns {{ min: number|null, max: number|null, moneda: string|null }}
+ * @returns {{ min: number|null, max: number|null, salario_min: number|null, salario_max: number|null, moneda: string|null, periodo: string|null, texto_original: string|null }}
  */
 function parsearSalario(salarioStr) {
-    const vacio = { min: null, max: null, moneda: null };
+    const vacio = {
+        min: null,
+        max: null,
+        salario_min: null,
+        salario_max: null,
+        moneda: null,
+        periodo: null,
+        texto_original: null,
+    };
 
-    if (!salarioStr || salarioStr.trim() === '') {
+    if (!salarioStr || typeof salarioStr !== 'string' || salarioStr.trim() === '') {
         return vacio;
     }
 
-    // Detecto la moneda buscando prefijos comunes.
+    const texto = salarioStr.trim();
+
+    // 1. Detección de moneda: distingo ARS, USD, EUR explícitos.
+    // Un símbolo "$" aislado sin país ni divisa demostrable permanece como null (no inventa moneda).
     let moneda = null;
-    if (/AR\$/i.test(salarioStr)) {
+    if (/\b(?:ar\$|ars)\b/i.test(texto) || /ar\$/i.test(texto)) {
         moneda = 'ARS';
-    } else if (/\$/.test(salarioStr)) {
+    } else if (/\b(?:usd|u\$d|us\$)\b/i.test(texto) || /us\$/i.test(texto)) {
         moneda = 'USD';
-    } else if (/€/.test(salarioStr)) {
+    } else if (/\b(?:eur)\b/i.test(texto) || /€/.test(texto)) {
         moneda = 'EUR';
+    } else {
+        moneda = null;
     }
 
-    // Extraigo todos los números del string.
-    // Ejemplo: "$50,000.00/yr - $70,000.00/yr" → [50000, 70000]
-    const numeros = salarioStr.match(/[\d,]+\.?\d*/g);
-    if (!numeros || numeros.length === 0) {
-        return vacio;
+    // 2. Detección de período
+    let periodo = null;
+    if (/(?:(?:\b(?:mes|mensual|mensuales|per\s+month|monthly)\b)|(?:\/\s*(?:mes|month|mo)\b))/i.test(texto)) {
+        periodo = 'mes';
+    } else if (/(?:(?:\b(?:a[ñn]o|anual|anuales|per\s+year|yearly|annually|annual)\b)|(?:\/\s*(?:a[ñn]o|year|yr)\b))/i.test(texto)) {
+        periodo = 'año';
+    } else if (/(?:(?:\b(?:hora|por\s+hora|hourly|per\s+hour)\b)|(?:\/\s*(?:hora|hr|h)\b))/i.test(texto)) {
+        periodo = 'hora';
+    } else if (/(?:(?:\b(?:semana|semanal|weekly|per\s+week)\b)|(?:\/\s*(?:semana|week|wk)\b))/i.test(texto)) {
+        periodo = 'semana';
     }
 
-    // Quito las comas de miles y parseo a número.
-    const valores = numeros.map(n => parseFloat(n.replace(/,/g, '')));
+    // 3. Extracción de importes respetando separadores argentinos e internacionales
+    const parsearNumeroToken = (token) => {
+        if (!token) return null;
+        let limpio = token.trim();
+        const tieneK = /k$/i.test(limpio);
+        if (tieneK) {
+            limpio = limpio.slice(0, -1);
+        }
+
+        if (limpio.includes('.') && limpio.includes(',')) {
+            const ultimoPunto = limpio.lastIndexOf('.');
+            const ultimaComa = limpio.lastIndexOf(',');
+            if (ultimoPunto > ultimaComa) {
+                // Formato internacional: comas son miles, punto es decimal (ej. "50,000.50")
+                limpio = limpio.replace(/,/g, '');
+            } else {
+                // Formato argentino/europeo: puntos son miles, coma es decimal (ej. "1.500.000,00")
+                limpio = limpio.replace(/\./g, '').replace(/,/g, '.');
+            }
+        } else if (limpio.includes('.')) {
+            const partes = limpio.split('.');
+            if (partes.length > 2) {
+                // "1.500.000" -> separadores de miles con punto
+                limpio = partes.join('');
+            } else if (partes.length === 2) {
+                if (partes[1].length === 3) {
+                    // "2.500", "500.000", "100.000" -> miles
+                    limpio = partes.join('');
+                }
+            }
+        } else if (limpio.includes(',')) {
+            const partes = limpio.split(',');
+            if (partes.length > 2) {
+                // "1,500,000" -> separadores de miles con coma
+                limpio = partes.join('');
+            } else if (partes.length === 2) {
+                if (partes[1].length === 3) {
+                    // "50,000" -> miles
+                    limpio = partes.join('');
+                } else {
+                    // "1,50" -> decimal
+                    limpio = partes[0] + '.' + partes[1];
+                }
+            }
+        }
+
+        const num = parseFloat(limpio);
+        if (isNaN(num)) return null;
+        return tieneK ? num * 1000 : num;
+    };
+
+    const coincidencias = texto.match(/\d+(?:[.,]\d+)*k?/gi);
+    if (!coincidencias || coincidencias.length === 0) {
+        return {
+            ...vacio,
+            moneda,
+            periodo,
+            texto_original: texto,
+        };
+    }
+
+    const valores = coincidencias
+        .map(parsearNumeroToken)
+        .filter(n => n !== null && !isNaN(n) && n > 0);
+
+    if (valores.length === 0) {
+        return {
+            ...vacio,
+            moneda,
+            periodo,
+            texto_original: texto,
+        };
+    }
+
+    let min = valores[0];
+    let max = valores.length > 1 ? valores[1] : null;
+
+    if (max !== null && min !== null && min > max) {
+        const aux = min;
+        min = max;
+        max = aux;
+    }
 
     return {
-        min: valores[0] || null,
-        max: valores.length > 1 ? valores[1] : null,
+        min,
+        max,
+        salario_min: min,
+        salario_max: max,
         moneda,
+        periodo,
+        texto_original: texto,
     };
 }
 
@@ -600,7 +712,8 @@ function normalizarOfertaGetonbrd(item) {
  * Mapeo de modalidad (campo `type`):
  * - Contiene "Remote" → "remoto"
  * - Contiene "Hybrid" → "hibrido"
- * - Contiene "Part" / "Full" sin Remote → "presencial"
+ * - Contiene "On-site" → "presencial"
+ * - "Part-time" / "Full-time" sin indicación de lugar → null (jornada no define modalidad)
  * - Cualquier otro → null
  *
  * @param {Object} item - Objeto crudo de la API de Jooble.
@@ -614,7 +727,8 @@ function normalizarOfertaJooble(item) {
     }
 
     // Jooble no devuelve salario estructurado — intentamos parsearlo del string.
-    const { salario_min, salario_max, moneda } = parsearSalario(item.salary || '');
+    const salario = parsearSalario(item.salary || '');
+    const { salario_min, salario_max, moneda } = salario;
 
     // La fecha viene como ISO 8601 con microsegundos: "2026-03-28T12:00:00.0000000".
     // new Date() lo maneja correctamente.
@@ -641,20 +755,23 @@ function normalizarOfertaJooble(item) {
 /**
  * Detecto la modalidad laboral a partir del campo `type` de Jooble.
  *
- * Jooble usa el campo `type` como texto libre (ej: "Full-time", "Remote",
- * "Part-time", "Hybrid"). Busco palabras clave para mapearlo.
+ * Jooble usa el campo `type` para la jornada laboral o modalidad (ej: "Full-time",
+ * "Remote", "Part-time", "Hybrid", "On-site").
+ * Distingo jornada de modalidad: "Full-time" o "Part-time" describen dedicación horaria,
+ * no lugar de trabajo; por lo tanto, no se asume presencialidad sin evidencia explícita.
  *
  * @param {string|null} type - El valor de item.type.
  * @returns {string|null} 'remoto', 'hibrido', 'presencial' o null.
  */
 function detectarModalidadJooble(type) {
-    if (!type) return null;
+    if (!type || typeof type !== 'string') return null;
     const texto = type.toLowerCase();
 
     if (texto.includes('remote')) return 'remoto';
     if (texto.includes('hybrid')) return 'hibrido';
-    if (texto.includes('full-time') || texto.includes('part-time')) return 'presencial';
+    if (texto.includes('on-site') || texto.includes('onsite') || texto.includes('presencial')) return 'presencial';
 
+    // Jornada laboral no define modalidad física; conservo null (desconocido).
     return null;
 }
 
@@ -802,25 +919,31 @@ function detectarModalidadGoogleJobs(item) {
  */
 function detectarIdioma(titulo, descripcion) {
     const texto = ((titulo || '') + ' ' + (descripcion || '')).toLowerCase();
+    if (!texto.trim()) return 'es';
 
-    // Frases y palabras muy características de publicaciones de trabajo en inglés.
-    // Son específicas del vocabulario de HR anglosajón, no aparecen en español.
-    const indicadoresIngles = [
-        'we are looking', 'looking for a', 'we are seeking', 'seeking a',
+    // Frases y estructuras verbales características de avisos redactados en inglés.
+    // Encabezados aislados como "requirements" o "nice to have" se excluyen deliberadamente
+    // porque en publicaciones tecnológicas en español se emplean rutinariamente como títulos de sección.
+    const frasesIngles = [
+        'we are looking for', 'looking for a', 'we are seeking', 'seeking a',
         'join our team', 'join our', 'you will be', 'you will have',
-        'you will work', 'reporting to', 'must have', 'nice to have',
-        'years of experience', 'year of experience',
-        'we offer', 'we are a', 'we value',
-        'responsibilities', 'requirements', 'qualifications',
-        'about the role', 'about us', 'about the position',
-        'competitive salary', 'competitive compensation',
+        'you will work', 'reporting to', 'years of experience with',
+        'we offer', 'we are a', 'we value', 'about the role', 'about us',
+        'about the position', 'competitive salary', 'competitive compensation',
         'team player', 'strong knowledge of', 'strong experience',
-        'proficiency in', 'proficiency with',
-        'we\'re looking', 'we\'re seeking',
+        'proficiency in', 'proficiency with', 'we\'re looking', 'we\'re seeking',
+        'the ideal candidate', 'proven experience as', 'what you will do',
     ];
 
-    // Frases y palabras características de publicaciones de trabajo en español.
-    const indicadoresEspanol = [
+    // Conectores y partículas funcionales gramaticales en inglés.
+    const palabrasIngles = [
+        /\bthe\b/g, /\band\b/g, /\bwith\b/g, /\bfor\b/g, /\bfrom\b/g,
+        /\bthat\b/g, /\bthis\b/g, /\bare\b/g, /\bour\b/g, /\byour\b/g,
+        /\bwe\b/g, /\byou\b/g, /\bwill\b/g, /\bhave\b/g,
+    ];
+
+    // Frases y giros idiomáticos característicos de avisos en español.
+    const frasesEspanol = [
         'buscamos', 'estamos buscando', 'nos encontramos buscando',
         'te ofrecemos', 'ofrecemos', 'se ofrece',
         'requisitos', 'requerimientos', 'se requiere',
@@ -831,24 +954,42 @@ function detectarIdioma(titulo, descripcion) {
         'postulate', 'postulá', 'enviá',
         'buen clima', 'equipo de trabajo', 'trabajo en equipo',
         'experiencia laboral', 'experiencia comprobable',
+        'conocimientos en', 'conocimientos de', 'experiencia en', 'experiencia con',
+    ];
+
+    // Conectores y partículas funcionales gramaticales en español.
+    const palabrasEspanol = [
+        /\bde\b/g, /\bla\b/g, /\bel\b/g, /\blos\b/g, /\blas\b/g,
+        /\bun\b/g, /\buna\b/g, /\ben\b/g, /\bpara\b/g, /\bcon\b/g,
+        /\bpor\b/g, /\bdel\b/g, /\bal\b/g, /\bque\b/g, /\bse\b/g,
+        /\bes\b/g, /\bson\b/g, /\by\b/g, /\bnuestro\b/g, /\bnuestra\b/g,
     ];
 
     let puntosIngles = 0;
     let puntosEspanol = 0;
 
-    for (const indicador of indicadoresIngles) {
-        if (texto.includes(indicador)) puntosIngles++;
+    for (const frase of frasesIngles) {
+        if (texto.includes(frase)) puntosIngles += 2;
+    }
+    for (const patron of palabrasIngles) {
+        const matches = texto.match(patron);
+        if (matches) puntosIngles += Math.min(matches.length, 5);
     }
 
-    for (const indicador of indicadoresEspanol) {
-        if (texto.includes(indicador)) puntosEspanol++;
+    for (const frase of frasesEspanol) {
+        if (texto.includes(frase)) puntosEspanol += 2;
+    }
+    for (const patron of palabrasEspanol) {
+        const matches = texto.match(patron);
+        if (matches) puntosEspanol += Math.min(matches.length, 5);
     }
 
-    // Solo descartamos si hay evidencia fuerte y contundente de inglés.
-    // El umbral de 2 evita falsos positivos por términos técnicos en inglés.
-    if (puntosIngles >= 2 && puntosIngles > puntosEspanol) {
+    // Solo clasifico como inglés cuando la redacción en inglés es contundente y dominante.
+    // En caso de ambigüedad o presencia relevante de español, conservo 'es' para no descartar.
+    if (puntosIngles >= 4 && puntosIngles > puntosEspanol * 1.5) {
         return 'en';
     }
+
     return 'es';
 }
 
@@ -1208,6 +1349,60 @@ function extraerNumeroInfojobs(valor) {
  * @returns {Object} Oferta en el formato de nuestra tabla.
  * @throws {Error} Si el item no tiene redirect_url o si no es trabajo a distancia.
  */
+/**
+ * Detecta la modalidad laboral a partir de texto libre considerando negaciones e híbridos.
+ * Las negaciones ("sin posibilidad de teletrabajo", "remote work is not available") tienen prioridad sobre menciones aisladas.
+ *
+ * @param {string} texto - Texto a analizar.
+ * @returns {'remoto'|'hibrido'|'presencial'|null}
+ */
+function detectarModalidadTexto(texto = '') {
+    if (!texto || typeof texto !== 'string') return null;
+    const t = texto.toLowerCase();
+
+    // 1. Negaciones explícitas de trabajo remoto:
+    const esNegacionRemoto = /\b(?:sin\s+posibilidad\s+de\s+(?:trabajo\s+)?remoto|sin\s+posibilidad\s+de\s+teletrabajo|no\s+(?:se\s+admite|se\s+permite|hay|posibilidad\s+de)\s+(?:trabajo\s+remoto|teletrabajo)|remote\s+work\s+is\s+not\s+(?:available|permitted|allowed)|not\s+a\s+remote\s+position|no\s+teletrabajo|no\s+remoto)\b/i.test(t);
+
+    // 2. Menciones explícitas de esquema híbrido:
+    const esHibrido = /\b(?:h[ií]brido|hybrid|\d+\s*d[ií]as?\s+(?:en\s+)?oficina.*?\d+\s*d[ií]as?\s+(?:de\s+)?teletrabajo|\d+\s*d[ií]as?\s+(?:de\s+)?teletrabajo.*?\d+\s*d[ií]as?\s+(?:en\s+)?oficina|teletrabajo\s+(?:parcial|mixto|h[ií]brido)|presencial\s+y\s+(?:remoto|teletrabajo))\b/i.test(t);
+
+    // 3. Menciones explícitas de presencialidad:
+    const esPresencial = /\b(?:puesto\s+presencial|trabajo\s+presencial|modalidad\s+presencial|100%\s*presencial|on-site|onsite|en\s+sede|en\s+oficina)\b/i.test(t);
+
+    // 4. Menciones explícitas de trabajo remoto pleno:
+    const esRemotoPleno = /\b(?:100%\s*(?:remoto|remote|teletrabajo)|(?:remoto|remote|teletrabajo)\s*100%|fully\s*remote|full\s*remote|totalmente\s*(?:remoto|a\s+distancia))\b/i.test(t);
+    const esRemotoGeneral = /\b(?:remoto|remote|teletrabajo|telework|work\s+from\s+home|trabajo\s+a\s+distancia)\b/i.test(t);
+
+    if (esHibrido) {
+        return 'hibrido';
+    }
+
+    if (esNegacionRemoto) {
+        return esPresencial ? 'presencial' : null;
+    }
+
+    if (esRemotoPleno) {
+        return 'remoto';
+    }
+
+    if (esRemotoGeneral && esPresencial) {
+        return 'hibrido';
+    }
+
+    if (esRemotoGeneral) {
+        if (/\b(?:evaluar\s+teletrabajo|opci[oó]n\s+futura|a\s+futuro|despu[eé]s\s+del\s+periodo\s+de\s+prueba)\b/i.test(t)) {
+            return null; // Mención ambigua o condicional
+        }
+        return 'remoto';
+    }
+
+    if (esPresencial) {
+        return 'presencial';
+    }
+
+    return null;
+}
+
 function normalizarOfertaAdzuna(item) {
     const url = item.redirect_url;
     if (!url) {
@@ -1219,20 +1414,20 @@ function normalizarOfertaAdzuna(item) {
     const ubicacion = item.location?.display_name || null;
     const descripcion = item.description || null;
 
-    // Detecto modalidad remota buscando las palabras clave en título y descripción.
-    // Si no hay evidencia clara, dejo null para que la IA evalúe el contexto completo.
+    // Detecto modalidad considerando negaciones, esquemas híbridos y remoto pleno.
     const textoCompleto = `${titulo || ''} ${descripcion || ''}`;
-    const esRemoto = /remot|teletrabajo|telework|work from home|trabajo a distancia/i.test(textoCompleto);
-    const modalidad = esRemoto ? 'remoto' : null;
+    const modalidadDetectada = detectarModalidadTexto(textoCompleto);
 
-    // Capa 2: descarto ofertas que NO sean de teletrabajo / a distancia.
-    // El scraper ya filtra en origen (Capa 1) con el prefijo "remote" en el término,
-    // pero Adzuna puede devolver resultados presencial/híbrido que matchean otros
-    // criterios. Si la oferta no tiene indicadores de remoto, la descarto.
-    if (!esRemoto) {
-        console.warn(`Adzuna: oferta descartada por no ser trabajo a distancia — url: ${url}`);
-        throw new Error('Adzuna: oferta descartada por no ser trabajo a distancia');
+    // Capa 2: Adzuna conserva su política de admitir únicamente ofertas de trabajo a distancia ('remoto').
+    // Si la oferta no es remota pura (es presencial, híbrida o ambigua/desconocida), se descarta con motivo verificable.
+    if (modalidadDetectada !== 'remoto') {
+        const detalleModalidad = modalidadDetectada ? ` (modalidad detectada: ${modalidadDetectada})` : '';
+        const motivo = `Adzuna: oferta descartada por no ser trabajo a distancia${detalleModalidad}`;
+        console.warn(`${motivo} — url: ${url}`);
+        throw new Error(motivo);
     }
+
+    const modalidad = 'remoto';
 
     // Salario: Adzuna lo da como números flotantes directos.
     const salarioMin = item.salary_min != null ? String(item.salary_min) : null;
@@ -1290,6 +1485,8 @@ module.exports = {
     _detectarModalidadGlassdoor: detectarModalidadGlassdoor,
     _detectarModalidadJooble: detectarModalidadJooble,
     _detectarModalidadGoogleJobs: detectarModalidadGoogleJobs,
+    _mapearModalidadComputrabajo: mapearModalidadComputrabajo,
+    _detectarModalidadTexto: detectarModalidadTexto,
     _canonizarUrlLinkedin: canonizarUrlLinkedin,
     detectarIdioma,
 };

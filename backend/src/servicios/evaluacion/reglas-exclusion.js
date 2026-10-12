@@ -19,6 +19,11 @@
 
 'use strict';
 
+const {
+    estaEnZonasPreferidas,
+    detectarRestriccionRemotaIncompatible,
+} = require('./criterio-ubicacion');
+
 // ──────────────────────────────────────────────────────────────
 // Patrones de detección
 // ──────────────────────────────────────────────────────────────
@@ -338,24 +343,40 @@ function detectarExperienciaExcluyente(oferta) {
  * Solo se activa si el requisito es explícitamente excluyente (no "deseable" o "plus").
  *
  * @param {Object} oferta - Fila de la tabla ofertas.
- * @returns {{ detectado: boolean, patron: string|null }}
+ * @returns {{ detectado: boolean, patron: string|null, evidencia?: string }}
  */
 function detectarInglesExcluyente(oferta) {
     return detectarRequisito(oferta, PATRON_INGLES_EXCLUYENTE, ['ingles_avanzado'], 'idioma');
 }
 
 /**
- * Detecta si la oferta es presencial y está fuera de las zonas preferidas del candidato.
+ * Detecta si la oferta es incompatible en modalidad o ubicación geográfica:
+ * - Oferta remota con restricción territorial a otro país (incompatible con candidato en Argentina).
+ * - Oferta presencial fuera de las zonas preferidas del candidato.
+ * - Ubicación ausente o desconocida: conserva la incertidumbre y NO activa exclusión automática.
  *
  * @param {Object} oferta - Fila de la tabla ofertas.
  * @param {Object} preferencias - Fila de la tabla preferencias.
- * @returns {{ detectado: boolean, patron: string|null }}
+ * @returns {{ detectado: boolean, patron: string|null, evidencia?: string }}
  */
 function detectarUbicacionIncompatible(oferta, preferencias) {
     const modalidad = (oferta.modalidad || '').toLowerCase().trim();
     const zonas = preferencias.zonas_preferidas || [];
 
-    // Solo aplica para ofertas presenciales (no remotas ni híbridas).
+    // Caso 1: Ofertas remotas restringidas a residentes de otro país.
+    if (modalidad === 'remoto') {
+        const restriccionRemota = detectarRestriccionRemotaIncompatible(oferta);
+        if (restriccionRemota.detectado) {
+            return {
+                detectado: true,
+                patron: 'remoto_restringido_pais',
+                evidencia: restriccionRemota.evidencia,
+            };
+        }
+        return { detectado: false, patron: null };
+    }
+
+    // Solo aplica para ofertas presenciales (híbrido no se excluye determinísticamente).
     if (modalidad !== 'presencial') {
         return { detectado: false, patron: null };
     }
@@ -365,13 +386,16 @@ function detectarUbicacionIncompatible(oferta, preferencias) {
         return { detectado: false, patron: null };
     }
 
-    // Verifico si la ubicación de la oferta coincide con alguna zona preferida.
-    const ubicacion = (oferta.ubicacion || '').toLowerCase();
-    const estaEnZona = zonas.some(zona =>
-        ubicacion.includes(zona.toLowerCase())
-    );
+    // Verifico si la ubicación de la oferta coincide con alguna zona preferida o alias.
+    const compatibilidad = estaEnZonasPreferidas(oferta.ubicacion, zonas);
 
-    if (!estaEnZona) {
+    // Si la ubicación es vacía o null, compatibilidad es null:
+    // Conservo la incertidumbre y NO excluyo de forma automática.
+    if (compatibilidad === null) {
+        return { detectado: false, patron: null };
+    }
+
+    if (!compatibilidad) {
         return { detectado: true, patron: 'presencial_fuera_de_zona' };
     }
 
@@ -463,7 +487,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
     }
 
     // Regla 4: Inglés excluyente (avanzado, fluido, bilingüe).
-    const ingles = detectarInglesExcluyente(oferta);
+    const ingles = detectarInglesExcluyente(oferta, preferencias);
     if (ingles.detectado) {
         reglasActivadas.push('idioma');
         if (!excluida) {
@@ -473,14 +497,18 @@ function evaluarReglasExclusion(oferta, preferencias) {
         }
     }
 
-    // Regla 5: Ubicación/modalidad incompatible (presencial fuera de zona).
+    // Regla 5: Ubicación/modalidad incompatible (presencial fuera de zona o remoto restringido a otro país).
     const ubicacion = detectarUbicacionIncompatible(oferta, preferencias);
     if (ubicacion.detectado) {
         reglasActivadas.push('ubicacion_modalidad');
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.ubicacion_modalidad;
-            razon = `La oferta es presencial en ${(oferta.ubicacion || 'ubicación no especificada')}, fuera de las zonas preferidas.`;
+            if (ubicacion.patron === 'remoto_restringido_pais') {
+                razon = `La oferta es remota pero está restringida a residentes de otro país («${ubicacion.evidencia}»), incompatible con candidato en Argentina.`;
+            } else {
+                razon = `La oferta es presencial en ${(oferta.ubicacion || 'ubicación no especificada')}, fuera de las zonas preferidas.`;
+            }
         }
     }
 
