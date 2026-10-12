@@ -706,14 +706,14 @@ describe('Reglas de exclusión determinísticas', () => {
             expect(resultado.detectado).toBe(false);
         });
 
-        test('ubicación vacía con presencial es excluida si no coincide', () => {
+        test('ubicación vacía con presencial NO es excluida automáticamente (conserva incertidumbre)', () => {
             const oferta = crearOferta({
                 ubicacion: '',
                 modalidad: 'presencial',
             });
             const resultado = detectarUbicacionIncompatible(oferta, preferenciasBase);
-            // Ubicación vacía nunca coincide con las zonas.
-            expect(resultado.detectado).toBe(true);
+            // Issue #15: un dato desconocido no significa incompatible ni compatible; conserva incertidumbre.
+            expect(resultado.detectado).toBe(false);
         });
     });
 

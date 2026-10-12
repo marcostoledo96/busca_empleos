@@ -885,7 +885,21 @@ describe('Servicio de normalización', () => {
         test('detecta modalidad null cuando type es "Full-time"', () => {
             const resultado = normalizarOfertaJooble(itemJoobleReal);
 
-            // "Full-time" no contiene "Remote" ni "Hybrid", se mapea a presencial.
+            // "Full-time" describe jornada laboral, no modalidad; debe ser null (desconocido).
+            expect(resultado.modalidad).toBeNull();
+        });
+
+        test('detecta modalidad null cuando type es "Part-time"', () => {
+            const itemPartTime = { ...itemJoobleReal, type: 'Part-time' };
+            const resultado = normalizarOfertaJooble(itemPartTime);
+
+            expect(resultado.modalidad).toBeNull();
+        });
+
+        test('detecta modalidad presencial cuando type contiene "On-site"', () => {
+            const itemOnSite = { ...itemJoobleReal, type: 'On-site' };
+            const resultado = normalizarOfertaJooble(itemOnSite);
+
             expect(resultado.modalidad).toBe('presencial');
         });
 
