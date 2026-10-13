@@ -458,3 +458,45 @@ La preferencia `priorizar_ofertas_ia` está desactivada por defecto. Al activarl
 ofertas por `porcentaje_match + min(puntaje_prioridad_ia, bonus_maximo_prioridad_ia)`; al
 desactivarla se restaura el orden existente sin borrar datos. El cache incluye
 `prioridad-ia-v1`, por lo que no reutiliza una política anterior.
+
+## Matching explicable, coherencia y descripciones parciales (#17)
+
+A partir de la issue #17, la evaluación con DeepSeek y las defensas determinísticas generan un desglose estructurado (`explicacion_evaluacion` en formato JSONB) que acompaña a la decisión y al porcentaje de compatibilidad.
+
+### 1. Desglose estructurado de requisitos
+El objeto `explicacion_evaluacion` organiza los hallazgos en cuatro categorías:
+- **`cumplidos`**: requisitos técnicos o de rol respaldados por evidencia tanto en el aviso laboral como en el perfil confirmado del candidato.
+- **`no_cumplidos`**: requisitos que el candidato no cumple, diferenciando claramente condiciones obligatorias de conocimientos deseables (*nice to have*). Un conocimiento deseable ausente **no** justifica por sí solo un rechazo.
+- **`por_confirmar`**: aspectos sobre los que el aviso o el perfil no ofrecen información concluyente, o que provienen de un extracto parcial truncado. No se asume que un requisito no existe solo porque no aparece en un extracto resumido.
+- **`exclusiones`**: condiciones obligatorias y excluyentes que fuerzan un rechazo (ej. requisito de Java excluyente, nivel senior excluyente, idioma obligatorio no alcanzado o incompatibilidad geográfica/presencial).
+
+Cada ítem del desglose conserva: `requisito`, `tipo` (`obligatorio` | `deseable` | `desconocido`), `evidencia_oferta`, `evidencia_perfil` y `explicacion`.
+
+### 2. Regla de coherencia y semántica de compatibilidad
+- **Compatibilidad estimada:** El porcentaje numérico representa únicamente la afinidad técnica estimada entre la vacante y el perfil. Nunca se interpreta ni presenta como "probabilidad de contratación" ni como "probabilidad de ser contratado".
+- **Validación estricta de porcentaje:** Se eliminó la coerción silenciosa de cadenas vacías `""` a `0`. Valores no numéricos, vacíos o fuera del rango `[0, 100]` invalidan la coherencia de la respuesta en lugar de forzarse mediante *clamping*.
+- **Coherencia lógica entre decisión y score:**
+  * `match: true` con porcentaje < 60% se marca como inconsistente.
+  * `match: false` con porcentaje >= 60% solo es admisible si existe una exclusión obligatoria justificada en `exclusiones` (ej. 90% de coincidencia técnica pero rechazada por exigir Java obligatoriamente). Si no hay exclusión, se marca como inconsistente.
+  * Ante contradicciones inexplicadas de la IA, el sistema no invierte silenciosamente la decisión ni altera el porcentaje; identifica el resultado como inconsistente con un mensaje claro en la razón.
+
+### 3. Tratamiento de incertidumbre y descripciones parciales
+- Se distingue la procedencia y completitud del texto del aviso:
+  * **Extracto parcial conocido (`parcial` / `tarjeta`):** utilizado para portales como Bumeran (donde el scraper extrae solo la tarjeta del listado). El prompt instruye explícitamente a DeepSeek que no interprete la omisión de un término en un extracto como falta de habilidad del candidato; los requisitos no mencionados van a `por_confirmar`.
+  * **Descripción completa confirmada (`completa` / `manual`):** avisos con texto completo o completados por el usuario.
+  * **Descripción ausente (`ausente`):** avisos sin contenido disponible.
+  * **Completitud desconocida (`desconocida`):** valor por defecto para scrapers genéricos sin metadatos de completitud.
+
+### 4. Edición manual de descripción y reevaluación
+- El usuario puede pegar el texto completo de una oferta desde el diálogo de detalle (`PATCH /api/ofertas/:id/descripcion`).
+- Se resguarda el texto inicial en `descripcion_original` mediante `COALESCE(descripcion_original, descripcion)`.
+- Se asigna `origen_descripcion = 'manual'`, `descripcion_completitud = 'completa'` y `descripcion_modificada_en = NOW()`.
+- La evaluación previa pasa a `estado_evaluacion = 'pendiente'` con `evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'`.
+- Como `hash_oferta` se calcula sobre el contenido textual normalizado del prompt, cualquier cambio de descripción invalida automáticamente la caché previa de `evaluaciones_cache` sin colisiones.
+- La reevaluación es explícita a través de `POST /api/evaluacion/ejecutar` enviando el ID de la oferta. No se llama automáticamente a DeepSeek al guardar el texto.
+
+### 5. Vigencia e identidad de evaluación
+- La versión del contrato de identidad se incrementó a `VERSION_CONTRATO_EVALUACION = 'evaluacion-v4'`, marcando evaluaciones anteriores como vigencia no actual.
+
+### 6. Muestra de referencia para regresión (25 casos)
+- Se incorporó la suite sintética en `backend/tests/fixtures/casos-muestra-matching.js` con 25 casos representativos (QA, Soporte, Angular, exclusión Java, Java deseable, inglés excluyente vs deseable, empresas líderes vs candidato líder, restricciones territoriales, extractos parciales, porcentajes inconsistentes, etc.) con la marca `estado_revision: 'propuesta_pendiente_revision_humana'`.

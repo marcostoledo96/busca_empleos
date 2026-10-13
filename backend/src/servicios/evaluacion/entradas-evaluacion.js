@@ -28,8 +28,12 @@ function construirInstruccionesDesdePreferencias(prefs = {}) {
     const partes = [
         'Sos un evaluador de ofertas de empleo. Compará la oferta con los hechos confirmados del candidato.',
         construirPerfilDesdePreferencias(prefs),
-        'Respondé ÚNICAMENTE con JSON válido: {"match": true, "porcentaje": 85, "razon": "Explicación breve en español"}. match debe ser boolean y porcentaje entero de 0 a 100.',
+        'Respondé ÚNICAMENTE con JSON válido con el siguiente formato estricto: {"match": true, "porcentaje": 85, "razon": "Explicación breve en español", "explicacion": {"cumplidos": [], "no_cumplidos": [], "por_confirmar": [], "exclusiones": []}}.',
+        'match debe ser boolean y porcentaje entero de 0 a 100.',
+        'Estructura de cada elemento en los arrays de explicacion (cumplidos, no_cumplidos, por_confirmar, exclusiones): {"requisito": "nombre del requisito", "tipo": "obligatorio" | "deseable" | "desconocido", "evidencia_oferta": "cita textual o resumen de la oferta", "evidencia_perfil": "hecho confirmado del perfil o vacío si no aplica", "explicacion": "justificación concisa"}.',
         'match: true requiere cumplir al menos el 60% de los requisitos técnicos y no activar ninguna exclusión.',
+        'Requisitos deseables no cumplidos NO deben justificar un rechazo por sí solos ni considerarse exclusiones.',
+        'Si la oferta contiene un extracto parcial o aviso incompleto, los requisitos no mencionados deben clasificarse en "por_confirmar", NUNCA en "no_cumplidos" (salvo exclusión explícita presente en el texto).',
         'No inventes conocimientos, herramientas, idiomas, empleos ni proyectos. null significa no declarado, [] significa sin entradas confirmadas. Evaluá niveles y evidencia, no solo nombres del stack.',
         'Los proyectos declarados en perfil_profesional y evidencia aportan experiencia práctica, pero NO equivalen automáticamente a años de empleo formal.',
         'Las preferencias laborales restringen la búsqueda, no son capacidades personales. Las reglas_exclusion adicionales rechazan tecnologías principales u obligatorias, no menciones deseables.',
@@ -51,7 +55,21 @@ function construirPromptEvaluacion(oferta) {
     for (const [campo, etiqueta] of [['empresa', 'Empresa'], ['ubicacion', 'Ubicación'], ['modalidad', 'Modalidad'], ['nivel_requerido', 'Nivel requerido'], ['plataforma', 'Plataforma']]) {
         if (oferta[campo]) partes.push(`${etiqueta}: ${oferta[campo]}`);
     }
-    partes.push('', 'Descripción completa de la oferta:', oferta.descripcion || 'Sin descripción disponible.');
+
+    let encabezadoDescripcion = 'Descripción provista de la oferta (completitud no verificada):';
+    let textoDescripcion = oferta.descripcion || 'Sin descripción disponible.';
+
+    const descripcionVacia = !oferta.descripcion || oferta.descripcion.trim() === '';
+    if (descripcionVacia || oferta.descripcion_completitud === 'ausente') {
+        encabezadoDescripcion = 'Descripción ausente de la oferta (sin contenido disponible):';
+        textoDescripcion = descripcionVacia ? 'Sin descripción disponible.' : oferta.descripcion;
+    } else if (oferta.descripcion_completitud === 'parcial' || oferta.origen_descripcion === 'tarjeta') {
+        encabezadoDescripcion = 'Extracto parcial de la oferta (aviso incompleto — no asumir que requisitos no mencionados están ausentes):';
+    } else if (oferta.descripcion_completitud === 'completa' || oferta.origen_descripcion === 'manual') {
+        encabezadoDescripcion = 'Descripción completa confirmada de la oferta:';
+    }
+
+    partes.push('', encabezadoDescripcion, textoDescripcion);
     return partes.join('\n');
 }
 

@@ -80,8 +80,15 @@ async function crearOferta(datos) {
         salario_max,
         moneda,
         fecha_publicacion,
-        datos_crudos
+        datos_crudos,
+        origen_descripcion,
+        descripcion_completitud,
     } = datos;
+
+    const origenDescripcionFinal = origen_descripcion
+        || (plataforma === 'bumeran' ? 'tarjeta' : 'scraper');
+    const descripcionCompletitudFinal = descripcion_completitud
+        || (!descripcion ? 'ausente' : (plataforma === 'bumeran' ? 'parcial' : 'desconocida'));
 
     // ON CONFLICT (url) DO NOTHING: si la URL ya existe, PostgreSQL no hace nada
     // (no tira error, simplemente ignora el INSERT).
@@ -92,8 +99,9 @@ async function crearOferta(datos) {
             titulo, empresa, ubicacion, modalidad, descripcion,
             url, plataforma, nivel_requerido,
             salario_min, salario_max, moneda,
-            fecha_publicacion, datos_crudos
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            fecha_publicacion, datos_crudos,
+            origen_descripcion, descripcion_completitud
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
         ON CONFLICT (url) DO NOTHING
         RETURNING *`,
         [
@@ -101,7 +109,9 @@ async function crearOferta(datos) {
             url, plataforma, nivel_requerido,
             salario_min || null, salario_max || null, moneda || null,
             fecha_publicacion || null,
-            datos_crudos ? JSON.stringify(datos_crudos) : null
+            datos_crudos ? JSON.stringify(datos_crudos) : null,
+            origenDescripcionFinal,
+            descripcionCompletitudFinal
         ]
     );
 
@@ -283,7 +293,9 @@ async function obtenerBloqueSincronizacion({ limite, cursor }) {
                     estado_evaluacion, razon_evaluacion, porcentaje_match,
                     estado_postulacion, fecha_publicacion, fecha_extraccion,
                     prioridad_ia, puntaje_prioridad_ia, evidencias_prioridad_ia,
-                    firma_criterios_evaluacion, evaluacion_error_mensaje, fecha_evaluacion
+                    firma_criterios_evaluacion, evaluacion_error_mensaje, fecha_evaluacion,
+                    explicacion_evaluacion, origen_descripcion, descripcion_completitud,
+                    descripcion_original, descripcion_modificada_en
              FROM ofertas
              WHERE fecha_extraccion >= $1 AND id <= $2 AND id < $3
              ORDER BY id DESC
@@ -356,9 +368,10 @@ async function obtenerOfertasPendientes() {
  * @param {string|null} [errorMensaje] - Mensaje de error si la API falló.
  * @param {Object|null} [prioridadIa] - Señal de ranking separada del match.
  * @param {string|null} [firmaCriterios] - Criterios efectivos exitosos; borro la firma ante error.
+ * @param {Object|null} [explicacionEvaluacion] - Desglose explicable de evaluación.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null) {
     const prioridad = prioridadIa || { detectada: false, puntaje: 0, evidencias: [], version: null };
     const resultado = await pool.query(
         `UPDATE ofertas
@@ -366,10 +379,23 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
               fecha_evaluacion = NOW(), evaluacion_error_mensaje = $5,
               prioridad_ia = $6, puntaje_prioridad_ia = $7,
               evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9,
-              firma_criterios_evaluacion = $10
+              firma_criterios_evaluacion = $10,
+              explicacion_evaluacion = $11::jsonb
          WHERE id = $4
          RETURNING *`,
-        [estado, razon, porcentaje, id, errorMensaje, Boolean(prioridad.detectada), prioridad.puntaje || 0, JSON.stringify(prioridad.evidencias || []), prioridad.version, errorMensaje ? null : firmaCriterios]
+        [
+            estado,
+            razon,
+            porcentaje,
+            id,
+            errorMensaje,
+            Boolean(prioridad.detectada),
+            prioridad.puntaje || 0,
+            JSON.stringify(prioridad.evidencias || []),
+            prioridad.version,
+            errorMensaje ? null : firmaCriterios,
+            explicacionEvaluacion ? JSON.stringify(explicacionEvaluacion) : null
+        ]
     );
 
     return resultado.rows.length > 0 ? resultado.rows[0] : null;
@@ -530,6 +556,54 @@ async function registrarErrorEvaluacion(id, mensaje) {
     return resultado.rows[0] || null;
 }
 
+/**
+ * Actualizo manualmente la descripción de una oferta.
+ * Preservo la descripción original la primera vez que se modifica,
+ * marco la completitud como 'completa', el origen como 'manual' y
+ * reseteo el estado de evaluación a 'pendiente' con 'REEVALUACION_SOLICITADA'.
+ *
+ * @param {number} id - ID de la oferta.
+ * @param {string} nuevaDescripcion - Nuevo texto de descripción (20 a 50.000 caracteres).
+ * @returns {Object|null} Oferta actualizada o null si no se encontró.
+ */
+async function actualizarDescripcionManual(id, nuevaDescripcion) {
+    const idNumerico = Number(id);
+    if (!Number.isInteger(idNumerico) || idNumerico <= 0) {
+        const error = new Error('El ID debe ser un número entero positivo.');
+        error.status = 400;
+        throw error;
+    }
+
+    if (typeof nuevaDescripcion !== 'string') {
+        const error = new Error('La descripción debe ser un texto.');
+        error.status = 400;
+        throw error;
+    }
+
+    const descripcionLimpia = nuevaDescripcion.trim();
+    if (descripcionLimpia.length < 20 || descripcionLimpia.length > 50000) {
+        const error = new Error('La descripción debe tener entre 20 y 50.000 caracteres.');
+        error.status = 400;
+        throw error;
+    }
+
+    const resultado = await pool.query(
+        `UPDATE ofertas
+         SET descripcion_original = COALESCE(descripcion_original, descripcion),
+             descripcion = $1,
+             origen_descripcion = 'manual',
+             descripcion_completitud = 'completa',
+             descripcion_modificada_en = NOW(),
+             estado_evaluacion = 'pendiente',
+             evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'
+         WHERE id = $2
+         RETURNING *`,
+        [descripcionLimpia, idNumerico]
+    );
+
+    return resultado.rows.length > 0 ? resultado.rows[0] : null;
+}
+
 module.exports = {
     registrarErrorEvaluacion,
     obtenerOfertasSeleccionadas,
@@ -543,5 +617,6 @@ module.exports = {
     actualizarPostulacion,
     actualizarPostulacionMasiva,
     resetearEvaluacionesPorDias,
+    actualizarDescripcionManual,
     _internas: { firmarCursor, leerCursor },
 };

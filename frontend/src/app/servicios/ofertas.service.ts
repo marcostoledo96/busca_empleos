@@ -67,6 +67,14 @@ export class OfertasService {
         );
     }
 
+    // Actualiza manualmente la descripción de una oferta.
+    actualizarDescripcion(id: number, descripcion: string): Observable<RespuestaApi<Oferta>> {
+        return this.http.patch<RespuestaApi<Oferta>>(
+            `${this.urlBase}/${id}/descripcion`,
+            { descripcion }
+        );
+    }
+
     // Actualiza el estado de postulación de múltiples ofertas en una sola operación.
     actualizarPostulacionMasiva(ids: number[], estadoPostulacion: string): Observable<RespuestaApi<{ actualizadas: number }>> {
         return this.http.patch<RespuestaApi<{ actualizadas: number }>>(

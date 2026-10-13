@@ -279,6 +279,57 @@ async function actualizarPostulacionMasiva(req, res) {
     });
 }
 
+/**
+ * PATCH /api/ofertas/:id/descripcion
+ * Actualizo manualmente la descripción de una oferta.
+ *
+ * Body: { descripcion: 'texto de 20 a 50000 caracteres' }
+ */
+async function actualizarDescripcion(req, res) {
+    const id = parseInt(req.params.id, 10);
+
+    if (isNaN(id) || id <= 0) {
+        return res.status(400).json({
+            exito: false,
+            error: 'El ID debe ser un número entero positivo.',
+        });
+    }
+
+    const { descripcion } = req.body;
+
+    if (typeof descripcion !== 'string' || descripcion.trim() === '') {
+        return res.status(400).json({
+            exito: false,
+            error: 'La descripción es obligatoria y debe ser un texto no vacío.',
+        });
+    }
+
+    const descripcionLimpia = descripcion.trim();
+    if (descripcionLimpia.length < 20 || descripcionLimpia.length > 50000) {
+        return res.status(400).json({
+            exito: false,
+            error: 'La descripción debe tener entre 20 y 50.000 caracteres.',
+        });
+    }
+
+    const oferta = await modeloOferta.actualizarDescripcionManual(id, descripcionLimpia);
+
+    if (!oferta) {
+        return res.status(404).json({
+            exito: false,
+            error: 'Oferta no encontrada.',
+        });
+    }
+
+    const ofertaConVigencia = (await agregarVigencia([oferta]))[0];
+
+    res.json({
+        exito: true,
+        datos: ofertaConVigencia,
+        mensaje: 'Descripción actualizada correctamente. Se programó la reevaluación de la oferta.',
+    });
+}
+
 module.exports = {
     listarOfertas,
     sincronizarOfertas,
@@ -287,4 +338,5 @@ module.exports = {
     obtenerOferta,
     actualizarPostulacion,
     actualizarPostulacionMasiva,
+    actualizarDescripcion,
 };

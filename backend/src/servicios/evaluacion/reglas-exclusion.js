@@ -423,6 +423,105 @@ const PORCENTAJE_EXCLUSION = {
 // ──────────────────────────────────────────────────────────────
 
 /**
+ * Construye un item de desglose estructurado para una regla de exclusión activada.
+ *
+ * @param {string} regla - Identificador de la regla ('java', 'seniority', 'experiencia', 'idioma', 'ubicacion_modalidad').
+ * @param {Object} detalle - Objeto con datos de la detección (patron, evidencia, etc.).
+ * @param {Object} oferta - Oferta evaluada.
+ * @returns {{ requisito: string, tipo: string, evidencia_oferta: string, evidencia_perfil: string, explicacion: string }}
+ */
+function construirItemExclusion(regla, detalle = {}, oferta = {}) {
+    switch (regla) {
+        case 'java':
+            return {
+                requisito: `Tecnología no permitida: Java${detalle.patron && detalle.patron !== 'java' ? ` (${detalle.patron})` : ''}`,
+                tipo: 'obligatorio',
+                evidencia_oferta: detalle.evidencia || 'Requisito Java detectado en la oferta',
+                evidencia_perfil: 'Perfil excluye explícitamente posiciones con Java',
+                explicacion: 'Se activó la regla de exclusión estricta: el perfil no acepta tecnologías del ecosistema Java.',
+            };
+        case 'seniority': {
+            const detalleSeniority = {
+                senior: 'Senior',
+                sr: 'SR',
+                tech_lead: 'Tech Lead',
+                team_lead: 'Team Lead',
+                engineering_lead: 'Engineering Lead',
+                lead_developer: 'Lead Developer',
+                lead_engineer: 'Lead Engineer',
+                lider: 'Líder',
+            }[detalle.patron] || detalle.patron || 'Senior / Lead';
+            return {
+                requisito: `Seniority máximo: ${detalleSeniority}`,
+                tipo: 'obligatorio',
+                evidencia_oferta: detalle.evidencia || `Nivel ${detalleSeniority} detectado`,
+                evidencia_perfil: 'Perfil Trainee / Junior',
+                explicacion: `La oferta exige nivel ${detalleSeniority}, incompatible con el perfil Trainee/Junior.`,
+            };
+        }
+        case 'experiencia':
+            return {
+                requisito: 'Experiencia excluyente de 3+ años',
+                tipo: 'obligatorio',
+                evidencia_oferta: detalle.evidencia || '3+ años de experiencia requeridos',
+                evidencia_perfil: 'Perfil Trainee / Junior (< 3 años de experiencia formal)',
+                explicacion: 'La oferta exige 3 o más años de experiencia como requisito excluyente.',
+            };
+        case 'idioma':
+            return {
+                requisito: 'Inglés avanzado / bilingüe',
+                tipo: 'obligatorio',
+                evidencia_oferta: detalle.evidencia || 'Inglés avanzado o fluido requerido',
+                evidencia_perfil: 'Perfil no cuenta con nivel de inglés avanzado/fluido confirmado',
+                explicacion: 'La oferta exige inglés avanzado, fluido o bilingüe como condición excluyente.',
+            };
+        case 'ubicacion_modalidad':
+            if (detalle.patron === 'remoto_restringido_pais') {
+                return {
+                    requisito: 'Residencia territorial remota compatible',
+                    tipo: 'obligatorio',
+                    evidencia_oferta: detalle.evidencia || 'Restricción geográfica en oferta remota',
+                    evidencia_perfil: 'Candidato radicado en Argentina',
+                    explicacion: 'La oferta es remota pero está restringida a residentes de otro país.',
+                };
+            }
+            return {
+                requisito: 'Ubicación presencial en zonas preferidas',
+                tipo: 'obligatorio',
+                evidencia_oferta: oferta.ubicacion || 'Ubicación presencial fuera de zona',
+                evidencia_perfil: 'Zonas preferidas: CABA / GBA',
+                explicacion: `La oferta es presencial en ${oferta.ubicacion || 'ubicación no especificada'}, fuera de las zonas preferidas.`,
+            };
+        default:
+            return {
+                requisito: `Exclusión: ${regla}`,
+                tipo: 'obligatorio',
+                evidencia_oferta: detalle.evidencia || '',
+                evidencia_perfil: '',
+                explicacion: `Regla de exclusión activada: ${regla}.`,
+            };
+    }
+}
+
+/**
+ * Crea un desglose estructurado con cumplidos, no_cumplidos, por_confirmar y exclusiones
+ * a partir de las exclusiones detectadas.
+ *
+ * @param {Array<{ regla: string, detalle: Object }>} exclusionesDetectadas - Lista de exclusiones detectadas.
+ * @param {Object} oferta - Oferta evaluada.
+ * @returns {{ cumplidos: Array, no_cumplidos: Array, por_confirmar: Array, exclusiones: Array }}
+ */
+function construirDesgloseExclusion(exclusionesDetectadas = [], oferta = {}) {
+    const items = exclusionesDetectadas.map(e => construirItemExclusion(e.regla, e.detalle, oferta));
+    return {
+        cumplidos: [],
+        no_cumplidos: [...items],
+        por_confirmar: [],
+        exclusiones: [...items],
+    };
+}
+
+/**
  * Evalúa todas las reglas de exclusión determinísticas sobre una oferta.
  *
  * Ejecuta las reglas en orden y devuelve el primer rechazo encontrado,
@@ -434,10 +533,11 @@ const PORCENTAJE_EXCLUSION = {
  *
  * @param {Object} oferta - Fila de la tabla ofertas.
  * @param {Object} preferencias - Fila de la tabla preferencias.
- * @returns {{ excluida: boolean, match: boolean, porcentaje: number|null, razon: string, reglas: string[] }}
+ * @returns {{ excluida: boolean, match: boolean, porcentaje: number|null, razon: string, reglas: string[], explicacion: Object }}
  */
 function evaluarReglasExclusion(oferta, preferencias) {
     const reglasActivadas = [];
+    const exclusionesDetectadas = [];
     let excluida = false;
     let porcentaje = null;
     let razon = '';
@@ -446,6 +546,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
     const java = detectarJavaExcluyente(oferta);
     if (java.detectado) {
         reglasActivadas.push('java');
+        exclusionesDetectadas.push({ regla: 'java', detalle: java });
         excluida = true;
         porcentaje = PORCENTAJE_EXCLUSION.java;
         razon = `La oferta requiere Java${java.patron && java.patron !== 'java' ? ` (ecosistema: ${java.patron})` : ''} como tecnología principal o excluyente. Evidencia: «${java.evidencia}».`;
@@ -457,6 +558,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
     const seniority = detectarSeniorityExcluyente(oferta);
     if (seniority.detectado) {
         reglasActivadas.push('seniority');
+        exclusionesDetectadas.push({ regla: 'seniority', detalle: seniority });
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.seniority;
@@ -479,6 +581,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
     const experiencia = detectarExperienciaExcluyente(oferta);
     if (experiencia.detectado) {
         reglasActivadas.push('experiencia');
+        exclusionesDetectadas.push({ regla: 'experiencia', detalle: experiencia });
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.experiencia;
@@ -490,6 +593,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
     const ingles = detectarInglesExcluyente(oferta, preferencias);
     if (ingles.detectado) {
         reglasActivadas.push('idioma');
+        exclusionesDetectadas.push({ regla: 'idioma', detalle: ingles });
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.idioma;
@@ -501,6 +605,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
     const ubicacion = detectarUbicacionIncompatible(oferta, preferencias);
     if (ubicacion.detectado) {
         reglasActivadas.push('ubicacion_modalidad');
+        exclusionesDetectadas.push({ regla: 'ubicacion_modalidad', detalle: ubicacion });
         if (!excluida) {
             excluida = true;
             porcentaje = PORCENTAJE_EXCLUSION.ubicacion_modalidad;
@@ -520,22 +625,31 @@ function evaluarReglasExclusion(oferta, preferencias) {
             porcentaje: null,
             razon: '',
             reglas: [],
+            explicacion: {
+                cumplidos: [],
+                no_cumplidos: [],
+                por_confirmar: [],
+                exclusiones: [],
+            },
         };
     }
 
-    // Si se activó alguna regla, devuelvo el rechazo con la primera razón
-    // y la lista completa de reglas activadas.
+    // Si se activó alguna regla, devuelvo el rechazo con la primera razón,
+    // la lista completa de reglas activadas y el desglose estructurado.
     return {
         excluida: true,
         match: false,
         porcentaje,
         razon,
         reglas: reglasActivadas,
+        explicacion: construirDesgloseExclusion(exclusionesDetectadas, oferta),
     };
 }
 
 module.exports = {
     evaluarReglasExclusion,
+    construirItemExclusion,
+    construirDesgloseExclusion,
     // Exporto funciones de detección y constantes para testing unitario.
     _internas: {
         detectarJavaExcluyente,
@@ -545,6 +659,8 @@ module.exports = {
         detectarUbicacionIncompatible,
         normalizarTexto,
         extraerTextoOferta,
+        construirItemExclusion,
+        construirDesgloseExclusion,
         PORCENTAJE_EXCLUSION,
         PATRON_JAVA_EXCLUYENTE,
         PATRON_SENIORITY_EXCLUYENTE,

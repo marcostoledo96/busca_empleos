@@ -584,6 +584,52 @@ Actualiza el estado de postulación de una oferta.
 { "exito": false, "error": "Oferta no encontrada." }
 ```
 
+### PATCH /api/ofertas/:id/descripcion
+
+Actualiza manualmente el texto de la descripción de una oferta (por ejemplo, cuando fue extraída como extracto de tarjeta parcial y el usuario pega el aviso completo).
+
+**Comportamiento y reglas:**
+- Conserva el texto previo original en `descripcion_original` mediante `COALESCE(descripcion_original, descripcion)` (sin sobreescribir si ya existía).
+- Asigna `origen_descripcion = 'manual'` y `descripcion_completitud = 'completa'`.
+- Registra la fecha de modificación en `descripcion_modificada_en = NOW()`.
+- Resetea la evaluación a `estado_evaluacion = 'pendiente'` y `evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'`.
+- Altera el `hash_oferta` de la oferta, invalidando entradas obsoletas de caché para reevaluaciones futuras.
+- **Inmutabilidad de contexto:** NO modifica el `estado_postulacion`, notas manuales, título, empresa, plataforma, fecha de publicación ni fecha de extracción.
+
+**Body:**
+```json
+{
+    "descripcion": "Texto completo del aviso laboral con requisitos detallados..."
+}
+```
+
+| Campo | Tipo | Requerido | Restricciones |
+|---|---|---|---|
+| `descripcion` | string | Sí | Mínimo 20 caracteres, máximo 50.000 caracteres |
+
+**Ejemplo response (200):**
+```json
+{
+    "exito": true,
+    "datos": {
+        "id": 42,
+        "titulo": "Desarrollador Angular Junior",
+        "descripcion": "Texto completo pegado...",
+        "origen_descripcion": "manual",
+        "descripcion_completitud": "completa",
+        "descripcion_original": "Extracto previo de tarjeta...",
+        "estado_evaluacion": "pendiente",
+        "evaluacion_error_mensaje": "REEVALUACION_SOLICITADA",
+        "vigencia_evaluacion": "actual"
+    },
+    "mensaje": "Descripción actualizada correctamente. La oferta quedó pendiente de reevaluación."
+}
+```
+
+**Errores comunes:**
+- `400`: ID inválido o descripción ausente / menor a 20 caracteres / mayor a 50.000 caracteres.
+- `404`: Oferta no encontrada.
+
 ---
 
 ## Endpoints de scraping

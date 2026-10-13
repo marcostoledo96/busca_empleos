@@ -663,8 +663,8 @@ describe('Issue #15: Pruebas focales de normalización', () => {
     // 5. Vigencia e identidad de evaluación (#9 y #15 - B-02)
     // ──────────────────────────────────────────────────────────
     describe('Vigencia e identidad de evaluación (B-02)', () => {
-        test('24. Versión del contrato de evaluación se incrementó a evaluacion-v3', () => {
-            expect(VERSION_CONTRATO_EVALUACION).toBe('evaluacion-v3');
+        test('24. Versión del contrato de evaluación se incrementó a evaluacion-v3 o superior', () => {
+            expect(['evaluacion-v3', 'evaluacion-v4']).toContain(VERSION_CONTRATO_EVALUACION);
         });
 
         test('25. Cambio de contrato de evaluación provoca miss de firma y marca evaluaciones v2 como vigencia anterior', () => {

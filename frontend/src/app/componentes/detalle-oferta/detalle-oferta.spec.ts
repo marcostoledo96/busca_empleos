@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { DetalleOferta } from './detalle-oferta';
 import { OfertasService } from '../../servicios/ofertas.service';
+import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { of } from 'rxjs';
 
 describe('DetalleOferta — Accesibilidad de foco en modal', () => {
@@ -30,13 +31,18 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
 
     async function crearComponente(): Promise<{ fixture: ComponentFixture<DetalleOferta>; component: DetalleOferta }> {
         const mockOfertasService = {
-            actualizarPostulacion: () => of({ exito: true, datos: { estado_postulacion: 'cv_enviado' } })
+            actualizarPostulacion: () => of({ exito: true, datos: { estado_postulacion: 'cv_enviado' } }),
+            actualizarDescripcion: () => of({ exito: true, datos: mockOferta })
+        };
+        const mockEvaluacionService = {
+            ejecutarEvaluacion: () => of({ exito: true, mensaje: 'Iniciada' })
         };
 
         await TestBed.configureTestingModule({
             imports: [DetalleOferta],
             providers: [
                 { provide: OfertasService, useValue: mockOfertasService },
+                { provide: EvaluacionService, useValue: mockEvaluacionService },
                 provideNoopAnimations(),
             ],
         }).compileComponents();

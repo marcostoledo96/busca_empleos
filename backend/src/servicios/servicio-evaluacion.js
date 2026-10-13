@@ -23,7 +23,7 @@ const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
-const { evaluarReglasExclusion } = require('./evaluacion/reglas-exclusion');
+const reglasExclusion = require('./evaluacion/reglas-exclusion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
 const { construirPerfilDesdePreferencias, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
@@ -133,7 +133,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         // (Java, Senior, 3+ años, inglés avanzado, presencial fuera de zona),
         // la rechazo SIN llamar a DeepSeek.
         if (preferenciasFinal) {
-            const resultadoExclusion = evaluarReglasExclusion(oferta, preferenciasFinal);
+            const resultadoExclusion = reglasExclusion.evaluarReglasExclusion(oferta, preferenciasFinal);
             if (resultadoExclusion.excluida) {
                 const rechazo = {
                     match: false,
@@ -141,6 +141,8 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                     razon: resultadoExclusion.razon,
                     error: false,
                     firma_criterios_evaluacion: firma,
+                    explicacion: resultadoExclusion.explicacion,
+                    desglose_disponible: true,
                 };
                 return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
             }
@@ -157,22 +159,50 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             // Solo rechaza si está confirmadamente fuera de zona (false).
             // Si la ubicación está ausente o desconocida (null), conservo la incertidumbre y no fuerzo rechazo.
             if (zonasPreferidas.length > 0 && compatibilidadPresencial === false) {
+                const itemExclusion = {
+                    requisito: 'Ubicación presencial en zonas preferidas',
+                    tipo: 'obligatorio',
+                    evidencia_oferta: ubicacionOferta,
+                    evidencia_perfil: `Zonas preferidas: ${zonasPreferidas.join(', ')}`,
+                    explicacion: `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas).`,
+                };
                 const rechazo = {
                     match: false,
                     porcentaje: 0,
                     razon: `La oferta es presencial en ${ubicacionOferta} (fuera de las zonas preferidas) => rechazada.`,
                     firma_criterios_evaluacion: firma,
+                    explicacion: {
+                        cumplidos: [],
+                        no_cumplidos: [itemExclusion],
+                        por_confirmar: [],
+                        exclusiones: [itemExclusion],
+                    },
+                    desglose_disponible: true,
                 };
                 return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
             }
         } else if (modalidadOferta === 'remoto') {
             const restriccionRemota = detectarRestriccionRemotaIncompatible(oferta);
             if (restriccionRemota.detectado) {
+                const itemExclusion = {
+                    requisito: 'Residencia territorial remota compatible',
+                    tipo: 'obligatorio',
+                    evidencia_oferta: restriccionRemota.evidencia || 'Restricción geográfica en oferta remota',
+                    evidencia_perfil: 'Candidato radicado en Argentina',
+                    explicacion: `La oferta es remota pero está restringida a residentes de otro país («${restriccionRemota.evidencia}»).`,
+                };
                 const rechazo = {
                     match: false,
                     porcentaje: 0,
                     razon: `La oferta es remota pero está restringida a residentes de otro país («${restriccionRemota.evidencia}») => rechazada.`,
                     firma_criterios_evaluacion: firma,
+                    explicacion: {
+                        cumplidos: [],
+                        no_cumplidos: [itemExclusion],
+                        por_confirmar: [],
+                        exclusiones: [itemExclusion],
+                    },
+                    desglose_disponible: true,
                 };
                 return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
             }
@@ -206,21 +236,33 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                 porcentaje: 15,
                 razon: `No se pudo interpretar la respuesta de DeepSeek: ${respuesta.razon}`,
                 error: true,
+                explicacion: respuesta.explicacion,
+                desglose_disponible: false,
             };
         }
 
         // ── Paso 4: Post-evaluación con reglas de exclusión ──
         // Si DeepSeek aprobó la oferta pero las reglas determinísticas dicen
         // que debe ser rechazada (Java, Senior, 3+ años, inglés avanzado),
-        // sobreescribo el resultado. La IA puede equivocarse; las reglas no.
+        // sobreescribo el resultado y enriquezco la explicación con la exclusión detectada.
         if (respuesta.match && preferenciasFinal) {
-            const resultadoPostExclusion = evaluarReglasExclusion(oferta, preferenciasFinal);
+            const resultadoPostExclusion = reglasExclusion.evaluarReglasExclusion(oferta, preferenciasFinal);
             if (resultadoPostExclusion.excluida) {
+                const explicacionBase = respuesta.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+                const exclusionesNuevas = resultadoPostExclusion.explicacion?.exclusiones || [];
+                const explicacionFinal = {
+                    cumplidos: explicacionBase.cumplidos || [],
+                    no_cumplidos: [...(explicacionBase.no_cumplidos || []), ...exclusionesNuevas],
+                    por_confirmar: explicacionBase.por_confirmar || [],
+                    exclusiones: [...(explicacionBase.exclusiones || []), ...exclusionesNuevas],
+                };
                 return await guardarResultado({
                     match: false,
                     porcentaje: resultadoPostExclusion.porcentaje,
                     razon: resultadoPostExclusion.razon,
                     error: false,
+                    explicacion: explicacionFinal,
+                    desglose_disponible: true,
                 });
             }
         }
@@ -234,6 +276,10 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             razon: respuesta.razon,
             porcentaje: respuesta.porcentaje,
             prioridad_ia: prioridadIa,
+            explicacion: respuesta.explicacion,
+            desglose_disponible: respuesta.desglose_disponible,
+            ...(respuesta.inconsistente ? { inconsistente: true } : {}),
+            ...(respuesta.invalido ? { invalido: true } : {}),
         });
 
     } catch (error) {
@@ -244,6 +290,13 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             match: false,
             razon: razonError,
             error: true,
+            explicacion: {
+                cumplidos: [],
+                no_cumplidos: [],
+                por_confirmar: [],
+                exclusiones: [],
+            },
+            desglose_disponible: false,
         };
     }
 }
@@ -339,8 +392,24 @@ async function evaluarOfertasPendientes(seleccionadas) {
             const estado = conservarAnterior ? oferta.estado_evaluacion : resultado.match ? 'aprobada' : 'rechazada';
             const errorMensaje = resultado.error ? resultado.razon : null;
 
+            const explicacionParaGuardar = (
+                resultado.explicacion && (
+                    resultado.desglose_disponible ||
+                    resultado.explicacion.cumplidos?.length ||
+                    resultado.explicacion.no_cumplidos?.length ||
+                    resultado.explicacion.exclusiones?.length ||
+                    resultado.explicacion.por_confirmar?.length
+                )
+            ) ? resultado.explicacion : null;
+
             if (conservarAnterior) {
                 await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje);
+            } else if (explicacionParaGuardar) {
+                await modeloOferta.actualizarEvaluacion(
+                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
+                    resultado.prioridad_ia || null, resultado.error ? null : resultado.firma_criterios_evaluacion,
+                    explicacionParaGuardar
+                );
             } else {
                 await modeloOferta.actualizarEvaluacion(
                     oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
