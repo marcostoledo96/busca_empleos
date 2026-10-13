@@ -225,12 +225,17 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
     const CONCURRENCIA_DETALLE = 5;
     const PAUSA_ENTRE_LOTES_MS = 300;
     const MAX_PAGINAS_COMPUTRABAJO = 2;
+    // Techo global de peticiones HTTP (listados + detalles) y presupuesto de detalles por término
+    const TOPE_DEFAULT_PETICIONES_COMPUTRABAJO = Math.max(60, maxResultados + 20);
+    const MAX_PETICIONES_COMPUTRABAJO = opciones.maxPeticiones || TOPE_DEFAULT_PETICIONES_COMPUTRABAJO;
+    const MAX_DETALLES_POR_TERMINO = opciones.maxDetallesPorTermino || Math.min(MAX_PETICIONES_COMPUTRABAJO, Math.max(maxResultados, 30));
     const diasVentana = 30;
     const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
 
     try {
+        const terminos = opciones.terminos || [];
         const urls = construirUrlsComputrabajo({ terminos: opciones.terminos });
-        console.log(`Scraping Computrabajo: ${urls.length} URL(s) de búsqueda generadas.`);
+        console.log(`Scraping Computrabajo: ${urls.length} URL(s) de búsqueda generadas (tope: ${MAX_PETICIONES_COMPUTRABAJO} peticiones, máx ${MAX_DETALLES_POR_TERMINO} detalles/término).`);
 
         // === Paso 1: Extraer cards básicos del listado ===
         // Deduplicación temprana en memoria con Set antes de fetchear detalles.
@@ -248,8 +253,10 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
             let tarjetasEncontradasRonda = 0;
 
-            for (const urlBase of urls) {
+            for (let idxUrl = 0; idxUrl < urls.length; idxUrl++) {
+                const urlBase = urls[idxUrl];
                 if (ofertasElegibles.length >= maxResultados) break buclePaginas;
+                if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO) break buclePaginas;
 
                 urlsConsultadas.add(urlBase);
                 const urlBusqueda = pagina === 1
@@ -313,11 +320,22 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                 });
 
                 // Fetch de detalle y evaluación inmediata de elegibilidad para este término
-                for (let i = 0; i < tarjetasTermino.length; i += CONCURRENCIA_DETALLE) {
+                let detallesTerminoEjecutados = 0;
+                let iTarjeta = 0;
+                while (iTarjeta < tarjetasTermino.length) {
                     if (ofertasElegibles.length >= maxResultados) break;
+                    if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO) break buclePaginas;
+                    if (detallesTerminoEjecutados >= MAX_DETALLES_POR_TERMINO) break;
 
-                    const lote = tarjetasTermino.slice(i, i + CONCURRENCIA_DETALLE);
+                    const remanenteGlobal = MAX_PETICIONES_COMPUTRABAJO - (peticionesListado + peticionesDetalle);
+                    const remanenteTermino = MAX_DETALLES_POR_TERMINO - detallesTerminoEjecutados;
+                    const tamanoLote = Math.min(CONCURRENCIA_DETALLE, remanenteGlobal, remanenteTermino);
+                    if (tamanoLote <= 0) break;
+
+                    const lote = tarjetasTermino.slice(iTarjeta, iTarjeta + tamanoLote);
                     peticionesDetalle += lote.length;
+                    detallesTerminoEjecutados += lote.length;
+                    iTarjeta += lote.length;
 
                     const itemsDetalle = await Promise.all(lote.map(async (tarjeta) => {
                         try {
@@ -371,7 +389,10 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         if (ofertasElegibles.length >= maxResultados) break;
                     }
 
-                    if (i + CONCURRENCIA_DETALLE < tarjetasTermino.length && ofertasElegibles.length < maxResultados) {
+                    if (iTarjeta < tarjetasTermino.length &&
+                        ofertasElegibles.length < maxResultados &&
+                        peticionesListado + peticionesDetalle < MAX_PETICIONES_COMPUTRABAJO &&
+                        detallesTerminoEjecutados < MAX_DETALLES_POR_TERMINO) {
                         await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
                     }
                 }
@@ -386,6 +407,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         let motivoFinalizacion = 'agotado';
         if (ofertasElegibles.length >= maxResultados) {
             motivoFinalizacion = 'limite_resultados';
+        } else if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO) {
+            motivoFinalizacion = 'limite_peticiones';
         } else if (huboTarjetasEnUltimaRonda) {
             motivoFinalizacion = 'limite_paginas';
         }
@@ -393,12 +416,18 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         const resultado = ofertasElegibles.slice(0, maxResultados);
         const consultasEjecutadas = urlsConsultadas.size;
         const consultasOmitidas = Math.max(0, urls.length - consultasEjecutadas);
+        const consultasOmitidasPorPresupuesto = motivoFinalizacion === 'limite_peticiones'
+            ? (terminos.length === urls.length
+                ? terminos.filter((_, idx) => !urlsConsultadas.has(urls[idx]))
+                : urls.filter(u => !urlsConsultadas.has(u)))
+            : [];
 
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: diasVentana,
             consultasEjecutadas,
             consultasOmitidas,
+            consultasOmitidasPorPresupuesto,
             peticionesRealizadas: peticionesListado + peticionesDetalle,
             totalCrudos,
             totalElegibles: resultado.length,
@@ -408,7 +437,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
             motivoFinalizacion,
         });
 
-        console.log(`Scraping Computrabajo: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas.`);
+        console.log(`Scraping Computrabajo: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas (${peticionesListado + peticionesDetalle} peticiones).`);
         return resultado;
 
     } catch (error) {

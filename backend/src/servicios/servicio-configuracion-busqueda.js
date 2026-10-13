@@ -38,6 +38,7 @@ function validarOpciones(opciones = {}) {
         'terminos', 'terminos_busqueda', 'maxResultados', 'ubicacion', 'ubicaciones',
         'filtrarNivelLinkedin', 'filtrar_nivel_linkedin',
         'queryIndeed', 'consultasJooble', 'consultasAdzuna', 'categoriasRemotive', 'tagsRemoteOK',
+        'maxPeticiones', 'maxDetallesPorTermino', 'maxPaginasPorTermino',
     ]);
     if (Object.keys(opciones).some(campo => !camposPermitidos.has(campo))) {
         throw errorConfiguracion('Recibí opciones de búsqueda no reconocidas.');
@@ -49,6 +50,15 @@ function validarOpciones(opciones = {}) {
     if (terminos !== undefined) validarLista(terminos, 'Los términos');
     if (opciones.maxResultados !== undefined && (!Number.isInteger(opciones.maxResultados) || opciones.maxResultados < 1 || opciones.maxResultados > 500)) {
         throw errorConfiguracion('maxResultados debe ser un entero entre 1 y 500.');
+    }
+    if (opciones.maxPeticiones !== undefined && (!Number.isInteger(opciones.maxPeticiones) || opciones.maxPeticiones < 1)) {
+        throw errorConfiguracion('maxPeticiones debe ser un entero positivo.');
+    }
+    if (opciones.maxDetallesPorTermino !== undefined && (!Number.isInteger(opciones.maxDetallesPorTermino) || opciones.maxDetallesPorTermino < 1)) {
+        throw errorConfiguracion('maxDetallesPorTermino debe ser un entero positivo.');
+    }
+    if (opciones.maxPaginasPorTermino !== undefined && (!Number.isInteger(opciones.maxPaginasPorTermino) || opciones.maxPaginasPorTermino < 1)) {
+        throw errorConfiguracion('maxPaginasPorTermino debe ser un entero positivo.');
     }
     if (opciones.ubicacion !== undefined && (typeof opciones.ubicacion !== 'string' || !opciones.ubicacion.trim() || opciones.ubicacion.length > 200)) {
         throw errorConfiguracion('ubicacion debe ser un texto no vacío de hasta 200 caracteres.');
@@ -93,7 +103,13 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     let ubicacion = [];
     let ventanaDias = (id === 'linkedin' || id === 'glassdoor') ? 14 : 30;
     let origenUbicacion = 'fijo';
-    const opcionesResueltas = { maxResultados, ...(usaTerminos ? { terminos } : {}) };
+    const opcionesResueltas = {
+        maxResultados,
+        ...(usaTerminos ? { terminos } : {}),
+        ...(entrada.maxPeticiones !== undefined ? { maxPeticiones: entrada.maxPeticiones } : {}),
+        ...(entrada.maxDetallesPorTermino !== undefined ? { maxDetallesPorTermino: entrada.maxDetallesPorTermino } : {}),
+        ...(entrada.maxPaginasPorTermino !== undefined ? { maxPaginasPorTermino: entrada.maxPaginasPorTermino } : {}),
+    };
 
     if (!plataforma.activa) advertencias.push(plataforma.motivo || 'Plataforma inactiva.');
     if (id === 'linkedin') {
