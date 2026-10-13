@@ -101,6 +101,19 @@
                                     <p>Ubicación: {{ resumen.ubicacion.join(', ') || 'Sin ubicación aplicable' }} · Origen: {{ resumen.origen.ubicacion }}.
                                         Ventana: {{ resumen.ventanaDias === null ? 'No aplica' : resumen.ventanaDias + ' días' }}.
                                         maxResultados: {{ resumen.maxResultados === null ? 'Sin valor configurable' : resumen.maxResultados }}.</p>
+                                    @if (resumen.motivoFinalizacion) {
+                                        <p>Finalización: {{ resumen.motivoFinalizacion }}.</p>
+                                    }
+                                    @if (resumen.totalElegibles !== undefined) {
+                                        <p>Resultados útiles: {{ resumen.totalElegibles }} elegibles / {{ resumen.totalCrudos ?? resumen.totalElegibles }} crudos
+                                            @if (resumen.duplicadasDescartadas) { · {{ resumen.duplicadasDescartadas }} duplicadas }
+                                            @if (resumen.antiguasDescartadas) { · {{ resumen.antiguasDescartadas }} fuera de ventana }
+                                            @if (resumen.sinFechaConocida) { · {{ resumen.sinFechaConocida }} sin fecha }
+                                        </p>
+                                    }
+                                    @if (resumen.consultasOmitidasPorPresupuesto && resumen.consultasOmitidasPorPresupuesto.length > 0) {
+                                        <p>Consultas omitidas por presupuesto: {{ resumen.consultasOmitidasPorPresupuesto.join(', ') }}</p>
+                                    }
                                     <p>Filtros informados: {{ resumen.filtros | json }}</p>
                                     @if (resumen.consultasEfectivas) {
                                         <p>Consultas efectivas: {{ formatearConsultas(resumen.consultasEfectivas) }}</p>

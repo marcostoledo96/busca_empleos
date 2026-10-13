@@ -43,14 +43,14 @@ rechaza cualquier término que quede vacío al quitar signos (por ejemplo `###`)
 sin enviar una URL genérica. Las fuentes que fragmentan palabras conservan su
 rechazo cuando no queda ninguna palabra utilizable. No agrego reglas nuevas de matching.
 
-`maxResultados` no significa un techo estricto universal. En Jooble y RemoteOK
-conservo el umbral de acumulación existente: una página/lote completo puede
-superarlo. Preview y ejecución lo aclaran en el campo existente `advertencias`,
-sin cambiar el DTO ni recortar resultados. Ejemplo con valor 50:
-`"maxResultados es un umbral de acumulación, no un límite estricto: puedo superar 50 al incorporar una página o lote completo."`
-El frontend muestra ese texto tal cual; no etiqueta el valor como límite estricto
-ni interpreta capacidades por nombre. Bumeran sigue informando ausencia de límite
-configurable (`maxResultados: null`); los demás proveedores conservan sus parámetros/caps.
+`maxResultados` delimita el techo estricto de ofertas útiles devueltas en todas las fuentes (issue #16).
+En Jooble, RemoteOK y Computrabajo, las ofertas se deduplican y filtran por fecha antes de contar contra
+el cupo, y el lote final se recorta determinísticamente con `slice(0, maxResultados)`.
+Las respuestas individuales de scraping incluyen métricas completas de ejecución:
+`maxResultados`, `ventanaDias`, `consultasEjecutadas`, `consultasOmitidas`, `totalCrudos`, `totalElegibles`,
+`duplicadasDescartadas`, `antiguasDescartadas`, `sinFechaConocida` y `motivoFinalizacion`
+(`'limite_resultados'`, `'limite_peticiones'`, `'limite_paginas'` o `'agotado'`).
+Bumeran sigue informando ausencia de límite configurable (`maxResultados: null`); los demás proveedores conservan sus parámetros/caps.
 
 Un POST individual activo agrega `datos.configuracion: ResumenBusqueda` y
 `datos.descartadas_por_idioma`, manteniendo contadores existentes. Adzuna sin

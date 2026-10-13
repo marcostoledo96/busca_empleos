@@ -258,6 +258,10 @@ export class TablaOfertas {
         return mapa[plataforma] || 'pi pi-question';
     }
 
+    esFechaAproximada(oferta: Oferta): boolean {
+        return !!(oferta.fecha_publicacion_aproximada || oferta.datos_crudos?.['fechaAproximada'] || oferta.datos_crudos?.['fechaTexto']);
+    }
+
     verDetalle(oferta: Oferta): void {
         this.ofertaSeleccionada.emit(oferta);
     }

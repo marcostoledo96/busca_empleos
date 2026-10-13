@@ -76,10 +76,10 @@ describe('Configuración común de búsquedas', () => {
         expect(() => resolverConfiguracion(id, { terminos: ['###'] }, {})).toThrow(/términos/i);
     });
 
-    test.each(['jooble', 'remoteok'])('%s informa que maxResultados no es un límite estricto', (id) => {
+    test.each(['jooble', 'remoteok'])('%s informa que aplica un límite estricto sobre maxResultados', (id) => {
         const { resumen } = resolverConfiguracion(id, { maxResultados: 10 }, {});
         expect(resumen.maxResultados).toBe(10);
-        expect(resumen.advertencias.join(' ')).toMatch(/umbral de acumulación.*no.*límite estricto.*superar 10/i);
+        expect(resumen.advertencias.join(' ')).toMatch(/límite estricto sobre maxResultados.*no superar 10/i);
     });
 
     test('batch ejecuta compatibles para QA y C# sin omitir', async () => {

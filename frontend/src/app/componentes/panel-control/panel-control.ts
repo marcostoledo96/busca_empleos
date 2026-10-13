@@ -79,8 +79,24 @@ export class PanelControl implements OnInit, OnDestroy {
 
     private observarResultado(respuesta: RespuestaApi<RespuestaScraping>): void {
         if (!respuesta.exito) throw new Error(respuesta.error || 'No se completó la búsqueda.');
-        this.configuracionIndividual.set(respuesta.datos.configuracion ?? null);
-        if (respuesta.datos.configuracion && !respuesta.datos.configuracion.ejecutable) {
+        const datos = respuesta.datos;
+        const configBase = datos.configuracion ?? null;
+        const configCompleta: ResumenBusqueda | null = configBase ? {
+            ...configBase,
+            maxResultados: datos.maxResultados ?? datos.max_resultados ?? configBase.maxResultados,
+            ventanaDias: datos.ventanaDias ?? datos.ventana_dias ?? configBase.ventanaDias,
+            consultasEjecutadas: datos.consultasEjecutadas ?? datos.consultas_ejecutadas ?? configBase.consultasEjecutadas,
+            consultasOmitidas: datos.consultasOmitidas ?? datos.consultas_omitidas ?? configBase.consultasOmitidas,
+            consultasOmitidasPorPresupuesto: datos.consultasOmitidasPorPresupuesto ?? datos.consultas_omitidas_por_presupuesto ?? configBase.consultasOmitidasPorPresupuesto,
+            totalCrudos: datos.totalCrudos ?? datos.total_crudos ?? configBase.totalCrudos,
+            totalElegibles: datos.totalElegibles ?? datos.total_elegibles ?? configBase.totalElegibles,
+            duplicadasDescartadas: datos.duplicadasDescartadas ?? datos.duplicadas_descartadas ?? configBase.duplicadasDescartadas,
+            antiguasDescartadas: datos.antiguasDescartadas ?? datos.antiguas_descartadas ?? configBase.antiguasDescartadas,
+            sinFechaConocida: datos.sinFechaConocida ?? datos.sin_fecha_conocida ?? configBase.sinFechaConocida,
+            motivoFinalizacion: datos.motivoFinalizacion ?? datos.motivo_finalizacion ?? configBase.motivoFinalizacion,
+        } : null;
+        this.configuracionIndividual.set(configCompleta);
+        if (configCompleta && !configCompleta.ejecutable) {
             throw new Error('La fuente no ejecutó la búsqueda. Consultá sus advertencias.');
         }
     }
@@ -543,6 +559,17 @@ export class PanelControl implements OnInit, OnDestroy {
         this.prepararBusqueda('linkedin', () => this.extraerLinkedin());
     }
 
+    private formatearDetalleScraping(datos: RespuestaScraping, conDuplicadas: boolean = true): string {
+        const base = conDuplicadas && datos.ofertas_duplicadas !== undefined
+            ? `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`
+            : `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`;
+        const errores = datos.ofertas_errores ? ` (${datos.ofertas_errores} con error al persistir)` : '';
+        const motivo = (datos.motivo_finalizacion && datos.motivo_finalizacion !== 'agotado')
+            ? ` [Corte: ${datos.motivo_finalizacion}]`
+            : '';
+        return `${base}${errores}${motivo}`;
+    }
+
     private extraerLinkedin(): void {
         this.scrapeandoLinkedin.set(true);
         this.plataformaEnProceso.set('LinkedIn');
@@ -555,7 +582,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'LinkedIn completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -589,7 +616,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Computrabajo completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -623,7 +650,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Indeed completado',
-                    detail: `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`,
+                    detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -657,7 +684,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Bumeran completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -691,7 +718,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Glassdoor completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -725,7 +752,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Jooble completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -793,7 +820,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Remotive completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -827,7 +854,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'RemoteOK completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -875,7 +902,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'InfoJobs completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();
@@ -922,7 +949,7 @@ export class PanelControl implements OnInit, OnDestroy {
                 this.mensajes.add({
                     severity: 'success',
                     summary: 'Adzuna completado',
-                    detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
+                    detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
                 this.accionCompletada.emit();

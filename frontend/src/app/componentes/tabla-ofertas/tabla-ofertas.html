@@ -119,8 +119,8 @@
                     MATCH % <p-sortIcon field="porcentaje_match" />
                 </th>
                 <th class="columna-postulacion" style="min-width: 150px">POSTULACIÓN</th>
-                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="min-width: 110px">
-                    EXTRAÍDA <p-sortIcon field="fecha_extraccion" />
+                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="min-width: 120px">
+                    DETECTADA <p-sortIcon field="fecha_extraccion" />
                 </th>
                 <th class="columna-accion" style="width: 44px"></th>
             </tr>
@@ -148,7 +148,14 @@
                         }
                         <div class="titulo-meta-responsive">
                             <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
-                            <span class="titulo-fecha-responsive">{{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                            <span class="titulo-fecha-responsive" [title]="'Detectada: ' + (oferta.fecha_extraccion | date:'dd/MM/yy')">
+                                Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
+                            </span>
+                            @if (oferta.fecha_publicacion) {
+                                <span class="titulo-fecha-responsive" [title]="(esFechaAproximada(oferta) ? 'Publicada (aproximada): ' : 'Publicada: ') + (oferta.fecha_publicacion | date:'dd/MM/yy')">
+                                    · Pub{{ esFechaAproximada(oferta) ? ' (aprox)' : '' }}: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
+                                </span>
+                            }
                         </div>
                     </div>
                 </td>
@@ -191,7 +198,15 @@
                         [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                 </td>
                 <td class="columna-extraida celda-mono celda-fecha">
-                    {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
+                    <span [title]="'Detectada: ' + (oferta.fecha_extraccion | date:'dd/MM/yyyy HH:mm')">
+                        Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
+                    </span>
+                    @if (oferta.fecha_publicacion) {
+                        <br />
+                        <span style="font-size: 0.75rem; opacity: 0.8;" [title]="(esFechaAproximada(oferta) ? 'Publicada (aproximada): ' : 'Publicada: ') + (oferta.fecha_publicacion | date:'dd/MM/yyyy')">
+                            Pub{{ esFechaAproximada(oferta) ? ' (aprox)' : '' }}: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
+                        </span>
+                    }
                 </td>
                 <td class="columna-accion">
                     <button

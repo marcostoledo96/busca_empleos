@@ -36,6 +36,7 @@ export interface Oferta {
     porcentaje_match: number | null;
     estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada';
     fecha_publicacion: string | null;
+    fecha_publicacion_aproximada?: boolean;
     fecha_extraccion: string;
     datos_crudos: Record<string, unknown> | null;
     firma_criterios_evaluacion?: string | null;

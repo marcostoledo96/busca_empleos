@@ -5,4 +5,44 @@ function filtrarOfertasPorIdioma(ofertas) {
     return ofertas.filter(oferta => detectarIdioma(oferta.titulo, oferta.descripcion) !== 'en');
 }
 
-module.exports = { filtrarOfertasPorIdioma };
+/**
+ * Persisto un lote de ofertas aislando fallos por oferta individual con try/catch.
+ * Si una oferta falla (ej: error de restricción, tipo de dato inválido o fallo puntual de BD),
+ * no se interrumpe el procesamiento ni se descarta el resto del lote.
+ *
+ * @param {Array<Object>} ofertas - Lista de ofertas normalizadas a persistir.
+ * @param {Object} modelo - Modelo de persistencia (por defecto el modelo de ofertas).
+ * @returns {Promise<{guardadas: number, duplicadas: number, errores: number, detallesErrores: Array<Object>}>}
+ */
+async function guardarLoteOfertasAislado(ofertas, modelo) {
+    let guardadas = 0;
+    let duplicadas = 0;
+    let errores = 0;
+    const detallesErrores = [];
+
+    for (const oferta of ofertas) {
+        try {
+            const resultado = await modelo.crearOferta(oferta);
+            if (resultado) {
+                guardadas++;
+            } else {
+                duplicadas++;
+            }
+        } catch (error) {
+            errores++;
+            detallesErrores.push({
+                titulo: oferta?.titulo || null,
+                url: oferta?.url || null,
+                error: error.message,
+            });
+            console.warn(`[Ingreso Ofertas] Error aislado al guardar oferta "${oferta?.titulo || oferta?.url}": ${error.message}`);
+        }
+    }
+
+    return { guardadas, duplicadas, errores, detallesErrores };
+}
+
+module.exports = {
+    filtrarOfertasPorIdioma,
+    guardarLoteOfertasAislado,
+};

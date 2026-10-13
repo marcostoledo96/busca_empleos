@@ -66,6 +66,22 @@ sueltas o descartar términos cortos.
 - **Resumen común (`ResumenBusqueda`):** Expone `consultasEfectivas` y `equivalenciasAplicadas`
   para brindar visibilidad de las transformaciones sin consultar APIs de pago.
 
+## Reparto de cupos, límites estrictos y unificación de fechas (issue #16)
+
+Resuelvo el desbordamiento de cupos brutos y la pérdida de términos posteriores mediante un reparto justo y conteo exclusivo de ofertas útiles y elegibles:
+
+- **Definición de oferta elegible:** Oferta que normaliza válidamente, supera filtros de idioma, no es duplicada dentro de la ejecución (por URL canónica) y tiene fecha de publicación dentro de la ventana configurada (o no informada).
+- **Reparto equitativo:**
+  - **Jooble:** Round-robin por término, consultando página 1 de cada término compatible antes de profundizar a páginas siguientes. Evita que un término con repetidas o antiguas silencie las búsquedas posteriores (ej. `angular`).
+  - **RemoteOK:** Distribución equitativa de cupo entre tags configurados (`cupoObjetivoPorTag = Math.ceil(maxResultados / terminos.length)`), evitando que el primer tag consuma todo el cupo.
+  - **Computrabajo:** Deduplicación temprana de URLs de tarjetas en memoria con `Set` antes de solicitar detalles, con paginación acotada (`p=2`).
+- **Límites estrictos (Hard Cap):** Ninguna fuente devuelve más ofertas que `maxResultados`. Toda fuente trunca determinísticamente su resultado final con `.slice(0, maxResultados)`.
+- **Ventana de publicación unificada:** 30 días como valor por omisión (`DIAS_VENTANA_PUBLICACION = 30`), alineado con la base de datos y dashboard. Fuentes con limitación de API (LinkedIn, Glassdoor) informan `ventanaDias: 14`.
+- **Sanitización de fechas:** Fechas inválidas (`Invalid Date`) y futuras (>24h) se sanitizan a `null` (publicación desconocida), evitando fallos de sintaxis en PostgreSQL.
+- **Fechas relativas de Computrabajo:** Interpretación conservadora de expresiones temporales ("Hoy", "Ayer", "Hace X horas/días/semanas") preservando `fechaTexto` en `datos_crudos`.
+- **Aislamiento en persistencia:** `guardarLoteOfertasAislado` protege cada inserción con `try/catch` para que un registro conflictivo no descarte el lote completo.
+- **Métricas extendidas y UI:** El backend expone métricas completas (`consultasEjecutadas`, `consultasOmitidas`, `totalCrudos`, `totalElegibles`, `duplicadasDescartadas`, `antiguasDescartadas`, `sinFechaConocida`, `motivoFinalizacion`). La UI distingue visualmente la fecha de primera detección (`Det:`) de la fecha de publicación original (`Pub:`).
+
 ### Evidencia vertical sin proveedores reales
 
 Con `cd backend && npm run test:vertical` pruebo los recorridos individual y ciclo

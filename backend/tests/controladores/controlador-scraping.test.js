@@ -460,6 +460,92 @@ describe('Controlador de scraping', () => {
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
         });
     });
+
+    // === Aislamiento de persistencia y métricas extendidas (Issue #16 T1/T2) ===
+
+    describe('Aislamiento de persistencia y métricas extendidas', () => {
+        test('aísla errores individuales al persistir ofertas sin descartar el resto del lote', async () => {
+            const ofertasMock = [
+                { titulo: 'Oferta 1', url: 'https://ejemplo.com/1' },
+                { titulo: 'Oferta 2 corrupta', url: 'https://ejemplo.com/2' },
+                { titulo: 'Oferta 3', url: 'https://ejemplo.com/3' },
+            ];
+
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue(ofertasMock);
+
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce({ id: 1 })
+                .mockRejectedValueOnce(new Error('Violación de restricción o base de datos temporalmente inaccesible'))
+                .mockResolvedValueOnce({ id: 3 });
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({ maxResultados: 10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.ofertas_nuevas).toBe(2);
+            expect(res.body.datos.ofertas_errores).toBe(1);
+            expect(res.body.datos.total_extraidas).toBe(3);
+        });
+
+        test('propaga métricas extendidas de scraping en el payload datos', async () => {
+            const ofertasMock = [
+                { titulo: 'Dev React', url: 'https://ejemplo.com/1' },
+            ];
+            ofertasMock.maxResultados = 50;
+            ofertasMock.ventanaDias = 30;
+            ofertasMock.consultasEjecutadas = 2;
+            ofertasMock.consultasOmitidas = 1;
+            ofertasMock.totalCrudos = 15;
+            ofertasMock.totalElegibles = 1;
+            ofertasMock.duplicadasDescartadas = 4;
+            ofertasMock.antiguasDescartadas = 8;
+            ofertasMock.sinFechaConocida = 2;
+            ofertasMock.motivoFinalizacion = 'limite_resultados';
+
+            servicioScraping.ejecutarScrapingJooble.mockResolvedValue(ofertasMock);
+            modeloOferta.crearOferta.mockResolvedValueOnce({ id: 1 });
+
+            const res = await request(app)
+                .post('/api/scraping/jooble')
+                .send({ maxResultados: 50 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos).toMatchObject({
+                maxResultados: 50,
+                ventanaDias: 30,
+                consultasEjecutadas: 2,
+                consultasOmitidas: 1,
+                totalCrudos: 15,
+                totalElegibles: 1,
+                duplicadasDescartadas: 4,
+                antiguasDescartadas: 8,
+                sinFechaConocida: 2,
+                motivoFinalizacion: 'limite_resultados',
+            });
+        });
+
+        test('retorna exito: false y status 500 cuando todas las inserciones fallan en base de datos', async () => {
+            const ofertasMock = [
+                { titulo: 'Dev React', url: 'https://ejemplo.com/1' },
+                { titulo: 'Dev Angular', url: 'https://ejemplo.com/2' },
+            ];
+
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue(ofertasMock);
+            modeloOferta.crearOferta.mockRejectedValue(new Error('Connection lost'));
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({ maxResultados: 10 });
+
+            expect(res.status).toBe(500);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.datos.ofertas_errores).toBe(2);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+        });
+    });
 });
 
     // === Validacion de opciones de entrada (H018) ===
