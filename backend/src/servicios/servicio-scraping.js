@@ -235,17 +235,21 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         // === Paso 1: Extraer cards básicos del listado ===
         // Deduplicación temprana en memoria con Set antes de fetchear detalles.
         const urlsVistas = new Set();
-        const ofertasParciales = [];
+        const ofertasElegibles = [];
+        let totalCrudos = 0;
         let duplicadasDescartadas = 0;
-        let antiguasDescartadasListado = 0;
+        let antiguasDescartadas = 0;
+        let sinFechaConocida = 0;
         let peticionesListado = 0;
+        let peticionesDetalle = 0;
         const urlsConsultadas = new Set();
+        let huboTarjetasEnUltimaRonda = false;
 
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
             let tarjetasEncontradasRonda = 0;
 
             for (const urlBase of urls) {
-                if (ofertasParciales.length >= maxResultados) break buclePaginas;
+                if (ofertasElegibles.length >= maxResultados) break buclePaginas;
 
                 urlsConsultadas.add(urlBase);
                 const urlBusqueda = pagina === 1
@@ -264,10 +268,9 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 
                 const htmlListado = await respListado.text();
                 const $listado = cheerio.load(htmlListado);
+                const tarjetasTermino = [];
 
                 $listado('article.box_offer').each((_, el) => {
-                    if (ofertasParciales.length >= maxResultados) return false;
-
                     const link = $listado(el).find('h2 a.js-o-link');
                     const href = link.attr('href');
                     const titulo = link.text().trim();
@@ -275,6 +278,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     if (!href || !titulo) return;
 
                     tarjetasEncontradasRonda++;
+                    totalCrudos++;
 
                     // Elimino el fragment #lc=... que Computrabajo usa para tracking.
                     const urlRelativa = href.split('#')[0];
@@ -292,8 +296,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     if (fechaTexto) {
                         const fechaAprox = parsearFechaRelativaComputrabajo(fechaTexto);
                         if (fechaAprox && fechaAprox.getTime() < limite30Dias) {
-                            antiguasDescartadasListado++;
-                            return; // No consume cupo de tarjetas útiles
+                            antiguasDescartadas++;
+                            return; // No consume cupo ni fetchea detalle
                         }
                     }
 
@@ -305,97 +309,106 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     // Ubicación: span.mr10 dentro del segundo párrafo de ese estilo.
                     const ubicacion = $listado(el).find('p.fs16.fc_base.mt5 span.mr10').text().trim() || null;
 
-                    ofertasParciales.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
+                    tarjetasTermino.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
                 });
 
-                console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas útiles en listado hasta ahora.`);
+                // Fetch de detalle y evaluación inmediata de elegibilidad para este término
+                for (let i = 0; i < tarjetasTermino.length; i += CONCURRENCIA_DETALLE) {
+                    if (ofertasElegibles.length >= maxResultados) break;
+
+                    const lote = tarjetasTermino.slice(i, i + CONCURRENCIA_DETALLE);
+                    peticionesDetalle += lote.length;
+
+                    const itemsDetalle = await Promise.all(lote.map(async (tarjeta) => {
+                        try {
+                            const respDetalle = await fetch(tarjeta.url, { headers: HEADERS_SCRAPING });
+
+                            if (!respDetalle.ok) {
+                                console.warn(`Scraping Computrabajo: HTTP ${respDetalle.status} en detalle. Usando datos del listado.`);
+                                return _construirItemComputrabajo(tarjeta, null, null);
+                            }
+
+                            const htmlDetalle = await respDetalle.text();
+                            const $det = cheerio.load(htmlDetalle);
+
+                            const descripcion = $det('p.mbB').first().text().trim() || null;
+
+                            let modalidad = null;
+                            $det('div.mbB span.tag.base.mb10').each((_, tag) => {
+                                const texto = $det(tag).text().trim();
+                                if (/presencial|remoto|r.moto|h.brido/i.test(texto)) {
+                                    modalidad = texto;
+                                    return false;
+                                }
+                            });
+
+                            return _construirItemComputrabajo(tarjeta, descripcion, modalidad);
+
+                        } catch (errDetalle) {
+                            console.warn(`Scraping Computrabajo: error al obtener detalle: ${errDetalle.message}. Usando datos del listado.`);
+                            return _construirItemComputrabajo(tarjeta, null, null);
+                        }
+                    }));
+
+                    for (const itemCrudo of itemsDetalle) {
+                        const normalizadas = normalizarLote([itemCrudo], 'computrabajo');
+                        const normalizada = normalizadas[0];
+                        if (!normalizada) continue;
+
+                        const evaluacion = evaluarElegibilidadOferta(normalizada, limite30Dias);
+                        if (!evaluacion.elegible) {
+                            if (evaluacion.motivoDescarte === 'antigua') {
+                                antiguasDescartadas++;
+                            }
+                            continue;
+                        }
+
+                        if (!normalizada.fecha_publicacion) {
+                            sinFechaConocida++;
+                        }
+
+                        ofertasElegibles.push(normalizada);
+                        if (ofertasElegibles.length >= maxResultados) break;
+                    }
+
+                    if (i + CONCURRENCIA_DETALLE < tarjetasTermino.length && ofertasElegibles.length < maxResultados) {
+                        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
+                    }
+                }
             }
 
+            huboTarjetasEnUltimaRonda = tarjetasEncontradasRonda > 0;
             if (tarjetasEncontradasRonda === 0) {
                 break;
             }
         }
 
-        // Acotamos estrictamente las tarjetas antes del fetch de detalle para no hacer requests innecesarias.
-        const tarjetasAProcesar = ofertasParciales.slice(0, maxResultados);
-        console.log(`Scraping Computrabajo: ${tarjetasAProcesar.length} ofertas en listado. Obteniendo descripciones...`);
-
-        // === Paso 2: Fetch de cada página de detalle para obtener descripción y modalidad ===
-        // Proceso en lotes para no sobrecargar el servidor con requests simultáneas.
-        const itemsCrudos = [];
-
-        for (let i = 0; i < tarjetasAProcesar.length; i += CONCURRENCIA_DETALLE) {
-            const lote = tarjetasAProcesar.slice(i, i + CONCURRENCIA_DETALLE);
-
-            const resultadosLote = await Promise.all(lote.map(async (oferta) => {
-                try {
-                    const respDetalle = await fetch(oferta.url, { headers: HEADERS_SCRAPING });
-
-                    if (!respDetalle.ok) {
-                        console.warn(`Scraping Computrabajo: HTTP ${respDetalle.status} en detalle. Usando datos del listado.`);
-                        return _construirItemComputrabajo(oferta, null, null);
-                    }
-
-                    const htmlDetalle = await respDetalle.text();
-                    const $det = cheerio.load(htmlDetalle);
-
-                    // Descripción completa: primer párrafo con clase mbB.
-                    const descripcion = $det('p.mbB').first().text().trim() || null;
-
-                    // Modalidad: busco entre los tags de condición el que dice
-                    // "Presencial", "Remoto", "Híbrido" o combinaciones.
-                    let modalidad = null;
-                    $det('div.mbB span.tag.base.mb10').each((_, tag) => {
-                        const texto = $det(tag).text().trim();
-                        if (/presencial|remoto|r.moto|h.brido/i.test(texto)) {
-                            modalidad = texto;
-                            return false; // Tomo solo el primero que matchea.
-                        }
-                    });
-
-                    return _construirItemComputrabajo(oferta, descripcion, modalidad);
-
-                } catch (errDetalle) {
-                    console.warn(`Scraping Computrabajo: error al obtener detalle: ${errDetalle.message}. Usando datos del listado.`);
-                    return _construirItemComputrabajo(oferta, null, null);
-                }
-            }));
-
-            itemsCrudos.push(...resultadosLote);
-
-            // Pausa entre lotes para no martillar el servidor.
-            if (i + CONCURRENCIA_DETALLE < tarjetasAProcesar.length) {
-                await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
-            }
+        let motivoFinalizacion = 'agotado';
+        if (ofertasElegibles.length >= maxResultados) {
+            motivoFinalizacion = 'limite_resultados';
+        } else if (huboTarjetasEnUltimaRonda) {
+            motivoFinalizacion = 'limite_paginas';
         }
-
-        console.log(`Scraping Computrabajo: ${itemsCrudos.length} ofertas crudas obtenidas.`);
-
-        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'computrabajo');
-        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasNormalizadas, diasVentana);
-        // Filtrar también ofertas cuyo idioma sea excluido por el perfil
-        const ofertasElegibles = ofertasFiltradas.filter(o => detectarIdioma(o.titulo, o.descripcion) !== 'en');
-        console.log(`Scraping Computrabajo: ${ofertasNormalizadas.length} normalizadas → ${ofertasElegibles.length} elegibles dentro de ${diasVentana} días.`);
 
         const resultado = ofertasElegibles.slice(0, maxResultados);
         const consultasEjecutadas = urlsConsultadas.size;
         const consultasOmitidas = Math.max(0, urls.length - consultasEjecutadas);
-        const totalAntiguas = (ofertasFiltradas.antiguasDescartadas || 0) + antiguasDescartadasListado;
 
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: diasVentana,
             consultasEjecutadas,
             consultasOmitidas,
-            peticionesRealizadas: peticionesListado + itemsCrudos.length,
-            totalCrudos: itemsCrudos.length,
+            peticionesRealizadas: peticionesListado + peticionesDetalle,
+            totalCrudos,
             totalElegibles: resultado.length,
             duplicadasDescartadas,
-            antiguasDescartadas: totalAntiguas,
-            sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
-            motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
+            antiguasDescartadas,
+            sinFechaConocida,
+            motivoFinalizacion,
         });
 
+        console.log(`Scraping Computrabajo: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas.`);
         return resultado;
 
     } catch (error) {
@@ -1024,7 +1037,6 @@ async function ejecutarScrapingJooble(opciones = {}) {
 
         const consultasEjecutadas = terminosConsultados.size;
         const consultasOmitidas = Math.max(0, terminos.length - consultasEjecutadas);
-        const consultasOmitidasPorPresupuesto = terminos.filter(t => !terminosConsultados.has(t));
 
         let motivoFinalizacion = 'agotado';
         if (ofertasElegibles.length >= maxResultados) {
@@ -1034,6 +1046,10 @@ async function ejecutarScrapingJooble(opciones = {}) {
         } else if (huboLimitePaginas) {
             motivoFinalizacion = 'limite_paginas';
         }
+
+        const consultasOmitidasPorPresupuesto = motivoFinalizacion === 'limite_peticiones'
+            ? terminos.filter(t => !terminosConsultados.has(t))
+            : [];
 
         // HARD CAP: nunca retorno más de maxResultados
         const resultado = ofertasElegibles.slice(0, maxResultados);
@@ -1330,8 +1346,10 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
 
         const consultasEjecutadas = tagsConsultados.size;
         const consultasOmitidas = Math.max(0, terminos.length - consultasEjecutadas);
-        const consultasOmitidasPorPresupuesto = terminos.filter(t => !tagsConsultados.has(t));
         const motivoFinalizacion = ofertasElegibles.length >= maxResultados ? 'limite_resultados' : 'agotado';
+        const consultasOmitidasPorPresupuesto = motivoFinalizacion === 'limite_peticiones'
+            ? terminos.filter(t => !tagsConsultados.has(t))
+            : [];
 
         const resultado = ofertasElegibles.slice(0, maxResultados);
         adjuntarMetricas(resultado, {

@@ -563,10 +563,11 @@ export class PanelControl implements OnInit, OnDestroy {
         const base = conDuplicadas && datos.ofertas_duplicadas !== undefined
             ? `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`
             : `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`;
+        const errores = datos.ofertas_errores ? ` (${datos.ofertas_errores} con error al persistir)` : '';
         const motivo = (datos.motivo_finalizacion && datos.motivo_finalizacion !== 'agotado')
             ? ` [Corte: ${datos.motivo_finalizacion}]`
             : '';
-        return `${base}${motivo}`;
+        return `${base}${errores}${motivo}`;
     }
 
     private extraerLinkedin(): void {

@@ -79,6 +79,7 @@ export interface RespuestaScraping {
     plataforma: string;
     ofertas_nuevas: number;
     ofertas_duplicadas: number;
+    ofertas_errores?: number;
     total_extraidas: number;
     // Campos opcionales presentes solo cuando la plataforma está deshabilitada
     // por falta de credenciales (ej: InfoJobs sin INFOJOBS_CLIENT_ID/SECRET).

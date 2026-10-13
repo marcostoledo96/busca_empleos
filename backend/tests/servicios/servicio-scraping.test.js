@@ -463,11 +463,135 @@ describe('Servicio de scraping', () => {
                 expect(resultado[0].titulo).toBe('Desarrollador Angular Junior');
                 expect(resultado.metricas.consultasEjecutadas).toBe(2);
                 expect(resultado.metricas.antiguasDescartadas).toBe(50);
+                expect(resultado.metricas.totalCrudos).toBe(51);
             } finally {
                 construirUrlsComputrabajo.mockImplementation(() => [
                     'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
                 ]);
             }
+        });
+
+        test('50 tarjetas con descripción en inglés en primer término no agotan cupo ni bloquean segundo término en español', async () => {
+            const { construirUrlsComputrabajo } = require('../../src/config/apify');
+            construirUrlsComputrabajo.mockImplementation(({ terminos }) =>
+                (terminos || []).map(t => `https://www.computrabajo.com.ar/trabajo-de-${t}`)
+            );
+
+            const html50TarjetasTester = `
+                <html><body>
+                    ${Array.from({ length: 50 }, (_, i) => `
+                        <article class="box_offer">
+                            <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-tester-${i}">QA Tester ${i}</a></h2>
+                            <p class="fs16 fc_base mt5">EmpresaGlobal <span class="mr10">Remoto</span></p>
+                            <p class="fs13 fc_aux mt15">Hace 2 días</p>
+                        </article>
+                    `).join('\n')}
+                </body></html>
+            `;
+
+            const htmlDetalleTesterIngles = `
+                <html><body>
+                    <h1 class="fwB">QA Tester</h1>
+                    <p class="mbB">We are seeking a talented and detail-oriented QA Automation Tester fluent in English to join our distributed software team.</p>
+                    <p class="fc_aux fs13">Hace 2 días</p>
+                </body></html>
+            `;
+
+            const htmlTarjetaAngular = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-angular-nueva">Desarrollador Angular Junior</a></h2>
+                        <p class="fs16 fc_base mt5">EmpresaLocal <span class="mr10">CABA</span></p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+
+            const htmlDetalleAngularEspanol = `
+                <html><body>
+                    <h1 class="fwB">Desarrollador Angular Junior</h1>
+                    <p class="mbB">Buscamos desarrollador junior con conocimientos de Angular y TypeScript para nuestro equipo de producto.</p>
+                    <p class="fc_aux fs13">Hace 1 día</p>
+                </body></html>
+            `;
+
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('p=2')) {
+                    return { ok: true, text: async () => '<html><body></body></html>' };
+                }
+                if (url.includes('trabajo-de-tester')) {
+                    return { ok: true, text: async () => html50TarjetasTester };
+                }
+                if (url.includes('trabajo-de-angular')) {
+                    return { ok: true, text: async () => htmlTarjetaAngular };
+                }
+                if (url.includes('oferta-tester-')) {
+                    return { ok: true, text: async () => htmlDetalleTesterIngles };
+                }
+                return { ok: true, text: async () => htmlDetalleAngularEspanol };
+            });
+
+            try {
+                const resultado = await ejecutarScrapingComputrabajo({
+                    terminos: ['tester', 'angular'],
+                    maxResultados: 10,
+                });
+
+                expect(resultado.length).toBe(1);
+                expect(resultado[0].titulo).toBe('Desarrollador Angular Junior');
+                expect(resultado.metricas.consultasEjecutadas).toBe(2);
+                expect(resultado.metricas.totalCrudos).toBe(51);
+            } finally {
+                construirUrlsComputrabajo.mockImplementation(() => [
+                    'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
+                ]);
+            }
+        });
+
+        test('termina con motivoFinalizacion limite_paginas cuando alcanza tope de páginas con tarjetas pero no llena maxResultados', async () => {
+            const htmlP1 = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-p1">Dev Frontend P1</a></h2>
+                        <p class="fs16 fc_base mt5">Empresa 1</p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+            const htmlP2 = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-p2">Dev Frontend P2</a></h2>
+                        <p class="fs16 fc_base mt5">Empresa 2</p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+            const htmlDetalle = `
+                <html><body>
+                    <h1 class="fwB">Dev Frontend</h1>
+                    <p class="mbB">Puesto de desarrollador frontend en español para desarrollo web.</p>
+                </body></html>
+            `;
+
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('p=2')) {
+                    return { ok: true, text: async () => htmlP2 };
+                }
+                if (url.includes('trabajo-de-frontend')) {
+                    return { ok: true, text: async () => htmlP1 };
+                }
+                return { ok: true, text: async () => htmlDetalle };
+            });
+
+            const resultado = await ejecutarScrapingComputrabajo({
+                terminos: ['frontend'],
+                maxResultados: 10,
+            });
+
+            expect(resultado.length).toBe(2);
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.motivoFinalizacion).toBe('limite_paginas');
         });
     });
 
@@ -1097,8 +1221,27 @@ describe('Servicio de scraping', () => {
             expect(resultado.length).toBe(1);
             expect(resultado.metricas.consultasEjecutadas).toBe(1);
             expect(resultado.metricas.consultasOmitidas).toBe(2);
-            expect(resultado.metricas.consultasOmitidasPorPresupuesto).toEqual(['soporte', 'angular']);
+            expect(resultado.metricas.consultasOmitidasPorPresupuesto).toEqual([]);
             expect(resultado.metricas.motivoFinalizacion).toBe('limite_resultados');
+        });
+
+        test('con presupuesto de peticiones agotado registra consultasOmitidasPorPresupuesto y limite_peticiones', async () => {
+            global.fetch.mockImplementation(async () => ({
+                ok: true,
+                json: async () => ({
+                    totalCount: 0,
+                    jobs: [],
+                }),
+            }));
+
+            const dieciseisTerminos = Array.from({ length: 16 }, (_, i) => `termino${i + 1}`);
+            const resultado = await ejecutarScrapingJooble({
+                terminos: dieciseisTerminos,
+                maxResultados: 10,
+            });
+
+            expect(resultado.metricas.motivoFinalizacion).toBe('limite_peticiones');
+            expect(resultado.metricas.consultasOmitidasPorPresupuesto).toContain('termino16');
         });
     });
 
@@ -1913,7 +2056,8 @@ describe('Servicio de scraping', () => {
 
         test('ofertas en inglés no consumen cupo útil y permiten consultar siguiente tag en español', async () => {
             global.fetch.mockImplementation(async (url) => {
-                if (url.includes('remote-react-jobs')) {
+                const urlObj = new URL(url);
+                if (urlObj.searchParams.get('tags') === 'react') {
                     return {
                         ok: true,
                         json: async () => [
@@ -1986,7 +2130,7 @@ describe('Servicio de scraping', () => {
             expect(resultado.length).toBe(1);
             expect(resultado.metricas.consultasEjecutadas).toBe(1);
             expect(resultado.metricas.consultasOmitidas).toBe(2);
-            expect(resultado.metricas.consultasOmitidasPorPresupuesto).toEqual(['angular', 'node']);
+            expect(resultado.metricas.consultasOmitidasPorPresupuesto).toEqual([]);
             expect(resultado.metricas.motivoFinalizacion).toBe('limite_resultados');
         });
     });
