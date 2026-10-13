@@ -254,13 +254,34 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         const detallesPorTermino = new Map();
         let huboTarjetasEnUltimaRonda = false;
 
+        // B-08: Cada consulta con oportunidad útil requiere al menos 1 petición de listado y 1 de detalle
+        const MIN_PETICIONES_POR_CONSULTA_UTIL = 2;
+        // Decidimos antes de la primera ronda cuántas consultas pueden recibir una oportunidad útil con el presupuesto
+        const maxConsultasUtiles = Math.max(1, Math.floor(MAX_PETICIONES_COMPUTRABAJO / MIN_PETICIONES_POR_CONSULTA_UTIL));
+        const urlsPlanificadas = urls.slice(0, maxConsultasUtiles);
+
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
             let tarjetasEncontradasRonda = 0;
 
-            for (let idxUrl = 0; idxUrl < urls.length; idxUrl++) {
-                const urlBase = urls[idxUrl];
+            // En páginas posteriores a la 1, si no queda presupuesto para listado + al menos 1 detalle, cortamos
+            if (pagina > 1 && peticionesListado + peticionesDetalle + MIN_PETICIONES_POR_CONSULTA_UTIL > MAX_PETICIONES_COMPUTRABAJO) {
+                break buclePaginas;
+            }
+
+            let idxUrl = 0;
+            while (idxUrl < urlsPlanificadas.length) {
+                const urlBase = urlsPlanificadas[idxUrl];
+                idxUrl++;
+
                 if (ofertasElegibles.length >= maxResultados) break buclePaginas;
                 if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO) break buclePaginas;
+
+                // Si ya ejecutamos alguna petición y no queda presupuesto para listado + al menos 1 detalle,
+                // no gastamos la última petición en un listado huérfano sin detalles (B-08).
+                if (peticionesListado + peticionesDetalle > 0 &&
+                    peticionesListado + peticionesDetalle + MIN_PETICIONES_POR_CONSULTA_UTIL > MAX_PETICIONES_COMPUTRABAJO) {
+                    break buclePaginas;
+                }
 
                 urlsConsultadas.add(urlBase);
                 const urlBusqueda = pagina === 1
@@ -324,13 +345,13 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                 });
 
                 // Cuota de detalles para este término en esta ronda:
-                // En la primera ronda garantizamos primera oportunidad a los demás términos reservando
-                // slots para sus listados iniciales y repartiendo el presupuesto disponible equitativamente (B-07).
+                // En la primera ronda garantizamos primera oportunidad a los demás términos planificados
+                // reservando slots para sus listados iniciales y repartiendo el presupuesto disponible equitativamente (B-07, B-08).
                 let maxDetallesEstaRonda = MAX_DETALLES_POR_TERMINO;
-                if (pagina === 1 && urls.length > 1) {
-                    const listadosInicialesPendientes = urls.slice(idxUrl + 1).filter(u => !urlsConsultadas.has(u)).length;
+                if (pagina === 1 && urlsPlanificadas.length > 1) {
+                    const listadosInicialesPendientes = urlsPlanificadas.slice(idxUrl).filter(u => !urlsConsultadas.has(u)).length;
                     const presupuestoDisponible = MAX_PETICIONES_COMPUTRABAJO - (peticionesListado + peticionesDetalle) - listadosInicialesPendientes;
-                    const terminosPendientes = Math.max(1, urls.length - idxUrl);
+                    const terminosPendientes = 1 + listadosInicialesPendientes;
                     maxDetallesEstaRonda = Math.max(1, Math.floor(presupuestoDisponible / terminosPendientes));
                 }
 
@@ -345,7 +366,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     if (detallesTerminoRondaEjecutados >= maxDetallesEstaRonda) break;
 
                     const listadosInicialesPendientes = pagina === 1
-                        ? urls.slice(idxUrl + 1).filter(u => !urlsConsultadas.has(u)).length
+                        ? urlsPlanificadas.slice(idxUrl).filter(u => !urlsConsultadas.has(u)).length
                         : 0;
                     const remanenteGlobal = MAX_PETICIONES_COMPUTRABAJO - (peticionesListado + peticionesDetalle) - listadosInicialesPendientes;
                     if (remanenteGlobal <= 0) break;
@@ -421,6 +442,18 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
                     }
                 }
+
+                // Si aún hay términos de opciones no planificados y el remanente alcanza para cubrir
+                // los términos ya planificados pendientes más una consulta útil adicional,
+                // incorporamos el siguiente término dinámicamente (B-08):
+                const terminosPlanificadosPendientes = urlsPlanificadas.length - idxUrl;
+                const peticionesNecesarias = (terminosPlanificadosPendientes + 1) * MIN_PETICIONES_POR_CONSULTA_UTIL;
+                if (pagina === 1 &&
+                    urlsPlanificadas.length < urls.length &&
+                    ofertasElegibles.length < maxResultados &&
+                    peticionesListado + peticionesDetalle + peticionesNecesarias <= MAX_PETICIONES_COMPUTRABAJO) {
+                    urlsPlanificadas.push(urls[urlsPlanificadas.length]);
+                }
             }
 
             huboTarjetasEnUltimaRonda = tarjetasEncontradasRonda > 0;
@@ -429,18 +462,19 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
             }
         }
 
+        const consultasEjecutadas = urlsConsultadas.size;
+        const consultasOmitidas = Math.max(0, urls.length - consultasEjecutadas);
+
         let motivoFinalizacion = 'agotado';
         if (ofertasElegibles.length >= maxResultados) {
             motivoFinalizacion = 'limite_resultados';
-        } else if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO) {
+        } else if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO || consultasOmitidas > 0) {
             motivoFinalizacion = 'limite_peticiones';
         } else if (huboTarjetasEnUltimaRonda) {
             motivoFinalizacion = 'limite_paginas';
         }
 
         const resultado = ofertasElegibles.slice(0, maxResultados);
-        const consultasEjecutadas = urlsConsultadas.size;
-        const consultasOmitidas = Math.max(0, urls.length - consultasEjecutadas);
         const consultasOmitidasPorPresupuesto = motivoFinalizacion === 'limite_peticiones'
             ? (terminos.length === urls.length
                 ? terminos.filter((_, idx) => !urlsConsultadas.has(urls[idx]))
