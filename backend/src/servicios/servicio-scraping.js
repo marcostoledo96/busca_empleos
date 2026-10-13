@@ -224,7 +224,9 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
     // Lotes de 5 requests simultáneas al obtener detalles, con pausa entre lotes.
     const CONCURRENCIA_DETALLE = 5;
     const PAUSA_ENTRE_LOTES_MS = 300;
-    const MAX_PAGINAS_COMPUTRABAJO = 2;
+    const MAX_PAGINAS_COMPUTRABAJO = opciones.maxPaginasPorTermino
+        ? Math.min(opciones.maxPaginasPorTermino, 2)
+        : 2;
     // Techo global de peticiones HTTP (listados + detalles) y presupuesto de detalles por término
     const TOPE_DEFAULT_PETICIONES_COMPUTRABAJO = Math.max(60, maxResultados + 20);
     const MAX_PETICIONES_COMPUTRABAJO = opciones.maxPeticiones || TOPE_DEFAULT_PETICIONES_COMPUTRABAJO;
@@ -248,6 +250,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         let peticionesListado = 0;
         let peticionesDetalle = 0;
         const urlsConsultadas = new Set();
+        // Contador persistente de detalles por término a través de todas sus páginas (B-06)
+        const detallesPorTermino = new Map();
         let huboTarjetasEnUltimaRonda = false;
 
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
@@ -319,22 +323,42 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     tarjetasTermino.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
                 });
 
-                // Fetch de detalle y evaluación inmediata de elegibilidad para este término
-                let detallesTerminoEjecutados = 0;
+                // Cuota de detalles para este término en esta ronda:
+                // En la primera ronda garantizamos primera oportunidad a los demás términos reservando
+                // slots para sus listados iniciales y repartiendo el presupuesto disponible equitativamente (B-07).
+                let maxDetallesEstaRonda = MAX_DETALLES_POR_TERMINO;
+                if (pagina === 1 && urls.length > 1) {
+                    const listadosInicialesPendientes = urls.slice(idxUrl + 1).filter(u => !urlsConsultadas.has(u)).length;
+                    const presupuestoDisponible = MAX_PETICIONES_COMPUTRABAJO - (peticionesListado + peticionesDetalle) - listadosInicialesPendientes;
+                    const terminosPendientes = Math.max(1, urls.length - idxUrl);
+                    maxDetallesEstaRonda = Math.max(1, Math.floor(presupuestoDisponible / terminosPendientes));
+                }
+
+                let detallesTerminoRondaEjecutados = 0;
                 let iTarjeta = 0;
                 while (iTarjeta < tarjetasTermino.length) {
                     if (ofertasElegibles.length >= maxResultados) break;
                     if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO) break buclePaginas;
-                    if (detallesTerminoEjecutados >= MAX_DETALLES_POR_TERMINO) break;
 
-                    const remanenteGlobal = MAX_PETICIONES_COMPUTRABAJO - (peticionesListado + peticionesDetalle);
-                    const remanenteTermino = MAX_DETALLES_POR_TERMINO - detallesTerminoEjecutados;
-                    const tamanoLote = Math.min(CONCURRENCIA_DETALLE, remanenteGlobal, remanenteTermino);
+                    const detallesPrevios = detallesPorTermino.get(urlBase) || 0;
+                    if (detallesPrevios >= MAX_DETALLES_POR_TERMINO) break;
+                    if (detallesTerminoRondaEjecutados >= maxDetallesEstaRonda) break;
+
+                    const listadosInicialesPendientes = pagina === 1
+                        ? urls.slice(idxUrl + 1).filter(u => !urlsConsultadas.has(u)).length
+                        : 0;
+                    const remanenteGlobal = MAX_PETICIONES_COMPUTRABAJO - (peticionesListado + peticionesDetalle) - listadosInicialesPendientes;
+                    if (remanenteGlobal <= 0) break;
+
+                    const remanenteTerminoTotal = MAX_DETALLES_POR_TERMINO - detallesPrevios;
+                    const remanenteTerminoRonda = maxDetallesEstaRonda - detallesTerminoRondaEjecutados;
+                    const tamanoLote = Math.min(CONCURRENCIA_DETALLE, remanenteGlobal, remanenteTerminoTotal, remanenteTerminoRonda);
                     if (tamanoLote <= 0) break;
 
                     const lote = tarjetasTermino.slice(iTarjeta, iTarjeta + tamanoLote);
                     peticionesDetalle += lote.length;
-                    detallesTerminoEjecutados += lote.length;
+                    detallesTerminoRondaEjecutados += lote.length;
+                    detallesPorTermino.set(urlBase, detallesPrevios + lote.length);
                     iTarjeta += lote.length;
 
                     const itemsDetalle = await Promise.all(lote.map(async (tarjeta) => {
@@ -392,7 +416,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     if (iTarjeta < tarjetasTermino.length &&
                         ofertasElegibles.length < maxResultados &&
                         peticionesListado + peticionesDetalle < MAX_PETICIONES_COMPUTRABAJO &&
-                        detallesTerminoEjecutados < MAX_DETALLES_POR_TERMINO) {
+                        detallesTerminoRondaEjecutados < maxDetallesEstaRonda &&
+                        (detallesPorTermino.get(urlBase) || 0) < MAX_DETALLES_POR_TERMINO) {
                         await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
                     }
                 }
