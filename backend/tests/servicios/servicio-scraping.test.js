@@ -1006,6 +1006,150 @@ describe('Servicio de scraping', () => {
                 ]);
             }
         });
+
+        test('con primer término dando HTTP 500 y maxPeticiones=3, repone dinámicamente el siguiente término y recupera la oferta útil (B-09)', async () => {
+            const { construirUrlsComputrabajo } = require('../../src/config/apify');
+            construirUrlsComputrabajo.mockImplementation(({ terminos }) =>
+                (terminos || []).map(t => `https://www.computrabajo.com.ar/trabajo-de-${t}`)
+            );
+
+            const htmlTarjetaSoporte = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-soporte-1">Soporte Técnico Junior</a></h2>
+                        <p class="fs16 fc_base mt5">EmpresaSoporte</p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+            const htmlDetalleSoporte = `
+                <html><body>
+                    <h1 class="fwB">Soporte Técnico Junior</h1>
+                    <p class="mbB">Buscamos técnico de soporte junior para atención a usuarios en español.</p>
+                </body></html>
+            `;
+
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('trabajo-de-tester')) {
+                    return { ok: false, status: 500 };
+                }
+                if (url.includes('trabajo-de-soporte')) {
+                    return { ok: true, text: async () => htmlTarjetaSoporte };
+                }
+                if (url.includes('oferta-soporte-1')) {
+                    return { ok: true, text: async () => htmlDetalleSoporte };
+                }
+                return { ok: true, text: async () => '<html><body></body></html>' };
+            });
+
+            try {
+                const resultado = await ejecutarScrapingComputrabajo({
+                    terminos: ['tester', 'soporte', 'angular'],
+                    maxResultados: 50,
+                    maxPeticiones: 3,
+                });
+
+                // Debe realizar <= 3 peticiones (1 listado tester HTTP 500 + 1 listado soporte + 1 detalle soporte = 3 peticiones)
+                expect(resultado.metricas.peticionesRealizadas).toBeLessThanOrEqual(3);
+                expect(global.fetch).toHaveBeenCalledTimes(3);
+                // 1 oferta recuperada gracias a la reposición dinámica
+                expect(resultado.length).toBe(1);
+                expect(resultado[0].titulo).toBe('Soporte Técnico Junior');
+                // Consultas visitadas: 2 (tester y soporte)
+                expect(resultado.metricas.consultasEjecutadas).toBe(2);
+                // Omisiones correctas: 1 ('angular')
+                expect(resultado.metricas.consultasOmitidas).toBe(1);
+                expect(resultado.metricas.consultasOmitidasPorPresupuesto).toEqual(['angular']);
+                expect(resultado.metricas.motivoFinalizacion).toBe('limite_peticiones');
+            } finally {
+                construirUrlsComputrabajo.mockImplementation(() => [
+                    'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
+                ]);
+            }
+        });
+
+        test('con 2 términos y maxPeticiones=5, corte antes de página 2 por falta de presupuesto asigna motivo limite_peticiones (B-10)', async () => {
+            const { construirUrlsComputrabajo } = require('../../src/config/apify');
+            construirUrlsComputrabajo.mockImplementation(({ terminos }) =>
+                (terminos || []).map(t => `https://www.computrabajo.com.ar/trabajo-de-${t}`)
+            );
+
+            const htmlTarjetaAngular = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-angular-1">Desarrollador Angular Junior</a></h2>
+                        <p class="fs16 fc_base mt5">EmpresaAngular</p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+            const htmlDetalleAngular = `
+                <html><body>
+                    <h1 class="fwB">Desarrollador Angular Junior</h1>
+                    <p class="mbB">Buscamos desarrollador junior de Angular en español.</p>
+                </body></html>
+            `;
+            const htmlTarjetaReact = `
+                <html><body>
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-react-1">Desarrollador React Junior</a></h2>
+                        <p class="fs16 fc_base mt5">EmpresaReact</p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+            const htmlDetalleReact = `
+                <html><body>
+                    <h1 class="fwB">Desarrollador React Junior</h1>
+                    <p class="mbB">Buscamos desarrollador junior de React en español.</p>
+                </body></html>
+            `;
+
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('p=2')) {
+                    throw new Error('No debe realizarse ninguna solicitud a la página 2');
+                }
+                if (url.includes('trabajo-de-angular')) {
+                    return { ok: true, text: async () => htmlTarjetaAngular };
+                }
+                if (url.includes('trabajo-de-react')) {
+                    return { ok: true, text: async () => htmlTarjetaReact };
+                }
+                if (url.includes('oferta-angular-1')) {
+                    return { ok: true, text: async () => htmlDetalleAngular };
+                }
+                if (url.includes('oferta-react-1')) {
+                    return { ok: true, text: async () => htmlDetalleReact };
+                }
+                return { ok: true, text: async () => '<html><body></body></html>' };
+            });
+
+            try {
+                const resultado = await ejecutarScrapingComputrabajo({
+                    terminos: ['angular', 'react'],
+                    maxResultados: 50,
+                    maxPeticiones: 5,
+                });
+
+                // 4 peticiones ejecutadas: 2 listados + 2 detalles
+                expect(resultado.metricas.peticionesRealizadas).toBe(4);
+                expect(global.fetch).toHaveBeenCalledTimes(4);
+                // 0 solicitudes a p2
+                const llamadasP2 = global.fetch.mock.calls.filter(([url]) => url.includes('p=2'));
+                expect(llamadasP2.length).toBe(0);
+                // 2 ofertas recuperadas
+                expect(resultado.length).toBe(2);
+                // Ambas consultas ejecutadas
+                expect(resultado.metricas.consultasEjecutadas).toBe(2);
+                expect(resultado.metricas.consultasOmitidas).toBe(0);
+                // Corte etiquetado como limite_peticiones (no limite_paginas)
+                expect(resultado.metricas.motivoFinalizacion).toBe('limite_peticiones');
+            } finally {
+                construirUrlsComputrabajo.mockImplementation(() => [
+                    'https://www.computrabajo.com.ar/trabajo-de-frontend-developer-junior',
+                ]);
+            }
+        });
     });
 
     describe('ejecutarScrapingIndeed()', () => {

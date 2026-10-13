@@ -259,12 +259,14 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         // Decidimos antes de la primera ronda cuántas consultas pueden recibir una oportunidad útil con el presupuesto
         const maxConsultasUtiles = Math.max(1, Math.floor(MAX_PETICIONES_COMPUTRABAJO / MIN_PETICIONES_POR_CONSULTA_UTIL));
         const urlsPlanificadas = urls.slice(0, maxConsultasUtiles);
+        let interrupcionPorPresupuesto = false;
 
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
             let tarjetasEncontradasRonda = 0;
 
             // En páginas posteriores a la 1, si no queda presupuesto para listado + al menos 1 detalle, cortamos
             if (pagina > 1 && peticionesListado + peticionesDetalle + MIN_PETICIONES_POR_CONSULTA_UTIL > MAX_PETICIONES_COMPUTRABAJO) {
+                interrupcionPorPresupuesto = true;
                 break buclePaginas;
             }
 
@@ -280,8 +282,21 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                 // no gastamos la última petición en un listado huérfano sin detalles (B-08).
                 if (peticionesListado + peticionesDetalle > 0 &&
                     peticionesListado + peticionesDetalle + MIN_PETICIONES_POR_CONSULTA_UTIL > MAX_PETICIONES_COMPUTRABAJO) {
+                    interrupcionPorPresupuesto = true;
                     break buclePaginas;
                 }
+
+                // Función auxiliar para reponer o incorporar dinámicamente el siguiente término si hay presupuesto (B-08, B-09):
+                const intentarIncorporarSiguienteTermino = () => {
+                    const terminosPlanificadosPendientes = urlsPlanificadas.length - idxUrl;
+                    const peticionesNecesarias = (terminosPlanificadosPendientes + 1) * MIN_PETICIONES_POR_CONSULTA_UTIL;
+                    if (pagina === 1 &&
+                        urlsPlanificadas.length < urls.length &&
+                        ofertasElegibles.length < maxResultados &&
+                        peticionesListado + peticionesDetalle + peticionesNecesarias <= MAX_PETICIONES_COMPUTRABAJO) {
+                        urlsPlanificadas.push(urls[urlsPlanificadas.length]);
+                    }
+                };
 
                 urlsConsultadas.add(urlBase);
                 const urlBusqueda = pagina === 1
@@ -294,7 +309,13 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                 const respListado = await fetch(urlBusqueda, { headers: HEADERS_SCRAPING });
 
                 if (!respListado.ok) {
+                    if (respListado.status === 429) {
+                        console.warn(`Scraping Computrabajo: HTTP 429 (Rate Limit) en ${urlBusqueda}. Interrumpiendo por límite de tasa.`);
+                        interrupcionPorPresupuesto = true;
+                        break buclePaginas;
+                    }
                     console.warn(`Scraping Computrabajo: HTTP ${respListado.status} en ${urlBusqueda}. Saltando.`);
+                    intentarIncorporarSiguienteTermino();
                     continue;
                 }
 
@@ -445,15 +466,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 
                 // Si aún hay términos de opciones no planificados y el remanente alcanza para cubrir
                 // los términos ya planificados pendientes más una consulta útil adicional,
-                // incorporamos el siguiente término dinámicamente (B-08):
-                const terminosPlanificadosPendientes = urlsPlanificadas.length - idxUrl;
-                const peticionesNecesarias = (terminosPlanificadosPendientes + 1) * MIN_PETICIONES_POR_CONSULTA_UTIL;
-                if (pagina === 1 &&
-                    urlsPlanificadas.length < urls.length &&
-                    ofertasElegibles.length < maxResultados &&
-                    peticionesListado + peticionesDetalle + peticionesNecesarias <= MAX_PETICIONES_COMPUTRABAJO) {
-                    urlsPlanificadas.push(urls[urlsPlanificadas.length]);
-                }
+                // incorporamos el siguiente término dinámicamente (B-08, B-09):
+                intentarIncorporarSiguienteTermino();
             }
 
             huboTarjetasEnUltimaRonda = tarjetasEncontradasRonda > 0;
@@ -468,7 +482,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         let motivoFinalizacion = 'agotado';
         if (ofertasElegibles.length >= maxResultados) {
             motivoFinalizacion = 'limite_resultados';
-        } else if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO || consultasOmitidas > 0) {
+        } else if (peticionesListado + peticionesDetalle >= MAX_PETICIONES_COMPUTRABAJO || consultasOmitidas > 0 || interrupcionPorPresupuesto) {
             motivoFinalizacion = 'limite_peticiones';
         } else if (huboTarjetasEnUltimaRonda) {
             motivoFinalizacion = 'limite_paginas';
