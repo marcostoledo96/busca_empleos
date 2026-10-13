@@ -126,7 +126,7 @@
                 @if (o.fecha_publicacion) {
                     <span class="fecha-item">
                         <span class="material-symbols-outlined">event_available</span>
-                        Publicada: {{ o.fecha_publicacion | date:'dd/MM/yyyy' }}
+                        Publicada{{ esFechaAproximada(o) ? ' (aprox)' : '' }}: {{ o.fecha_publicacion | date:'dd/MM/yyyy' }}
                     </span>
                 } @else {
                     <span class="fecha-item" style="opacity: 0.7;">

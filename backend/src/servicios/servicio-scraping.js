@@ -28,10 +28,41 @@ const {
 } = require('../config/apify');
 
 const { resolverConfiguracion, palabrasBusqueda } = require('./servicio-configuracion-busqueda');
-const { normalizarLote } = require('./servicio-normalizacion');
+const { normalizarLote, detectarIdioma, parsearFechaRelativaComputrabajo } = require('./servicio-normalizacion');
 const cheerio = require('cheerio');
 const { randomUUID } = require('crypto');
 const { DESTINO_SANDBOX, LIMITES_GETONBRD, validarDestinoGetonbrd } = require('../config/getonbrd');
+
+/**
+ * Evalúo si una oferta normalizada es elegible para computar dentro de la cuota útil.
+ * Una oferta ocupa cupo si:
+ * 1. Tiene URL canónica válida.
+ * 2. Su idioma es admitido por el perfil (no inglés).
+ * 3. Si tiene fecha de publicación conocida, se encuentra dentro de la ventana de días admitida.
+ *
+ * @param {Object} oferta - Oferta normalizada.
+ * @param {number} limiteVentanaMs - Timestamp mínimo admisible.
+ * @returns {{ elegible: boolean, motivoDescarte?: 'idioma' | 'antigua' | 'invalida' }}
+ */
+function evaluarElegibilidadOferta(oferta, limiteVentanaMs) {
+    if (!oferta || !oferta.url) {
+        return { elegible: false, motivoDescarte: 'invalida' };
+    }
+    // Idioma: perfil excluye ofertas en inglés
+    if (detectarIdioma(oferta.titulo, oferta.descripcion) === 'en') {
+        return { elegible: false, motivoDescarte: 'idioma' };
+    }
+    // Fecha de publicación: si es conocida, debe estar dentro de la ventana
+    if (oferta.fecha_publicacion) {
+        const d = new Date(oferta.fecha_publicacion);
+        if (!isNaN(d.getTime()) && d.getTime() <= Date.now() + 24 * 3600000) {
+            if (d.getTime() < limiteVentanaMs) {
+                return { elegible: false, motivoDescarte: 'antigua' };
+            }
+        }
+    }
+    return { elegible: true };
+}
 
 // Headers comunes para las requests de scraping directo (sin Apify).
 // Simulan un navegador real para evitar bloqueos por User-Agent genérico.
@@ -195,6 +226,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
     const PAUSA_ENTRE_LOTES_MS = 300;
     const MAX_PAGINAS_COMPUTRABAJO = 2;
     const diasVentana = 30;
+    const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
 
     try {
         const urls = construirUrlsComputrabajo({ terminos: opciones.terminos });
@@ -205,7 +237,9 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         const urlsVistas = new Set();
         const ofertasParciales = [];
         let duplicadasDescartadas = 0;
+        let antiguasDescartadasListado = 0;
         let peticionesListado = 0;
+        const urlsConsultadas = new Set();
 
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
             let tarjetasEncontradasRonda = 0;
@@ -213,6 +247,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
             for (const urlBase of urls) {
                 if (ofertasParciales.length >= maxResultados) break buclePaginas;
 
+                urlsConsultadas.add(urlBase);
                 const urlBusqueda = pagina === 1
                     ? urlBase
                     : (urlBase.includes('?') ? `${urlBase}&p=${pagina}` : `${urlBase}?p=${pagina}`);
@@ -250,6 +285,18 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         return;
                     }
 
+                    // Fecha en texto plano: "Hace 2 horas", "Hace 6 días", "Hace 2 meses", etc.
+                    const fechaTexto = $listado(el).find('p.fs13.fc_aux.mt15').text().trim() || null;
+
+                    // Descarte temprano de tarjetas con fecha relativa claramente fuera de la ventana de 30 días
+                    if (fechaTexto) {
+                        const fechaAprox = parsearFechaRelativaComputrabajo(fechaTexto);
+                        if (fechaAprox && fechaAprox.getTime() < limite30Dias) {
+                            antiguasDescartadasListado++;
+                            return; // No consume cupo de tarjetas útiles
+                        }
+                    }
+
                     urlsVistas.add(urlAbsoluta);
 
                     // Empresa: primer párrafo con las clases fs16 fc_base mt5.
@@ -258,13 +305,10 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     // Ubicación: span.mr10 dentro del segundo párrafo de ese estilo.
                     const ubicacion = $listado(el).find('p.fs16.fc_base.mt5 span.mr10').text().trim() || null;
 
-                    // Fecha en texto plano: "Hace 2 horas", "Hace 6 días", etc.
-                    const fechaTexto = $listado(el).find('p.fs13.fc_aux.mt15').text().trim() || null;
-
                     ofertasParciales.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
                 });
 
-                console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas únicas en listado hasta ahora.`);
+                console.log(`Scraping Computrabajo: ${ofertasParciales.length} ofertas útiles en listado hasta ahora.`);
             }
 
             if (tarjetasEncontradasRonda === 0) {
@@ -329,18 +373,25 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'computrabajo');
         const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasNormalizadas, diasVentana);
-        console.log(`Scraping Computrabajo: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
+        // Filtrar también ofertas cuyo idioma sea excluido por el perfil
+        const ofertasElegibles = ofertasFiltradas.filter(o => detectarIdioma(o.titulo, o.descripcion) !== 'en');
+        console.log(`Scraping Computrabajo: ${ofertasNormalizadas.length} normalizadas → ${ofertasElegibles.length} elegibles dentro de ${diasVentana} días.`);
 
-        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        const resultado = ofertasElegibles.slice(0, maxResultados);
+        const consultasEjecutadas = urlsConsultadas.size;
+        const consultasOmitidas = Math.max(0, urls.length - consultasEjecutadas);
+        const totalAntiguas = (ofertasFiltradas.antiguasDescartadas || 0) + antiguasDescartadasListado;
+
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: diasVentana,
-            consultasEjecutadas: peticionesListado,
-            consultasOmitidas: 0,
+            consultasEjecutadas,
+            consultasOmitidas,
+            peticionesRealizadas: peticionesListado + itemsCrudos.length,
             totalCrudos: itemsCrudos.length,
             totalElegibles: resultado.length,
             duplicadasDescartadas,
-            antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
+            antiguasDescartadas: totalAntiguas,
             sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
@@ -860,12 +911,14 @@ async function ejecutarScrapingJooble(opciones = {}) {
     const terminos = opciones.consultasJooble || terminosBase;
     const UBICACIONES_JOOBLE = ['Remote'];
     const MAX_PAGINAS_POR_TERMINO = opciones.maxPaginasPorTermino || 2;
-    const MAX_PETICIONES = opciones.maxPeticiones || (terminos.length * MAX_PAGINAS_POR_TERMINO * UBICACIONES_JOOBLE.length);
+    // Tope global independiente para proteger el cupo gratuito de Jooble
+    const TOPE_GLOBAL_PETICIONES = 15;
+    const MAX_PETICIONES = opciones.maxPeticiones || TOPE_GLOBAL_PETICIONES;
     const diasVentana = 30;
     const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
 
     try {
-        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) con round-robin en ${UBICACIONES_JOOBLE.join(', ')}...`);
+        console.log(`Scraping Jooble: buscando ${terminos.length} término(s) con round-robin (tope: ${MAX_PETICIONES} peticiones)...`);
         const urlsVistas = new Set();
         const ofertasElegibles = [];
         let totalCrudos = 0;
@@ -873,6 +926,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
         let antiguasDescartadas = 0;
         let sinFechaConocida = 0;
         let peticionesEjecutadas = 0;
+        const terminosConsultados = new Set();
         let huboLimitePaginas = false;
 
         const estadosTerminos = terminos.map(termino => ({
@@ -897,6 +951,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
 
                     huboPeticionEnRonda = true;
                     peticionesEjecutadas++;
+                    terminosConsultados.add(estado.termino);
                     console.log(`Scraping Jooble: [Ronda ${numeroPagina}] buscando "${estado.termino}" en ${pais}...`);
 
                     const respuestaPagina = await fetch(urlApi, {
@@ -944,19 +999,16 @@ async function ejecutarScrapingJooble(opciones = {}) {
                             continue;
                         }
 
-                        if (oferta.fecha_publicacion) {
-                            const d = new Date(oferta.fecha_publicacion);
-                            if (isNaN(d.getTime()) || d.getTime() > Date.now() + 24 * 3600000) {
-                                oferta.fecha_publicacion = null;
+                        // Verificación de elegibilidad estricta (idioma y ventana temporal)
+                        const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias);
+                        if (!evaluacion.elegible) {
+                            if (evaluacion.motivoDescarte === 'antigua') {
+                                antiguasDescartadas++;
                             }
+                            continue;
                         }
 
-                        if (oferta.fecha_publicacion) {
-                            if (oferta.fecha_publicacion.getTime() < limite30Dias) {
-                                antiguasDescartadas++;
-                                continue;
-                            }
-                        } else {
+                        if (!oferta.fecha_publicacion) {
                             sinFechaConocida++;
                         }
 
@@ -969,6 +1021,10 @@ async function ejecutarScrapingJooble(opciones = {}) {
 
             if (!huboPeticionEnRonda) break;
         }
+
+        const consultasEjecutadas = terminosConsultados.size;
+        const consultasOmitidas = Math.max(0, terminos.length - consultasEjecutadas);
+        const consultasOmitidasPorPresupuesto = terminos.filter(t => !terminosConsultados.has(t));
 
         let motivoFinalizacion = 'agotado';
         if (ofertasElegibles.length >= maxResultados) {
@@ -984,8 +1040,10 @@ async function ejecutarScrapingJooble(opciones = {}) {
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: diasVentana,
-            consultasEjecutadas: peticionesEjecutadas,
-            consultasOmitidas: 0,
+            consultasEjecutadas,
+            consultasOmitidas,
+            consultasOmitidasPorPresupuesto,
+            peticionesRealizadas: peticionesEjecutadas,
             totalCrudos,
             totalElegibles: resultado.length,
             duplicadasDescartadas,
@@ -1064,12 +1122,19 @@ async function ejecutarScrapingRemotive(opciones = {}) {
     const maxResultados = opciones.maxResultados || 50;
     const categorias = opciones.categoriasRemotive?.length ? opciones.categoriasRemotive : ['software-dev'];
     const diasVentana = 30;
+    const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
 
     try {
-        let itemsCrudos = [];
+        const urlsVistas = new Set();
+        const ofertasElegibles = [];
+        let totalCrudos = 0;
+        let duplicadasDescartadas = 0;
+        let antiguasDescartadas = 0;
+        let sinFechaConocida = 0;
         let consultasEjecutadas = 0;
+
         for (const categoria of categorias) {
-            if (itemsCrudos.length >= maxResultados) break;
+            if (ofertasElegibles.length >= maxResultados) break;
             consultasEjecutadas++;
             console.log(`Scraping Remotive: buscando ofertas en categoría "${categoria}"...`);
 
@@ -1083,28 +1148,38 @@ async function ejecutarScrapingRemotive(opciones = {}) {
 
             const json = await respuesta.json();
             const jobs = json.jobs || [];
-            itemsCrudos = itemsCrudos.concat(jobs);
-        }
-        console.log(`Scraping Remotive: ${itemsCrudos.length} ítem(s) en total.`);
+            totalCrudos += jobs.length;
 
-        const urlsVistas = new Set();
-        const ofertasNormalizadas = normalizarLote(itemsCrudos, 'remotive');
-        let duplicadasDescartadas = 0;
-        const ofertasSinDuplicados = [];
-        for (const oferta of ofertasNormalizadas) {
-            const urlCanonica = canonizarUrlGeneral(oferta.url);
-            if (!urlCanonica || urlsVistas.has(urlCanonica)) {
-                duplicadasDescartadas++;
-                continue;
+            const normalizadas = normalizarLote(jobs, 'remotive');
+            for (const oferta of normalizadas) {
+                const urlCanonica = canonizarUrlGeneral(oferta.url);
+                if (!urlCanonica) continue;
+
+                if (urlsVistas.has(urlCanonica)) {
+                    duplicadasDescartadas++;
+                    continue;
+                }
+
+                const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias);
+                if (!evaluacion.elegible) {
+                    if (evaluacion.motivoDescarte === 'antigua') {
+                        antiguasDescartadas++;
+                    }
+                    continue;
+                }
+
+                if (!oferta.fecha_publicacion) {
+                    sinFechaConocida++;
+                }
+
+                urlsVistas.add(urlCanonica);
+                ofertasElegibles.push(oferta);
+                if (ofertasElegibles.length >= maxResultados) break;
             }
-            urlsVistas.add(urlCanonica);
-            ofertasSinDuplicados.push(oferta);
         }
+        console.log(`Scraping Remotive: ${totalCrudos} ítem(s) en total, ${ofertasElegibles.length} elegibles.`);
 
-        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasSinDuplicados, diasVentana);
-        console.log(`Scraping Remotive: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
-
-        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        const resultado = ofertasElegibles.slice(0, maxResultados);
         const consultasOmitidas = Math.max(0, categorias.length - consultasEjecutadas);
         const motivoFinalizacion = resultado.length >= maxResultados ? 'limite_resultados' : 'agotado';
 
@@ -1113,11 +1188,11 @@ async function ejecutarScrapingRemotive(opciones = {}) {
             ventanaDias: diasVentana,
             consultasEjecutadas,
             consultasOmitidas,
-            totalCrudos: itemsCrudos.length,
+            totalCrudos,
             totalElegibles: resultado.length,
             duplicadasDescartadas,
-            antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
-            sinFechaConocida: ofertasFiltradas.sinFechaConocida || 0,
+            antiguasDescartadas,
+            sinFechaConocida,
             motivoFinalizacion,
         });
 
@@ -1176,12 +1251,12 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
         let duplicadasDescartadas = 0;
         let antiguasDescartadas = 0;
         let sinFechaConocida = 0;
-        let consultasEjecutadas = 0;
+        const tagsConsultados = new Set();
 
         for (const termino of terminos) {
             if (ofertasElegibles.length >= maxResultados) break;
 
-            consultasEjecutadas++;
+            tagsConsultados.add(termino);
             console.log(`Scraping RemoteOK: buscando tag "${termino}"...`);
 
             // RemoteOK filtra por etiquetas (tags). Convierto el término al formato
@@ -1225,19 +1300,16 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
                     continue;
                 }
 
-                if (oferta.fecha_publicacion) {
-                    const d = new Date(oferta.fecha_publicacion);
-                    if (isNaN(d.getTime()) || d.getTime() > Date.now() + 24 * 3600000) {
-                        oferta.fecha_publicacion = null;
+                // Elegibilidad estricta: idioma admisible (no inglés) y ventana de publicación
+                const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias);
+                if (!evaluacion.elegible) {
+                    if (evaluacion.motivoDescarte === 'antigua') {
+                        antiguasDescartadas++;
                     }
+                    continue;
                 }
 
-                if (oferta.fecha_publicacion) {
-                    if (oferta.fecha_publicacion.getTime() < limite30Dias) {
-                        antiguasDescartadas++;
-                        continue;
-                    }
-                } else {
+                if (!oferta.fecha_publicacion) {
                     sinFechaConocida++;
                 }
 
@@ -1256,7 +1328,9 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
             ofertasElegibles.push(ofertasSobrantes.shift());
         }
 
+        const consultasEjecutadas = tagsConsultados.size;
         const consultasOmitidas = Math.max(0, terminos.length - consultasEjecutadas);
+        const consultasOmitidasPorPresupuesto = terminos.filter(t => !tagsConsultados.has(t));
         const motivoFinalizacion = ofertasElegibles.length >= maxResultados ? 'limite_resultados' : 'agotado';
 
         const resultado = ofertasElegibles.slice(0, maxResultados);
@@ -1265,6 +1339,7 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
             ventanaDias: diasVentana,
             consultasEjecutadas,
             consultasOmitidas,
+            consultasOmitidasPorPresupuesto,
             totalCrudos,
             totalElegibles: resultado.length,
             duplicadasDescartadas,

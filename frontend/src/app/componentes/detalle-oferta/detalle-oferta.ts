@@ -125,6 +125,11 @@ export class DetalleOferta implements OnDestroy {
         return 'danger';
     }
 
+    esFechaAproximada(oferta: Oferta | null): boolean {
+        if (!oferta) return false;
+        return !!(oferta.fecha_publicacion_aproximada || oferta.datos_crudos?.['fechaAproximada'] || oferta.datos_crudos?.['fechaTexto']);
+    }
+
     abrirEnPagina(): void {
         const url = this.oferta()?.url;
         if (url) {

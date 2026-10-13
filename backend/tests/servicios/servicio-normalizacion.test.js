@@ -334,18 +334,32 @@ describe('Servicio de normalización', () => {
             expect(resultado.datos_crudos).toEqual(itemComputrabajoReal);
         });
 
-        test('maneja item con campos faltantes sin romperse', () => {
-            const itemMinimo = {
-                url: 'https://ar.computrabajo.com/oferta-123',
-                title: 'Programador',
+        test('marca fecha_publicacion_aproximada true cuando proviene de fechaTexto relativa', () => {
+            const itemRelativo = {
+                url: 'https://ar.computrabajo.com/oferta-456',
+                title: 'Tester QA',
+                fechaTexto: 'Hace 3 días',
             };
+            const ahora = new Date('2026-04-10T12:00:00.000Z');
+            const resultado = normalizarOfertaComputrabajo(itemRelativo, ahora);
 
-            const resultado = normalizarOfertaComputrabajo(itemMinimo);
+            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
+            expect(resultado.fecha_publicacion_aproximada).toBe(true);
+            expect(resultado.datos_crudos.fechaTexto).toBe('Hace 3 días');
+            expect(resultado.datos_crudos.fechaAproximada).toBe(true);
+        });
 
-            expect(resultado.titulo).toBe('Programador');
-            expect(resultado.url).toBe('https://ar.computrabajo.com/oferta-123');
-            expect(resultado.plataforma).toBe('computrabajo');
-            expect(resultado.empresa).toBeNull();
+        test('deja fecha_publicacion_aproximada false cuando no proviene de expresión relativa', () => {
+            const itemAbsoluto = {
+                url: 'https://ar.computrabajo.com/oferta-789',
+                title: 'Desarrollador',
+                postedDate: '2026-04-01T10:00:00.000Z',
+            };
+            const ahora = new Date('2026-04-10T12:00:00.000Z');
+            const resultado = normalizarOfertaComputrabajo(itemAbsoluto, ahora);
+
+            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
+            expect(resultado.fecha_publicacion_aproximada).toBe(false);
         });
     });
 
@@ -889,11 +903,11 @@ describe('Servicio de normalización', () => {
             expect(resultado.descripcion).toContain('Angular y React');
         });
 
-        test('asigna la fecha de publicación como objeto Date', () => {
+        test('no confunde updated con fecha_publicacion original y deja fecha_publicacion en null', () => {
             const resultado = normalizarOfertaJooble(itemJoobleReal);
 
-            expect(resultado.fecha_publicacion).toBeInstanceOf(Date);
-            expect(resultado.fecha_publicacion.getFullYear()).toBe(2026);
+            expect(resultado.fecha_publicacion).toBeNull();
+            expect(resultado.datos_crudos.updated).toBe(itemJoobleReal.updated);
         });
 
         test('detecta modalidad null cuando type es "Full-time"', () => {
@@ -1225,8 +1239,15 @@ describe('Servicio de normalización', () => {
             expect(resSemana.getTime()).toBe(ahora.getTime() - 7 * 86400000);
         });
 
+        test('interpreta "Hace X meses" y "Hace X mes"', () => {
+            const resMeses = _parsearFechaRelativaComputrabajo('Hace 2 meses', ahora);
+            expect(resMeses.getTime()).toBe(ahora.getTime() - 60 * 86400000);
+
+            const resMes = _parsearFechaRelativaComputrabajo('Hace 1 mes', ahora);
+            expect(resMes.getTime()).toBe(ahora.getTime() - 30 * 86400000);
+        });
+
         test('retorna null para expresiones desconocidas o ambiguas', () => {
-            expect(_parsearFechaRelativaComputrabajo('Publicado hace un mes', ahora)).toBeNull();
             expect(_parsearFechaRelativaComputrabajo('Urgente', ahora)).toBeNull();
             expect(_parsearFechaRelativaComputrabajo('', ahora)).toBeNull();
             expect(_parsearFechaRelativaComputrabajo(null, ahora)).toBeNull();

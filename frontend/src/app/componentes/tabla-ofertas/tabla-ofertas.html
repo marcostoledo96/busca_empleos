@@ -152,8 +152,8 @@
                                 Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
                             </span>
                             @if (oferta.fecha_publicacion) {
-                                <span class="titulo-fecha-responsive" [title]="'Publicada: ' + (oferta.fecha_publicacion | date:'dd/MM/yy')">
-                                    · Pub: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
+                                <span class="titulo-fecha-responsive" [title]="(esFechaAproximada(oferta) ? 'Publicada (aproximada): ' : 'Publicada: ') + (oferta.fecha_publicacion | date:'dd/MM/yy')">
+                                    · Pub{{ esFechaAproximada(oferta) ? ' (aprox)' : '' }}: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
                                 </span>
                             }
                         </div>
@@ -203,8 +203,8 @@
                     </span>
                     @if (oferta.fecha_publicacion) {
                         <br />
-                        <span style="font-size: 0.75rem; opacity: 0.8;" [title]="'Publicada: ' + (oferta.fecha_publicacion | date:'dd/MM/yyyy')">
-                            Pub: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
+                        <span style="font-size: 0.75rem; opacity: 0.8;" [title]="(esFechaAproximada(oferta) ? 'Publicada (aproximada): ' : 'Publicada: ') + (oferta.fecha_publicacion | date:'dd/MM/yyyy')">
+                            Pub{{ esFechaAproximada(oferta) ? ' (aprox)' : '' }}: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
                         </span>
                     }
                 </td>

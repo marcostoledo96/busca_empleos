@@ -526,6 +526,25 @@ describe('Controlador de scraping', () => {
                 motivoFinalizacion: 'limite_resultados',
             });
         });
+
+        test('retorna exito: false y status 500 cuando todas las inserciones fallan en base de datos', async () => {
+            const ofertasMock = [
+                { titulo: 'Dev React', url: 'https://ejemplo.com/1' },
+                { titulo: 'Dev Angular', url: 'https://ejemplo.com/2' },
+            ];
+
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue(ofertasMock);
+            modeloOferta.crearOferta.mockRejectedValue(new Error('Connection lost'));
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({ maxResultados: 10 });
+
+            expect(res.status).toBe(500);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.datos.ofertas_errores).toBe(2);
+            expect(res.body.datos.ofertas_nuevas).toBe(0);
+        });
     });
 });
 

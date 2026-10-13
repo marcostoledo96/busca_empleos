@@ -77,6 +77,12 @@ function parsearFechaRelativaComputrabajo(texto, ahora = new Date()) {
         return new Date(ahora.getTime() - semanas * 7 * 86400000);
     }
 
+    const matchMeses = normalizado.match(/hace\s+(\d+)\s*mes/);
+    if (matchMeses) {
+        const meses = parseInt(matchMeses[1], 10);
+        return new Date(ahora.getTime() - meses * 30 * 86400000);
+    }
+
     return null;
 }
 
@@ -171,19 +177,25 @@ function normalizarOfertaComputrabajo(item, ahora = new Date()) {
 
     const fechaTexto = item.fechaTexto || (typeof item.postedDate === 'string' && isNaN(new Date(item.postedDate).getTime()) ? item.postedDate : null);
     let fechaCalculada = null;
+    let fechaAproximada = false;
 
     if (fechaTexto) {
         fechaCalculada = parsearFechaRelativaComputrabajo(fechaTexto, ahora);
+        if (fechaCalculada) {
+            fechaAproximada = true;
+        }
     }
 
     if (!fechaCalculada && item.postedDate) {
         fechaCalculada = sanitizarFecha(item.postedDate, ahora);
     }
 
-    // Conservo siempre fechaTexto dentro de datos_crudos
-    const datosCrudos = (fechaTexto && item.fechaTexto === undefined)
-        ? { ...item, fechaTexto }
-        : item;
+    // Conservo siempre fechaTexto y marca de aproximación dentro de datos_crudos
+    const datosCrudos = {
+        ...item,
+        ...(fechaTexto && item.fechaTexto === undefined ? { fechaTexto } : {}),
+        ...(fechaAproximada ? { fechaAproximada: true } : {}),
+    };
 
     return {
         titulo: item.title || null,
@@ -200,6 +212,7 @@ function normalizarOfertaComputrabajo(item, ahora = new Date()) {
         salario_max: null,
         moneda: null,
         fecha_publicacion: sanitizarFecha(fechaCalculada, ahora),
+        fecha_publicacion_aproximada: fechaAproximada,
         datos_crudos: datosCrudos,
     };
 }
@@ -815,8 +828,11 @@ function normalizarOfertaJooble(item) {
     const salario = parsearSalario(item.salary || '');
     const { salario_min, salario_max, moneda } = salario;
 
-    // La fecha viene como ISO 8601 con microsegundos: "2026-03-28T12:00:00.0000000".
-    const fechaPublicacion = sanitizarFecha(item.updated);
+    // Jooble REST API no expone fecha de publicación original; el campo "updated" representa
+    // la última fecha en que la vacante fue indexada o modificada. No la consideramos como
+    // publicación original para evitar que avisos antiguos pasen como recién publicados.
+    // Preservamos `updated` intacto dentro de `datos_crudos: item`.
+    const fechaPublicacion = null;
 
     return {
         titulo: item.title || null,
@@ -1574,5 +1590,6 @@ module.exports = {
     _canonizarUrlLinkedin: canonizarUrlLinkedin,
     _sanitizarFecha: sanitizarFecha,
     _parsearFechaRelativaComputrabajo: parsearFechaRelativaComputrabajo,
+    parsearFechaRelativaComputrabajo,
     detectarIdioma,
 };

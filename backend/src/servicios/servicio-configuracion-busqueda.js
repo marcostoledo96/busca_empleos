@@ -208,7 +208,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
 
     if (id === 'bumeran') advertencias.push('No aplico maxResultados: el actor existente no recibe ese límite.');
     if (['jooble', 'remoteok'].includes(id)) {
-        advertencias.push(`maxResultados es un umbral de acumulación, no un límite estricto: puedo superar ${maxResultados} al incorporar una página o lote completo.`);
+        advertencias.push(`Aplico un límite estricto sobre maxResultados: garantizo no superar ${maxResultados} ofertas.`);
     }
     if (entrada.maxResultados > maxResultados) advertencias.push(`Limito maxResultados a ${maxResultados} para esta fuente.`);
 

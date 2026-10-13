@@ -327,7 +327,7 @@ test.each(['jooble', 'remoteok'])('%s preview describe el umbral y coincide con 
         expect(new URL(url).searchParams.get('tags')).toBe(preview.filtros.tags[0]);
         expect(new URL(url).searchParams.has('limit')).toBe(false);
     }
-    expect(preview.advertencias.join(' ')).toMatch(new RegExp(`umbral de acumulación.*no.*límite estricto.*superar ${preview.maxResultados}`, 'i'));
+    expect(preview.advertencias.join(' ')).toMatch(new RegExp(`límite estricto sobre maxResultados.*no superar ${preview.maxResultados}`, 'i'));
 });
 
 test('LinkedIn omite consulta incompatible ??? sin abortar batch ni llamar Apify y rechaza individual con 400 (N-01)', async () => {
@@ -444,5 +444,5 @@ test('Integración Issue #16: Preferencias → reparto Jooble (tester, soporte, 
     expect(datos.ventana_dias).toBe(30);
     expect(datos.max_resultados).toBe(50);
     expect(datos.duplicadas_descartadas).toBeGreaterThan(0);
-    expect(datos.antiguas_descartadas).toBeGreaterThan(0);
+    expect(datos.sin_fecha_conocida).toBeGreaterThan(0);
 });

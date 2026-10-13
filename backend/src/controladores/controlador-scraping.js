@@ -36,36 +36,69 @@ function construirRespuestaScraping({
     errores = 0,
     resumen,
 }) {
+    const maxResultados = ofertasNormalizadas.maxResultados ?? resumen?.maxResultados ?? 50;
+    const ventanaDias = ofertasNormalizadas.ventanaDias ?? 30;
+    const consultasEjecutadas = ofertasNormalizadas.consultasEjecutadas ?? 1;
+    const consultasOmitidas = ofertasNormalizadas.consultasOmitidas ?? 0;
+    const consultasOmitidasPorPresupuesto = ofertasNormalizadas.consultasOmitidasPorPresupuesto ?? [];
+    const totalCrudos = ofertasNormalizadas.totalCrudos ?? ofertasNormalizadas.length;
+    const totalElegibles = ofertasNormalizadas.totalElegibles ?? ofertasNormalizadas.length;
+    const duplicadasDescartadas = ofertasNormalizadas.duplicadasDescartadas ?? 0;
+    const antiguasDescartadas = ofertasNormalizadas.antiguasDescartadas ?? 0;
+    const sinFechaConocida = ofertasNormalizadas.sinFechaConocida ?? 0;
+    const motivoFinalizacion = ofertasNormalizadas.motivoFinalizacion ?? 'agotado';
+
+    const configuracion = resumen || null;
+
+    let mensaje = `Scraping de ${nombre} completado: ${guardadas} ofertas nuevas.`;
+    if (errores > 0) {
+        mensaje += ` (${errores} errores aislados al persistir).`;
+    }
+
     return {
-        mensaje: `Scraping de ${nombre} completado: ${guardadas} ofertas nuevas.`,
+        mensaje,
         plataforma,
         ofertas_nuevas: guardadas,
         ofertas_duplicadas: duplicadas,
         ofertas_errores: errores,
         total_extraidas: ofertasNormalizadas.length,
         descartadas_por_idioma: ofertasNormalizadas.length - ofertasParaGuardar.length,
-        maxResultados: ofertasNormalizadas.maxResultados ?? resumen?.maxResultados ?? 50,
-        max_resultados: ofertasNormalizadas.maxResultados ?? resumen?.maxResultados ?? 50,
-        ventanaDias: ofertasNormalizadas.ventanaDias ?? 30,
-        ventana_dias: ofertasNormalizadas.ventanaDias ?? 30,
-        consultasEjecutadas: ofertasNormalizadas.consultasEjecutadas ?? 1,
-        consultas_ejecutadas: ofertasNormalizadas.consultasEjecutadas ?? 1,
-        consultasOmitidas: ofertasNormalizadas.consultasOmitidas ?? 0,
-        consultas_omitidas: ofertasNormalizadas.consultasOmitidas ?? 0,
-        totalCrudos: ofertasNormalizadas.totalCrudos ?? ofertasNormalizadas.length,
-        total_crudos: ofertasNormalizadas.totalCrudos ?? ofertasNormalizadas.length,
-        totalElegibles: ofertasNormalizadas.totalElegibles ?? ofertasNormalizadas.length,
-        total_elegibles: ofertasNormalizadas.totalElegibles ?? ofertasNormalizadas.length,
-        duplicadasDescartadas: ofertasNormalizadas.duplicadasDescartadas ?? 0,
-        duplicadas_descartadas: ofertasNormalizadas.duplicadasDescartadas ?? 0,
-        antiguasDescartadas: ofertasNormalizadas.antiguasDescartadas ?? 0,
-        antiguas_descartadas: ofertasNormalizadas.antiguasDescartadas ?? 0,
-        sinFechaConocida: ofertasNormalizadas.sinFechaConocida ?? 0,
-        sin_fecha_conocida: ofertasNormalizadas.sinFechaConocida ?? 0,
-        motivoFinalizacion: ofertasNormalizadas.motivoFinalizacion ?? 'agotado',
-        motivo_finalizacion: ofertasNormalizadas.motivoFinalizacion ?? 'agotado',
-        configuracion: resumen,
+        maxResultados,
+        max_resultados: maxResultados,
+        ventanaDias,
+        ventana_dias: ventanaDias,
+        consultasEjecutadas,
+        consultas_ejecutadas: consultasEjecutadas,
+        consultasOmitidas,
+        consultas_omitidas: consultasOmitidas,
+        consultasOmitidasPorPresupuesto,
+        consultas_omitidas_por_presupuesto: consultasOmitidasPorPresupuesto,
+        totalCrudos,
+        total_crudos: totalCrudos,
+        totalElegibles,
+        total_elegibles: totalElegibles,
+        duplicadasDescartadas,
+        duplicadas_descartadas: duplicadasDescartadas,
+        antiguasDescartadas,
+        antiguas_descartadas: antiguasDescartadas,
+        sinFechaConocida,
+        sin_fecha_conocida: sinFechaConocida,
+        motivoFinalizacion,
+        motivo_finalizacion: motivoFinalizacion,
+        configuracion,
     };
+}
+
+function responderScraping(res, payload) {
+    const { ofertasParaGuardar, guardadas, duplicadas, errores = 0, nombre } = payload;
+    const falloTotal = ofertasParaGuardar.length > 0 && errores > 0 && guardadas === 0 && duplicadas === 0;
+
+    const status = falloTotal ? 500 : 200;
+    return res.status(status).json({
+        exito: !falloTotal,
+        ...(falloTotal ? { error: `No se pudo persistir ninguna oferta de ${nombre} por fallos en la base de datos (${errores} errores).` } : {}),
+        datos: construirRespuestaScraping(payload),
+    });
 }
 
 /**
@@ -84,18 +117,15 @@ async function scrapearLinkedin(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'linkedin',
-            nombre: 'LinkedIn',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'linkedin',
+        nombre: 'LinkedIn',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -114,18 +144,15 @@ async function scrapearComputrabajo(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'computrabajo',
-            nombre: 'Computrabajo',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'computrabajo',
+        nombre: 'Computrabajo',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -144,18 +171,15 @@ async function scrapearIndeed(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'indeed',
-            nombre: 'Indeed',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'indeed',
+        nombre: 'Indeed',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -173,18 +197,15 @@ async function scrapearBumeran(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'bumeran',
-            nombre: 'Bumeran',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'bumeran',
+        nombre: 'Bumeran',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -203,18 +224,15 @@ async function scrapearGlassdoor(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'glassdoor',
-            nombre: 'Glassdoor',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'glassdoor',
+        nombre: 'Glassdoor',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -259,18 +277,15 @@ async function scrapearJooble(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'jooble',
-            nombre: 'Jooble',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'jooble',
+        nombre: 'Jooble',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -322,18 +337,15 @@ async function scrapearRemotive(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'remotive',
-            nombre: 'Remotive',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'remotive',
+        nombre: 'Remotive',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -356,18 +368,15 @@ async function scrapearRemoteOK(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'remoteok',
-            nombre: 'RemoteOK',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'remoteok',
+        nombre: 'RemoteOK',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 
@@ -435,18 +444,15 @@ async function scrapearAdzuna(req, res) {
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
     const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
-    res.json({
-        exito: true,
-        datos: construirRespuestaScraping({
-            plataforma: 'adzuna',
-            nombre: 'Adzuna',
-            ofertasNormalizadas,
-            ofertasParaGuardar,
-            guardadas,
-            duplicadas,
-            errores,
-            resumen,
-        }),
+    return responderScraping(res, {
+        plataforma: 'adzuna',
+        nombre: 'Adzuna',
+        ofertasNormalizadas,
+        ofertasParaGuardar,
+        guardadas,
+        duplicadas,
+        errores,
+        resumen,
     });
 }
 

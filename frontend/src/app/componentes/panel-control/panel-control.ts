@@ -79,8 +79,24 @@ export class PanelControl implements OnInit, OnDestroy {
 
     private observarResultado(respuesta: RespuestaApi<RespuestaScraping>): void {
         if (!respuesta.exito) throw new Error(respuesta.error || 'No se completó la búsqueda.');
-        this.configuracionIndividual.set(respuesta.datos.configuracion ?? null);
-        if (respuesta.datos.configuracion && !respuesta.datos.configuracion.ejecutable) {
+        const datos = respuesta.datos;
+        const configBase = datos.configuracion ?? null;
+        const configCompleta: ResumenBusqueda | null = configBase ? {
+            ...configBase,
+            maxResultados: datos.maxResultados ?? datos.max_resultados ?? configBase.maxResultados,
+            ventanaDias: datos.ventanaDias ?? datos.ventana_dias ?? configBase.ventanaDias,
+            consultasEjecutadas: datos.consultasEjecutadas ?? datos.consultas_ejecutadas ?? configBase.consultasEjecutadas,
+            consultasOmitidas: datos.consultasOmitidas ?? datos.consultas_omitidas ?? configBase.consultasOmitidas,
+            consultasOmitidasPorPresupuesto: datos.consultasOmitidasPorPresupuesto ?? datos.consultas_omitidas_por_presupuesto ?? configBase.consultasOmitidasPorPresupuesto,
+            totalCrudos: datos.totalCrudos ?? datos.total_crudos ?? configBase.totalCrudos,
+            totalElegibles: datos.totalElegibles ?? datos.total_elegibles ?? configBase.totalElegibles,
+            duplicadasDescartadas: datos.duplicadasDescartadas ?? datos.duplicadas_descartadas ?? configBase.duplicadasDescartadas,
+            antiguasDescartadas: datos.antiguasDescartadas ?? datos.antiguas_descartadas ?? configBase.antiguasDescartadas,
+            sinFechaConocida: datos.sinFechaConocida ?? datos.sin_fecha_conocida ?? configBase.sinFechaConocida,
+            motivoFinalizacion: datos.motivoFinalizacion ?? datos.motivo_finalizacion ?? configBase.motivoFinalizacion,
+        } : null;
+        this.configuracionIndividual.set(configCompleta);
+        if (configCompleta && !configCompleta.ejecutable) {
             throw new Error('La fuente no ejecutó la búsqueda. Consultá sus advertencias.');
         }
     }
