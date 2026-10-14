@@ -385,7 +385,7 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
               evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9,
               firma_criterios_evaluacion = $10,
               explicacion_evaluacion = $11::jsonb
-         WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $14)
+         WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR date_trunc('milliseconds', descripcion_modificada_en) IS NOT DISTINCT FROM date_trunc('milliseconds', $14::timestamp))
          RETURNING *`,
         [
             estado,
@@ -560,7 +560,7 @@ async function registrarErrorEvaluacion(id, mensaje, descripcionEsperada = undef
     const validarDescripcion = descripcionEsperada !== undefined;
     const validarFechaModificacion = fechaModificacionEsperada !== undefined;
     const resultado = await pool.query(
-        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) AND ($6::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $5) RETURNING *',
+        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) AND ($6::boolean = false OR date_trunc(\'milliseconds\', descripcion_modificada_en) IS NOT DISTINCT FROM date_trunc(\'milliseconds\', $5::timestamp)) RETURNING *',
         [mensaje, id, validarDescripcion ? descripcionEsperada : null, validarDescripcion, validarFechaModificacion ? fechaModificacionEsperada : null, validarFechaModificacion]
     );
     return resultado.rows[0] || null;
@@ -603,7 +603,7 @@ async function actualizarDescripcionManual(id, nuevaDescripcion) {
              descripcion = $1,
              origen_descripcion = 'manual',
              descripcion_completitud = 'completa',
-             descripcion_modificada_en = NOW(),
+             descripcion_modificada_en = date_trunc('milliseconds', NOW()),
              estado_evaluacion = 'pendiente',
              evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA',
              porcentaje_match = NULL,

@@ -517,7 +517,8 @@ describe('Servicio de evaluación con IA', () => {
             // El parser debe haber sido llamado con la respuesta cruda de DeepSeek.
             expect(parsearRespuestaEvaluacionIa).toHaveBeenCalledTimes(1);
             expect(parsearRespuestaEvaluacionIa).toHaveBeenCalledWith(
-                '{"match": true, "porcentaje": 80, "razon": "Buen match."}'
+                '{"match": true, "porcentaje": 80, "razon": "Buen match."}',
+                expect.any(String)
             );
         });
     });

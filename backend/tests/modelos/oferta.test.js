@@ -642,65 +642,91 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(actualizada2.descripcion).toBe(segundaEdicion);
         });
 
-        test('actualizarEvaluacion() con CAS protege contra carreras cuando descripcion_modificada_en cambió', async () => {
+        test('actualizarEvaluacion() con CAS exitoso con fecha NO NULA tras edición manual y rechazo ante carrera (B-09)', async () => {
             const creada = await modeloOferta.crearOferta(ofertaEjemplo);
             expect(creada.descripcion_modificada_en).toBeNull();
 
-            // CAS exitoso: snapshot fechaModificacionEsperada = null coincide con la BD
-            const eval1 = await modeloOferta.actualizarEvaluacion(
-                creada.id,
-                'aprobada',
-                'Coincide',
-                90,
-                null,
-                null,
-                'firma-v1',
-                null,
-                creada.descripcion,
-                creada.descripcion_modificada_en
-            );
-            expect(eval1).not.toBeNull();
-            expect(eval1.estado_evaluacion).toBe('aprobada');
-
-            // Usuario edita manualmente la descripción (incluso si guarda el mismo texto)
-            const manual = await modeloOferta.actualizarDescripcionManual(creada.id, creada.descripcion);
+            // 1. Usuario edita manualmente la descripción (guarda fecha no nula con microsegundos en BD)
+            const manual = await modeloOferta.actualizarDescripcionManual(creada.id, 'Descripción modificada manualmente con más de veinte caracteres.');
             expect(manual.estado_evaluacion).toBe('pendiente');
             expect(manual.descripcion_modificada_en).not.toBeNull();
 
-            // Worker intenta escribir con el snapshot viejo (fechaModificacionEsperada = null):
-            // Debe fallar el CAS (retornar null) para no sobrescribir el estado pendiente
-            const carreraEval = await modeloOferta.actualizarEvaluacion(
-                creada.id,
-                'aprobada',
-                'Resultado viejo',
-                85,
-                null,
-                null,
-                'firma-vieja',
-                null,
-                creada.descripcion,
-                null
-            );
-            expect(carreraEval).toBeNull();
+            // 2. Worker lee la fila con fecha NO NULA desde BD
+            const leida = await modeloOferta.obtenerOfertaPorId(creada.id);
+            expect(leida.descripcion_modificada_en).toBeInstanceOf(Date);
 
-            // La oferta en BD debe permanecer pendiente
-            const ofertaEnBd = await modeloOferta.obtenerOfertaPorId(creada.id);
-            expect(ofertaEnBd.estado_evaluacion).toBe('pendiente');
-            expect(ofertaEnBd.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
+            // 3. Reevaluación sin concurrencia: UPDATE debe afectar 1 fila (no retornar null por pérdida de microsegundos)
+            const evalExitosa = await modeloOferta.actualizarEvaluacion(
+                leida.id,
+                'aprobada',
+                'Coincidencia confirmada post-edición',
+                92,
+                null,
+                null,
+                'firma-post-manual-v1',
+                null,
+                leida.descripcion,
+                leida.descripcion_modificada_en
+            );
+            expect(evalExitosa).not.toBeNull();
+            expect(evalExitosa.estado_evaluacion).toBe('aprobada');
+            expect(evalExitosa.porcentaje_match).toBe(92);
+
+            // 4. Se simula edición intercalada posterior (cambia nuevamente la fecha en BD)
+            const segundaEdicion = await modeloOferta.actualizarDescripcionManual(creada.id, 'Segunda edición manual con longitud suficiente de más de veinte caracteres.');
+            expect(segundaEdicion.estado_evaluacion).toBe('pendiente');
+
+            // 5. Worker concurrente intenta escribir con el snapshot anterior (fecha no nula desactualizada):
+            // Debe fallar el CAS (retornar null) para no sobrescribir el estado pendiente
+            const evalConcurrenteDesactualizada = await modeloOferta.actualizarEvaluacion(
+                leida.id,
+                'rechazada',
+                'Resultado viejo descartado',
+                40,
+                null,
+                null,
+                'firma-desactualizada',
+                null,
+                leida.descripcion,
+                leida.descripcion_modificada_en
+            );
+            expect(evalConcurrenteDesactualizada).toBeNull();
+
+            // 6. La BD conserva el estado pendiente con REEVALUACION_SOLICITADA
+            const ofertaFinal = await modeloOferta.obtenerOfertaPorId(creada.id);
+            expect(ofertaFinal.estado_evaluacion).toBe('pendiente');
+            expect(ofertaFinal.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
         });
 
-        test('registrarErrorEvaluacion() con CAS retorna null cuando fechaModificacionEsperada no coincide', async () => {
+        test('registrarErrorEvaluacion() con CAS exitoso con fecha NO NULA y rechazo ante carrera (B-09)', async () => {
             const creada = await modeloOferta.crearOferta(ofertaEjemplo);
-            await modeloOferta.actualizarDescripcionManual(creada.id, creada.descripcion);
 
-            // Intento registrar error con snapshot viejo (null)
-            const resError = await modeloOferta.registrarErrorEvaluacion(
-                creada.id,
-                'Error viejo',
-                creada.descripcion,
-                null
+            // 1. Edición manual
+            await modeloOferta.actualizarDescripcionManual(creada.id, 'Descripción con más de veinte caracteres para probar error de evaluación.');
+            const leida = await modeloOferta.obtenerOfertaPorId(creada.id);
+            expect(leida.descripcion_modificada_en).toBeInstanceOf(Date);
+
+            // 2. Registro de error sin concurrencia: afecta 1 fila
+            const errorExitoso = await modeloOferta.registrarErrorEvaluacion(
+                leida.id,
+                'Error de timeout en IA',
+                leida.descripcion,
+                leida.descripcion_modificada_en
             );
-            expect(resError).toBeNull();
+            expect(errorExitoso).not.toBeNull();
+            expect(errorExitoso.evaluacion_error_mensaje).toBe('Error de timeout en IA');
+
+            // 3. Edición intercalada
+            await modeloOferta.actualizarDescripcionManual(creada.id, 'Otra modificación manual con longitud suficiente de más de veinte caracteres.');
+
+            // 4. Intento registrar error con snapshot desactualizado: retorna null
+            const errorConcurrente = await modeloOferta.registrarErrorEvaluacion(
+                leida.id,
+                'Error viejo',
+                leida.descripcion,
+                leida.descripcion_modificada_en
+            );
+            expect(errorConcurrente).toBeNull();
         });
     });
 });

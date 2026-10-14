@@ -148,8 +148,18 @@ function normalizarExplicacion(explicacionCruda) {
 /** Umbral mínimo de porcentaje requerido para un match positivo en el sistema. */
 const UMBRAL_MATCH_MINIMO = 60;
 
-const PATRON_OPCIONAL_EVIDENCIA = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice\s+to\s+have|optional|preferred)\b|\bno\s+(?:es\s+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/i;
-const PATRON_NEGACION_EVIDENCIA = /\b(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b/i;
+const PATRON_OPCIONAL_EVIDENCIA = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice[-\s]+to[-\s]+have|optional|preferred)\b|\bno[-\s]+(?:es[-\s]+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/i;
+const PATRON_NEGACION_EVIDENCIA = /\b(?:no[-\s]+(?:se[-\s]+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin[-\s]+(?:necesidad|experiencia)|not[-\s]+required|do[-\s]+not[-\s]+require)\b/i;
+
+/**
+ * Escapo caracteres especiales para construir expresiones regulares seguras.
+ *
+ * @param {string} texto - Texto a escapar.
+ * @returns {string} Texto seguro para RegExp.
+ */
+function escaparRegex(texto) {
+    return String(texto).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
 
 /**
  * Normalizo texto para comparar evidencias de la oferta sin sesgos de puntuación, mayúsculas o tildes.
@@ -166,6 +176,22 @@ function normalizarTextoComparacion(texto) {
         .replace(/[^a-z0-9]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
+}
+
+/**
+ * Verifico si un texto normalizado contiene una evidencia normalizada respetando límites de token/palabra.
+ * Como el texto normalizado contiene solo caracteres [a-z0-9] separados por espacios simples,
+ * delimitamos el token con inicio/fin de cadena o espacios para evitar falsos positivos
+ * (por ejemplo, que la cita 'Java' coincida indebidamente dentro de 'JavaScript').
+ *
+ * @param {string} textoNormalizado - Texto normalizado donde buscar.
+ * @param {string} evidenciaNormalizada - Evidencia normalizada a buscar.
+ * @returns {boolean} True si coincide como token o frase completa delimitada.
+ */
+function contieneTokenNormalizado(textoNormalizado, evidenciaNormalizada) {
+    if (!textoNormalizado || !evidenciaNormalizada) return false;
+    const patron = new RegExp(`(?:^|\\s)${escaparRegex(evidenciaNormalizada)}(?:\\s|$)`);
+    return patron.test(textoNormalizado);
 }
 
 /**
@@ -217,17 +243,17 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion, textoOferta 
 
                 if (textoOfertaNormalizado) {
                     const evidenciaNormalizada = normalizarTextoComparacion(item.evidencia_oferta);
-                    if (!evidenciaNormalizada || !textoOfertaNormalizado.includes(evidenciaNormalizada)) {
+                    if (!evidenciaNormalizada || !contieneTokenNormalizado(textoOfertaNormalizado, evidenciaNormalizada)) {
                         return false;
                     }
 
                     // Verifico que en el texto del aviso, las oraciones o cláusulas que contienen la cita
                     // no sean exclusivamente opcionales o deseables (evita falsos rechazos por palabras aisladas)
                     const oraciones = String(textoOferta)
-                        .split(/[.!?;\n•\-]+/)
+                        .split(/(?:[.!?;\n\r\t•]|\n\s*[-–—]\s+)+/)
                         .map((o) => normalizarTextoComparacion(o))
                         .filter(Boolean);
-                    const oracionesConEvidencia = oraciones.filter((o) => o.includes(evidenciaNormalizada));
+                    const oracionesConEvidencia = oraciones.filter((o) => contieneTokenNormalizado(o, evidenciaNormalizada));
                     if (oracionesConEvidencia.length > 0) {
                         const algunaEsValida = oracionesConEvidencia.some(
                             (o) => !PATRON_OPCIONAL_EVIDENCIA.test(o) && !PATRON_NEGACION_EVIDENCIA.test(o)

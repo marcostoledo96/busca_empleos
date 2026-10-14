@@ -671,6 +671,91 @@ describe('Parser respuesta IA', () => {
             expect(resultado.error).toBe(true);
             expect(resultado.razon).toContain('Inconsistencia detectada');
         });
+
+        test('Caso 5 (B-10): Cita Java no coincide dentro de JavaScript por respeto a límites de token y es inconsistente', () => {
+            const textoOferta = 'Buscamos desarrollador Frontend con JavaScript, TypeScript y React.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'JavaScript', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
+
+        test('Caso 6 (B-10): Cita Java no-excluyente conserva la frase con guion y se descarta como exclusión válida', () => {
+            const textoOferta = 'Buscamos desarrollador Angular. Requisitos: TypeScript y HTML. Java no-excluyente.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Angular', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
+
+        test('Caso 7 (B-10): Cita con nice-to-have con guiones se descarta como exclusión válida', () => {
+            const textoOferta = 'Desarrollador React y Node.js. Java nice-to-have para proyectos futuros.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 80,
+                razon: 'Rechazada por Java',
+                explicacion: {
+                    cumplidos: [{ requisito: 'React', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'nice-to-have', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+        });
+
+        test('Caso 8 (B-10): Requisito Java obligatorio en viñeta con guion se valida correctamente como exclusión', () => {
+            const textoOferta = 'Buscamos Backend Developer.\nRequisitos:\n- Experiencia en TypeScript\n- Java obligatorio y excluyente';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java excluyente',
+                explicacion: {
+                    cumplidos: [{ requisito: 'TypeScript', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java obligatorio y excluyente', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
     });
 
     // ──────────────────────────────────────────────────────────

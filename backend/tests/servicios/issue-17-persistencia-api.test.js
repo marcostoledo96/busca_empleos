@@ -100,7 +100,7 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(sqlEjecutado).toContain('descripcion_original = COALESCE(descripcion_original, descripcion)');
             expect(sqlEjecutado).toContain("origen_descripcion = 'manual'");
             expect(sqlEjecutado).toContain("descripcion_completitud = 'completa'");
-            expect(sqlEjecutado).toContain('descripcion_modificada_en = NOW()');
+            expect(sqlEjecutado).toContain("descripcion_modificada_en = date_trunc('milliseconds', NOW())");
             expect(sqlEjecutado).toContain("estado_evaluacion = 'pendiente'");
             expect(sqlEjecutado).toContain("evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'");
             expect(sqlEjecutado).toContain('WHERE id = $2');
@@ -255,7 +255,7 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(pool.query).toHaveBeenCalledTimes(1);
             const [sql, params] = pool.query.mock.calls[0];
 
-            expect(sql).toContain('WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $14)');
+            expect(sql).toContain("WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR date_trunc('milliseconds', descripcion_modificada_en) IS NOT DISTINCT FROM date_trunc('milliseconds', $14::timestamp))");
             expect(params[11]).toBe(descEsperada);
             expect(params[12]).toBe(true);
             expect(params[13]).toBe(fechaEsperada);
@@ -275,7 +275,7 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(pool.query).toHaveBeenCalledTimes(1);
             const [sql, params] = pool.query.mock.calls[0];
 
-            expect(sql).toContain('WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $14)');
+            expect(sql).toContain("WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR date_trunc('milliseconds', descripcion_modificada_en) IS NOT DISTINCT FROM date_trunc('milliseconds', $14::timestamp))");
             expect(params[11]).toBeNull();
             expect(params[12]).toBe(false);
             expect(params[13]).toBeNull();
@@ -298,7 +298,7 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(pool.query).toHaveBeenCalledTimes(1);
             const [sql, params] = pool.query.mock.calls[0];
 
-            expect(sql).toContain('WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) AND ($6::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $5)');
+            expect(sql).toContain("WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) AND ($6::boolean = false OR date_trunc('milliseconds', descripcion_modificada_en) IS NOT DISTINCT FROM date_trunc('milliseconds', $5::timestamp))");
             expect(params[0]).toBe('Error de red con IA');
             expect(params[1]).toBe(101);
             expect(params[2]).toBe(descEsperada);

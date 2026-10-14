@@ -236,12 +236,6 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         // ── Paso 3: Parsear la respuesta de DeepSeek con el parser estricto ──
         const textoOferta = [oferta.titulo, oferta.descripcion].filter(Boolean).join(' ');
         const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta);
-        if (parsearRespuestaEvaluacionIa._isMockFunction) {
-            const ultimoCall = parsearRespuestaEvaluacionIa.mock?.calls?.[parsearRespuestaEvaluacionIa.mock.calls.length - 1];
-            if (ultimoCall && ultimoCall.length > 1) {
-                ultimoCall.length = 1;
-            }
-        }
 
         // Si el parser no pudo interpretar la respuesta, devuelvo rechazo seguro.
         if (respuesta.error && !respuesta.inconsistente) {
