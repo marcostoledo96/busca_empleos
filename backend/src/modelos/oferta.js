@@ -369,11 +369,14 @@ async function obtenerOfertasPendientes() {
  * @param {Object|null} [prioridadIa] - Señal de ranking separada del match.
  * @param {string|null} [firmaCriterios] - Criterios efectivos exitosos; borro la firma ante error.
  * @param {Object|null} [explicacionEvaluacion] - Desglose explicable de evaluación.
- * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
+ * @param {string} [descripcionEsperada] - Descripción esperada para CAS.
+ * @param {Date|string} [fechaModificacionEsperada] - Fecha de modificación esperada para CAS.
+ * @returns {Object|null} La oferta actualizada, o null si el ID no existe o no coincide el CAS.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null, descripcionEsperada = undefined) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null, descripcionEsperada = undefined, fechaModificacionEsperada = undefined) {
     const prioridad = prioridadIa || { detectada: false, puntaje: 0, evidencias: [], version: null };
     const validarDescripcion = descripcionEsperada !== undefined;
+    const validarFechaModificacion = fechaModificacionEsperada !== undefined;
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3,
@@ -382,7 +385,7 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
               evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9,
               firma_criterios_evaluacion = $10,
               explicacion_evaluacion = $11::jsonb
-         WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12)
+         WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $14)
          RETURNING *`,
         [
             estado,
@@ -397,7 +400,9 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
             errorMensaje ? null : firmaCriterios,
             explicacionEvaluacion ? JSON.stringify(explicacionEvaluacion) : null,
             validarDescripcion ? descripcionEsperada : null,
-            validarDescripcion
+            validarDescripcion,
+            validarFechaModificacion ? fechaModificacionEsperada : null,
+            validarFechaModificacion
         ]
     );
 
@@ -551,11 +556,12 @@ async function obtenerOfertasSeleccionadas(ids) {
 }
 
 // Registro el fallo sin reemplazar la evaluación válida ni los datos manuales.
-async function registrarErrorEvaluacion(id, mensaje, descripcionEsperada = undefined) {
+async function registrarErrorEvaluacion(id, mensaje, descripcionEsperada = undefined, fechaModificacionEsperada = undefined) {
     const validarDescripcion = descripcionEsperada !== undefined;
+    const validarFechaModificacion = fechaModificacionEsperada !== undefined;
     const resultado = await pool.query(
-        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) RETURNING *',
-        [mensaje, id, validarDescripcion ? descripcionEsperada : null, validarDescripcion]
+        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) AND ($6::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $5) RETURNING *',
+        [mensaje, id, validarDescripcion ? descripcionEsperada : null, validarDescripcion, validarFechaModificacion ? fechaModificacionEsperada : null, validarFechaModificacion]
     );
     return resultado.rows[0] || null;
 }

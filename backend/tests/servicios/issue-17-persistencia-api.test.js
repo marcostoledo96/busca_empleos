@@ -41,7 +41,7 @@ const { consultarDeepSeek } = require('../../src/config/deepseek');
 const modeloOferta = require('../../src/modelos/oferta');
 const modeloPreferencia = require('../../src/modelos/preferencia');
 const evaluacionCache = require('../../src/modelos/evaluacion-cache');
-const { evaluarOfertasPendientes } = require('../../src/servicios/servicio-evaluacion');
+const { evaluarOfertasPendientes, obtenerProgresoEvaluacion } = require('../../src/servicios/servicio-evaluacion');
 const { construirIdentidadEvaluacion } = require('../../src/servicios/evaluacion/identidad-evaluacion');
 const { normalizarOfertaBumeran } = require('../../src/servicios/servicio-normalizacion');
 
@@ -229,6 +229,82 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
 
             const [, params] = pool.query.mock.calls[0];
             expect(params[10]).toBeNull();
+        });
+    });
+
+    describe('CAS con descripcion_modificada_en en modeloOferta (B-08)', () => {
+        test('actualizarEvaluacion incluye condiciones CAS para descripcion y descripcion_modificada_en', async () => {
+            pool.query.mockResolvedValueOnce({ rows: [{ id: 99, estado_evaluacion: 'aprobada' }] });
+
+            const fechaEsperada = '2026-04-10T14:30:00.000Z';
+            const descEsperada = 'Texto idéntico de la descripción';
+
+            await modeloOferta.actualizarEvaluacion(
+                99,
+                'aprobada',
+                'Coincide',
+                90,
+                null,
+                null,
+                'firma-123',
+                null,
+                descEsperada,
+                fechaEsperada
+            );
+
+            expect(pool.query).toHaveBeenCalledTimes(1);
+            const [sql, params] = pool.query.mock.calls[0];
+
+            expect(sql).toContain('WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $14)');
+            expect(params[11]).toBe(descEsperada);
+            expect(params[12]).toBe(true);
+            expect(params[13]).toBe(fechaEsperada);
+            expect(params[14]).toBe(true);
+        });
+
+        test('actualizarEvaluacion desactiva CAS si descripcionEsperada y fechaModificacionEsperada son undefined', async () => {
+            pool.query.mockResolvedValueOnce({ rows: [{ id: 100, estado_evaluacion: 'rechazada' }] });
+
+            await modeloOferta.actualizarEvaluacion(
+                100,
+                'rechazada',
+                'No coincide',
+                20
+            );
+
+            expect(pool.query).toHaveBeenCalledTimes(1);
+            const [sql, params] = pool.query.mock.calls[0];
+
+            expect(sql).toContain('WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12) AND ($15::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $14)');
+            expect(params[11]).toBeNull();
+            expect(params[12]).toBe(false);
+            expect(params[13]).toBeNull();
+            expect(params[14]).toBe(false);
+        });
+
+        test('registrarErrorEvaluacion incluye condiciones CAS para descripcion y descripcion_modificada_en', async () => {
+            pool.query.mockResolvedValueOnce({ rows: [{ id: 101 }] });
+
+            const fechaEsperada = '2026-04-10T14:30:00.000Z';
+            const descEsperada = 'Texto de la descripción para error';
+
+            await modeloOferta.registrarErrorEvaluacion(
+                101,
+                'Error de red con IA',
+                descEsperada,
+                fechaEsperada
+            );
+
+            expect(pool.query).toHaveBeenCalledTimes(1);
+            const [sql, params] = pool.query.mock.calls[0];
+
+            expect(sql).toContain('WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) AND ($6::boolean = false OR descripcion_modificada_en IS NOT DISTINCT FROM $5)');
+            expect(params[0]).toBe('Error de red con IA');
+            expect(params[1]).toBe(101);
+            expect(params[2]).toBe(descEsperada);
+            expect(params[3]).toBe(true);
+            expect(params[4]).toBe(fechaEsperada);
+            expect(params[5]).toBe(true);
         });
     });
 
@@ -473,6 +549,66 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(resumen.aprobadas).toBe(0);
             expect(resumen.supersedidas).toBe(1);
             expect(resumen.detalle[0].estado).toBe('supersedida_concurrencia');
+        });
+
+        test('flujo concurrente con PATCH de texto idéntico mientras IA evalúa descarta actualización de IA como supersedida (B-08, O-02)', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                nombre: 'Marcos',
+                stack_tecnologico: ['Node', 'React'],
+                zonas_preferidas: [],
+            });
+
+            const fechaOriginal = '2026-04-10T10:00:00.000Z';
+            const textoOferta = 'Buscamos desarrollador Fullstack con Node y React para sumarse al equipo.';
+
+            const oferta = {
+                id: 30,
+                titulo: 'Fullstack Dev',
+                descripcion: textoOferta,
+                descripcion_modificada_en: fechaOriginal,
+                modalidad: 'remoto',
+                plataforma: 'computrabajo',
+                estado_evaluacion: 'pendiente',
+                fecha_extraccion: new Date().toISOString(),
+            };
+
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: true,
+                porcentaje: 85,
+                razon: 'Compatible',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Node', tipo: 'obligatorio', evidencia_oferta: 'Node' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [],
+                },
+            }));
+
+            // Mientras la IA evalúa, el usuario hace PATCH con texto idéntico.
+            // En PostgreSQL, el CAS ejecutado por evaluarOfertasPendientes envía el snapshot inicial (fechaOriginal).
+            // Dado que en BD descripcion_modificada_en fue actualizado a un timestamp más nuevo,
+            // el WHERE con descripcion_modificada_en IS NOT DISTINCT FROM $14 no matchea y retorna 0 filas.
+            pool.query.mockImplementation(async (sql, params) => {
+                if (sql.includes('UPDATE ofertas') && sql.includes('explicacion_evaluacion')) {
+                    // Validamos que evaluarOfertasPendientes haya pasado descripcion_modificada_en
+                    expect(params[13]).toBe(fechaOriginal);
+                    expect(params[14]).toBe(true);
+                    return { rows: [] };
+                }
+                return { rows: [] };
+            });
+
+            const resumen = await evaluarOfertasPendientes([oferta]);
+            const progreso = obtenerProgresoEvaluacion();
+
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.rechazadas).toBe(0);
+            expect(resumen.supersedidas).toBe(1);
+            expect(progreso.supersedidas).toBe(1);
+            expect(resumen.detalle[0].estado).toBe('supersedida_concurrencia');
+            expect(resumen.detalle[0].supersedida).toBe(true);
+            expect(resumen.detalle[0].razon).toContain('Evaluación descartada porque la oferta fue modificada concurrentemente');
         });
     });
 

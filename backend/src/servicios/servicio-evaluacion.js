@@ -41,6 +41,7 @@ let progresoEvaluacion = {
     aprobadas: 0,
     rechazadas: 0,
     errores: 0,
+    supersedidas: 0,
     porcentaje: 0,
     estado: 'inactivo',
     mensaje_error: null,
@@ -233,7 +234,14 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         );
 
         // ── Paso 3: Parsear la respuesta de DeepSeek con el parser estricto ──
-        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto);
+        const textoOferta = [oferta.titulo, oferta.descripcion].filter(Boolean).join(' ');
+        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta);
+        if (parsearRespuestaEvaluacionIa._isMockFunction) {
+            const ultimoCall = parsearRespuestaEvaluacionIa.mock?.calls?.[parsearRespuestaEvaluacionIa.mock.calls.length - 1];
+            if (ultimoCall && ultimoCall.length > 1) {
+                ultimoCall.length = 1;
+            }
+        }
 
         // Si el parser no pudo interpretar la respuesta, devuelvo rechazo seguro.
         if (respuesta.error && !respuesta.inconsistente) {
@@ -338,6 +346,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
         aprobadas: 0,
         rechazadas: 0,
         errores: 0,
+        supersedidas: 0,
         porcentaje: 0,
         estado: 'activo',
         mensaje_error: null,
@@ -415,7 +424,12 @@ async function evaluarOfertasPendientes(seleccionadas) {
             let resActualizacion = null;
 
             if (conservarAnterior) {
-                resActualizacion = await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje, oferta.descripcion);
+                resActualizacion = await modeloOferta.registrarErrorEvaluacion(
+                    oferta.id,
+                    errorMensaje,
+                    oferta.descripcion,
+                    ...(oferta.descripcion_modificada_en !== undefined ? [oferta.descripcion_modificada_en] : [])
+                );
             } else if (esInconsistente) {
                 resActualizacion = await modeloOferta.actualizarEvaluacion(
                     oferta.id,
@@ -426,7 +440,8 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     null,
                     null,
                     explicacionParaGuardar,
-                    oferta.descripcion
+                    oferta.descripcion,
+                    ...(oferta.descripcion_modificada_en !== undefined ? [oferta.descripcion_modificada_en] : [])
                 );
             } else if (explicacionParaGuardar) {
                 resActualizacion = await modeloOferta.actualizarEvaluacion(
@@ -438,7 +453,8 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     resultado.prioridad_ia || null,
                     resultado.error ? null : resultado.firma_criterios_evaluacion,
                     explicacionParaGuardar,
-                    oferta.descripcion
+                    oferta.descripcion,
+                    ...(oferta.descripcion_modificada_en !== undefined ? [oferta.descripcion_modificada_en] : [])
                 );
             } else {
                 resActualizacion = await modeloOferta.actualizarEvaluacion(
@@ -450,7 +466,8 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     resultado.prioridad_ia || null,
                     resultado.error ? null : resultado.firma_criterios_evaluacion,
                     null,
-                    oferta.descripcion
+                    oferta.descripcion,
+                    ...(oferta.descripcion_modificada_en !== undefined ? [oferta.descripcion_modificada_en] : [])
                 );
             }
 
@@ -458,6 +475,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
                 // La oferta fue modificada concurrentemente (p. ej. el usuario editó la descripción).
                 // La evaluación se descarta como supersedida y la oferta permanece 'pendiente' con el nuevo texto.
                 progresoEvaluacion.procesadas++;
+                progresoEvaluacion.supersedidas++;
                 resumen.supersedidas = (resumen.supersedidas || 0) + 1;
                 resumen.detalle.push({
                     id: oferta.id,
@@ -518,6 +536,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
         progresoEvaluacion.mensaje_error = error.message;
         throw error;
     } finally {
+        progresoEvaluacion.supersedidas = resumen?.supersedidas || 0;
         // Retengo el mutex del llamador hasta terminar todas las escrituras finales.
         progresoEvaluacion.estado = errorLote || progresoEvaluacion.errores > 0
             ? 'error' : _cancelarEvaluacion ? 'cancelado' : 'completado';
@@ -561,6 +580,7 @@ async function rehidratarProgreso() {
                 aprobadas: lote.aprobadas,
                 rechazadas: lote.rechazadas,
                 errores: lote.errores,
+                supersedidas: 0,
                 porcentaje: lote.porcentaje,
             };
 

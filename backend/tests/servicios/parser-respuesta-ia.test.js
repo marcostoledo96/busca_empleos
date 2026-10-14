@@ -583,6 +583,72 @@ describe('Parser respuesta IA', () => {
             expect(resultado.invalido).toBeUndefined();
             expect(resultado.error).toBeUndefined();
         });
+
+        test('Caso 1 (B-03): Java deseable citado erróneamente como obligatorio con porcentaje alto es inconsistente e inválido', () => {
+            const textoOferta = 'Buscamos Desarrollador Fullstack. Requisitos: TypeScript, Node.js. Deseable: Java básico.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'TypeScript', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Deseable: Java básico', explicacion: 'No maneja Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
+
+        test('Caso 2 (B-03): Java excluyente real con cita verificable en el texto de la oferta es coherente y válido', () => {
+            const textoOferta = 'Desarrollador Backend Sr. Excluyente: Conocimientos sólidos de Java 17 y Spring Boot.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java excluyente',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [{ requisito: 'Java', tipo: 'obligatorio', explicacion: 'No cumple' }],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Conocimientos sólidos de Java 17', explicacion: 'Requiere Java obligatorio' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.porcentaje).toBe(85);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
+
+        test('Caso 3 (B-03): Cita inexistente que no aparece en la oferta es inconsistente e inválido', () => {
+            const textoOferta = 'Buscamos Desarrollador Angular Trainee. Ganas de aprender y conocimientos de TypeScript.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 80,
+                razon: 'Rechazada por requerir Java excluyente inventado',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Angular', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: '5 años de experiencia en Java EE', explicacion: 'No cumple' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
     });
 
     // ──────────────────────────────────────────────────────────

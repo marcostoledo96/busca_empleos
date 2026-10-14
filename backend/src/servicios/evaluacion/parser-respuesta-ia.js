@@ -148,15 +148,37 @@ function normalizarExplicacion(explicacionCruda) {
 /** Umbral mínimo de porcentaje requerido para un match positivo en el sistema. */
 const UMBRAL_MATCH_MINIMO = 60;
 
+const PATRON_OPCIONAL_EVIDENCIA = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice\s+to\s+have|optional|preferred)\b|\bno\s+(?:es\s+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/i;
+const PATRON_NEGACION_EVIDENCIA = /\b(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b/i;
+
 /**
- * Valida la coherencia lógica interna entre el veredicto booleano, el porcentaje y las exclusiones.
+ * Normalizo texto para comparar evidencias de la oferta sin sesgos de puntuación, mayúsculas o tildes.
+ *
+ * @param {string} texto - Texto a normalizar.
+ * @returns {string} Texto en minúsculas, sin tildes, con caracteres especiales convertidos a espacios colapsados.
+ */
+function normalizarTextoComparacion(texto) {
+    if (typeof texto !== 'string') return '';
+    return texto
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+/**
+ * Valido la coherencia lógica interna entre el veredicto booleano, el porcentaje y las exclusiones,
+ * contrastando las evidencias contra el texto real de la oferta y patrones de no obligatoriedad.
  *
  * @param {boolean} match - Veredicto de match.
  * @param {number|null} porcentaje - Porcentaje normalizado.
  * @param {Object} explicacion - Estructura normalizada de explicación.
+ * @param {string|null} [textoOferta] - Texto de la oferta (título + descripción) para contraste contextual.
  * @returns {{ inconsistente: boolean, invalido: boolean, motivo: string|null }}
  */
-function validarCoherenciaRespuesta(match, porcentaje, explicacion) {
+function validarCoherenciaRespuesta(match, porcentaje, explicacion, textoOferta = null) {
     // Caso 1: porcentaje ausente, vacío, no numérico o fuera de rango.
     if (porcentaje === null || porcentaje === undefined) {
         return {
@@ -178,12 +200,29 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion) {
     // Caso 3: match: false con porcentaje alto (>= 60%).
     // Solo es consistente si existe al menos una exclusión obligatoria justificada con evidencia verificable de la oferta.
     if (match === false && porcentaje >= UMBRAL_MATCH_MINIMO) {
+        const textoOfertaLimpio = typeof textoOferta === 'string' ? textoOferta.trim() : '';
+        const textoOfertaNormalizado = textoOfertaLimpio ? normalizarTextoComparacion(textoOfertaLimpio) : null;
+
         const exclusionesValidas = Array.isArray(explicacion?.exclusiones)
             ? explicacion.exclusiones.filter((item) => {
                 if (!item || typeof item !== 'object') return false;
                 if (item.tipo !== 'obligatorio') return false;
                 const tieneEvidenciaOferta = typeof item.evidencia_oferta === 'string' && item.evidencia_oferta.trim().length > 0;
-                return tieneEvidenciaOferta;
+                if (!tieneEvidenciaOferta) return false;
+
+                const textoAEvaluar = `${item.evidencia_oferta} ${item.requisito || ''}`;
+                if (PATRON_OPCIONAL_EVIDENCIA.test(textoAEvaluar) || PATRON_NEGACION_EVIDENCIA.test(textoAEvaluar)) {
+                    return false;
+                }
+
+                if (textoOfertaNormalizado) {
+                    const evidenciaNormalizada = normalizarTextoComparacion(item.evidencia_oferta);
+                    if (!evidenciaNormalizada || !textoOfertaNormalizado.includes(evidenciaNormalizada)) {
+                        return false;
+                    }
+                }
+
+                return true;
             })
             : [];
 
@@ -213,9 +252,10 @@ const RAZON_FALLBACK_NO_MATCH = 'La oferta no matchea con el perfil.';
  * Limpia fences Markdown, parsea JSON, valida tipos y verifica coherencia interna.
  *
  * @param {string} respuestaTexto - Respuesta cruda de DeepSeek.
+ * @param {string|null} [textoOferta] - Texto de la oferta (título + descripción) para contraste contextual.
  * @returns {{ match: boolean, porcentaje: number|null, razon: string, prioridad_ia: boolean, evidencias_prioridad_ia: string[], explicacion: Object, desglose_disponible: boolean, error?: boolean, inconsistente?: boolean, invalido?: boolean }}
  */
-function parsearRespuestaEvaluacionIa(respuestaTexto) {
+function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
     const textoLimpio = limpiarFencesMarkdown(respuestaTexto);
 
     let respuesta;
@@ -274,7 +314,7 @@ function parsearRespuestaEvaluacionIa(respuestaTexto) {
         && respuesta.evidencias_prioridad_ia.length <= 3
         && respuesta.evidencias_prioridad_ia.every((evidencia) => typeof evidencia === 'string');
 
-    const coherencia = validarCoherenciaRespuesta(respuesta.match, porcentaje, explicacion);
+    const coherencia = validarCoherenciaRespuesta(respuesta.match, porcentaje, explicacion, textoOferta);
     if (coherencia.inconsistente) {
         razon = `${razon} [Inconsistencia detectada: ${coherencia.motivo}]`;
     }
@@ -306,6 +346,9 @@ module.exports = {
     normalizarExplicacion,
     validarCoherenciaRespuesta,
     UMBRAL_MATCH_MINIMO,
+    PATRON_OPCIONAL_EVIDENCIA,
+    PATRON_NEGACION_EVIDENCIA,
+    normalizarTextoComparacion,
     // Exporto funciones internas para testing unitario.
     _internas: {
         limpiarFencesMarkdown,
@@ -313,6 +356,9 @@ module.exports = {
         sanitizarItemExplicacion,
         normalizarExplicacion,
         validarCoherenciaRespuesta,
+        normalizarTextoComparacion,
+        PATRON_OPCIONAL_EVIDENCIA,
+        PATRON_NEGACION_EVIDENCIA,
         UMBRAL_MATCH_MINIMO,
         RAZON_FALLBACK_MATCH,
         RAZON_FALLBACK_NO_MATCH,

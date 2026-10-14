@@ -174,4 +174,39 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
             explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [] }
         } as any)).toBe(false);
     });
+
+    it('renderiza banner de reevaluación no aplicada cuando existe firma_criterios_evaluacion previa (O-01)', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'aprobada',
+            evaluacion_error_mensaje: 'Error de conexión con la IA al reevaluar',
+            firma_criterios_evaluacion: 'firma-valida-previa',
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Última reevaluación no aplicada');
+        expect(texto).toContain('Se conserva la evaluación anterior válida. Motivo: Error de conexión con la IA al reevaluar');
+        expect(texto).not.toContain('Evaluación no completada');
+    });
+
+    it('renderiza banner neutral de evaluación no completada cuando firma_criterios_evaluacion es null (O-01)', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'rechazada',
+            evaluacion_error_mensaje: 'No se pudo interpretar la respuesta de DeepSeek',
+            firma_criterios_evaluacion: null,
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Evaluación no completada');
+        expect(texto).toContain('La evaluación no pudo completarse satisfactoriamente. Motivo: No se pudo interpretar la respuesta de DeepSeek');
+        expect(texto).not.toContain('Última reevaluación no aplicada');
+        expect(texto).not.toContain('Se conserva la evaluación anterior válida');
+    });
 });

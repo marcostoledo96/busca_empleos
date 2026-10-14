@@ -76,8 +76,13 @@
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                     <div class="alerta-desactualizada-texto">
-                        <strong>Última reevaluación no aplicada</strong>
-                        <span>Se conserva la evaluación anterior válida. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                        @if (o.firma_criterios_evaluacion) {
+                            <strong>Última reevaluación no aplicada</strong>
+                            <span>Se conserva la evaluación anterior válida. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                        } @else {
+                            <strong>Evaluación no completada</strong>
+                            <span>La evaluación no pudo completarse satisfactoriamente. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                        }
                     </div>
                 </div>
             }
