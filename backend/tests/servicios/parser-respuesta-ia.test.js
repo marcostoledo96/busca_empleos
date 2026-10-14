@@ -649,6 +649,28 @@ describe('Parser respuesta IA', () => {
             expect(resultado.error).toBe(true);
             expect(resultado.razon).toContain('Inconsistencia detectada');
         });
+
+        test('Caso 4 (B-03): Palabra aislada de tecnología citada como exclusión pero contextualizada como deseable en la oferta es inconsistente e inválido', () => {
+            const textoOferta = 'Buscamos Desarrollador Angular. Requisitos: TypeScript y CSS. Java deseable, no excluyente.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Angular', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No maneja Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
     });
 
     // ──────────────────────────────────────────────────────────

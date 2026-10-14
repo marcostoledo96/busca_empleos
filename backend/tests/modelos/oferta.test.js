@@ -616,4 +616,91 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(resultado.limite_pagina).toBeNull();
         });
     });
+
+    // === actualizarDescripcionManual() y CAS (Issue #17 / B-08) ===
+
+    describe('actualizarDescripcionManual() y CAS de evaluación', () => {
+        test('actualizarDescripcionManual() actualiza campos, preserva original y resetea a pendiente', async () => {
+            const creada = await modeloOferta.crearOferta(ofertaEjemplo);
+            const nuevaDescripcion = 'Esta es una nueva descripción completa pegada manualmente por el usuario para la oferta.';
+
+            const actualizada = await modeloOferta.actualizarDescripcionManual(creada.id, nuevaDescripcion);
+
+            expect(actualizada).not.toBeNull();
+            expect(actualizada.descripcion).toBe(nuevaDescripcion);
+            expect(actualizada.descripcion_original).toBe(ofertaEjemplo.descripcion);
+            expect(actualizada.origen_descripcion).toBe('manual');
+            expect(actualizada.descripcion_completitud).toBe('completa');
+            expect(actualizada.descripcion_modificada_en).toBeInstanceOf(Date);
+            expect(actualizada.estado_evaluacion).toBe('pendiente');
+            expect(actualizada.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
+
+            // Segunda edición manual: debe conservar la primera descripción_original intacta
+            const segundaEdicion = 'Segunda modificación manual con longitud suficiente de más de veinte caracteres para validar.';
+            const actualizada2 = await modeloOferta.actualizarDescripcionManual(creada.id, segundaEdicion);
+            expect(actualizada2.descripcion_original).toBe(ofertaEjemplo.descripcion);
+            expect(actualizada2.descripcion).toBe(segundaEdicion);
+        });
+
+        test('actualizarEvaluacion() con CAS protege contra carreras cuando descripcion_modificada_en cambió', async () => {
+            const creada = await modeloOferta.crearOferta(ofertaEjemplo);
+            expect(creada.descripcion_modificada_en).toBeNull();
+
+            // CAS exitoso: snapshot fechaModificacionEsperada = null coincide con la BD
+            const eval1 = await modeloOferta.actualizarEvaluacion(
+                creada.id,
+                'aprobada',
+                'Coincide',
+                90,
+                null,
+                null,
+                'firma-v1',
+                null,
+                creada.descripcion,
+                creada.descripcion_modificada_en
+            );
+            expect(eval1).not.toBeNull();
+            expect(eval1.estado_evaluacion).toBe('aprobada');
+
+            // Usuario edita manualmente la descripción (incluso si guarda el mismo texto)
+            const manual = await modeloOferta.actualizarDescripcionManual(creada.id, creada.descripcion);
+            expect(manual.estado_evaluacion).toBe('pendiente');
+            expect(manual.descripcion_modificada_en).not.toBeNull();
+
+            // Worker intenta escribir con el snapshot viejo (fechaModificacionEsperada = null):
+            // Debe fallar el CAS (retornar null) para no sobrescribir el estado pendiente
+            const carreraEval = await modeloOferta.actualizarEvaluacion(
+                creada.id,
+                'aprobada',
+                'Resultado viejo',
+                85,
+                null,
+                null,
+                'firma-vieja',
+                null,
+                creada.descripcion,
+                null
+            );
+            expect(carreraEval).toBeNull();
+
+            // La oferta en BD debe permanecer pendiente
+            const ofertaEnBd = await modeloOferta.obtenerOfertaPorId(creada.id);
+            expect(ofertaEnBd.estado_evaluacion).toBe('pendiente');
+            expect(ofertaEnBd.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
+        });
+
+        test('registrarErrorEvaluacion() con CAS retorna null cuando fechaModificacionEsperada no coincide', async () => {
+            const creada = await modeloOferta.crearOferta(ofertaEjemplo);
+            await modeloOferta.actualizarDescripcionManual(creada.id, creada.descripcion);
+
+            // Intento registrar error con snapshot viejo (null)
+            const resError = await modeloOferta.registrarErrorEvaluacion(
+                creada.id,
+                'Error viejo',
+                creada.descripcion,
+                null
+            );
+            expect(resError).toBeNull();
+        });
+    });
 });

@@ -220,6 +220,22 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion, textoOferta 
                     if (!evidenciaNormalizada || !textoOfertaNormalizado.includes(evidenciaNormalizada)) {
                         return false;
                     }
+
+                    // Verifico que en el texto del aviso, las oraciones o cláusulas que contienen la cita
+                    // no sean exclusivamente opcionales o deseables (evita falsos rechazos por palabras aisladas)
+                    const oraciones = String(textoOferta)
+                        .split(/[.!?;\n•\-]+/)
+                        .map((o) => normalizarTextoComparacion(o))
+                        .filter(Boolean);
+                    const oracionesConEvidencia = oraciones.filter((o) => o.includes(evidenciaNormalizada));
+                    if (oracionesConEvidencia.length > 0) {
+                        const algunaEsValida = oracionesConEvidencia.some(
+                            (o) => !PATRON_OPCIONAL_EVIDENCIA.test(o) && !PATRON_NEGACION_EVIDENCIA.test(o)
+                        );
+                        if (!algunaEsValida) {
+                            return false;
+                        }
+                    }
                 }
 
                 return true;
