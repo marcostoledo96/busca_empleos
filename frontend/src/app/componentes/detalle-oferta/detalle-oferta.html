@@ -72,6 +72,14 @@
                         <span>La descripción o los criterios se modificaron. Podés solicitar la reevaluación para refrescar el análisis.</span>
                     </div>
                 </div>
+            } @else if (o.evaluacion_error_mensaje) {
+                <div class="alerta-desactualizada" role="status" aria-live="polite">
+                    <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                    <div class="alerta-desactualizada-texto">
+                        <strong>Última reevaluación no aplicada</strong>
+                        <span>Se conserva la evaluación anterior válida. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                    </div>
+                </div>
             }
 
             <!-- Mensaje temporal de reevaluación -->

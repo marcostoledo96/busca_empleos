@@ -369,6 +369,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
             aprobadas: 0,
             rechazadas: 0,
             errores: 0,
+            supersedidas: 0,
             detalle: [],
         };
 
@@ -411,10 +412,12 @@ async function evaluarOfertasPendientes(seleccionadas) {
                 )
             ) ? resultado.explicacion : null;
 
+            let resActualizacion = null;
+
             if (conservarAnterior) {
-                await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje);
+                resActualizacion = await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje, oferta.descripcion);
             } else if (esInconsistente) {
-                await modeloOferta.actualizarEvaluacion(
+                resActualizacion = await modeloOferta.actualizarEvaluacion(
                     oferta.id,
                     'pendiente',
                     resultado.razon,
@@ -426,7 +429,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     oferta.descripcion
                 );
             } else if (explicacionParaGuardar) {
-                const resActualizacion = await modeloOferta.actualizarEvaluacion(
+                resActualizacion = await modeloOferta.actualizarEvaluacion(
                     oferta.id,
                     estado,
                     resultado.razon,
@@ -437,52 +440,67 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     explicacionParaGuardar,
                     oferta.descripcion
                 );
-                // Si la oferta fue modificada concurrentemente, resActualizacion es null y no guardamos en caché.
-                if (resActualizacion !== null && opciones.guardarCache) {
-                    await opciones.guardarCache();
-                }
             } else {
-                const resActualizacion = await modeloOferta.actualizarEvaluacion(
+                resActualizacion = await modeloOferta.actualizarEvaluacion(
                     oferta.id,
                     estado,
                     resultado.razon,
                     resultado.porcentaje,
                     errorMensaje,
                     resultado.prioridad_ia || null,
-                    resultado.error ? null : resultado.firma_criterios_evaluacion
+                    resultado.error ? null : resultado.firma_criterios_evaluacion,
+                    null,
+                    oferta.descripcion
                 );
-                if (resActualizacion !== null && opciones.guardarCache) {
-                    await opciones.guardarCache();
-                }
             }
 
-            progresoEvaluacion.procesadas++;
-            if (tieneFallo) {
-                resumen.errores++;
-                progresoEvaluacion.errores++;
-                progresoEvaluacion.mensaje_error = resultado.razon;
+            if (resActualizacion === null) {
+                // La oferta fue modificada concurrentemente (p. ej. el usuario editó la descripción).
+                // La evaluación se descarta como supersedida y la oferta permanece 'pendiente' con el nuevo texto.
+                progresoEvaluacion.procesadas++;
+                resumen.supersedidas = (resumen.supersedidas || 0) + 1;
+                resumen.detalle.push({
+                    id: oferta.id,
+                    titulo: oferta.titulo,
+                    estado: 'supersedida_concurrencia',
+                    razon: 'Evaluación descartada porque la oferta fue modificada concurrentemente; se conserva pendiente para el nuevo texto.',
+                    error: false,
+                    supersedida: true,
+                });
             } else {
-                progresoEvaluacion.evaluadas++;
-                if (resultado.match) {
-                    resumen.aprobadas++;
-                    progresoEvaluacion.aprobadas++;
-                } else {
-                    resumen.rechazadas++;
-                    progresoEvaluacion.rechazadas++;
+                if (opciones.guardarCache) {
+                    await opciones.guardarCache();
                 }
+
+                progresoEvaluacion.procesadas++;
+                if (tieneFallo) {
+                    resumen.errores++;
+                    progresoEvaluacion.errores++;
+                    progresoEvaluacion.mensaje_error = resultado.razon;
+                } else {
+                    progresoEvaluacion.evaluadas++;
+                    if (resultado.match) {
+                        resumen.aprobadas++;
+                        progresoEvaluacion.aprobadas++;
+                    } else {
+                        resumen.rechazadas++;
+                        progresoEvaluacion.rechazadas++;
+                    }
+                }
+
+                resumen.detalle.push({
+                    id: oferta.id,
+                    titulo: oferta.titulo,
+                    estado,
+                    razon: resultado.razon,
+                    error: tieneFallo,
+                });
             }
+
             progresoEvaluacion.pendientes = progresoEvaluacion.total - progresoEvaluacion.evaluadas;
             progresoEvaluacion.porcentaje = progresoEvaluacion.total > 0
                 ? Math.round((progresoEvaluacion.procesadas / progresoEvaluacion.total) * 100)
                 : 0;
-
-            resumen.detalle.push({
-                id: oferta.id,
-                titulo: oferta.titulo,
-                estado,
-                razon: resultado.razon,
-                error: tieneFallo,
-            });
 
             // Actualizo el lote en BD cada 5 ofertas (o en la última) para no
             // saturar PostgreSQL con writes. Si el servidor se reinicia, el

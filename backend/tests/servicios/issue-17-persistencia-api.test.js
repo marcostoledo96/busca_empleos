@@ -348,7 +348,7 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
         });
 
-        test('no confirma en caché si la oferta fue modificada concurrentemente durante la evaluación', async () => {
+        test('no confirma en caché ni suma aprobadas si la oferta fue modificada concurrentemente (B-06, B-07)', async () => {
             modeloPreferencia.obtenerPreferencias.mockResolvedValue({
                 nombre: 'Marcos',
                 stack_tecnologico: ['React'],
@@ -369,12 +369,12 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
                 match: true,
                 porcentaje: 90,
                 razon: 'Compatible',
-                explicacion: { cumplidos: [{ requisito: 'React' }], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
+                explicacion: { cumplidos: [{ requisito: 'React', tipo: 'obligatorio', evidencia_oferta: 'React' }], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
             });
 
             consultarDeepSeek.mockResolvedValueOnce(respuestaOk);
 
-            // Simulamos que la descripción cambió concurrentemente y el WHERE descripcion = $12 no encontró filas (rows: [])
+            // Simulamos que la descripción cambió concurrentemente y el CAS no encontró filas (rows: [])
             pool.query.mockImplementation(async (sql, params) => {
                 if (sql.includes('UPDATE ofertas')) {
                     return { rows: [] }; // 0 filas actualizadas por desajuste de descripción
@@ -382,10 +382,97 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
                 return { rows: [] };
             });
 
-            await evaluarOfertasPendientes([oferta]);
+            const resumen = await evaluarOfertasPendientes([oferta]);
 
-            // Como la actualización concurrente falló, NUNCA se guarda en caché
+            // Verificaciones B-06 y B-07:
+            // 1. Nunca se confirma en caché
             expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+            // 2. No se contabiliza como aprobada ni rechazada
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.rechazadas).toBe(0);
+            // 3. Se registra como supersedida por concurrencia
+            expect(resumen.supersedidas).toBe(1);
+            expect(resumen.detalle[0].estado).toBe('supersedida_concurrencia');
+            expect(resumen.detalle[0].supersedida).toBe(true);
+        });
+
+        test('carrera CAS cuando la descripción original era null y el usuario la completó concurrentemente (B-06)', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                nombre: 'Marcos',
+                stack_tecnologico: ['Node'],
+                zonas_preferidas: [],
+            });
+
+            const oferta = {
+                id: 28,
+                titulo: 'Desarrollador Backend',
+                descripcion: null, // Originalmente sin descripción
+                modalidad: 'remoto',
+                plataforma: 'computrabajo',
+                estado_evaluacion: 'pendiente',
+                fecha_extraccion: new Date().toISOString(),
+            };
+
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: true,
+                porcentaje: 85,
+                razon: 'Compatible',
+                explicacion: { cumplidos: [{ requisito: 'Node', tipo: 'obligatorio', evidencia_oferta: 'Node' }], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
+            }));
+
+            // El usuario pegó texto nuevo mientras DeepSeek evaluaba: el CAS con descripcion IS NOT DISTINCT FROM NULL retorna 0 filas
+            pool.query.mockImplementation(async (sql, params) => {
+                if (sql.includes('UPDATE ofertas')) {
+                    return { rows: [] };
+                }
+                return { rows: [] };
+            });
+
+            const resumen = await evaluarOfertasPendientes([oferta]);
+
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.supersedidas).toBe(1);
+            expect(resumen.detalle[0].estado).toBe('supersedida_concurrencia');
+        });
+
+        test('carrera CAS en rama sin desglose estructurado (B-06, B-07)', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                nombre: 'Marcos',
+                stack_tecnologico: ['Angular'],
+                zonas_preferidas: [],
+            });
+
+            const oferta = {
+                id: 29,
+                titulo: 'Frontend Angular',
+                descripcion: 'Texto previo',
+                modalidad: 'remoto',
+                plataforma: 'linkedin',
+                estado_evaluacion: 'pendiente',
+                fecha_extraccion: new Date().toISOString(),
+            };
+
+            // Respuesta legacy o mínima sin objeto explicacion
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: true,
+                porcentaje: 80,
+                razon: 'Compatible sin desglose',
+            }));
+
+            pool.query.mockImplementation(async (sql, params) => {
+                if (sql.includes('UPDATE ofertas')) {
+                    return { rows: [] };
+                }
+                return { rows: [] };
+            });
+
+            const resumen = await evaluarOfertasPendientes([oferta]);
+
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.supersedidas).toBe(1);
+            expect(resumen.detalle[0].estado).toBe('supersedida_concurrencia');
         });
     });
 

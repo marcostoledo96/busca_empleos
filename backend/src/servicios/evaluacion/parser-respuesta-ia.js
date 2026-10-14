@@ -176,15 +176,14 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion) {
     }
 
     // Caso 3: match: false con porcentaje alto (>= 60%).
-    // Solo es consistente si existe al menos una exclusión obligatoria justificada documentada con evidencia.
+    // Solo es consistente si existe al menos una exclusión obligatoria justificada con evidencia verificable de la oferta.
     if (match === false && porcentaje >= UMBRAL_MATCH_MINIMO) {
         const exclusionesValidas = Array.isArray(explicacion?.exclusiones)
             ? explicacion.exclusiones.filter((item) => {
                 if (!item || typeof item !== 'object') return false;
                 if (item.tipo !== 'obligatorio') return false;
-                const tieneEvidencia = typeof item.evidencia_oferta === 'string' && item.evidencia_oferta.trim().length > 0;
-                const tieneExplicacion = typeof item.explicacion === 'string' && item.explicacion.trim().length > 0;
-                return tieneEvidencia || tieneExplicacion;
+                const tieneEvidenciaOferta = typeof item.evidencia_oferta === 'string' && item.evidencia_oferta.trim().length > 0;
+                return tieneEvidenciaOferta;
             })
             : [];
 
@@ -192,7 +191,7 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion) {
             return {
                 inconsistente: true,
                 invalido: true,
-                motivo: `Respuesta contradictoria: match es false con porcentaje alto (${porcentaje}%) sin registrar ninguna exclusión obligatoria justificada con evidencia.`,
+                motivo: `Respuesta contradictoria: match es false con porcentaje alto (${porcentaje}%) sin registrar ninguna exclusión obligatoria justificada con evidencia verificable de la oferta.`,
             };
         }
     }

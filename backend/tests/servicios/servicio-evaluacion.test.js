@@ -932,7 +932,9 @@ describe('Servicio de evaluación con IA', () => {
                 82,
                 null,
                 expect.objectContaining({ detectada: true }),
-                expect.stringMatching(/^[a-f0-9]{64}$/)
+                expect.stringMatching(/^[a-f0-9]{64}$/),
+                null,
+                expect.any(String)
             );
         });
 
@@ -987,13 +989,15 @@ describe('Servicio de evaluación con IA', () => {
 
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
                 1, 'aprobada', 'Cumple con React y TypeScript.', 85, null,
-                expect.objectContaining({ detectada: false }), expect.stringMatching(/^[a-f0-9]{64}$/)
+                expect.objectContaining({ detectada: false }), expect.stringMatching(/^[a-f0-9]{64}$/),
+                null, expect.any(String)
             );
 
             // Segunda oferta: rechazada con porcentaje.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
                 3, 'rechazada', 'Requiere experiencia en Selenium que no tiene.', 20, null,
-                null, expect.stringMatching(/^[a-f0-9]{64}$/)
+                null, expect.stringMatching(/^[a-f0-9]{64}$/),
+                null, expect.any(String)
             );
         });
 
@@ -1086,7 +1090,8 @@ describe('Servicio de evaluación con IA', () => {
             // Verifico que se actualizó con rechazo.
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
                 10, 'rechazada', expect.stringContaining('Java'), 10, null,
-                null, expect.stringMatching(/^[a-f0-9]{64}$/)
+                null, expect.stringMatching(/^[a-f0-9]{64}$/),
+                null, expect.any(String)
             );
         });
 

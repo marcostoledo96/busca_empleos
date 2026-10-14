@@ -544,6 +544,23 @@ describe('Parser respuesta IA', () => {
             expect(resSinEvidencia.inconsistente).toBe(true);
             expect(resSinEvidencia.invalido).toBe(true);
             expect(resSinEvidencia.error).toBe(true);
+
+            // Caso 3: Exclusión obligatoria con explicación de IA pero SIN evidencia verificable del aviso
+            const respuestaExplicacionSinEvidencia = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por justificación autorreferencial sin cita',
+                explicacion: {
+                    cumplidos: [{ requisito: 'React', tipo: 'obligatorio', explicacion: 'OK' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', explicacion: 'Se requiere Java avanzado' }],
+                },
+            });
+            const resSinCita = parsearRespuestaEvaluacionIa(respuestaExplicacionSinEvidencia);
+            expect(resSinCita.inconsistente).toBe(true);
+            expect(resSinCita.invalido).toBe(true);
+            expect(resSinCita.error).toBe(true);
         });
 
         test('match: false con porcentaje >= 60% con exclusión explicada es VÁLIDO y coherente', () => {

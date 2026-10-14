@@ -371,8 +371,9 @@ async function obtenerOfertasPendientes() {
  * @param {Object|null} [explicacionEvaluacion] - Desglose explicable de evaluación.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null, descripcionEsperada = null) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null, descripcionEsperada = undefined) {
     const prioridad = prioridadIa || { detectada: false, puntaje: 0, evidencias: [], version: null };
+    const validarDescripcion = descripcionEsperada !== undefined;
     const resultado = await pool.query(
         `UPDATE ofertas
          SET estado_evaluacion = $1, razon_evaluacion = $2, porcentaje_match = $3,
@@ -381,7 +382,7 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
               evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9,
               firma_criterios_evaluacion = $10,
               explicacion_evaluacion = $11::jsonb
-         WHERE id = $4 AND ($12::text IS NULL OR $12 = descripcion)
+         WHERE id = $4 AND ($13::boolean = false OR descripcion IS NOT DISTINCT FROM $12)
          RETURNING *`,
         [
             estado,
@@ -395,7 +396,8 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
             prioridad.version,
             errorMensaje ? null : firmaCriterios,
             explicacionEvaluacion ? JSON.stringify(explicacionEvaluacion) : null,
-            descripcionEsperada
+            validarDescripcion ? descripcionEsperada : null,
+            validarDescripcion
         ]
     );
 
@@ -549,10 +551,11 @@ async function obtenerOfertasSeleccionadas(ids) {
 }
 
 // Registro el fallo sin reemplazar la evaluación válida ni los datos manuales.
-async function registrarErrorEvaluacion(id, mensaje) {
+async function registrarErrorEvaluacion(id, mensaje, descripcionEsperada = undefined) {
+    const validarDescripcion = descripcionEsperada !== undefined;
     const resultado = await pool.query(
-        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 RETURNING *',
-        [mensaje, id]
+        'UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 AND ($4::boolean = false OR descripcion IS NOT DISTINCT FROM $3) RETURNING *',
+        [mensaje, id, validarDescripcion ? descripcionEsperada : null, validarDescripcion]
     );
     return resultado.rows[0] || null;
 }
