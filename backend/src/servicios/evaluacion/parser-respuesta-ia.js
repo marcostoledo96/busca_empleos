@@ -111,7 +111,10 @@ function normalizarExplicacion(explicacionCruda) {
 
     if (!explicacionCruda || typeof explicacionCruda !== 'object' || Array.isArray(explicacionCruda)) {
         return {
-            explicacion: estructuraVacia,
+            explicacion: {
+                ...estructuraVacia,
+                desglose_disponible: false,
+            },
             desglose_disponible: false,
         };
     }
@@ -136,6 +139,7 @@ function normalizarExplicacion(explicacionCruda) {
             no_cumplidos: noCumplidos,
             por_confirmar: porConfirmar,
             exclusiones,
+            desglose_disponible: desgloseDisponible,
         },
         desglose_disponible: desgloseDisponible,
     };
@@ -172,14 +176,23 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion) {
     }
 
     // Caso 3: match: false con porcentaje alto (>= 60%).
-    // Solo es consistente si existe al menos una exclusión justificada documentada.
+    // Solo es consistente si existe al menos una exclusión obligatoria justificada documentada con evidencia.
     if (match === false && porcentaje >= UMBRAL_MATCH_MINIMO) {
-        const tieneExclusiones = Array.isArray(explicacion?.exclusiones) && explicacion.exclusiones.length > 0;
-        if (!tieneExclusiones) {
+        const exclusionesValidas = Array.isArray(explicacion?.exclusiones)
+            ? explicacion.exclusiones.filter((item) => {
+                if (!item || typeof item !== 'object') return false;
+                if (item.tipo !== 'obligatorio') return false;
+                const tieneEvidencia = typeof item.evidencia_oferta === 'string' && item.evidencia_oferta.trim().length > 0;
+                const tieneExplicacion = typeof item.explicacion === 'string' && item.explicacion.trim().length > 0;
+                return tieneEvidencia || tieneExplicacion;
+            })
+            : [];
+
+        if (exclusionesValidas.length === 0) {
             return {
                 inconsistente: true,
                 invalido: true,
-                motivo: `Respuesta contradictoria: match es false con porcentaje alto (${porcentaje}%) sin registrar ninguna exclusión obligatoria justificada.`,
+                motivo: `Respuesta contradictoria: match es false con porcentaje alto (${porcentaje}%) sin registrar ninguna exclusión obligatoria justificada con evidencia.`,
             };
         }
     }
@@ -282,6 +295,7 @@ function parsearRespuestaEvaluacionIa(respuestaTexto) {
     if (coherencia.inconsistente) {
         resultado.inconsistente = true;
         resultado.invalido = true;
+        resultado.error = true;
     }
 
     return resultado;

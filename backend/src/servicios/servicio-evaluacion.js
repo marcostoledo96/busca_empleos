@@ -114,9 +114,15 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         modeloFinal = identidad.criterios.modelo;
         const firma = identidad.firma_criterios_evaluacion;
         async function guardarResultado(resultado) {
-            const firmado = { ...resultado, firma_criterios_evaluacion: firma };
+            const firmado = {
+                ...resultado,
+                firma_criterios_evaluacion: (resultado.error || resultado.invalido || resultado.inconsistente) ? null : firma,
+            };
             // La caché es opcional; en el worker la confirmo después del UPDATE.
             const confirmar = async () => {
+                if (resultado.error || resultado.invalido || resultado.inconsistente) {
+                    return;
+                }
                 try {
                     await evaluacionCache.guardarCache(identidad.hash_oferta, firma, modeloFinal, firmado);
                 } catch (errorCache) {
@@ -230,7 +236,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto);
 
         // Si el parser no pudo interpretar la respuesta, devuelvo rechazo seguro.
-        if (respuesta.error) {
+        if (respuesta.error && !respuesta.inconsistente) {
             return {
                 match: false,
                 porcentaje: 15,
@@ -280,6 +286,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             desglose_disponible: respuesta.desglose_disponible,
             ...(respuesta.inconsistente ? { inconsistente: true } : {}),
             ...(respuesta.invalido ? { invalido: true } : {}),
+            ...(respuesta.error ? { error: true } : {}),
         });
 
     } catch (error) {
@@ -385,12 +392,14 @@ async function evaluarOfertasPendientes(seleccionadas) {
             const forzar = Boolean(seleccionadas) || oferta.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA';
             const opciones = { forzar, diferirCache: true };
             const resultado = await evaluarOferta(oferta, instrucciones, modeloIA, prefs, opciones);
-            const conservarAnterior = forzar && resultado.error
+            const esInconsistente = Boolean(resultado.invalido || resultado.inconsistente);
+            const tieneFallo = Boolean(resultado.error || esInconsistente);
+            const conservarAnterior = forzar && tieneFallo
                 && ['aprobada', 'rechazada'].includes(oferta.estado_evaluacion)
                 && Boolean(oferta.fecha_evaluacion)
                 && (!oferta.evaluacion_error_mensaje || oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
-            const estado = conservarAnterior ? oferta.estado_evaluacion : resultado.match ? 'aprobada' : 'rechazada';
-            const errorMensaje = resultado.error ? resultado.razon : null;
+            const estado = conservarAnterior ? oferta.estado_evaluacion : (esInconsistente ? 'pendiente' : (resultado.match ? 'aprobada' : 'rechazada'));
+            const errorMensaje = tieneFallo ? resultado.razon : null;
 
             const explicacionParaGuardar = (
                 resultado.explicacion && (
@@ -404,23 +413,51 @@ async function evaluarOfertasPendientes(seleccionadas) {
 
             if (conservarAnterior) {
                 await modeloOferta.registrarErrorEvaluacion(oferta.id, errorMensaje);
+            } else if (esInconsistente) {
+                await modeloOferta.actualizarEvaluacion(
+                    oferta.id,
+                    'pendiente',
+                    resultado.razon,
+                    null,
+                    resultado.razon,
+                    null,
+                    null,
+                    explicacionParaGuardar,
+                    oferta.descripcion
+                );
             } else if (explicacionParaGuardar) {
-                await modeloOferta.actualizarEvaluacion(
-                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
-                    resultado.prioridad_ia || null, resultado.error ? null : resultado.firma_criterios_evaluacion,
-                    explicacionParaGuardar
+                const resActualizacion = await modeloOferta.actualizarEvaluacion(
+                    oferta.id,
+                    estado,
+                    resultado.razon,
+                    resultado.porcentaje,
+                    errorMensaje,
+                    resultado.prioridad_ia || null,
+                    resultado.error ? null : resultado.firma_criterios_evaluacion,
+                    explicacionParaGuardar,
+                    oferta.descripcion
                 );
+                // Si la oferta fue modificada concurrentemente, resActualizacion es null y no guardamos en caché.
+                if (resActualizacion !== null && opciones.guardarCache) {
+                    await opciones.guardarCache();
+                }
             } else {
-                await modeloOferta.actualizarEvaluacion(
-                    oferta.id, estado, resultado.razon, resultado.porcentaje, errorMensaje,
-                    resultado.prioridad_ia || null, resultado.error ? null : resultado.firma_criterios_evaluacion
+                const resActualizacion = await modeloOferta.actualizarEvaluacion(
+                    oferta.id,
+                    estado,
+                    resultado.razon,
+                    resultado.porcentaje,
+                    errorMensaje,
+                    resultado.prioridad_ia || null,
+                    resultado.error ? null : resultado.firma_criterios_evaluacion
                 );
+                if (resActualizacion !== null && opciones.guardarCache) {
+                    await opciones.guardarCache();
+                }
             }
-            // Nunca consolido un resultado cuyo UPDATE falló.
-            if (opciones.guardarCache) await opciones.guardarCache();
 
             progresoEvaluacion.procesadas++;
-            if (resultado.error) {
+            if (tieneFallo) {
                 resumen.errores++;
                 progresoEvaluacion.errores++;
                 progresoEvaluacion.mensaje_error = resultado.razon;
@@ -444,7 +481,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
                 titulo: oferta.titulo,
                 estado,
                 razon: resultado.razon,
-                error: resultado.error || false,
+                error: tieneFallo,
             });
 
             // Actualizo el lote en BD cada 5 ofertas (o en la última) para no

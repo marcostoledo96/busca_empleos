@@ -518,6 +518,7 @@ function construirDesgloseExclusion(exclusionesDetectadas = [], oferta = {}) {
         no_cumplidos: [...items],
         por_confirmar: [],
         exclusiones: [...items],
+        desglose_disponible: items.length > 0,
     };
 }
 

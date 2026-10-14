@@ -292,6 +292,101 @@ describe('Issue #17 (Work Unit 2) — Persistencia de Explicación y Edición Ma
             expect(explicacionPersistida.cumplidos).toBeDefined();
             expect(explicacionPersistida.cumplidos.length).toBeGreaterThan(0);
         });
+
+        test('persiste estado pendiente con evaluacion_error_mensaje y no guarda en caché si la respuesta es inconsistente (B-02)', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                nombre: 'Marcos',
+                stack_tecnologico: ['React'],
+                zonas_preferidas: [],
+            });
+
+            const ofertaInconsistente = {
+                id: 26,
+                titulo: 'Desarrollador React Junior',
+                descripcion: 'Puesto junior React con buen ambiente laboral.',
+                modalidad: 'remoto',
+                plataforma: 'linkedin',
+                estado_evaluacion: 'pendiente',
+                fecha_extraccion: new Date().toISOString(),
+            };
+
+            // Respuesta inconsistente: match true con score bajo sin justificación
+            const respuestaInconsistente = JSON.stringify({
+                match: true,
+                porcentaje: 20,
+                razon: 'Aprobada por la IA a pesar del score bajo',
+                explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
+            });
+
+            consultarDeepSeek.mockResolvedValueOnce(respuestaInconsistente);
+
+            pool.query.mockImplementation(async (sql, params) => {
+                if (sql.includes('UPDATE ofertas') && sql.includes('explicacion_evaluacion')) {
+                    return { rows: [{ id: 26, estado_evaluacion: 'pendiente' }] };
+                }
+                return { rows: [] };
+            });
+
+            const resumen = await evaluarOfertasPendientes([ofertaInconsistente]);
+
+            expect(resumen.errores).toBe(1);
+            expect(resumen.aprobadas).toBe(0);
+
+            // Verifico que se llamó al UPDATE con estado pendiente y porcentaje null
+            const llamadaUpdateOferta = pool.query.mock.calls.find(
+                ([sql]) => sql.includes('UPDATE ofertas') && sql.includes('explicacion_evaluacion = $11::jsonb')
+            );
+
+            expect(llamadaUpdateOferta).toBeDefined();
+            const paramsUpdate = llamadaUpdateOferta[1];
+            expect(paramsUpdate[0]).toBe('pendiente'); // estado_evaluacion
+            expect(paramsUpdate[2]).toBeNull();        // porcentaje_match null
+            expect(paramsUpdate[4]).toContain('Inconsistencia detectada'); // evaluacion_error_mensaje
+            expect(paramsUpdate[9]).toBeNull();        // firma null
+
+            // Verifico que NUNCA se guardó en caché
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+        });
+
+        test('no confirma en caché si la oferta fue modificada concurrentemente durante la evaluación', async () => {
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue({
+                nombre: 'Marcos',
+                stack_tecnologico: ['React'],
+                zonas_preferidas: [],
+            });
+
+            const oferta = {
+                id: 27,
+                titulo: 'Desarrollador React',
+                descripcion: 'Descripción original al momento de arrancar la llamada a DeepSeek.',
+                modalidad: 'remoto',
+                plataforma: 'linkedin',
+                estado_evaluacion: 'pendiente',
+                fecha_extraccion: new Date().toISOString(),
+            };
+
+            const respuestaOk = JSON.stringify({
+                match: true,
+                porcentaje: 90,
+                razon: 'Compatible',
+                explicacion: { cumplidos: [{ requisito: 'React' }], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
+            });
+
+            consultarDeepSeek.mockResolvedValueOnce(respuestaOk);
+
+            // Simulamos que la descripción cambió concurrentemente y el WHERE descripcion = $12 no encontró filas (rows: [])
+            pool.query.mockImplementation(async (sql, params) => {
+                if (sql.includes('UPDATE ofertas')) {
+                    return { rows: [] }; // 0 filas actualizadas por desajuste de descripción
+                }
+                return { rows: [] };
+            });
+
+            await evaluarOfertasPendientes([oferta]);
+
+            // Como la actualización concurrente falló, NUNCA se guarda en caché
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+        });
     });
 
     describe('Normalización y defaults en Bumeran y modeloOferta.crearOferta', () => {

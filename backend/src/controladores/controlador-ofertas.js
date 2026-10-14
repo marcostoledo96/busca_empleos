@@ -22,6 +22,21 @@ async function agregarVigencia(ofertas) {
     return ofertas.map(oferta => ({ ...oferta, vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma) }));
 }
 
+function validarIdEnteroPositivo(idParam) {
+    if (typeof idParam !== 'string' && typeof idParam !== 'number') {
+        return null;
+    }
+    const idStr = String(idParam).trim();
+    if (!/^\d+$/.test(idStr)) {
+        return null;
+    }
+    const id = Number(idStr);
+    if (!Number.isSafeInteger(id) || id <= 0) {
+        return null;
+    }
+    return id;
+}
+
 /**
  * GET /api/ofertas
  * Retorno la lista de ofertas, con filtros y sorting opcionales por query params.
@@ -163,9 +178,9 @@ async function obtenerOferta(req, res) {
     // Valido que el ID sea un número entero positivo.
     // Esto es validación en el BOUNDARY del sistema (la API HTTP),
     // que es donde corresponde validar input externo.
-    const id = parseInt(req.params.id, 10);
+    const id = validarIdEnteroPositivo(req.params.id);
 
-    if (isNaN(id) || id <= 0) {
+    if (id === null) {
         return res.status(400).json({
             exito: false,
             error: 'El ID debe ser un número entero positivo.',
@@ -194,9 +209,9 @@ async function obtenerOferta(req, res) {
  * Body: { estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada' }
  */
 async function actualizarPostulacion(req, res) {
-    const id = parseInt(req.params.id, 10);
+    const id = validarIdEnteroPositivo(req.params.id);
 
-    if (isNaN(id) || id <= 0) {
+    if (id === null) {
         return res.status(400).json({
             exito: false,
             error: 'El ID debe ser un número entero positivo.',
@@ -286,9 +301,9 @@ async function actualizarPostulacionMasiva(req, res) {
  * Body: { descripcion: 'texto de 20 a 50000 caracteres' }
  */
 async function actualizarDescripcion(req, res) {
-    const id = parseInt(req.params.id, 10);
+    const id = validarIdEnteroPositivo(req.params.id);
 
-    if (isNaN(id) || id <= 0) {
+    if (id === null) {
         return res.status(400).json({
             exito: false,
             error: 'El ID debe ser un número entero positivo.',

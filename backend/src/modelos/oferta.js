@@ -371,7 +371,7 @@ async function obtenerOfertasPendientes() {
  * @param {Object|null} [explicacionEvaluacion] - Desglose explicable de evaluación.
  * @returns {Object|null} La oferta actualizada, o null si el ID no existe.
  */
-async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null) {
+async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorMensaje = null, prioridadIa = null, firmaCriterios = null, explicacionEvaluacion = null, descripcionEsperada = null) {
     const prioridad = prioridadIa || { detectada: false, puntaje: 0, evidencias: [], version: null };
     const resultado = await pool.query(
         `UPDATE ofertas
@@ -381,7 +381,7 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
               evidencias_prioridad_ia = $8::jsonb, version_prioridad_ia = $9,
               firma_criterios_evaluacion = $10,
               explicacion_evaluacion = $11::jsonb
-         WHERE id = $4
+         WHERE id = $4 AND ($12::text IS NULL OR $12 = descripcion)
          RETURNING *`,
         [
             estado,
@@ -394,7 +394,8 @@ async function actualizarEvaluacion(id, estado, razon, porcentaje = null, errorM
             JSON.stringify(prioridad.evidencias || []),
             prioridad.version,
             errorMensaje ? null : firmaCriterios,
-            explicacionEvaluacion ? JSON.stringify(explicacionEvaluacion) : null
+            explicacionEvaluacion ? JSON.stringify(explicacionEvaluacion) : null,
+            descripcionEsperada
         ]
     );
 
@@ -595,7 +596,11 @@ async function actualizarDescripcionManual(id, nuevaDescripcion) {
              descripcion_completitud = 'completa',
              descripcion_modificada_en = NOW(),
              estado_evaluacion = 'pendiente',
-             evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'
+             evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA',
+             porcentaje_match = NULL,
+             razon_evaluacion = 'Descripción modificada manualmente; requiere reevaluación.',
+             explicacion_evaluacion = NULL,
+             firma_criterios_evaluacion = NULL
          WHERE id = $2
          RETURNING *`,
         [descripcionLimpia, idNumerico]

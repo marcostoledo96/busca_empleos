@@ -189,8 +189,22 @@ export class DetalleOferta implements OnDestroy {
         });
     }
 
+    // Evalúa de forma robusta si la oferta cuenta con desglose estructurado disponible.
+    tieneDesglose(oferta: Oferta | null): boolean {
+        if (!oferta?.explicacion_evaluacion) return false;
+        const exp = oferta.explicacion_evaluacion;
+        if (exp.desglose_disponible === true) return true;
+        return (
+            (Array.isArray(exp.cumplidos) && exp.cumplidos.length > 0) ||
+            (Array.isArray(exp.no_cumplidos) && exp.no_cumplidos.length > 0) ||
+            (Array.isArray(exp.exclusiones) && exp.exclusiones.length > 0) ||
+            (Array.isArray(exp.por_confirmar) && exp.por_confirmar.length > 0)
+        );
+    }
+
     // Inicia el modo de edición de la descripción copiando el texto actual.
     iniciarEdicionDescripcion(): void {
+        if (this.modoDemo()) return;
         const o = this.oferta();
         this.nuevaDescripcion.set(o?.descripcion ?? '');
         this.errorEdicionDescripcion.set(null);
@@ -205,6 +219,7 @@ export class DetalleOferta implements OnDestroy {
 
     // Valida y guarda la nueva descripción en el backend.
     guardarDescripcion(): void {
+        if (this.modoDemo()) return;
         const o = this.oferta();
         if (!o) return;
 
@@ -240,6 +255,7 @@ export class DetalleOferta implements OnDestroy {
 
     // Solicita reevaluación de la oferta con los criterios vigentes.
     solicitarReevaluacion(): void {
+        if (this.modoDemo()) return;
         const o = this.oferta();
         if (!o) return;
 

@@ -137,6 +137,7 @@ describe('Parser respuesta IA', () => {
                 no_cumplidos: [],
                 por_confirmar: [],
                 exclusiones: [],
+                desglose_disponible: false,
             });
         });
 
@@ -466,6 +467,7 @@ describe('Parser respuesta IA', () => {
                 no_cumplidos: [],
                 por_confirmar: [],
                 exclusiones: [],
+                desglose_disponible: false,
             });
         });
     });
@@ -483,6 +485,7 @@ describe('Parser respuesta IA', () => {
             expect(resultado.match).toBe(true); // No se altera silenciosamente
             expect(resultado.inconsistente).toBe(true);
             expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
             expect(resultado.razon).toContain('Inconsistencia detectada');
         });
 
@@ -503,7 +506,44 @@ describe('Parser respuesta IA', () => {
             expect(resultado.match).toBe(false);
             expect(resultado.inconsistente).toBe(true);
             expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
             expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
+
+        test('match: false con porcentaje >= 60% y exclusión deseable o sin evidencia es inconsistente (B-03)', () => {
+            // Caso 1: Exclusión con tipo deseable
+            const respuestaDeseable = JSON.stringify({
+                match: false,
+                porcentaje: 80,
+                razon: 'Rechazada por deseable',
+                explicacion: {
+                    cumplidos: [{ requisito: 'React', tipo: 'obligatorio', explicacion: 'OK' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Docker', tipo: 'deseable', evidencia_oferta: 'Deseable Docker' }],
+                },
+            });
+            const resDeseable = parsearRespuestaEvaluacionIa(respuestaDeseable);
+            expect(resDeseable.inconsistente).toBe(true);
+            expect(resDeseable.invalido).toBe(true);
+            expect(resDeseable.error).toBe(true);
+
+            // Caso 2: Exclusión obligatoria pero sin evidencia_oferta ni explicacion
+            const respuestaSinEvidencia = JSON.stringify({
+                match: false,
+                porcentaje: 80,
+                razon: 'Rechazada sin evidencia',
+                explicacion: {
+                    cumplidos: [{ requisito: 'React', tipo: 'obligatorio', explicacion: 'OK' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: '', explicacion: '' }],
+                },
+            });
+            const resSinEvidencia = parsearRespuestaEvaluacionIa(respuestaSinEvidencia);
+            expect(resSinEvidencia.inconsistente).toBe(true);
+            expect(resSinEvidencia.invalido).toBe(true);
+            expect(resSinEvidencia.error).toBe(true);
         });
 
         test('match: false con porcentaje >= 60% con exclusión explicada es VÁLIDO y coherente', () => {
@@ -524,6 +564,7 @@ describe('Parser respuesta IA', () => {
             expect(resultado.porcentaje).toBe(85);
             expect(resultado.inconsistente).toBeUndefined();
             expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
         });
     });
 

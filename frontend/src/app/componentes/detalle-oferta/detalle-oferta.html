@@ -49,7 +49,7 @@
                 <span class="tag-detalle" [attr.data-estado]="o.estado_evaluacion">
                     {{ o.estado_evaluacion | uppercase }}
                 </span>
-                @if (o.porcentaje_match !== null) {
+                @if (o.porcentaje_match !== null && o.estado_evaluacion !== 'pendiente' && o.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA') {
                     <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
                 }
                 @if (o.nivel_requerido) {
@@ -104,7 +104,7 @@
             <div class="detalle-seccion seccion-matching">
                 <div class="seccion-cabecera-matching">
                     <span class="seccion-label">EVALUACIÓN Y MATCHING</span>
-                    @if (o.porcentaje_match !== null) {
+                    @if (o.porcentaje_match !== null && o.estado_evaluacion !== 'pendiente' && o.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA') {
                         <span class="compatibilidad-destacada">
                             Compatibilidad estimada: {{ o.porcentaje_match }}%
                         </span>
@@ -115,7 +115,7 @@
                     <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
                 }
 
-                @if (o.explicacion_evaluacion?.desglose_disponible) {
+                @if (tieneDesglose(o)) {
                     <!-- Advertencia si el score es alto pero fue rechazada por exclusión -->
                     @if (o.estado_evaluacion === 'rechazada' && (o.porcentaje_match ?? 0) >= 70 && (o.explicacion_evaluacion?.exclusiones?.length ?? 0) > 0) {
                         <div class="alerta-exclusion-score-alto" role="alert">
@@ -331,8 +331,8 @@
                         }
                     </div>
 
-                    <!-- Botones de acción en modo visualización -->
-                    @if (!modoEdicionDescripcion()) {
+                    <!-- Botones de acción en modo visualización (solo fuera de modo demo) -->
+                    @if (!modoEdicionDescripcion() && !modoDemo()) {
                         <div class="descripcion-acciones">
                             <button
                                 type="button"
@@ -343,7 +343,7 @@
                                 {{ (o.descripcion_completitud === 'parcial' || o.origen_descripcion === 'tarjeta' || !o.descripcion) ? 'Completar descripción' : 'Editar descripción' }}
                             </button>
 
-                            @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || !o.explicacion_evaluacion?.desglose_disponible) {
+                            @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || !tieneDesglose(o)) {
                                 <button
                                     type="button"
                                     class="btn-accion-editorial btn-reevaluar-oferta"
@@ -373,7 +373,7 @@
                             Sin descripción registrada. Podés completarla manualmente haciendo clic en "Completar descripción".
                         </div>
                     }
-                } @else {
+                } @else if (!modoDemo()) {
                     <!-- Modo edición de la descripción -->
                     <div class="formulario-edicion">
                         <textarea

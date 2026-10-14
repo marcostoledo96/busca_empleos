@@ -362,12 +362,19 @@ describe('Controlador de ofertas', () => {
             expect(res.body.error).toContain('no encontrada');
         });
 
-        test('retorna 400 si el ID no es un número válido', async () => {
+        test('retorna 400 si el ID no es un número válido o contiene caracteres no numéricos', async () => {
             const res = await request(app).get('/api/ofertas/abc');
-
             expect(res.status).toBe(400);
             expect(res.body.exito).toBe(false);
             expect(res.body.error).toContain('número entero positivo');
+
+            const resSufijo = await request(app).get('/api/ofertas/1abc');
+            expect(resSufijo.status).toBe(400);
+            expect(resSufijo.body.exito).toBe(false);
+
+            const resDecimal = await request(app).get('/api/ofertas/1.5');
+            expect(resDecimal.status).toBe(400);
+            expect(resDecimal.body.exito).toBe(false);
         });
 
         test('retorna 400 si el ID es negativo', async () => {
@@ -552,6 +559,20 @@ describe('Controlador de ofertas', () => {
             expect(resInvalido.status).toBe(400);
             expect(resInvalido.body.exito).toBe(false);
             expect(resInvalido.body.error).toContain('número entero positivo');
+
+            const resSufijo = await request(app)
+                .patch('/api/ofertas/1abc/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud para ser válida.' });
+
+            expect(resSufijo.status).toBe(400);
+            expect(resSufijo.body.exito).toBe(false);
+
+            const resDecimal = await request(app)
+                .patch('/api/ofertas/1.5/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud para ser válida.' });
+
+            expect(resDecimal.status).toBe(400);
+            expect(resDecimal.body.exito).toBe(false);
 
             const resNegativo = await request(app)
                 .patch('/api/ofertas/-1/descripcion')
