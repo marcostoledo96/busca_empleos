@@ -224,35 +224,75 @@ function extraerClausulasConContexto(textoOferta) {
         const lineaNorm = normalizarTextoComparacion(linea);
         if (!lineaNorm) continue;
 
-        // Verifico si la línea es un encabezado de sección
-        const esEncabezado = /:$/.test(linea) || (
-            lineaNorm.split(' ').length <= 4 && (
-                /^(?:requisitos|requirements|deseables?|opcionales?|obligatorios?|excluyentes?|plus|beneficios|responsabilidades|tareas)\b/.test(lineaNorm)
-            )
-        );
+        let lineaAProcesar = linea;
+        let huboEncabezadoEnLinea = false;
 
-        if (esEncabezado) {
-            if (PATRON_OPCIONAL_EVIDENCIA.test(lineaNorm)) {
-                seccionActual = 'opcional';
-            } else if (/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/i.test(lineaNorm) || /^requisitos:?$/.test(lineaNorm)) {
-                seccionActual = 'obligatoria';
-            } else {
-                seccionActual = null;
+        // Detectamos si la línea comienza con un encabezado de sección (con ':' o como línea autónoma)
+        const lineaSinVinetas = linea.replace(/^[-*•–—]\s*/, '').trim();
+        const matchDosPuntos = lineaSinVinetas.match(/^([^:]{1,60}):\s*(.*)$/);
+
+        if (matchDosPuntos) {
+            const encabezadoTexto = matchDosPuntos[1].trim();
+            const contenidoRestante = matchDosPuntos[2].trim();
+            const encabezadoNorm = normalizarTextoComparacion(encabezadoTexto);
+
+            // Es un encabezado si el prefijo tiene <= 4 palabras y refiere a una categoría conocida
+            const esPrefijoEncabezado = encabezadoNorm && encabezadoNorm.split(' ').length <= 4 && (
+                /^(?:requisitos|requirements|deseables?|opcionales?|obligatori[oa]s?|excluyentes?|plus|beneficios|responsabilidades|tareas)\b/.test(encabezadoNorm) ||
+                /^(?:conocimientos|habilidades|competencias)\s+(?:deseables?|opcionales?|obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(encabezadoNorm)
+            );
+
+            if (esPrefijoEncabezado) {
+                huboEncabezadoEnLinea = true;
+                if (PATRON_OPCIONAL_EVIDENCIA.test(encabezadoNorm)) {
+                    seccionActual = 'opcional';
+                } else if (/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/i.test(encabezadoNorm) || /^(?:requisitos|requirements)$/.test(encabezadoNorm)) {
+                    seccionActual = 'obligatoria';
+                } else {
+                    seccionActual = null;
+                }
+
+                if (!contenidoRestante) {
+                    // Si no hay contenido tras los dos puntos, es un encabezado puro de lista
+                    continue;
+                }
+
+                // Si hay contenido tras los dos puntos (ej. "Requisitos: Docker"),
+                // procesamos ese contenido bajo la sección contextual recién actualizada
+                lineaAProcesar = contenidoRestante;
             }
-            continue;
+        } else {
+            // Caso sin dos puntos: verificamos si la línea entera es un encabezado autónomo corto
+            const palabrasLinea = lineaNorm.split(' ');
+            const esEncabezadoPuro = palabrasLinea.length <= 4 && (
+                /^(?:requisitos(?:\s+(?:obligatori[oa]s?|excluyentes?|deseables?))?|requirements|deseables?|opcionales?|obligatori[oa]s?|excluyentes?|plus|beneficios|responsabilidades|tareas)$/.test(lineaNorm) ||
+                /^(?:conocimientos|habilidades|competencias)\s+(?:deseables?|opcionales?|obligatori[oa]s?|excluyentes?|requerid[oa]s?)$/.test(lineaNorm)
+            );
+
+            if (esEncabezadoPuro) {
+                huboEncabezadoEnLinea = true;
+                if (PATRON_OPCIONAL_EVIDENCIA.test(lineaNorm)) {
+                    seccionActual = 'opcional';
+                } else if (/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/i.test(lineaNorm) || /^(?:requisitos|requirements)$/.test(lineaNorm)) {
+                    seccionActual = 'obligatoria';
+                } else {
+                    seccionActual = null;
+                }
+                continue;
+            }
         }
 
-        // Si es un párrafo largo que no inicia con viñeta, corta el alcance de la lista
+        // Si es un párrafo largo que no inicia con viñeta y no es un encabezado inline, corta el alcance de la lista
         const esItemLista = /^[-*•–—]\s*/.test(linea);
-        const palabras = lineaNorm.split(' ');
-        if (!esItemLista && palabras.length > 15) {
+        const palabras = normalizarTextoComparacion(lineaAProcesar).split(' ');
+        if (!huboEncabezadoEnLinea && !esItemLista && palabras.length > 15) {
             seccionActual = null;
         }
 
         // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
         // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
         // O por otros signos de puntuación: [!?;]
-        const partes = linea.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).filter(p => p.trim());
+        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).filter(p => p.trim());
 
         for (const parte of partes) {
             const parteNorm = normalizarTextoComparacion(parte);
@@ -265,6 +305,11 @@ function extraerClausulasConContexto(textoOferta) {
             } else {
                 clausulas.push(parteNorm);
             }
+        }
+
+        // Si el encabezado inline contenía un párrafo extenso sin viñeta, restablecemos para siguientes líneas
+        if (huboEncabezadoEnLinea && !esItemLista && palabras.length > 15) {
+            seccionActual = null;
         }
     }
 

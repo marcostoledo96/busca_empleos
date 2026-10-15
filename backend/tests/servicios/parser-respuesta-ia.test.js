@@ -863,6 +863,91 @@ describe('Parser respuesta IA', () => {
             expect(resultado.invalido).toBe(true);
             expect(resultado.error).toBe(true);
         });
+
+        test('Caso 14 (B-12): Requisito inline en línea corta Requisitos: Docker se valida como exclusión obligatoria', () => {
+            const textoOferta = 'Backend Developer\nRequisitos: Docker';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Docker obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Docker', tipo: 'obligatorio', evidencia_oferta: 'Docker', explicacion: 'No sabe Docker' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
+
+        test('Caso 15 (B-12): Requisito inline en línea corta Requisitos obligatorios: Node.js se valida como exclusión obligatoria', () => {
+            const textoOferta = 'Backend Developer\nRequisitos obligatorios: Node.js';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Node.js obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', explicacion: 'No sabe Node.js' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
+
+        test('Caso 16 (B-12): Requisito inline en línea corta Obligatorio: Rust se valida como exclusión obligatoria', () => {
+            const textoOferta = 'Backend Developer\nObligatorio: Rust';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Rust obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Rust', tipo: 'obligatorio', evidencia_oferta: 'Rust', explicacion: 'No sabe Rust' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
+
+        test('Caso 17 (B-12 Control negativo): Requisito inline en línea corta Deseables: Java se descarta como exclusión obligatoria', () => {
+            const textoOferta = 'Backend Developer\nDeseables: Java';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
     });
 
     // ──────────────────────────────────────────────────────────

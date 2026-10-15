@@ -1378,5 +1378,154 @@ describe('Servicio de evaluación con IA', () => {
             );
             expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
         });
+
+        test('Caso B-12: IA rechaza con 85% y cita Requisitos: Docker -> worker valida exclusión y persiste rechazada con caché', async () => {
+            const ofertaDocker = {
+                id: 105,
+                titulo: 'Backend Developer',
+                empresa: 'TechCorp',
+                ubicacion: 'CABA',
+                modalidad: 'remoto',
+                descripcion: 'Requisitos: Docker',
+                plataforma: 'linkedin',
+                nivel_requerido: 'junior',
+            };
+
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaDocker]);
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Docker obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Docker', tipo: 'obligatorio', evidencia_oferta: 'Docker', explicacion: 'No sabe Docker' }],
+                },
+            }));
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...ofertaDocker,
+                estado_evaluacion: 'rechazada',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.rechazadas).toBe(1);
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.errores).toBe(0);
+
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                105,
+                'rechazada',
+                'Rechazada por Docker obligatorio',
+                85,
+                null,
+                null,
+                expect.stringMatching(/^[a-f0-9]{64}$/),
+                expect.any(Object),
+                ofertaDocker.descripcion
+            );
+            expect(evaluacionCache.guardarCache).toHaveBeenCalledTimes(1);
+        });
+
+        test('Caso B-12: IA rechaza con 85% y cita Requisitos obligatorios: Node.js -> worker valida exclusión y persiste rechazada con caché', async () => {
+            const ofertaNode = {
+                id: 106,
+                titulo: 'Backend Developer',
+                empresa: 'TechCorp',
+                ubicacion: 'CABA',
+                modalidad: 'remoto',
+                descripcion: 'Requisitos obligatorios: Node.js',
+                plataforma: 'linkedin',
+                nivel_requerido: 'junior',
+            };
+
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaNode]);
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Node.js obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', explicacion: 'No sabe Node.js' }],
+                },
+            }));
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...ofertaNode,
+                estado_evaluacion: 'rechazada',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.rechazadas).toBe(1);
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.errores).toBe(0);
+
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                106,
+                'rechazada',
+                'Rechazada por Node.js obligatorio',
+                85,
+                null,
+                null,
+                expect.stringMatching(/^[a-f0-9]{64}$/),
+                expect.any(Object),
+                ofertaNode.descripcion
+            );
+            expect(evaluacionCache.guardarCache).toHaveBeenCalledTimes(1);
+        });
+
+        test('Caso B-12 Control: IA rechaza con 85% y cita Deseables: Java -> worker detecta inconsistencia y asigna pendiente sin caché', async () => {
+            const ofertaDeseableJava = {
+                id: 107,
+                titulo: 'Backend Developer',
+                empresa: 'TechCorp',
+                ubicacion: 'CABA',
+                modalidad: 'remoto',
+                descripcion: 'Deseables: Java',
+                plataforma: 'linkedin',
+                nivel_requerido: 'junior',
+            };
+
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaDeseableJava]);
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                },
+            }));
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...ofertaDeseableJava,
+                estado_evaluacion: 'pendiente',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.errores).toBe(1);
+            expect(resumen.rechazadas).toBe(0);
+
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                107,
+                'pendiente',
+                expect.stringContaining('Inconsistencia detectada'),
+                null,
+                expect.stringContaining('Inconsistencia detectada'),
+                null,
+                null,
+                expect.any(Object),
+                ofertaDeseableJava.descripcion
+            );
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+        });
     });
 });
