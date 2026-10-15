@@ -81,13 +81,15 @@ function obtenerProgresoEvaluacion(req, res) {
 
 /**
  * POST /api/evaluacion/cancelar
- * Activo la bandera de cancelación para interrumpir el loop.
+ * Activo la cancelación de una evaluación en curso o limpio un lote huérfano.
  */
-function cancelarEvaluacion(req, res) {
-    servicioEvaluacion.cancelarEvaluacionPendiente();
+async function cancelarEvaluacion(req, res) {
+    const resultado = await servicioEvaluacion.cancelarEvaluacionPendiente();
+    const activa = Boolean(resultado?.activa);
     res.json({
         exito: true,
-        mensaje: 'Se solicitó la cancelación de la evaluación.',
+        activa,
+        mensaje: resultado?.mensaje || 'Se solicitó la cancelación de la evaluación.',
     });
 }
 
@@ -138,4 +140,39 @@ async function resetearEvaluaciones(req, res) {
     }
 }
 
-module.exports = { ejecutarEvaluacion, obtenerProgresoEvaluacion, cancelarEvaluacion, resetearEvaluaciones };
+/**
+ * POST /api/evaluacion/reintentar-errores
+ * Reintenta evaluar las ofertas que tuvieron un error técnico en los últimos 30 días.
+ */
+async function reintentarErrores(req, res) {
+    const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
+    if (!lock.ok) {
+        return res.status(409).json({
+            exito: false,
+            mensaje: 'Ya hay una evaluación en curso.',
+        });
+    }
+
+    try {
+        const progreso = servicioEvaluacion.obtenerProgresoEvaluacion();
+        if (progreso.activo) {
+            return res.status(409).json({
+                exito: false,
+                mensaje: 'Ya hay una evaluación en curso.',
+            });
+        }
+
+        const resultado = await servicioEvaluacion.reintentarErroresEvaluacion();
+        return res.status(200).json(resultado);
+    } finally {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+    }
+}
+
+module.exports = {
+    ejecutarEvaluacion,
+    obtenerProgresoEvaluacion,
+    cancelarEvaluacion,
+    resetearEvaluaciones,
+    reintentarErrores,
+};

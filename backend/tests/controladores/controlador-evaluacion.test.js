@@ -195,6 +195,38 @@ describe('Controlador de evaluación', () => {
             expect(res.body.mensaje).toContain('cancelación');
             expect(servicioEvaluacion.cancelarEvaluacionPendiente).toHaveBeenCalledTimes(1);
         });
+
+        test('informa si se canceló una ejecución activa', async () => {
+            servicioEvaluacion.cancelarEvaluacionPendiente.mockResolvedValue({
+                activa: true,
+                cancelada: true,
+                mensaje: 'Se solicitó la cancelación de la evaluación activa en curso.',
+            });
+
+            const res = await request(app)
+                .post('/api/evaluacion/cancelar');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.activa).toBe(true);
+            expect(res.body.mensaje).toContain('cancelación');
+        });
+
+        test('informa si se limpió un estado de evaluación interrumpido o inactivo', async () => {
+            servicioEvaluacion.cancelarEvaluacionPendiente.mockResolvedValue({
+                activa: false,
+                cancelada: true,
+                mensaje: 'Se canceló y limpió el estado de evaluación interrumpido.',
+            });
+
+            const res = await request(app)
+                .post('/api/evaluacion/cancelar');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.activa).toBe(false);
+            expect(res.body.mensaje).toContain('canceló');
+        });
     });
 
     // ========================================================
@@ -430,6 +462,73 @@ describe('Controlador de evaluación', () => {
             expect(res.status).toBe(200);
             expect(res.body.exito).toBe(true);
             expect(modeloOferta.resetearEvaluacionesPorDias).toHaveBeenCalledWith(30);
+        });
+    });
+
+    // === POST /api/evaluacion/reintentar-errores ===
+
+    describe('POST /api/evaluacion/reintentar-errores', () => {
+        beforeEach(() => {
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: true, client: {} });
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
+        });
+
+        test('inicia el reintento para ofertas con errores y responde 200 con en_curso y total', async () => {
+            servicioEvaluacion.reintentarErroresEvaluacion.mockResolvedValue({
+                exito: true,
+                en_curso: true,
+                total: 3,
+                mensaje: 'Reintento de evaluación iniciado para 3 oferta(s) con error.',
+            });
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.en_curso).toBe(true);
+            expect(res.body.total).toBe(3);
+            expect(bloqueo.intentarAdquirirLock).toHaveBeenCalledWith(bloqueo.CLAVES.EVALUACION_OFERTAS);
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalled();
+            expect(servicioEvaluacion.reintentarErroresEvaluacion).toHaveBeenCalledTimes(1);
+        });
+
+        test('responde 200 con total 0 si no hay ofertas con error para reintentar', async () => {
+            servicioEvaluacion.reintentarErroresEvaluacion.mockResolvedValue({
+                exito: true,
+                total: 0,
+                mensaje: 'No hay ofertas con errores de evaluación para reintentar.',
+            });
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.total).toBe(0);
+            expect(res.body.mensaje).toContain('No hay ofertas con errores');
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalled();
+        });
+
+        test('retorna 409 si el advisory lock ya está ocupado', async () => {
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: false });
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(409);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.mensaje).toContain('en curso');
+            expect(servicioEvaluacion.reintentarErroresEvaluacion).not.toHaveBeenCalled();
+        });
+
+        test('retorna 409 si el progreso ya está activo en memoria', async () => {
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: true });
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(409);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.mensaje).toContain('en curso');
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalled();
+            expect(servicioEvaluacion.reintentarErroresEvaluacion).not.toHaveBeenCalled();
         });
     });
 });
