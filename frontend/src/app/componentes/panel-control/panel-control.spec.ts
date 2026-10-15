@@ -31,6 +31,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
         ejecutarEvaluacion: () => of({ exito: true }),
         cancelarEvaluacion: () => of({ exito: true }),
         obtenerProgreso:    () => of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } }),
+        reintentarErrores:  () => of({ exito: true, en_curso: true, total: 1, mensaje: 'Reintentando...' }),
     };
 
     // Versión mutable del mock para poder cambiar respuestas dentro de los tests.
@@ -355,8 +356,11 @@ describe('PanelControl — Polling defensivo', () => {
 
     beforeEach(async () => {
         evalSpy = jasmine.createSpyObj('EvaluacionService', [
-            'ejecutarEvaluacion', 'cancelarEvaluacion', 'obtenerProgreso'
+            'ejecutarEvaluacion', 'cancelarEvaluacion', 'obtenerProgreso', 'reintentarErrores'
         ]);
+        evalSpy.reintentarErrores.and.returnValue(
+            of({ exito: true, en_curso: true, total: 1, mensaje: 'Reintentando...' })
+        );
         autoSpy = jasmine.createSpyObj('AutomatizacionService', [
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
@@ -670,8 +674,11 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
 
     beforeEach(async () => {
         evalSpy = jasmine.createSpyObj('EvaluacionService', [
-            'ejecutarEvaluacion', 'cancelarEvaluacion', 'obtenerProgreso'
+            'ejecutarEvaluacion', 'cancelarEvaluacion', 'obtenerProgreso', 'reintentarErrores'
         ]);
+        evalSpy.reintentarErrores.and.returnValue(
+            of({ exito: true, en_curso: true, total: 1, mensaje: 'Reintentando...' })
+        );
         autoSpy = jasmine.createSpyObj('AutomatizacionService', [
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
@@ -1140,6 +1147,7 @@ describe('PanelControl — Visualización de consultas efectivas y equivalencias
 
         const mockEval = {
             obtenerProgreso: () => of({ exito: true, datos: { activo: false } }),
+            reintentarErrores: () => of({ exito: true, en_curso: true, total: 1, mensaje: 'Reintentando...' }),
         };
         const mockAuto = {
             obtenerEstado: () => of({ exito: true, datos: { activo: false } }),
@@ -1172,5 +1180,162 @@ describe('PanelControl — Visualización de consultas efectivas y equivalencias
         expect(component.formatearConsultas(['"soporte IT"'])).toBe('"soporte IT"');
         expect(component.hayEquivalencias({ 'c#': 'c-sharp' })).toBeTrue();
         expect(component.hayEquivalencias({})).toBeFalse();
+    });
+});
+
+describe('PanelControl — Reintento de errores técnicos e interrupción por reinicio', () => {
+    let component: PanelControl;
+    let fixture: ComponentFixture<PanelControl>;
+    let evalSpy: jasmine.SpyObj<EvaluacionService>;
+    let autoSpy: jasmine.SpyObj<AutomatizacionService>;
+
+    beforeEach(async () => {
+        evalSpy = jasmine.createSpyObj('EvaluacionService', [
+            'ejecutarEvaluacion', 'cancelarEvaluacion', 'obtenerProgreso', 'reintentarErrores'
+        ]);
+        autoSpy = jasmine.createSpyObj('AutomatizacionService', [
+            'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
+        ]);
+
+        evalSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } })
+        );
+        evalSpy.reintentarErrores.and.returnValue(
+            of({ exito: true, en_curso: true, total: 3, mensaje: 'Reintento iniciado para 3 ofertas' })
+        );
+        autoSpy.obtenerEstado.and.returnValue(
+            of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
+        );
+        autoSpy.obtenerProgreso.and.returnValue(
+            of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } })
+        );
+
+        await TestBed.configureTestingModule({
+            imports: [PanelControl],
+            providers: [
+                { provide: ScrapingService, useValue: { obtenerPrevisualizacion: () => of({ exito: true, datos: { plataformas: [] } }) } },
+                { provide: EvaluacionService, useValue: evalSpy },
+                { provide: AutomatizacionService, useValue: autoSpy },
+                MessageService,
+            ],
+        }).compileComponents();
+
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+    });
+
+    afterEach(() => {
+        fixture.destroy();
+    });
+
+    it('reintentarErrores() inicia evaluación y polling cuando hay ofertas fallidas', fakeAsync(() => {
+        evalSpy.reintentarErrores.and.returnValue(
+            of({ exito: true, en_curso: true, total: 3, mensaje: 'Reintento iniciado para 3 ofertas' })
+        );
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+
+        component.reintentarErrores();
+        tick();
+
+        expect(component.evaluando()).toBeTrue();
+        expect(component.reintentandoErrores()).toBeFalse();
+        expect(mensajesSpy).toHaveBeenCalledWith(jasmine.objectContaining({
+            severity: 'info',
+            summary: 'Reintentando errores',
+            detail: 'Reintentando evaluación de ofertas con fallos técnicos...',
+        }));
+        expect((component as any).intervalIdPollingEval).not.toBeNull();
+
+        (component as any).detenerPollingEvaluacion();
+    }));
+
+    it('reintentarErrores() muestra toast informativo y no inicia polling cuando total === 0', fakeAsync(() => {
+        evalSpy.reintentarErrores.and.returnValue(
+            of({ exito: true, en_curso: false, total: 0, mensaje: 'No hay ofertas recientes con errores técnicos para reintentar.' })
+        );
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+
+        component.reintentarErrores();
+        tick();
+
+        expect(component.evaluando()).toBeFalse();
+        expect(component.reintentandoErrores()).toBeFalse();
+        expect(mensajesSpy).toHaveBeenCalledWith(jasmine.objectContaining({
+            severity: 'info',
+            summary: 'Sin errores técnicos',
+            detail: 'No hay ofertas recientes con errores técnicos para reintentar.',
+        }));
+        expect((component as any).intervalIdPollingEval).toBeNull();
+    }));
+
+    it('interrupción de lote por reinicio muestra alerta sin quedar bloqueado como en curso', fakeAsync(() => {
+        evalSpy.obtenerProgreso.and.returnValue(of({
+            exito: true,
+            datos: {
+                activo: false,
+                estado: 'error' as const,
+                mensaje_error: 'La evaluación previa fue interrumpida por reinicio del servidor.',
+                total: 10,
+                evaluadas: 4,
+                aprobadas: 2,
+                rechazadas: 1,
+                errores: 1,
+                porcentaje: 40,
+            }
+        }));
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+
+        (component as any).rehidratarEvaluacion();
+        tick();
+        fixture.detectChanges();
+
+        expect(component.evaluando()).toBeFalse();
+        expect(component.busquedaOcupada()).toBeFalse();
+        expect(component.errorEvaluacion()).toContain('interrumpida por reinicio del servidor');
+        expect(mensajesSpy).toHaveBeenCalledWith(jasmine.objectContaining({
+            summary: 'Evaluación interrumpida',
+            detail: 'La evaluación previa fue interrumpida por reinicio del servidor.',
+        }));
+        const alerta = fixture.nativeElement.querySelector('[role="alert"]');
+        expect(alerta?.textContent).toContain('interrumpida por reinicio del servidor');
+    }));
+
+    it('botón "Reintentar errores" se habilita y deshabilita según el estado del panel', () => {
+        const botonReintentar = fixture.nativeElement.querySelector('.btn-reintentar') as HTMLButtonElement;
+        expect(botonReintentar).toBeTruthy();
+        expect(botonReintentar.disabled).toBeFalse();
+
+        // Cuando está evaluando, debe deshabilitarse
+        component.evaluando.set(true);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeTrue();
+
+        component.evaluando.set(false);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeFalse();
+
+        // Cuando reintentandoErrores está en true, debe deshabilitarse
+        component.reintentandoErrores.set(true);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeTrue();
+
+        component.reintentandoErrores.set(false);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeFalse();
+
+        // Cuando hay scraping en curso (busquedaOcupada)
+        component.scrapeandoLinkedin.set(true);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeTrue();
+
+        component.scrapeandoLinkedin.set(false);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeFalse();
+
+        // En modo demo
+        fixture.componentRef.setInput('modoDemo', true);
+        fixture.detectChanges();
+        expect(botonReintentar.disabled).toBeTrue();
     });
 });

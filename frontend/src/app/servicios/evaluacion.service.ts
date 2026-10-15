@@ -32,4 +32,9 @@ export class EvaluacionService {
             { dias }
         );
     }
+
+    // Reintenta evaluar las ofertas que sufrieron un fallo técnico.
+    reintentarErrores(): Observable<InicioEvaluacion> {
+        return this.http.post<InicioEvaluacion>(`${this.urlBase}/reintentar-errores`, {});
+    }
 }

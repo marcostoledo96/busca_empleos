@@ -231,6 +231,10 @@
                     <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top" aria-label="Evaluar ofertas pendientes con IA">
                         {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
                     </button>
+                    <button class="btn-secundario btn-reintentar" [class.btn-cargando]="reintentandoErrores()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || evaluando() || reintentandoErrores()" (click)="reintentarErrores()" [pTooltip]="modoDemo() ? 'Reintenta la evaluación con IA únicamente de aquellas ofertas que sufrieron un fallo técnico.' : undefined" tooltipPosition="top" aria-label="Reintentar evaluación de ofertas con error">
+                        <span class="material-symbols-outlined btn-icono" aria-hidden="true">refresh</span>
+                        {{ reintentandoErrores() ? 'Reintentando...' : 'Reintentar errores' }}
+                    </button>
                     @if (evaluando()) {
                         <div class="eval-progreso" role="progressbar" [attr.aria-valuenow]="progresoEvaluacion()?.porcentaje ?? 0" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Progreso de evaluación: ' + (progresoEvaluacion()?.porcentaje ?? 0) + '%'">
                             <div class="eval-progreso__barra">
