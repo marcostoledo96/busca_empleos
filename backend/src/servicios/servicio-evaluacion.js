@@ -616,6 +616,11 @@ async function evaluarOfertasPendientes(seleccionadas) {
  * Esta función es completamente idempotente: llamadas sucesivas no duplican operaciones.
  */
 async function rehidratarProgreso() {
+    // Si ya hay un worker en curso en este proceso, evito clasificar erróneamente su lote.
+    if (_workerActivo) {
+        return;
+    }
+
     try {
         const lote = await evaluacionLote.obtenerUltimoLote();
 
@@ -624,17 +629,33 @@ async function rehidratarProgreso() {
             let mensajeError = null;
 
             if (lote.estado === 'activo') {
+                if (_workerActivo) {
+                    return;
+                }
+
                 if (_ultimoLoteInterrumpidoId !== lote.id) {
-                    _ultimoLoteInterrumpidoId = lote.id;
+                    let loteFinalizado = null;
                     try {
-                        await evaluacionLote.finalizarLote(lote.id, 'error');
+                        loteFinalizado = await evaluacionLote.finalizarLote(lote.id, 'error');
                     } catch (errLote) {
                         console.warn('[Evaluación] No se pudo finalizar lote interrumpido en BD:', errLote.message);
+                        return;
                     }
+
+                    if (!loteFinalizado || loteFinalizado.estado !== 'error') {
+                        console.warn(`[Evaluación] No se pudo finalizar lote #${lote.id} interrumpido en BD: actualización retornó vacío.`);
+                        return;
+                    }
+
+                    _ultimoLoteInterrumpidoId = lote.id;
+                    lote.estado = 'error';
+                    estadoFinal = 'error';
+                    mensajeError = 'La evaluación previa fue interrumpida por reinicio del servidor.';
+                } else {
+                    lote.estado = 'error';
+                    estadoFinal = 'error';
+                    mensajeError = 'La evaluación previa fue interrumpida por reinicio del servidor.';
                 }
-                lote.estado = 'error';
-                estadoFinal = 'error';
-                mensajeError = 'La evaluación previa fue interrumpida por reinicio del servidor.';
             } else if (lote.estado === 'error') {
                 mensajeError = progresoEvaluacion.mensaje_error || 'El lote terminó con errores. Revisá los resultados y las ofertas pendientes.';
             }
@@ -692,6 +713,49 @@ async function reintentarErroresEvaluacion() {
     };
 }
 
+/**
+ * Helper interno para pruebas: expone el estado interno del worker y lotes.
+ */
+function _obtenerEstadoInterno() {
+    return {
+        cancelarEvaluacion: _cancelarEvaluacion,
+        workerActivo: _workerActivo,
+        loteActivoId: _loteActivoId,
+        ultimoLoteInterrumpidoId: _ultimoLoteInterrumpidoId,
+    };
+}
+
+/**
+ * Helper interno para pruebas: permite fijar workerActivo en tests unitarios.
+ */
+function _establecerWorkerActivo(activo) {
+    _workerActivo = Boolean(activo);
+}
+
+/**
+ * Helper interno para pruebas: resetea el estado interno entre ejecuciones de tests.
+ */
+function _resetearEstadoInterno() {
+    _cancelarEvaluacion = false;
+    _workerActivo = false;
+    _loteActivoId = null;
+    _ultimoLoteInterrumpidoId = null;
+    progresoEvaluacion = {
+        activo: false,
+        total: 0,
+        evaluadas: 0,
+        aprobadas: 0,
+        rechazadas: 0,
+        errores: 0,
+        supersedidas: 0,
+        porcentaje: 0,
+        estado: 'inactivo',
+        mensaje_error: null,
+        procesadas: 0,
+        pendientes: 0,
+    };
+}
+
 module.exports = {
     construirPromptEvaluacion,
     construirPerfilDesdePreferencias,
@@ -702,4 +766,7 @@ module.exports = {
     cancelarEvaluacionPendiente,
     rehidratarProgreso,
     reintentarErroresEvaluacion,
+    _obtenerEstadoInterno,
+    _establecerWorkerActivo,
+    _resetearEstadoInterno,
 };

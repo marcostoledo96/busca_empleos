@@ -153,20 +153,48 @@ async function reintentarErrores(req, res) {
         });
     }
 
-    try {
-        const progreso = servicioEvaluacion.obtenerProgresoEvaluacion();
-        if (progreso.activo) {
-            return res.status(409).json({
-                exito: false,
-                mensaje: 'Ya hay una evaluación en curso.',
-            });
-        }
-
-        const resultado = await servicioEvaluacion.reintentarErroresEvaluacion();
-        return res.status(200).json(resultado);
-    } finally {
+    const progreso = servicioEvaluacion.obtenerProgresoEvaluacion();
+    if (progreso.activo) {
         await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        return res.status(409).json({
+            exito: false,
+            mensaje: 'Ya hay una evaluación en curso.',
+        });
     }
+
+    let ofertasConError;
+    try {
+        ofertasConError = await modeloOferta.obtenerOfertasConErrores();
+    } catch (error) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        throw error;
+    }
+
+    if (!ofertasConError || ofertasConError.length === 0) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        return res.status(200).json({
+            exito: true,
+            total: 0,
+            mensaje: 'No hay ofertas con errores de evaluación para reintentar.',
+        });
+    }
+
+    // Lanzo el worker en segundo plano; el lock lo retiene la conexión del worker
+    // hasta su finalización en el bloque finally.
+    servicioEvaluacion.evaluarOfertasPendientes(ofertasConError)
+        .catch((error) => {
+            console.error('[Evaluación] Error en segundo plano al reintentar errores:', error.message);
+        })
+        .finally(async () => {
+            await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        });
+
+    return res.status(200).json({
+        exito: true,
+        en_curso: true,
+        total: ofertasConError.length,
+        mensaje: `Reintento de evaluación iniciado para ${ofertasConError.length} oferta(s) con error.`,
+    });
 }
 
 module.exports = {

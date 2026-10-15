@@ -32,6 +32,7 @@ describe('Servicio de evaluación — Recuperación de lotes interrumpidos y rei
         propietarioLock = null;
         llamadasFinalizarLote = [];
         loteDb = null;
+        servicio._resetearEstadoInterno();
 
         preferencias.obtenerPreferencias.mockResolvedValue({
             nombre: 'Marcos Toledo',
@@ -249,6 +250,89 @@ describe('Servicio de evaluación — Recuperación de lotes interrumpidos y rei
         expect(progreso.activo).toBe(false);
         expect(progreso.estado).toBe('error');
         expect(progreso.mensaje_error).toContain('reinicio del servidor');
+    });
+
+    test('si finalizarLote retorna null en UPDATE, no fija _ultimoLoteInterrumpidoId y permite reintentar la persistencia en una segunda llamada', async () => {
+        loteDb = {
+            id: 99,
+            estado: 'activo',
+            total: 10,
+            evaluadas: 2,
+            aprobadas: 1,
+            rechazadas: 1,
+            errores: 0,
+            porcentaje: 20,
+        };
+
+        const espiaFinalizar = jest.spyOn(evaluacionLote, 'finalizarLote').mockResolvedValueOnce(null);
+
+        await servicio.rehidratarProgreso();
+
+        // Verifico que _ultimoLoteInterrumpidoId no se fijó y el lote en BD no fue mutado a error
+        expect(servicio._obtenerEstadoInterno().ultimoLoteInterrumpidoId).toBeNull();
+        expect(loteDb.estado).toBe('activo');
+
+        // En la segunda llamada simulada, el UPDATE a BD es exitoso
+        espiaFinalizar.mockRestore();
+        await servicio.rehidratarProgreso();
+
+        expect(servicio._obtenerEstadoInterno().ultimoLoteInterrumpidoId).toBe(99);
+        expect(loteDb.estado).toBe('error');
+        const progreso = servicio.obtenerProgresoEvaluacion();
+        expect(progreso.estado).toBe('error');
+        expect(progreso.activo).toBe(false);
+    });
+
+    test('si finalizarLote arroja excepción por error de red, no fija _ultimoLoteInterrumpidoId y permite reintento posterior exitoso', async () => {
+        loteDb = {
+            id: 105,
+            estado: 'activo',
+            total: 15,
+            evaluadas: 3,
+            aprobadas: 2,
+            rechazadas: 1,
+            errores: 0,
+            porcentaje: 20,
+        };
+
+        const espiaFinalizar = jest.spyOn(evaluacionLote, 'finalizarLote').mockRejectedValueOnce(
+            new Error('Fallo transitorio de conexión a PostgreSQL')
+        );
+
+        await servicio.rehidratarProgreso();
+
+        expect(servicio._obtenerEstadoInterno().ultimoLoteInterrumpidoId).toBeNull();
+        expect(loteDb.estado).toBe('activo');
+
+        espiaFinalizar.mockRestore();
+        await servicio.rehidratarProgreso();
+
+        expect(servicio._obtenerEstadoInterno().ultimoLoteInterrumpidoId).toBe(105);
+        expect(loteDb.estado).toBe('error');
+    });
+
+    test('si _workerActivo es true, rehidratarProgreso no altera el lote activo ni lo marca como error', async () => {
+        loteDb = {
+            id: 110,
+            estado: 'activo',
+            total: 25,
+            evaluadas: 5,
+            aprobadas: 4,
+            rechazadas: 1,
+            errores: 0,
+            porcentaje: 20,
+        };
+
+        servicio._establecerWorkerActivo(true);
+
+        await servicio.rehidratarProgreso();
+
+        // Verifico que no se haya llamado a finalizarLote ni alterado loteDb ni _ultimoLoteInterrumpidoId
+        expect(llamadasFinalizarLote).toHaveLength(0);
+        expect(loteDb.estado).toBe('activo');
+        expect(servicio._obtenerEstadoInterno().ultimoLoteInterrumpidoId).toBeNull();
+
+        servicio._establecerWorkerActivo(false);
     });
 
     test('cancelarEvaluacionPendiente sin worker activo limpia el estado y finaliza el lote huérfano en BD', async () => {
