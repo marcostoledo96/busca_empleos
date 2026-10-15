@@ -578,6 +578,18 @@ contexto('Issue #19 - Persistencia y Reapariciones de Ofertas', () => {
 
         expect(resNueva).toBeDefined();
         expect(resSecundaria).toBeDefined();
+        expect(resNueva.resultado_persistencia).toBe('insertada');
+        expect(resNueva.es_nueva).toBe(true);
+
+        expect(['actualizada', 'reaparicion']).toContain(resSecundaria.resultado_persistencia);
+        if (resSecundaria.resultado_persistencia === 'actualizada') {
+            expect(resSecundaria.fue_actualizada).toBe(true);
+            expect(resSecundaria.es_reaparicion).toBe(false);
+            expect(resSecundaria.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
+        } else {
+            expect(resSecundaria.es_reaparicion).toBe(true);
+            expect(resSecundaria.fue_actualizada).toBe(false);
+        }
 
         // En la base de datos se debe haber consolidado la información enriquecida
         const filaBd = await modeloOferta.obtenerOfertaPorId(resNueva.id);

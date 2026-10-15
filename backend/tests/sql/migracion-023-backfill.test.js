@@ -137,14 +137,75 @@ contexto('Migración 023 — Validación de Backfill SQL vs Runtime JS en Postgr
                 url: 'https://ar.computrabajo.com/ofertas-de-trabajo/oferta-de-trabajo-de-dev-24f60e9ab7821cde89012345#lc=123',
                 plataforma: 'computrabajo',
             },
+
+            // B-01 reauditoría: Indeed con vjk / jobKey / key en datos_crudos sin jk en URL
+            {
+                titulo: 'Indeed vjk en datos_crudos',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob?item=1',
+                plataforma: 'indeed',
+                datos_crudos: { vjk: 'abc123' },
+            },
+            {
+                titulo: 'Indeed jobKey en datos_crudos',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob?item=2',
+                plataforma: 'indeed',
+                datos_crudos: { jobKey: 'def456' },
+            },
+            {
+                titulo: 'Indeed key en datos_crudos',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob?item=3',
+                plataforma: 'indeed',
+                datos_crudos: { key: 'ghi789' },
+            },
+
+            // B-01 reauditoría: Jooble con /desc/ sin datos_crudos.id
+            {
+                titulo: 'Jooble /desc/ path',
+                empresa: 'JoobleCorp',
+                url: 'https://jooble.org/desc/xyz123',
+                plataforma: 'jooble',
+                datos_crudos: {},
+            },
+
+            // B-01 reauditoría: Plataforma general con datos_crudos.id (NO debe usarse como ID nativo)
+            {
+                titulo: 'General con datos_crudos.id',
+                empresa: 'GeneralCorp',
+                url: 'https://portal-remoto.com/puestos/dev-777',
+                plataforma: 'general',
+                datos_crudos: { id: '999' },
+            },
+
+            // B-01 reauditoría: Codificación de query params especiales (~, %61, %2f)
+            {
+                titulo: 'Query tilde ~ encoding',
+                empresa: 'Tech Corp',
+                url: 'https://example.com/puestos?q=a~b',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Query hex %61 decoding',
+                empresa: 'Tech Corp',
+                url: 'https://example.com/puestos?q=%61',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Query slash %2f uppercase encoding',
+                empresa: 'Tech Corp',
+                url: 'https://example.com/puestos?q=%2f',
+                plataforma: 'general',
+            },
         ];
 
         // 1. Inserto todas las filas como si vinieran del sistema pre-023 (sin identidad_canonica)
         for (const fila of filasPreexistentes) {
             await pool.query(
-                `INSERT INTO ofertas (titulo, empresa, url, plataforma, fecha_extraccion, estado_evaluacion, estado_postulacion)
-                 VALUES ($1, $2, $3, $4, NOW() - INTERVAL '5 days', 'pendiente', 'no_postulado')`,
-                [fila.titulo, fila.empresa, fila.url, fila.plataforma]
+                `INSERT INTO ofertas (titulo, empresa, url, plataforma, fecha_extraccion, estado_evaluacion, estado_postulacion, datos_crudos)
+                 VALUES ($1, $2, $3, $4, NOW() - INTERVAL '5 days', 'pendiente', 'no_postulado', $5)`,
+                [fila.titulo, fila.empresa, fila.url, fila.plataforma, fila.datos_crudos ? JSON.stringify(fila.datos_crudos) : null]
             );
         }
 

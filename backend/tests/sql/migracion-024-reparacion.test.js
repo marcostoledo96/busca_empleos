@@ -1,6 +1,6 @@
 // Tests de validación de la Migración 024 — Reparación de identidades canónicas en DBs donde 023 ya fue aplicada.
 // Verifica que la migración incremental actualice las identidades históricas desfasadas, resuelva colisiones
-// potenciales mediante ROW_NUMBER() de forma conservadora y garantice idempotencia.
+// potenciales mediante ROW_NUMBER() en dos fases sin violar el índice UNIQUE existente, y garantice idempotencia.
 
 const fs = require('fs');
 const path = require('path');
@@ -31,11 +31,10 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
     });
 
     test('Repara identidades históricas en base donde 023 ya estaba registrada', async () => {
-        // 1. Simulo que 023 corrió previamente
+        // 1. Simulo que 023 corrió previamente y ya creó el índice UNIQUE
         await pool.query(contenidoSql023);
 
         // 2. Inserto filas simulando identidades generadas con discrepancias de la versión anterior
-        // (por ejemplo: host en mayúsculas, espacios como %20 en vez de +)
         const filas = [
             {
                 titulo: 'Upper Host Discrepancy',
@@ -58,13 +57,43 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
                 plataforma: 'indeed',
                 identidadDesfasada: 'indeed:5a8b3c2d1e0f9876',
             },
+            {
+                titulo: 'Indeed vjk en datos_crudos',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob',
+                plataforma: 'indeed',
+                datos_crudos: { vjk: 'abc123' },
+                identidadDesfasada: 'indeed:url:https://ar.indeed.com/viewjob',
+            },
+            {
+                titulo: 'Jooble /desc/ path',
+                empresa: 'JoobleCorp',
+                url: 'https://jooble.org/desc/xyz123',
+                plataforma: 'jooble',
+                identidadDesfasada: 'jooble:url:https://jooble.org/desc/xyz123',
+            },
+            {
+                titulo: 'General con id en datos_crudos',
+                empresa: 'GeneralCorp',
+                url: 'https://portal-remoto.com/puestos/dev-777',
+                plataforma: 'general',
+                datos_crudos: { id: '999' },
+                identidadDesfasada: 'general:999',
+            },
+            {
+                titulo: 'Query tilde ~ encoding',
+                empresa: 'Tech Corp',
+                url: 'https://example.com/puestos?q=a~b',
+                plataforma: 'general',
+                identidadDesfasada: 'general:url:https://example.com/puestos?q=a~b',
+            },
         ];
 
         for (const fila of filas) {
             await pool.query(
-                `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion, fecha_ultima_extraccion)
-                 VALUES ($1, $2, $3, $4, $5, NOW(), NOW())`,
-                [fila.titulo, fila.empresa, fila.url, fila.plataforma, fila.identidadDesfasada]
+                `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion, fecha_ultima_extraccion, datos_crudos)
+                 VALUES ($1, $2, $3, $4, $5, NOW(), NOW(), $6)`,
+                [fila.titulo, fila.empresa, fila.url, fila.plataforma, fila.identidadDesfasada, fila.datos_crudos ? JSON.stringify(fila.datos_crudos) : null]
             );
         }
 
@@ -99,31 +128,70 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
         }
     });
 
-    test('Maneja colisiones conservadoramente al reparar identidades desfasadas', async () => {
+    test('B-02 reauditoría: Ejecución en dos fases previene violación del índice UNIQUE existente cuando id=1 toma la clave que actualmente tiene id=2', async () => {
+        // Aseguro que 023 ya creó el índice UNIQUE idx_ofertas_identidad_canonica
         await pool.query(contenidoSql023);
 
-        // Fila 1: ya tiene la identidad correcta
+        // Fila id=1: tiene URL en mayúsculas y clave vieja en mayúsculas
+        // Al normalizarse debe pasar a 'general:url:https://example.com/aviso' (la clave limpia)
         await pool.query(
             `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion)
-             VALUES ('Fila A', 'Corp', 'https://example.com/puestos/dev?id=123', 'general', 'general:url:https://example.com/puestos/dev?id=123', NOW() - INTERVAL '2 days')`
+             VALUES ('Fila 1', 'Corp', 'https://EXAMPLE.com/aviso', 'general', 'general:url:https://EXAMPLE.com/aviso', NOW() - INTERVAL '3 days')`
         );
 
-        // Fila 2: tenía URL con host en mayúsculas y su identidad vieja era distinta por el case
-        // Al normalizarla, colisionaría con la Fila 1 si no hubiera resolución con ROW_NUMBER()
+        // Fila id=2: tiene URL con fragmento y actualmente TIENE la clave limpia 'general:url:https://example.com/aviso'
+        // Al repararse, como id=1 es más antigua (menor id), id=2 debe recibir el sufijo :colision-historica-2
+        // Si la migración intentara actualizar id=1 antes de liberar id=2 en un único UPDATE,
+        // PostgreSQL lanzaría error de clave duplicada por el índice UNIQUE no diferible.
         await pool.query(
             `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion)
-             VALUES ('Fila B', 'Corp', 'https://EXAMPLE.COM/puestos/dev?id=123#old', 'general', 'general:url:https://EXAMPLE.COM/puestos/dev?id=123', NOW() - INTERVAL '1 day')`
+             VALUES ('Fila 2', 'Corp', 'https://example.com/aviso#old', 'general', 'general:url:https://example.com/aviso', NOW() - INTERVAL '2 days')`
         );
 
-        // Corro migración 024
+        // Corro migración 024 (debe ejecutar en dos fases y no fallar)
         await pool.query(contenidoSql024);
 
         const filas = await pool.query('SELECT id, identidad_canonica FROM ofertas ORDER BY id ASC');
         expect(filas.rows.length).toBe(2);
 
-        // La Fila 1 retiene la identidad limpia
-        expect(filas.rows[0].identidad_canonica).toBe('general:url:https://example.com/puestos/dev?id=123');
-        // La Fila 2 recibe el sufijo conservador de colisión
-        expect(filas.rows[1].identidad_canonica).toContain(':colision-historica-');
+        // La Fila id=1 (más antigua) conserva la clave canónica limpia
+        expect(filas.rows[0].identidad_canonica).toBe('general:url:https://example.com/aviso');
+        // La Fila id=2 recibe el sufijo de colisión
+        expect(filas.rows[1].identidad_canonica).toBe(`general:url:https://example.com/aviso:colision-historica-${filas.rows[1].id}`);
+
+        // Idempotencia: segunda ejecución sin errores
+        await pool.query(contenidoSql024);
+        const filasPost = await pool.query('SELECT id, identidad_canonica FROM ofertas ORDER BY id ASC');
+        expect(filasPost.rows[0].identidad_canonica).toBe('general:url:https://example.com/aviso');
+        expect(filasPost.rows[1].identidad_canonica).toBe(`general:url:https://example.com/aviso:colision-historica-${filas.rows[1].id}`);
+    });
+
+    test('B-02 reauditoría: Ciclo de 3 identidades bajo índice UNIQUE existente se resuelve en dos fases sin colisión', async () => {
+        await pool.query(contenidoSql023);
+
+        // id=1 actualmente tiene clave-A pero su URL calcula clave-B
+        await pool.query(
+            `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion)
+             VALUES ('Fila Ciclo 1', 'Corp', 'https://example.com/puestos/b', 'general', 'general:url:https://example.com/puestos/a', NOW() - INTERVAL '3 days')`
+        );
+        // id=2 actualmente tiene clave-B pero su URL calcula clave-C
+        await pool.query(
+            `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion)
+             VALUES ('Fila Ciclo 2', 'Corp', 'https://example.com/puestos/c', 'general', 'general:url:https://example.com/puestos/b', NOW() - INTERVAL '2 days')`
+        );
+        // id=3 actualmente tiene clave-C pero su URL calcula clave-A
+        await pool.query(
+            `INSERT INTO ofertas (titulo, empresa, url, plataforma, identidad_canonica, fecha_extraccion)
+             VALUES ('Fila Ciclo 3', 'Corp', 'https://example.com/puestos/a', 'general', 'general:url:https://example.com/puestos/c', NOW() - INTERVAL '1 days')`
+        );
+
+        // Ejecuto migración 024
+        await pool.query(contenidoSql024);
+
+        const filas = await pool.query('SELECT id, identidad_canonica FROM ofertas ORDER BY id ASC');
+        expect(filas.rows.length).toBe(3);
+        expect(filas.rows[0].identidad_canonica).toBe('general:url:https://example.com/puestos/b');
+        expect(filas.rows[1].identidad_canonica).toBe('general:url:https://example.com/puestos/c');
+        expect(filas.rows[2].identidad_canonica).toBe('general:url:https://example.com/puestos/a');
     });
 });

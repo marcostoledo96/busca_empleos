@@ -163,7 +163,15 @@ resultado válido anterior, incluida su fecha, firma y prioridad.
   - **Protección de estados manuales:** El `estado_postulacion` (`no_postulado`, `cv_enviado`, `en_proceso`, `descartada`) nunca es alterado por nuevas extracciones.
   - **Protección de descripción manual:** Si `origen_descripcion = 'manual'`, el scraper jamás sobrescribe la descripción confirmada por el usuario.
   - **Enriquecimiento de datos:** Si una reaparición aporta una descripción más larga o completa modalidad/ubicación ausentes, se actualizan dichos campos y se pasa el estado a `pendiente` con `evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'` sin invocar reevaluaciones automáticas con costo.
+- **Metadatos atómicos de enriquecimiento (`datos_crudos._meta_upsert`):** Durante la cláusula `DO UPDATE SET`, PostgreSQL compara atómicamente la fila previa bajo lock (`ofertas.*`) contra la fila entrante (`EXCLUDED.*`) y construye un objeto `_meta_upsert` dentro de `datos_crudos` con los booleanos `fue_actualizada` y `descripcion_cambio`. Esto elimina lecturas secundarias `SELECT` propensas a carreras concurrentes; el modelo lee este valor atómico y lo expone en el objeto retornado.
 - **Ventana de visibilidad de 30 días:** Todas las consultas de ofertas recientes (`obtenerOfertas`, `obtenerEstadisticas`, `obtenerOfertasPendientes`, `obtenerOfertasConErrores` y snapshots de sincronización) filtran mediante `COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'`. Esto garantiza que una oferta de hace más de 30 días que vuelve a ser detectada hoy reaparezca inmediatamente en el dashboard sin alterar su fecha histórica de primera detección.
+
+### Reparación de identidades canónicas históricas (Migración 024)
+
+- **Ejecución en dos fases:** La migración `024-reparar-identidades-canonicas.sql` actualiza identidades en bases donde la 023 ya fue aplicada y el índice `idx_ofertas_identidad_canonica` ya existe. Para prevenir violaciones de unicidad causadas por el orden arbitrario de evaluación de filas en PostgreSQL cuando dos filas intercambian o reasignan claves, la migración opera en dos fases dentro de una transacción:
+  1. **Fase 1 (Aislamiento temporal):** Asigna claves transitorias únicas (`:temp-024-${id}-${hash}`) a todas las filas que cambiarán de identidad, liberando los valores previos.
+  2. **Fase 2 (Asignación definitiva):** Asigna las identidades definitivas resueltas por `ROW_NUMBER()`.
+- **Paridad 1:1 con WHATWG URLSearchParams:** Implementa decodificación y codificación compatible byte a byte con Node.js (`application/x-www-form-urlencoded`), resolviendo normalización de caracteres como `~` (`%7E`), decodificación de secuencias `%XX` existentes y ordenamiento canónico.
 
 ## Tabla `preferencias`
 

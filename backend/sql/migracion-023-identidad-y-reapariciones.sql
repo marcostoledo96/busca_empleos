@@ -13,7 +13,71 @@ UPDATE ofertas
 SET fecha_ultima_extraccion = fecha_extraccion
 WHERE fecha_ultima_extraccion IS NULL;
 
--- 3. Funciones auxiliares inmutables para canonización y cálculo de identidad idéntica a JavaScript
+-- 3. Funciones auxiliares inmutables para decodificación y codificación compatible con WHATWG URLSearchParams
+CREATE OR REPLACE FUNCTION fn_url_decode_023(p_input text)
+RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    v_output text := '';
+    v_len integer;
+    v_i integer := 1;
+    v_hex text;
+    v_byte integer;
+BEGIN
+    IF p_input IS NULL THEN RETURN ''; END IF;
+    v_len := length(p_input);
+    WHILE v_i <= v_len LOOP
+        IF substring(p_input from v_i for 1) = '%' AND v_i + 2 <= v_len AND substring(p_input from v_i + 1 for 2) ~ '^[0-9a-fA-F]{2}$' THEN
+            v_hex := substring(p_input from v_i + 1 for 2);
+            v_byte := ('x' || v_hex)::bit(8)::integer;
+            v_output := v_output || chr(v_byte);
+            v_i := v_i + 3;
+        ELSIF substring(p_input from v_i for 1) = '+' THEN
+            v_output := v_output || ' ';
+            v_i := v_i + 1;
+        ELSE
+            v_output := v_output || substring(p_input from v_i for 1);
+            v_i := v_i + 1;
+        END IF;
+    END LOOP;
+    RETURN v_output;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_url_encode_form_023(p_input text)
+RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    v_decoded text;
+    v_bytes bytea;
+    v_len integer;
+    v_b integer;
+    v_res text := '';
+    v_i integer;
+BEGIN
+    IF p_input IS NULL THEN RETURN ''; END IF;
+    v_decoded := fn_url_decode_023(p_input);
+    v_bytes := convert_to(v_decoded, 'UTF8');
+    v_len := octet_length(v_bytes);
+    FOR v_i IN 0 .. v_len - 1 LOOP
+        v_b := get_byte(v_bytes, v_i);
+        IF v_b = 32 THEN
+            v_res := v_res || '+';
+        ELSIF (v_b >= 48 AND v_b <= 57)
+           OR (v_b >= 65 AND v_b <= 90)
+           OR (v_b >= 97 AND v_b <= 122)
+           OR v_b = 42
+           OR v_b = 45
+           OR v_b = 46
+           OR v_b = 95 THEN
+            v_res := v_res || chr(v_b);
+        ELSE
+            v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0');
+        END IF;
+    END LOOP;
+    RETURN v_res;
+END;
+$$;
+
+-- Funciones auxiliares inmutables para canonización y cálculo de identidad idéntica a JavaScript
 CREATE OR REPLACE FUNCTION fn_canonizar_url_023(p_url text, p_plataforma text)
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
@@ -26,10 +90,12 @@ DECLARE
     v_param text;
     v_clave text;
     v_val text;
+    v_clave_limpia text;
     v_params_limpios text[] := ARRAY[]::text[];
     v_plat text := LOWER(TRIM(COALESCE(p_plataforma, 'general')));
     v_pos_slash integer;
     v_pos_q integer;
+    v_match text[];
 BEGIN
     IF v_url = '' THEN RETURN ''; END IF;
 
@@ -72,6 +138,24 @@ BEGIN
         v_authority := substring(v_authority from 1 for length(v_authority) - 4);
     END IF;
 
+    -- Formatos específicos por plataforma si hay ID nativo reconocible
+    IF v_plat = 'indeed' THEN
+        IF v_url ~* '[?&](jk|vjk)=([a-zA-Z0-9]+)' THEN
+            v_match := regexp_match(v_url, '[?&](?:jk|vjk)=([a-zA-Z0-9]+)', 'i');
+            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
+        ELSIF v_url ~* '/job/.*-([a-zA-Z0-9]{16})' THEN
+            v_match := regexp_match(v_url, '/job/.*-([a-zA-Z0-9]{16})', 'i');
+            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
+        END IF;
+    END IF;
+
+    IF v_plat = 'linkedin' THEN
+        IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})' THEN
+            v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})', 'i');
+            RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
+        END IF;
+    END IF;
+
     -- Normalizar path: si tiene longitud > 1 y termina en '/', quitar la barra final (idéntico a JS)
     IF LENGTH(v_path) > 1 AND RIGHT(v_path, 1) = '/' THEN
         v_path := LEFT(v_path, -1);
@@ -88,28 +172,28 @@ BEGIN
                     v_val := '';
                 END IF;
 
-                -- Comparación exacta case-insensitive de clave
+                -- Clave decodificada para comparación precisa de tracking
+                v_clave_limpia := fn_url_decode_023(v_clave);
+
                 -- Parámetros de tracking universales (regex ^utm_ para no borrar utmax)
-                IF v_clave ~* '^utm_'
-                   OR LOWER(v_clave) IN ('fbclid', 'gclid', 'msclkid', 'dclid', 'mc_cid', 'mc_eid', 'igshid') THEN
+                IF v_clave_limpia ~* '^utm_'
+                   OR LOWER(v_clave_limpia) IN ('fbclid', 'gclid', 'msclkid', 'dclid', 'mc_cid', 'mc_eid', 'igshid') THEN
                     CONTINUE;
                 END IF;
 
                 -- Parámetros de tracking específicos de plataforma
-                IF v_plat = 'indeed' AND LOWER(v_clave) IN ('from', 'vjs', 'tk', 'advn', 'adloc', 'qd', 'subts', 'iaf', 'attributionid', 'mobview') THEN
+                IF v_plat = 'indeed' AND LOWER(v_clave_limpia) IN ('from', 'vjs', 'tk', 'advn', 'adloc', 'qd', 'subts', 'iaf', 'attributionid', 'mobview') THEN
                     CONTINUE;
                 END IF;
-                IF v_plat = 'linkedin' AND LOWER(v_clave) IN ('refid', 'trackingid', 'trk', 'midtoken', 'originalsubdomain', 'trkinfo') THEN
+                IF v_plat = 'linkedin' AND LOWER(v_clave_limpia) IN ('refid', 'trackingid', 'trk', 'midtoken', 'originalsubdomain', 'trkinfo') THEN
                     CONTINUE;
                 END IF;
-                IF v_plat = 'computrabajo' AND LOWER(v_clave) = 'id_origen' THEN
+                IF v_plat = 'computrabajo' AND LOWER(v_clave_limpia) = 'id_origen' THEN
                     CONTINUE;
                 END IF;
 
-                -- Normalizar espacios (%20 y literal espacio a + idéntico a URLSearchParams)
-                v_val := replace(replace(v_val, '%20', '+'), ' ', '+');
-
-                v_params_limpios := array_append(v_params_limpios, v_clave || '=' || v_val);
+                -- Serializar clave y valor con fn_url_encode_form_023 (100% idéntico a URLSearchParams de WHATWG)
+                v_params_limpios := array_append(v_params_limpios, fn_url_encode_form_023(v_clave) || '=' || fn_url_encode_form_023(v_val));
             END IF;
         END LOOP;
     END IF;
@@ -136,7 +220,7 @@ DECLARE
 BEGIN
     IF v_plat = '' THEN v_plat := 'general'; END IF;
 
-    -- 1. Indeed: jk / vjk
+    -- 1. Indeed: jk / vjk (URL o datos_crudos: jk, vjk, key, jobKey, id)
     IF v_plat = 'indeed' THEN
         IF v_url ~* '[?&](jk|vjk)=([a-zA-Z0-9]+)' THEN
             v_match := regexp_match(v_url, '[?&](?:jk|vjk)=([a-zA-Z0-9]+)', 'i');
@@ -146,10 +230,18 @@ BEGIN
             RETURN 'indeed:' || LOWER(v_match[1]);
         ELSIF (v_datos->>'jk') ~ '^[a-zA-Z0-9]+$' THEN
             RETURN 'indeed:' || LOWER(v_datos->>'jk');
+        ELSIF (v_datos->>'vjk') ~ '^[a-zA-Z0-9]+$' THEN
+            RETURN 'indeed:' || LOWER(v_datos->>'vjk');
+        ELSIF (v_datos->>'key') ~ '^[a-zA-Z0-9]+$' THEN
+            RETURN 'indeed:' || LOWER(v_datos->>'key');
+        ELSIF (v_datos->>'jobKey') ~ '^[a-zA-Z0-9]+$' THEN
+            RETURN 'indeed:' || LOWER(v_datos->>'jobKey');
+        ELSIF (v_datos->>'id') ~ '^[a-zA-Z0-9]+$' THEN
+            RETURN 'indeed:' || LOWER(v_datos->>'id');
         END IF;
     END IF;
 
-    -- 2. LinkedIn: jobId
+    -- 2. LinkedIn: jobId (URL o datos_crudos: jobId, currentJobId, id)
     IF v_plat = 'linkedin' THEN
         IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})' THEN
             v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})', 'i');
@@ -161,6 +253,8 @@ BEGIN
             RETURN 'linkedin:' || (v_datos->>'jobId');
         ELSIF (v_datos->>'currentJobId') ~ '^[0-9]{8,16}$' THEN
             RETURN 'linkedin:' || (v_datos->>'currentJobId');
+        ELSIF (v_datos->>'id') ~ '^[0-9]{8,16}$' THEN
+            RETURN 'linkedin:' || (v_datos->>'id');
         END IF;
     END IF;
 
@@ -212,12 +306,17 @@ BEGIN
         END IF;
     END IF;
 
-    -- 7. Plataformas con ID en datos_crudos
-    IF (v_datos->>'id') ~ '^[a-zA-Z0-9_-]+$' THEN
-        RETURN v_plat || ':' || (v_datos->>'id');
+    -- 7. Plataformas agregadas autorizadas (Jooble, RemoteOK, Remotive, InfoJobs, Adzuna)
+    IF v_plat IN ('jooble', 'remoteok', 'remotive', 'infojobs', 'adzuna') THEN
+        IF (v_datos->>'id') ~ '^[a-zA-Z0-9_-]+$' THEN
+            RETURN v_plat || ':' || (v_datos->>'id');
+        ELSIF v_plat = 'jooble' AND v_url ~* '/desc/([a-zA-Z0-9_-]+)' THEN
+            v_match := regexp_match(v_url, '/desc/([a-zA-Z0-9_-]+)', 'i');
+            RETURN 'jooble:' || v_match[1];
+        END IF;
     END IF;
 
-    -- 8. Fallback por URL canonizada
+    -- 8. Fallback por URL canonizada (aplica a General y fuentes no contempladas arriba)
     IF v_url != '' THEN
         -- Comprobar si la URL tiene protocolo http/https válido
         IF v_url !~* '^https?://' THEN
@@ -246,29 +345,44 @@ END;
 $$;
 
 -- 4 y 5. Backfill de identidad_canonica para filas históricas con resolución conservadora de colisiones:
--- Se calculan las identidades para todas las filas. La fila más antigua (menor id)
--- conserva la identidad limpia intacta; cualquier colisión posterior se renombra
--- atómicamente agregando ':colision-historica-${id}'.
--- Esto garantiza idempotencia y previene errores de clave duplicada incluso si
--- el índice único ya existe en la tabla.
-WITH base_calculada AS (
-    SELECT id,
-           COALESCE(identidad_canonica, fn_obtener_identidad_canonica_023(url, plataforma, datos_crudos, id)) AS identidad_calc
-    FROM ofertas
-),
-resolucion AS (
-    SELECT id,
-           CASE
-               WHEN ROW_NUMBER() OVER (PARTITION BY identidad_calc ORDER BY id ASC) > 1
-               THEN identidad_calc || ':colision-historica-' || id
-               ELSE identidad_calc
-           END AS identidad_final
-    FROM base_calculada
-)
-UPDATE ofertas o
-SET identidad_canonica = r.identidad_final
-FROM resolucion r
-WHERE o.id = r.id AND (o.identidad_canonica IS NULL OR o.identidad_canonica != r.identidad_final);
+-- Ejecutado en dos fases para garantizar que no haya errores de clave duplicada incluso si
+-- el índice único ya existe en la tabla y bajo cualquier orden de evaluación de PostgreSQL.
+DO $$
+BEGIN
+    CREATE TEMP TABLE tmp_backfill_023 ON COMMIT DROP AS
+    WITH base_calculada AS (
+        SELECT id,
+               COALESCE(identidad_canonica, fn_obtener_identidad_canonica_023(url, plataforma, datos_crudos, id)) AS identidad_calc
+        FROM ofertas
+    ),
+    resolucion AS (
+        SELECT id,
+               CASE
+                   WHEN ROW_NUMBER() OVER (PARTITION BY identidad_calc ORDER BY id ASC) > 1
+                   THEN identidad_calc || ':colision-historica-' || id
+                   ELSE identidad_calc
+               END AS identidad_final
+        FROM base_calculada
+    )
+    SELECT r.id, r.identidad_final
+    FROM resolucion r
+    JOIN ofertas o ON o.id = r.id
+    WHERE o.identidad_canonica IS NULL OR o.identidad_canonica != r.identidad_final;
+
+    -- Fase 1: Asignar identificadores temporales únicos para liberar los valores actuales
+    UPDATE ofertas o
+    SET identidad_canonica = ':temp-023-' || o.id || '-' || md5(random()::text)
+    FROM tmp_backfill_023 t
+    WHERE o.id = t.id;
+
+    -- Fase 2: Asignar las identidades canónicas finales
+    UPDATE ofertas o
+    SET identidad_canonica = t.identidad_final
+    FROM tmp_backfill_023 t
+    WHERE o.id = t.id;
+
+    DROP TABLE IF EXISTS tmp_backfill_023;
+END $$;
 
 -- 6. Creación de índices
 CREATE UNIQUE INDEX IF NOT EXISTS idx_ofertas_identidad_canonica ON ofertas(identidad_canonica);

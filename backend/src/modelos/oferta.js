@@ -404,7 +404,7 @@ async function crearOferta(datos) {
                                        salario_min, salario_max, moneda, descripcion, origen_descripcion,
                                        fecha_extraccion
                                 FROM ofertas
-                                WHERE id = ${filaPrevia.id}
+                                WHERE id = $17::integer
                             ),
                             actualizar AS (
                                 UPDATE ofertas SET
@@ -600,7 +600,7 @@ async function crearOferta(datos) {
                                         THEN NULL
                                         ELSE ofertas.firma_criterios_evaluacion
                                     END
-                                WHERE id = ${filaPrevia.id}
+                                WHERE id = $17::integer
                                 RETURNING *, FALSE AS es_nueva
                             )
                             SELECT actualizar.*,
@@ -617,7 +617,8 @@ async function crearOferta(datos) {
                             FROM actualizar
                             LEFT JOIN previa ON TRUE;
                         `;
-                        resultado = await pool.query(queryReconciliacionUrl, parametros);
+                        const paramsReconciliacion = [...parametros, filaPrevia.id];
+                        resultado = await pool.query(queryReconciliacionUrl, paramsReconciliacion);
                     } else {
                         // Identidad nueva ya ocupada por otra fila: aíslo la URL para no sobreescribir
                         const urlDesambiguada = `${urlCanonica || url}#colision-${filaPrevia.id}`;
