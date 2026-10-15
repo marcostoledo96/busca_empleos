@@ -266,6 +266,69 @@ describe('Servicio de scraping', () => {
                 'Error al ejecutar scraping de LinkedIn'
             );
         });
+
+        test('deduplica intra-ejecución dos items con el mismo job ID en formatos distintos', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-linkedin-dups' });
+
+            const itemLinkedin1 = {
+                id: '123456789',
+                link: 'https://www.linkedin.com/jobs/view/123456789',
+                title: 'Frontend Developer Junior',
+                companyName: 'LinkedIn Corp',
+                descriptionText: 'Puesto de desarrollador frontend React...',
+            };
+            const itemLinkedin2 = {
+                jobId: '123456789',
+                jobUrl: 'https://www.linkedin.com/jobs/view/frontend-developer-123456789?refId=tracker123&trackingId=abc',
+                jobTitle: 'Frontend Developer Junior',
+                companyName: 'LinkedIn Corp',
+                jobDescription: 'Puesto de desarrollador frontend React...',
+            };
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: [itemLinkedin1, itemLinkedin2] });
+
+            const resultado = await ejecutarScrapingLinkedin();
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].identidad_canonica).toBe('linkedin:123456789');
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(1);
+            expect(resultado.metricas.totalElegibles).toBe(1);
+        });
+
+        test('dos ofertas con IDs distintos permanecen separadas y no se descartan', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-linkedin-distintos' });
+
+            const itemLinkedin1 = {
+                id: '123456789',
+                link: 'https://www.linkedin.com/jobs/view/123456789',
+                title: 'Frontend Developer Junior',
+                companyName: 'LinkedIn Corp',
+                descriptionText: 'Puesto de desarrollador frontend React...',
+            };
+            const itemLinkedin2 = {
+                id: '987654321',
+                link: 'https://www.linkedin.com/jobs/view/987654321',
+                title: 'Backend Developer Junior',
+                companyName: 'LinkedIn Corp',
+                descriptionText: 'Puesto de desarrollador backend Node.js...',
+            };
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: [itemLinkedin1, itemLinkedin2] });
+
+            const resultado = await ejecutarScrapingLinkedin();
+
+            expect(resultado).toHaveLength(2);
+            expect(resultado[0].identidad_canonica).toBe('linkedin:123456789');
+            expect(resultado[1].identidad_canonica).toBe('linkedin:987654321');
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(0);
+            expect(resultado.metricas.totalElegibles).toBe(2);
+        });
     });
 
     describe('ejecutarScrapingComputrabajo()', () => {
@@ -1233,6 +1296,69 @@ describe('Servicio de scraping', () => {
                 'Error al ejecutar scraping de Indeed'
             );
         });
+
+        test('deduplica intra-ejecución dos items con el mismo jk y diferente utm_source, devolviendo 1 sola oferta e incrementando duplicadasDescartadas', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-dups' });
+
+            const itemIndeed1 = {
+                key: 'test-indeed-dup-1',
+                url: 'https://ar.indeed.com/viewjob?jk=abc1234567890def&utm_source=google',
+                title: 'Frontend Developer Junior',
+                employer: { name: 'Empresa Test' },
+                description: { text: 'Buscamos desarrollador frontend...' },
+            };
+            const itemIndeed2 = {
+                key: 'test-indeed-dup-2',
+                url: 'https://ar.indeed.com/viewjob?jk=abc1234567890def&utm_source=facebook',
+                title: 'Frontend Developer Junior',
+                employer: { name: 'Empresa Test' },
+                description: { text: 'Buscamos desarrollador frontend...' },
+            };
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: [itemIndeed1, itemIndeed2] });
+
+            const resultado = await ejecutarScrapingIndeed();
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].identidad_canonica).toBe('indeed:abc1234567890def');
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(1);
+            expect(resultado.metricas.totalElegibles).toBe(1);
+        });
+
+        test('dos ofertas con IDs distintos permanecen separadas y no se descartan', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-indeed-distintos' });
+
+            const itemIndeed1 = {
+                key: 'test-indeed-1',
+                url: 'https://ar.indeed.com/viewjob?jk=1111111111111111',
+                title: 'Frontend Developer Junior',
+                employer: { name: 'Empresa Test' },
+                description: { text: 'Buscamos desarrollador frontend...' },
+            };
+            const itemIndeed2 = {
+                key: 'test-indeed-2',
+                url: 'https://ar.indeed.com/viewjob?jk=2222222222222222',
+                title: 'Backend Developer Junior',
+                employer: { name: 'Empresa Test' },
+                description: { text: 'Buscamos desarrollador backend...' },
+            };
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({ items: [itemIndeed1, itemIndeed2] });
+
+            const resultado = await ejecutarScrapingIndeed();
+
+            expect(resultado).toHaveLength(2);
+            expect(resultado[0].identidad_canonica).toBe('indeed:1111111111111111');
+            expect(resultado[1].identidad_canonica).toBe('indeed:2222222222222222');
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(0);
+            expect(resultado.metricas.totalElegibles).toBe(2);
+        });
     });
 
     describe('ejecutarScrapingBumeran()', () => {
@@ -1348,6 +1474,73 @@ describe('Servicio de scraping', () => {
             // Solo el item con URL válida debe quedar normalizado.
             expect(resultado.length).toBe(1);
             expect(resultado[0].titulo).toBe('Frontend Developer Junior');
+        });
+
+        test('deduplica intra-ejecución items con el mismo ID', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-dups' });
+
+            const itemBumeran1 = {
+                url: 'https://www.bumeran.com.ar/empleos/desarrollador-web-1118200001.html',
+                titulo: 'Frontend Developer Junior',
+                empresa: 'TestCorp Argentina',
+                ubicacion: 'Capital Federal, Buenos Aires',
+                descripcion: 'Buscamos desarrollador web React...',
+            };
+            const itemBumeran2 = {
+                url: 'https://www.bumeran.com.ar/empleos/frontend-developer-junior-1118200001.html?utm_source=newsletter',
+                titulo: 'Frontend Developer Junior',
+                empresa: 'TestCorp Argentina',
+                ubicacion: 'Capital Federal, Buenos Aires',
+                descripcion: 'Buscamos desarrollador web React...',
+            };
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({
+                items: [itemBumeran1, itemBumeran2],
+            });
+
+            const resultado = await ejecutarScrapingBumeran();
+
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].identidad_canonica).toBe('bumeran:1118200001');
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(1);
+            expect(resultado.metricas.totalElegibles).toBe(1);
+        });
+
+        test('dos ofertas con IDs distintos permanecen separadas y no se descartan', async () => {
+            const mockCall = clienteApify.actor().call;
+            mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-bumeran-distintos' });
+
+            const itemBumeran1 = {
+                url: 'https://www.bumeran.com.ar/empleos/frontend-developer-1118200001.html',
+                titulo: 'Frontend Developer Junior',
+                empresa: 'TestCorp Argentina',
+                ubicacion: 'Capital Federal, Buenos Aires',
+                descripcion: 'Buscamos desarrollador frontend...',
+            };
+            const itemBumeran2 = {
+                url: 'https://www.bumeran.com.ar/empleos/backend-developer-2228200002.html',
+                titulo: 'Backend Developer Junior',
+                empresa: 'TestCorp Argentina',
+                ubicacion: 'Capital Federal, Buenos Aires',
+                descripcion: 'Buscamos desarrollador backend...',
+            };
+
+            const mockListItems = clienteApify.dataset().listItems;
+            mockListItems.mockResolvedValue({
+                items: [itemBumeran1, itemBumeran2],
+            });
+
+            const resultado = await ejecutarScrapingBumeran();
+
+            expect(resultado).toHaveLength(2);
+            expect(resultado[0].identidad_canonica).toBe('bumeran:1118200001');
+            expect(resultado[1].identidad_canonica).toBe('bumeran:2228200002');
+            expect(resultado.metricas.totalCrudos).toBe(2);
+            expect(resultado.metricas.duplicadasDescartadas).toBe(0);
+            expect(resultado.metricas.totalElegibles).toBe(2);
         });
     });
 

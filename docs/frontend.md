@@ -178,6 +178,8 @@ interface Oferta {
     razon_evaluacion: string | null;
     fecha_publicacion: string | null;
     fecha_extraccion: string;
+    fecha_ultima_extraccion?: string | null;
+    identidad_canonica?: string | null;
     datos_crudos: Record<string, unknown> | null;
 }
 ```
@@ -433,6 +435,10 @@ Archivo: `frontend/src/app/componentes/tabla-ofertas/`
 - Botón "ver detalle" por fila que emite `ofertaSeleccionada`.
 - Vista cards en mobile (≤768px) con paginación propia y filtro por texto.
 - **Paginación de 20 elementos por página**: desktop muestra `[rows]="20"` en la p-table; mobile usa `filasPorPaginaCards = 20` para las cards. Anteriormente era 10.
+- **Primera detección vs. Última detección (Issue #19):**
+  * Si la oferta tiene reaparición (`tieneReaparicion(oferta)`: `fecha_ultima_extraccion` existe y difiere de `fecha_extraccion`), la columna extraída muestra `Det: dd/MM/yy (Reaparición: dd/MM/yy)` y en cards mobile `dd/MM/yy (Reap: dd/MM/yy)`.
+  * Tooltip accesible completo: `Primera detección: dd/MM/yyyy HH:mm | Última detección: dd/MM/yyyy HH:mm`.
+  * Si no hay reaparición, muestra el formato de detección simple `Det: dd/MM/yy`.
 
 **Accesibilidad y responsive:**
 - Contenedores con `role="region"` y `aria-label` para la tabla y las cards.
@@ -464,6 +470,9 @@ Archivo: `frontend/src/app/componentes/detalle-oferta/`
 - Muestra un diálogo PrimeNG con todos los datos de la oferta.
 - `model()` permite que el padre controle la visibilidad del diálogo con binding bidireccional.
 - `abrirEnPagina()`: abre la URL de la oferta en una nueva pestaña con `noopener,noreferrer` (seguridad).
+- **Trazabilidad temporal de detección (Issue #19):**
+  * Presenta de forma diferenciada la **Primera detección** (`fecha_extraccion`) y la **Última detección** (`fecha_ultima_extraccion`) cuando la oferta ha reaparecido en extracciones posteriores (`tieneReaparicion(oferta)`).
+  * Preserva además la fecha original de publicación (`fecha_publicacion`) distinguiendo fechas aproximadas de fechas exactas.
 - **Matching explicable (#17):**
   * Presenta el score como **Compatibilidad estimada** (nunca como probabilidad de contratación).
   * Si hay desglose (`explicacion_evaluacion`), organiza las evidencias en:

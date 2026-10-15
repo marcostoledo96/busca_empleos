@@ -419,6 +419,8 @@ GET /api/ofertas?estado_postulacion=cv_enviado
             "estado_postulacion": "no_postulado",
             "fecha_publicacion": "2026-03-28T00:00:00.000Z",
             "fecha_extraccion": "2026-03-29T14:30:00.000Z",
+            "fecha_ultima_extraccion": "2026-03-29T14:30:00.000Z",
+            "identidad_canonica": "linkedin:4436157529",
             "datos_crudos": { ... }
         }
     ],
@@ -430,7 +432,7 @@ GET /api/ofertas?estado_postulacion=cv_enviado
 
 Retorna contadores agrupados por estado de evaluación **de los últimos 30 días**.
 
-> **Ventana de 30 días:** Al igual que `GET /api/ofertas`, este endpoint solo cuenta ofertas con `fecha_extraccion` dentro de los últimos 30 días. Ofertas más antiguas no se incluyen en los conteos ni en el total. Esto garantiza que las estadísticas sean consistentes con lo que el usuario ve en el listado.
+> **Ventana de 30 días (Issue #19):** Al igual que `GET /api/ofertas`, este endpoint solo cuenta ofertas con `COALESCE(fecha_ultima_extraccion, fecha_extraccion)` dentro de los últimos 30 días. Si una oferta histórica reaparece hoy en un nuevo scraping, actualiza su `fecha_ultima_extraccion` y vuelve a ser visible en el dashboard y en las estadísticas, preservando su `fecha_extraccion` inicial inalterada.
 
 **Ejemplo response (200):**
 ```json
@@ -664,11 +666,15 @@ Ejecuta el scraping de LinkedIn, normaliza resultados y guarda en BD.
 {
     "exito": true,
     "datos": {
-        "mensaje": "Scraping de LinkedIn completado: 15 ofertas nuevas.",
+        "mensaje": "Scraping de LinkedIn completado: 15 ofertas nuevas, 2 actualizadas y 3 reapariciones.",
         "plataforma": "linkedin",
         "ofertas_nuevas": 15,
+        "ofertas_actualizadas": 2,
+        "ofertas_reapariciones": 3,
         "ofertas_duplicadas": 5,
-        "total_extraidas": 20
+        "ofertas_errores": 0,
+        "total_extraidas": 20,
+        "duplicadas_descartadas": 2
     }
 }
 ```
@@ -695,11 +701,15 @@ Ejecuta el scraping de Computrabajo, normaliza y guarda en BD.
 {
     "exito": true,
     "datos": {
-        "mensaje": "Scraping de Computrabajo completado: 10 ofertas nuevas.",
+        "mensaje": "Scraping de Computrabajo completado: 10 ofertas nuevas, 1 actualizadas y 2 reapariciones.",
         "plataforma": "computrabajo",
         "ofertas_nuevas": 10,
+        "ofertas_actualizadas": 1,
+        "ofertas_reapariciones": 2,
         "ofertas_duplicadas": 3,
-        "total_extraidas": 13
+        "ofertas_errores": 0,
+        "total_extraidas": 13,
+        "duplicadas_descartadas": 1
     }
 }
 ```
@@ -726,11 +736,15 @@ Ejecuta el scraping de Indeed Argentina, normaliza resultados y guarda en BD.
 {
     "exito": true,
     "datos": {
-        "mensaje": "Scraping de Indeed completado: 12 ofertas nuevas.",
+        "mensaje": "Scraping de Indeed completado: 12 ofertas nuevas, 3 actualizadas y 5 reapariciones.",
         "plataforma": "indeed",
         "ofertas_nuevas": 12,
+        "ofertas_actualizadas": 3,
+        "ofertas_reapariciones": 5,
         "ofertas_duplicadas": 8,
-        "total_extraidas": 20
+        "ofertas_errores": 0,
+        "total_extraidas": 20,
+        "duplicadas_descartadas": 4
     }
 }
 ```

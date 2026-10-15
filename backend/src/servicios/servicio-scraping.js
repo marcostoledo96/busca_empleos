@@ -32,6 +32,10 @@ const { normalizarLote, detectarIdioma, parsearFechaRelativaComputrabajo } = req
 const cheerio = require('cheerio');
 const { randomUUID } = require('crypto');
 const { DESTINO_SANDBOX, LIMITES_GETONBRD, validarDestinoGetonbrd } = require('../config/getonbrd');
+const {
+    obtenerIdentidadCanonica,
+    canonizarUrlPlataforma,
+} = require('./servicio-identidad-ofertas');
 
 /**
  * Evalúo si una oferta normalizada es elegible para computar dentro de la cuota útil.
@@ -74,20 +78,16 @@ const HEADERS_SCRAPING = {
 
 /**
  * Canonizo una URL genérica para deduplicación intra-ejecución con Set.
- * Remuevo fragmentos (#) y trailing slashes.
+ * Utilizo la lógica canónica consistente de servicio-identidad-ofertas.
  *
  * @param {string} url - URL cruda.
  * @returns {string|null} URL normalizada o null.
  */
 function canonizarUrlGeneral(url) {
     if (!url || typeof url !== 'string') return null;
-    try {
-        const u = new URL(url);
-        u.hash = '';
-        return u.toString().replace(/\/$/, '');
-    } catch {
-        return url.split('#')[0].trim().replace(/\/$/, '');
-    }
+    const urlLimpia = url.trim();
+    if (!urlLimpia) return null;
+    return canonizarUrlPlataforma(urlLimpia, 'general');
 }
 
 /**
@@ -175,7 +175,21 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(items, 'linkedin');
         console.log(`Scraping LinkedIn: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        const identidadesVistas = new Set();
+        const ofertasDeduplicadas = [];
+        let duplicadasDescartadas = 0;
+
+        for (const oferta of ofertasNormalizadas) {
+            const identidad = obtenerIdentidadCanonica(oferta);
+            if (identidadesVistas.has(identidad)) {
+                duplicadasDescartadas++;
+                continue;
+            }
+            identidadesVistas.add(identidad);
+            ofertasDeduplicadas.push(oferta);
+        }
+
+        const resultado = ofertasDeduplicadas.slice(0, maxResultados);
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: 14,
@@ -183,7 +197,7 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
             consultasOmitidas: 0,
             totalCrudos: items.length,
             totalElegibles: resultado.length,
-            duplicadasDescartadas: 0,
+            duplicadasDescartadas,
             antiguasDescartadas: 0,
             sinFechaConocida: 0,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
@@ -241,7 +255,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 
         // === Paso 1: Extraer cards básicos del listado ===
         // Deduplicación temprana en memoria con Set antes de fetchear detalles.
-        const urlsVistas = new Set();
+        const identidadesVistas = new Set();
         const ofertasElegibles = [];
         let totalCrudos = 0;
         let duplicadasDescartadas = 0;
@@ -337,7 +351,9 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     const urlRelativa = href.split('#')[0];
                     const urlAbsoluta = `https://ar.computrabajo.com${urlRelativa}`;
 
-                    if (urlsVistas.has(urlAbsoluta)) {
+                    const identidad = obtenerIdentidadCanonica({ url: urlAbsoluta, plataforma: 'computrabajo' });
+
+                    if (identidadesVistas.has(identidad)) {
                         duplicadasDescartadas++;
                         return;
                     }
@@ -354,7 +370,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         }
                     }
 
-                    urlsVistas.add(urlAbsoluta);
+                    identidadesVistas.add(identidad);
 
                     // Empresa: primer párrafo con las clases fs16 fc_base mt5.
                     const empresa = $listado(el).find('p.fs16.fc_base.mt5').first().text().trim() || null;
@@ -583,7 +599,21 @@ async function ejecutarScrapingIndeed(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'indeed');
         console.log(`Scraping Indeed: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        const identidadesVistas = new Set();
+        const ofertasDeduplicadas = [];
+        let duplicadasDescartadas = 0;
+
+        for (const oferta of ofertasNormalizadas) {
+            const identidad = obtenerIdentidadCanonica(oferta);
+            if (identidadesVistas.has(identidad)) {
+                duplicadasDescartadas++;
+                continue;
+            }
+            identidadesVistas.add(identidad);
+            ofertasDeduplicadas.push(oferta);
+        }
+
+        const resultado = ofertasDeduplicadas.slice(0, maxResultados);
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: 30,
@@ -591,7 +621,7 @@ async function ejecutarScrapingIndeed(opciones = {}) {
             consultasOmitidas: 0,
             totalCrudos: itemsCrudos.length,
             totalElegibles: resultado.length,
-            duplicadasDescartadas: 0,
+            duplicadasDescartadas,
             antiguasDescartadas: 0,
             sinFechaConocida: 0,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
@@ -736,8 +766,22 @@ async function ejecutarScrapingBumeran(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(itemsAplanados, 'bumeran');
         console.log(`Scraping Bumeran: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
+        const identidadesVistas = new Set();
+        const ofertasDeduplicadas = [];
+        let duplicadasDescartadas = 0;
+
+        for (const oferta of ofertasNormalizadas) {
+            const identidad = obtenerIdentidadCanonica(oferta);
+            if (identidadesVistas.has(identidad)) {
+                duplicadasDescartadas++;
+                continue;
+            }
+            identidadesVistas.add(identidad);
+            ofertasDeduplicadas.push(oferta);
+        }
+
         const maxResultados = opciones.maxResultados || 100;
-        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        const resultado = ofertasDeduplicadas.slice(0, maxResultados);
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: 30,
@@ -745,7 +789,7 @@ async function ejecutarScrapingBumeran(opciones = {}) {
             consultasOmitidas: 0,
             totalCrudos: itemsAplanados.length,
             totalElegibles: resultado.length,
-            duplicadasDescartadas: 0,
+            duplicadasDescartadas,
             antiguasDescartadas: 0,
             sinFechaConocida: resultado.length,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
@@ -862,7 +906,7 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
     const timeoutMs = Math.max(1, Math.min(opciones.timeoutMs || LIMITES_GETONBRD.timeoutMs, LIMITES_GETONBRD.timeoutMs));
     const terminos = Array.isArray(opciones.terminos) && opciones.terminos.length ? opciones.terminos : TERMINOS_BUSQUEDA_DEFECTO;
     const cliente = opciones.cliente || fetch;
-    const urlsVistas = new Set();
+    const identidadesVistas = new Set();
     const limiteFecha = ahora.getTime() - 30 * 24 * 60 * 60 * 1000;
     const inicio = Date.now();
     let paginasProcesadas = 0;
@@ -952,11 +996,12 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
                     resultado.metricas.fuera_ventana++;
                     continue;
                 }
-                if (urlsVistas.has(urlCanonica)) {
+                const identidad = obtenerIdentidadCanonica(oferta);
+                if (identidadesVistas.has(identidad)) {
                     resultado.metricas.duplicadas_intra_run++;
                     continue;
                 }
-                urlsVistas.add(urlCanonica);
+                identidadesVistas.add(identidad);
                 oferta.url = urlCanonica;
                 resultado.ofertas.push(oferta);
                 resultado.metricas.dentro_ventana++;
@@ -1034,7 +1079,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
 
     try {
         console.log(`Scraping Jooble: buscando ${terminos.length} término(s) con round-robin (tope: ${MAX_PETICIONES} peticiones)...`);
-        const urlsVistas = new Set();
+        const identidadesVistas = new Set();
         const ofertasElegibles = [];
         let totalCrudos = 0;
         let duplicadasDescartadas = 0;
@@ -1106,10 +1151,8 @@ async function ejecutarScrapingJooble(opciones = {}) {
                     const normalizadas = normalizarLote(jobs, 'jooble');
 
                     for (const oferta of normalizadas) {
-                        const urlCanonica = canonizarUrlGeneral(oferta.url);
-                        if (!urlCanonica) continue;
-
-                        if (urlsVistas.has(urlCanonica)) {
+                        const identidad = obtenerIdentidadCanonica(oferta);
+                        if (!identidad || identidadesVistas.has(identidad)) {
                             duplicadasDescartadas++;
                             continue;
                         }
@@ -1127,7 +1170,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
                             sinFechaConocida++;
                         }
 
-                        urlsVistas.add(urlCanonica);
+                        identidadesVistas.add(identidad);
                         ofertasElegibles.push(oferta);
                         if (ofertasElegibles.length >= maxResultados) break;
                     }
@@ -1243,7 +1286,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
     const limite30Dias = Date.now() - diasVentana * 24 * 60 * 60 * 1000;
 
     try {
-        const urlsVistas = new Set();
+        const identidadesVistas = new Set();
         const ofertasElegibles = [];
         let totalCrudos = 0;
         let duplicadasDescartadas = 0;
@@ -1270,10 +1313,8 @@ async function ejecutarScrapingRemotive(opciones = {}) {
 
             const normalizadas = normalizarLote(jobs, 'remotive');
             for (const oferta of normalizadas) {
-                const urlCanonica = canonizarUrlGeneral(oferta.url);
-                if (!urlCanonica) continue;
-
-                if (urlsVistas.has(urlCanonica)) {
+                const identidad = obtenerIdentidadCanonica(oferta);
+                if (!identidad || identidadesVistas.has(identidad)) {
                     duplicadasDescartadas++;
                     continue;
                 }
@@ -1290,7 +1331,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
                     sinFechaConocida++;
                 }
 
-                urlsVistas.add(urlCanonica);
+                identidadesVistas.add(identidad);
                 ofertasElegibles.push(oferta);
                 if (ofertasElegibles.length >= maxResultados) break;
             }
@@ -1362,7 +1403,7 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
 
     try {
         console.log(`Scraping RemoteOK: buscando ${terminos.length} término(s) con reparto equitativo de cupo...`);
-        const urlsVistas = new Set();
+        const identidadesVistas = new Set();
         const ofertasElegibles = [];
         const ofertasSobrantes = [];
         let totalCrudos = 0;
@@ -1410,10 +1451,8 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
             let elegiblesTag = 0;
 
             for (const oferta of normalizadas) {
-                const urlCanonica = canonizarUrlGeneral(oferta.url);
-                if (!urlCanonica) continue;
-
-                if (urlsVistas.has(urlCanonica)) {
+                const identidad = obtenerIdentidadCanonica(oferta);
+                if (!identidad || identidadesVistas.has(identidad)) {
                     duplicadasDescartadas++;
                     continue;
                 }
@@ -1431,7 +1470,7 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
                     sinFechaConocida++;
                 }
 
-                urlsVistas.add(urlCanonica);
+                identidadesVistas.add(identidad);
 
                 if (elegiblesTag < cupoObjetivoPorTag && ofertasElegibles.length < maxResultados) {
                     ofertasElegibles.push(oferta);
@@ -1592,17 +1631,17 @@ async function ejecutarScrapingInfojobs(opciones = {}) {
         console.log(`Scraping InfoJobs: ${itemsCrudos.length} ofertas crudas en total.`);
 
         const diasVentana = 30;
-        const urlsVistas = new Set();
+        const identidadesVistas = new Set();
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'infojobs');
         let duplicadasDescartadas = 0;
         const ofertasSinDuplicados = [];
         for (const oferta of ofertasNormalizadas) {
-            const urlCanonica = canonizarUrlGeneral(oferta.url);
-            if (!urlCanonica || urlsVistas.has(urlCanonica)) {
+            const identidad = obtenerIdentidadCanonica(oferta);
+            if (!identidad || identidadesVistas.has(identidad)) {
                 duplicadasDescartadas++;
                 continue;
             }
-            urlsVistas.add(urlCanonica);
+            identidadesVistas.add(identidad);
             ofertasSinDuplicados.push(oferta);
         }
 
@@ -1765,17 +1804,17 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
         console.log(`Scraping Adzuna: ${itemsCrudos.length} ofertas crudas en total.`);
 
         const diasVentana = 30;
-        const urlsVistas = new Set();
+        const identidadesVistas = new Set();
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'adzuna');
         let duplicadasDescartadas = 0;
         const ofertasSinDuplicados = [];
         for (const oferta of ofertasNormalizadas) {
-            const urlCanonica = canonizarUrlGeneral(oferta.url);
-            if (!urlCanonica || urlsVistas.has(urlCanonica)) {
+            const identidad = obtenerIdentidadCanonica(oferta);
+            if (!identidad || identidadesVistas.has(identidad)) {
                 duplicadasDescartadas++;
                 continue;
             }
-            urlsVistas.add(urlCanonica);
+            identidadesVistas.add(identidad);
             ofertasSinDuplicados.push(oferta);
         }
 

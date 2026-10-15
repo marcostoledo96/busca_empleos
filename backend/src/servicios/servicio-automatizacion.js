@@ -32,7 +32,7 @@ const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
 const bloqueo = require('../utils/bloqueo-concurrente');
-const { filtrarOfertasPorIdioma } = require('./servicio-ingreso-ofertas');
+const { filtrarOfertasPorIdioma, guardarLoteOfertasAislado } = require('./servicio-ingreso-ofertas');
 const { resolverConfiguraciones } = require('./servicio-configuracion-busqueda');
 const modeloOferta = require('../modelos/oferta');
 const servicioNotificacionEmail = require('./servicio-notificacion-email');
@@ -175,6 +175,9 @@ function inicializarResultadoScraping() {
     // Totales.
     resultado.totalExtraidas = 0;
     resultado.guardadas = 0;
+    resultado.actualizadas = 0;
+    resultado.reapariciones = 0;
+    resultado.duplicadas = 0;
     resultado.descartadasPorIdioma = 0;
 
     return resultado;
@@ -336,22 +339,21 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
     // ── Paso 3: Guardar ofertas en la BD ──
     actualizarPasoPorgreso('guardado', 'procesando');
 
-    for (const oferta of ofertasFiltradas) {
-        try {
-            const insertada = await modeloOferta.crearOferta(oferta);
-            // crearOferta retorna null si la URL ya existía (deduplicación).
-            if (insertada !== null) {
-                resultado.scraping.guardadas++;
-            }
-        } catch (error) {
-            console.error(`[Automatización] Error al guardar oferta: ${error.message}`);
-            resultado.erroresGuardado++;
-            resultado.errores.push(`Error al guardar oferta "${oferta.titulo || 'sin título'}": ${error.message}`);
+    const resPersistencia = await guardarLoteOfertasAislado(ofertasFiltradas, modeloOferta);
+    resultado.scraping.guardadas = resPersistencia.guardadas;
+    resultado.scraping.actualizadas = resPersistencia.actualizadas;
+    resultado.scraping.reapariciones = resPersistencia.reapariciones;
+    resultado.scraping.duplicadas = resPersistencia.duplicadas;
+    resultado.erroresGuardado = resPersistencia.errores;
+
+    if (resPersistencia.detallesErrores && resPersistencia.detallesErrores.length > 0) {
+        for (const detalle of resPersistencia.detallesErrores) {
+            resultado.errores.push(`Error al guardar oferta "${detalle.titulo || detalle.url || 'sin título'}": ${detalle.error}`);
         }
     }
 
     actualizarPasoPorgreso('guardado', 'completada', resultado.scraping.guardadas);
-    console.log(`[Automatización] ${resultado.scraping.guardadas} ofertas nuevas guardadas de ${resultado.scraping.totalExtraidas} extraídas.`);
+    console.log(`[Automatización] ${resultado.scraping.guardadas} ofertas nuevas guardadas, ${resultado.scraping.actualizadas} actualizadas, ${resultado.scraping.reapariciones} reapariciones de ${resultado.scraping.totalExtraidas} extraídas.`);
 
     // ── Paso 4: Evaluar ofertas pendientes ──
     actualizarPasoPorgreso('evaluacion', 'procesando');

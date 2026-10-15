@@ -45,8 +45,35 @@ describe('Controlador de scraping', () => {
             expect(res.body.datos.plataforma).toBe('linkedin');
             expect(res.body.datos.total_extraidas).toBe(2);
             expect(res.body.datos.ofertas_nuevas).toBe(1);
+            expect(res.body.datos.ofertas_actualizadas).toBe(0);
+            expect(res.body.datos.ofertas_reapariciones).toBe(0);
             expect(res.body.datos.ofertas_duplicadas).toBe(1);
             expect(res.body.datos.mensaje).toContain('LinkedIn');
+        });
+
+        test('discrimina ofertas nuevas, actualizadas y reapariciones en el resumen', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev React', url: 'https://linkedin.com/job/1' },
+                { titulo: 'QA Tester', url: 'https://linkedin.com/job/2' },
+                { titulo: 'Dev Node', url: 'https://linkedin.com/job/3' },
+            ]);
+
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce({ id: 1, es_nueva: true, resultado_persistencia: 'insertada' })
+                .mockResolvedValueOnce({ id: 2, fue_actualizada: true, resultado_persistencia: 'actualizada' })
+                .mockResolvedValueOnce({ id: 3, es_reaparicion: true, resultado_persistencia: 'reaparicion' });
+
+            const res = await request(app)
+                .post('/api/scraping/linkedin')
+                .send({ maxResultados: 10 });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.ofertas_nuevas).toBe(1);
+            expect(res.body.datos.ofertas_actualizadas).toBe(1);
+            expect(res.body.datos.ofertas_reapariciones).toBe(1);
+            expect(res.body.datos.ofertas_duplicadas).toBe(2);
+            expect(res.body.datos.mensaje).toBe('Scraping de LinkedIn completado: 1 ofertas nuevas, 1 actualizadas y 1 reapariciones.');
         });
 
         test('pasa las opciones correctas al servicio de scraping', async () => {

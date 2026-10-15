@@ -470,6 +470,28 @@ describe('Servicio de automatización', () => {
 
             expect(resultado.scraping.totalExtraidas).toBe(2);
             expect(resultado.scraping.guardadas).toBe(1); // Solo 1 nueva.
+            expect(resultado.scraping.duplicadas).toBe(1);
+        });
+
+        test('discrimina ofertas nuevas, actualizadas y reapariciones en el ciclo de automatización', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
+                { titulo: 'Dev Angular', url: 'https://linkedin.com/1' },
+                { titulo: 'Dev React', url: 'https://linkedin.com/2' },
+                { titulo: 'Dev Node', url: 'https://linkedin.com/3' },
+            ]);
+            modeloOferta.crearOferta
+                .mockResolvedValueOnce({ id: 1, es_nueva: true, resultado_persistencia: 'insertada' })
+                .mockResolvedValueOnce({ id: 2, fue_actualizada: true, resultado_persistencia: 'actualizada' })
+                .mockResolvedValueOnce({ id: 3, es_reaparicion: true, resultado_persistencia: 'reaparicion' });
+
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+
+            expect(resultado.scraping.totalExtraidas).toBe(3);
+            expect(resultado.scraping.guardadas).toBe(1);
+            expect(resultado.scraping.actualizadas).toBe(1);
+            expect(resultado.scraping.reapariciones).toBe(1);
+            expect(resultado.scraping.duplicadas).toBe(2);
+            expect(resultado.erroresGuardado).toBe(0);
         });
 
         // === erroresGuardado — Spec: errores-guardado ===
@@ -744,6 +766,9 @@ describe('Servicio de automatización', () => {
 
             expect(resultado.totalExtraidas).toBe(0);
             expect(resultado.guardadas).toBe(0);
+            expect(resultado.actualizadas).toBe(0);
+            expect(resultado.reapariciones).toBe(0);
+            expect(resultado.duplicadas).toBe(0);
             expect(resultado.descartadasPorIdioma).toBe(0);
         });
     });

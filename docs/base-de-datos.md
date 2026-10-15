@@ -118,6 +118,8 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 | `origen_descripcion` | VARCHAR(50) | DEFAULT `'scraper'` | Procedencia del texto: `'scraper'`, `'tarjeta'` o `'manual'`. Migración 022. |
 | `descripcion_completitud` | VARCHAR(50) | DEFAULT `'desconocida'` | Estado de completitud: `'completa'`, `'parcial'`, `'desconocida'`, `'ausente'`. Migración 022. |
 | `descripcion_modificada_en` | TIMESTAMP | NULL permitido | Momento en que el usuario editó o completó manualmente la descripción. Migración 022. |
+| `identidad_canonica` | VARCHAR(500) | UNIQUE | Identidad lógica normalizada (`plataforma:id`). Clave de deduplicación canónica entre ejecuciones. Migración 023. |
+| `fecha_ultima_extraccion` | TIMESTAMP | DEFAULT NULL | Fecha y hora de la detección más reciente de la oferta. Permite revivir ofertas en la ventana activa manteniendo intacta `fecha_extraccion`. Migración 023. |
 
 Conservo firmas legacy en NULL (criterios desconocidos), sin backfill. Al reevaluar,
 reemplazo el resultado y su firma solo ante éxito, sin modificar estados ni notas manuales;
@@ -147,14 +149,21 @@ resultado válido anterior, incluida su fecha, firma y prioridad.
 | `idx_ofertas_fecha_extraccion_desc` | `fecha_extraccion DESC` | Listado por fecha | 015 |
 | `idx_ofertas_estado_fecha_extraccion` | `(estado_evaluacion, fecha_extraccion DESC)` | Filtrado por estado + fecha | 015 |
 | `idx_ofertas_fecha_evaluacion` | `fecha_evaluacion DESC NULLS LAST` | Reseteo de evaluaciones por fecha | 005 |
+| `idx_ofertas_identidad_canonica` | `identidad_canonica` (UNIQUE) | Deduplicación canónica entre ejecuciones y upserts atómicos | 023 |
+| `idx_ofertas_actividad_reciente` | `COALESCE(fecha_ultima_extraccion, fecha_extraccion)` | Ventana de visibilidad activa de 30 días | 023 |
 
 > **Nota:** El índice legacy `idx_ofertas_score_previo` fue eliminado en la migración 016.
 
-### Deduplicación
+### Deduplicación por identidad canónica y reapariciones (Migración 023)
 
-- La columna `url` tiene constraint `UNIQUE`.
-- Los INSERT usan `ON CONFLICT (url) DO NOTHING`: si la URL ya existe, se ignora silenciosamente sin error.
-- `crearOferta()` retorna `null` si fue duplicada, o el objeto insertado si es nueva.
+- **Identidad canónica (`identidad_canonica`):** Normaliza el identificador unívoco de cada plataforma (ej: Indeed `jk`, LinkedIn `jobId`, Computrabajo hash, Bumeran ID, etc.), abstrayendo variaciones de dominios, subdominios y parámetros volátiles de tracking (`utm_*`, `refId`, etc.).
+- **Persistencia atómica:** Los INSERT en `modeloOferta.crearOferta` utilizan `ON CONFLICT (identidad_canonica) DO UPDATE`:
+  - **Ofertas nuevas:** Se insertan con `es_nueva: true`, `resultado_persistencia: 'insertada'`, asignando `fecha_extraccion = NOW()` y `fecha_ultima_extraccion = NOW()`.
+  - **Reapariciones:** Preservan la `fecha_extraccion` inicial intacta y actualizan `fecha_ultima_extraccion = NOW()`.
+  - **Protección de estados manuales:** El `estado_postulacion` (`no_postulado`, `cv_enviado`, `en_proceso`, `descartada`) nunca es alterado por nuevas extracciones.
+  - **Protección de descripción manual:** Si `origen_descripcion = 'manual'`, el scraper jamás sobrescribe la descripción confirmada por el usuario.
+  - **Enriquecimiento de datos:** Si una reaparición aporta una descripción más larga o completa modalidad/ubicación ausentes, se actualizan dichos campos y se pasa el estado a `pendiente` con `evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'` sin invocar reevaluaciones automáticas con costo.
+- **Ventana de visibilidad de 30 días:** Todas las consultas de ofertas recientes (`obtenerOfertas`, `obtenerEstadisticas`, `obtenerOfertasPendientes`, `obtenerOfertasConErrores` y snapshots de sincronización) filtran mediante `COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'`. Esto garantiza que una oferta de hace más de 30 días que vuelve a ser detectada hoy reaparezca inmediatamente en el dashboard sin alterar su fecha histórica de primera detección.
 
 ## Tabla `preferencias`
 
@@ -351,7 +360,12 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 | 015 | `migracion-015-indices-ofertas-ultimos-30-dias.sql` | Índices `idx_ofertas_fecha_extraccion_desc` y `idx_ofertas_estado_fecha_extraccion`. | Aditiva |
 | 016 | `migracion-016-eliminar-scoring-legacy.sql` | ⚠️ **Destructiva** — Elimina objetos legacy de scoring: índice, constraint y columnas (`score_previo`, `analisis_previo`, `scoring_version`, `scoring_config`). Usa `IF EXISTS` en todos los drops. | Destructiva |
 | 017 | `migracion-017-salario-rango.sql` | Agrega constraint `chk_ofertas_salario_rango` (salario_min <= salario_max cuando ambos no son NULL). Preflight de filas inválidas; si hay, la migración falla antes de crear la constraint. | Aditiva |
+| 018 | `migracion-018-prioridad-ia-ofertas.sql` | Agrega campos de señal de prioridad IA a `ofertas` y flag en `preferencias`. | Aditiva |
 | 019 | `migracion-019-firma-evaluacion.sql` | Agrego `firma_criterios_evaluacion` TEXT nullable a `ofertas`, con `IF NOT EXISTS`, sin backfill ni cambios en campos manuales. | Aditiva |
+| 020 | `migracion-020-cv-base.sql` | Crea la tabla independiente `cv_base` para documento fuente de CV editable. | Aditiva |
+| 021 | `migracion-021-filtrar-nivel-linkedin.sql` | Agrega columna `filtrar_nivel_linkedin` en `preferencias`. | Aditiva |
+| 022 | `migracion-022-matching-explicable-y-descripcion.sql` | Agrega desglose explicable y trazabilidad de descripciones manuales a `ofertas`. | Aditiva |
+| 023 | `migracion-023-identidad-y-reapariciones.sql` | Identidad canónica y seguimiento de reapariciones de ofertas con backfill seguro e índices `idx_ofertas_identidad_canonica` e `idx_ofertas_actividad_reciente`. | Aditiva |
 
 ### Gotchas
 

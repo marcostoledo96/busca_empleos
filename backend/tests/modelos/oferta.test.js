@@ -103,14 +103,30 @@ contexto('Modelo de ofertas — CRUD', () => {
             expect(ofertaCreada.datos_crudos).toEqual(ofertaEjemplo.datos_crudos);
         });
 
-        test('debería retornar null al insertar una URL duplicada (deduplicación silenciosa)', async () => {
+        test('debería manejar reaparición al reinsertar la misma identidad sin crear nueva fila', async () => {
             // Inserto la primera vez — debería funcionar.
             const primera = await modeloOferta.crearOferta(ofertaEjemplo);
             expect(primera).not.toBeNull();
+            expect(primera.es_nueva).toBe(true);
+            expect(primera.fecha_ultima_extraccion).toBeInstanceOf(Date);
 
-            // Inserto la misma URL otra vez — debería retornar null sin error.
+            // Simulo un timestamp previo para verificar actualización de fecha_ultima_extraccion
+            await pool.query(
+                `UPDATE ofertas SET fecha_ultima_extraccion = NOW() - INTERVAL '1 hour' WHERE id = $1`,
+                [primera.id]
+            );
+            const previa = await modeloOferta.obtenerOfertaPorId(primera.id);
+
+            // Inserto la misma identidad otra vez — no crea nueva fila, es_nueva es false y fecha_ultima_extraccion se actualiza.
             const duplicada = await modeloOferta.crearOferta(ofertaEjemplo);
-            expect(duplicada).toBeNull();
+            expect(duplicada).not.toBeNull();
+            expect(duplicada.id).toBe(primera.id);
+            expect(duplicada.es_nueva).toBe(false);
+            expect(duplicada.es_reaparicion).toBe(true);
+            expect(duplicada.fecha_ultima_extraccion).toBeInstanceOf(Date);
+            expect(new Date(duplicada.fecha_ultima_extraccion).getTime()).toBeGreaterThan(
+                new Date(previa.fecha_ultima_extraccion).getTime()
+            );
 
             // Verifico que en la tabla hay solo 1 registro.
             const conteo = await pool.query('SELECT COUNT(*) AS total FROM ofertas');
@@ -138,7 +154,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             // Debe aparecer porque 29 < 30.
             const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '29 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '29 days', fecha_ultima_extraccion = NOW() - INTERVAL '29 days' WHERE id = $1`,
                 [oferta.id]
             );
 
@@ -157,7 +173,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             // No debería aparecer porque está fuera de la ventana de 30 días.
             const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days', fecha_ultima_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 
@@ -179,7 +195,7 @@ contexto('Modelo de ofertas — CRUD', () => {
                 titulo: 'Oferta Vieja',
             });
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days', fecha_ultima_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 
@@ -276,7 +292,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             const ofertaAprobadaVieja = await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.actualizarEvaluacion(ofertaAprobadaVieja.id, 'aprobada', 'Match');
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days', fecha_ultima_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaAprobadaVieja.id]
             );
 
@@ -296,7 +312,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             const oferta = await modeloOferta.crearOferta(ofertaEjemplo);
             await modeloOferta.actualizarEvaluacion(oferta.id, 'rechazada', 'Requiere Java');
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '29 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '29 days', fecha_ultima_extraccion = NOW() - INTERVAL '29 days' WHERE id = $1`,
                 [oferta.id]
             );
 
@@ -453,7 +469,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
             await modeloOferta.actualizarEvaluacion(ofertaVieja.id, 'aprobada', 'Match', 90);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days', fecha_ultima_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 
@@ -497,7 +513,7 @@ contexto('Modelo de ofertas — CRUD', () => {
             await modeloOferta.crearOferta(ofertaEjemplo);
             const ofertaVieja = await modeloOferta.crearOferta(segundaOferta);
             await pool.query(
-                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
+                `UPDATE ofertas SET fecha_extraccion = NOW() - INTERVAL '31 days', fecha_ultima_extraccion = NOW() - INTERVAL '31 days' WHERE id = $1`,
                 [ofertaVieja.id]
             );
 

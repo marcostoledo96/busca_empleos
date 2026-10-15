@@ -10,6 +10,11 @@
 // Es lo que en ingeniería se llama "normalización": llevar datos de diferentes
 // fuentes a un formato común.
 
+const {
+    obtenerIdentidadCanonica,
+    canonizarUrlPlataforma,
+} = require('./servicio-identidad-ofertas');
+
 /**
  * Sanitizo una fecha comprobando validez y límites temporales razonables.
  * Si es inválida (NaN), nula, o en el futuro improbable (> 24 horas), devuelvo null.
@@ -119,6 +124,18 @@ function normalizarOfertaLinkedin(item) {
     // entre runs, causando duplicados en la tabla ofertas (UNIQUE(url)).
     const url = canonizarUrlLinkedin(urlCruda);
 
+    // Calculo la identidad canónica según reglas unificadas
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'linkedin',
+        datos_crudos: item,
+    });
+
+    // Si la URL cruda original difiere de la canonizada, preservo url_original
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
+
     // Título: actor nuevo → jobTitle; actor viejo → title.
     const titulo = item.jobTitle || item.title || null;
 
@@ -141,13 +158,14 @@ function normalizarOfertaLinkedin(item) {
         modalidad: detectarModalidad(item),
         descripcion,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'linkedin',
         nivel_requerido: mapearNivelLinkedin(nivelCrudo),
         salario_min: salario.min,
         salario_max: salario.max,
         moneda: salario.moneda,
         fecha_publicacion: sanitizarFecha(fechaCruda),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -170,10 +188,17 @@ function mapearModalidadComputrabajo(modalidadDetalle) {
 }
 
 function normalizarOfertaComputrabajo(item, ahora = new Date()) {
-    const url = item.url;
-    if (!url) {
+    const urlCruda = item.url;
+    if (!urlCruda) {
         throw new Error('El item de Computrabajo no tiene URL.');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'computrabajo');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'computrabajo',
+        datos_crudos: item,
+    });
 
     const fechaTexto = item.fechaTexto || (typeof item.postedDate === 'string' && isNaN(new Date(item.postedDate).getTime()) ? item.postedDate : null);
     let fechaCalculada = null;
@@ -195,6 +220,7 @@ function normalizarOfertaComputrabajo(item, ahora = new Date()) {
         ...item,
         ...(fechaTexto && item.fechaTexto === undefined ? { fechaTexto } : {}),
         ...(fechaAproximada ? { fechaAproximada: true } : {}),
+        ...(urlCruda !== url ? { url_original: urlCruda } : {}),
     };
 
     return {
@@ -206,6 +232,7 @@ function normalizarOfertaComputrabajo(item, ahora = new Date()) {
         modalidad: mapearModalidadComputrabajo(item.modalidadDetalle),
         descripcion: item.descriptionText || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'computrabajo',
         nivel_requerido: null, // Computrabajo no categoriza por nivel.
         salario_min: null,
@@ -231,10 +258,21 @@ function normalizarOfertaComputrabajo(item, ahora = new Date()) {
  * @throws {Error} Si el item no tiene URL.
  */
 function normalizarOfertaIndeed(item) {
-    const url = item.url;
-    if (!url) {
+    const urlCruda = item.url;
+    if (!urlCruda) {
         throw new Error('El item de Indeed no tiene URL.');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'indeed');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'indeed',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     // Construyo la ubicación combinando ciudad y país.
     const ciudad = item.location?.city || null;
@@ -259,13 +297,14 @@ function normalizarOfertaIndeed(item) {
         modalidad,
         descripcion: item.description?.text || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'indeed',
         nivel_requerido: nivelRequerido,
         salario_min: salarioMin,
         salario_max: salarioMax,
         moneda,
         fecha_publicacion: sanitizarFecha(item.datePublished),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -477,10 +516,21 @@ function detectarNivelIndeed(item) {
  * @throws {Error} Si el item no tiene URL.
  */
 function normalizarOfertaBumeran(item) {
-    const url = item.url;
-    if (!url) {
+    const urlCruda = item.url;
+    if (!urlCruda) {
         throw new Error('El item de Bumeran no tiene URL.');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'bumeran');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'bumeran',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     return {
         titulo: item.titulo || null,
@@ -489,6 +539,7 @@ function normalizarOfertaBumeran(item) {
         modalidad: mapearModalidadBumeran(item.modalidad),
         descripcion: item.descripcion || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'bumeran',
         origen_descripcion: 'tarjeta',
         descripcion_completitud: item.descripcion ? 'parcial' : 'ausente',
@@ -499,7 +550,7 @@ function normalizarOfertaBumeran(item) {
         salario_max: null,
         moneda: null,
         fecha_publicacion: null,
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -685,10 +736,21 @@ function parsearSalario(salarioStr) {
  * @throws {Error} Si el item no tiene URL.
  */
 function normalizarOfertaGlassdoor(item) {
-    const url = item.jobUrl;
-    if (!url) {
+    const urlCruda = item.jobUrl;
+    if (!urlCruda) {
         throw new Error('El item de Glassdoor no tiene URL (campo "jobUrl").');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'glassdoor');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'glassdoor',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     // Construyo la ubicación combinando ciudad y estado.
     const ciudad = item.location_city || null;
@@ -705,6 +767,7 @@ function normalizarOfertaGlassdoor(item) {
         modalidad,
         descripcion: item.description_text || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'glassdoor',
         // El campo experienceRequired trae strings como ["8"] (años de experiencia),
         // no un nivel nombrado. DeepSeek puede inferir el nivel desde la descripción.
@@ -713,7 +776,7 @@ function normalizarOfertaGlassdoor(item) {
         salario_max: item.baseSalary_max || null,
         moneda: item.salary_currency || null,
         fecha_publicacion: sanitizarFecha(item.datePublished),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -761,10 +824,21 @@ function detectarModalidadGlassdoor(item) {
  * @throws {Error} Si el item no tiene URL pública.
  */
 function normalizarOfertaGetonbrd(item) {
-    const url = item.links?.public_url;
-    if (!url) {
+    const urlCruda = item.links?.public_url;
+    if (!urlCruda) {
         throw new Error('El item de GetOnBrd no tiene URL (campo "links.public_url").');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'getonbrd');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'getonbrd',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     const atributos = item.attributes || {};
     const paises = atributos.countries || [];
@@ -779,6 +853,7 @@ function normalizarOfertaGetonbrd(item) {
         modalidad: detectarModalidadGetonbrd(atributos.remote_modality),
         descripcion: atributos.description || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'getonbrd',
         nivel_requerido: mapearNivelGetonbrd(item.relationships?.seniority?.data?.id),
         salario_min: atributos.min_salary || null,
@@ -786,7 +861,7 @@ function normalizarOfertaGetonbrd(item) {
         // GetOnBrd publica salarios exclusivamente en dólares.
         moneda: (atributos.min_salary || atributos.max_salary) ? 'USD' : null,
         fecha_publicacion: sanitizarFecha(atributos.published_at ? atributos.published_at * 1000 : null),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -821,10 +896,21 @@ function normalizarOfertaGetonbrd(item) {
  * @throws {Error} Si el item no tiene URL (campo "link").
  */
 function normalizarOfertaJooble(item) {
-    const url = item.link;
-    if (!url) {
+    const urlCruda = item.link;
+    if (!urlCruda) {
         throw new Error('El item de Jooble no tiene URL (campo "link").');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'jooble');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'jooble',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     // Jooble no devuelve salario estructurado — intentamos parsearlo del string.
     const salario = parsearSalario(item.salary || '');
@@ -843,6 +929,7 @@ function normalizarOfertaJooble(item) {
         modalidad: detectarModalidadJooble(item.type),
         descripcion: item.snippet || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'jooble',
         // Jooble no expone nivel de experiencia en la API gratuita.
         nivel_requerido: null,
@@ -850,7 +937,7 @@ function normalizarOfertaJooble(item) {
         salario_max,
         moneda,
         fecha_publicacion: fechaPublicacion,
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -938,10 +1025,21 @@ function normalizarOfertaGoogleJobs(item) {
     // johnvc/google-jobs-scraper devuelve: title, company_name, location,
     // description, application_link, salary (string), job_type, posted_date,
     // company_logo, requirements.
-    const url = item.application_link || null;
-    if (!url) {
+    const urlCruda = item.application_link || null;
+    if (!urlCruda) {
         throw new Error('El item de Google Jobs no tiene application_link.');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'google_jobs');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'google_jobs',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     // Detecto la modalidad a partir de job_type y location.
     const modalidad = detectarModalidadGoogleJobs(item);
@@ -965,6 +1063,7 @@ function normalizarOfertaGoogleJobs(item) {
         modalidad,
         descripcion: item.description || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'google_jobs',
         // Google Jobs no expone nivel de experiencia de forma estructurada.
         // DeepSeek lo infiere de la descripción durante la evaluación.
@@ -973,7 +1072,7 @@ function normalizarOfertaGoogleJobs(item) {
         salario_max: salarioMax,
         moneda,
         fecha_publicacion: fechaPublicacion,
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -1121,10 +1220,21 @@ function detectarIdioma(titulo, descripcion) {
  * @throws {Error} Si el item no tiene URL.
  */
 function normalizarOfertaRemotive(item) {
-    const url = item.url;
-    if (!url) {
+    const urlCruda = item.url;
+    if (!urlCruda) {
         throw new Error('El item de Remotive no tiene URL.');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'remotive');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'remotive',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     const salario = parsearSalario(item.salary || '');
 
@@ -1138,6 +1248,7 @@ function normalizarOfertaRemotive(item) {
         modalidad: 'remoto',
         descripcion: item.description || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'remotive',
         // Remotive no expone nivel de experiencia de forma estructurada.
         nivel_requerido: null,
@@ -1145,7 +1256,7 @@ function normalizarOfertaRemotive(item) {
         salario_max: salario.max,
         moneda: salario.moneda,
         fecha_publicacion: sanitizarFecha(item.publication_date),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -1176,10 +1287,21 @@ function normalizarOfertaRemotive(item) {
  * @throws {Error} Si el item no tiene URL.
  */
 function normalizarOfertaRemoteOK(item) {
-    const url = item.url;
-    if (!url) {
+    const urlCruda = item.url;
+    if (!urlCruda) {
         throw new Error('El item de RemoteOK no tiene URL.');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'remoteok');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'remoteok',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     return {
         titulo: item.position || null,
@@ -1189,6 +1311,7 @@ function normalizarOfertaRemoteOK(item) {
         modalidad: 'remoto',
         descripcion: item.description || null,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'remoteok',
         // RemoteOK no expone nivel de experiencia de forma estructurada.
         nivel_requerido: null,
@@ -1197,7 +1320,7 @@ function normalizarOfertaRemoteOK(item) {
         // RemoteOK publica salarios exclusivamente en dólares.
         moneda: (item.salary_min || item.salary_max) ? 'USD' : null,
         fecha_publicacion: sanitizarFecha(item.date),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -1232,10 +1355,21 @@ function normalizarOfertaRemoteOK(item) {
  * @throws {Error} Si el item no tiene URL o si la modalidad no es remoto puro.
  */
 function normalizarOfertaInfojobs(item) {
-    const url = item.link;
-    if (!url) {
+    const urlCruda = item.link;
+    if (!urlCruda) {
         throw new Error('El item de InfoJobs no tiene URL (campo "link").');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'infojobs');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'infojobs',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     // Validación defensiva (Capa 2): descarto cualquier oferta que no sea remoto puro.
     // Aunque el scraper ya filtra en origen, la API puede devolver datos inconsistentes.
@@ -1313,6 +1447,7 @@ function normalizarOfertaInfojobs(item) {
         modalidad: 'remoto',
         descripcion,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'infojobs',
         nivel_requerido: mapearNivelInfojobs(experienciaCruda),
         // InfoJobs puede incluir rango salarial como números o PDs con .value.
@@ -1321,7 +1456,7 @@ function normalizarOfertaInfojobs(item) {
         // La moneda se infiere del campo salaryDescription si existe.
         moneda: inferirMonedaInfojobs(item.salaryDescription),
         fecha_publicacion: sanitizarFecha(item.published),
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -1506,10 +1641,21 @@ function detectarModalidadTexto(texto = '') {
 }
 
 function normalizarOfertaAdzuna(item) {
-    const url = item.redirect_url;
-    if (!url) {
+    const urlCruda = item.redirect_url;
+    if (!urlCruda) {
         throw new Error('El item de Adzuna no tiene redirect_url (campo obligatorio).');
     }
+
+    const url = canonizarUrlPlataforma(urlCruda, 'adzuna');
+    const identidadCanonica = obtenerIdentidadCanonica({
+        url: urlCruda,
+        plataforma: 'adzuna',
+        datos_crudos: item,
+    });
+
+    const datosCrudos = urlCruda !== url
+        ? { ...item, url_original: urlCruda }
+        : item;
 
     const titulo = item.title || null;
     const empresa = item.company?.display_name || null;
@@ -1552,13 +1698,14 @@ function normalizarOfertaAdzuna(item) {
         modalidad,
         descripcion,
         url,
+        identidad_canonica: identidadCanonica,
         plataforma: 'adzuna',
         nivel_requerido: null,
         salario_min: salarioMin,
         salario_max: salarioMax,
         moneda,
         fecha_publicacion: fechaPublicacion,
-        datos_crudos: item,
+        datos_crudos: datosCrudos,
     };
 }
 
@@ -1575,6 +1722,8 @@ module.exports = {
     normalizarOfertaRemoteOK,
     normalizarOfertaAdzuna,
     normalizarLote,
+    obtenerIdentidadCanonica,
+    canonizarUrlPlataforma,
     // Exporto las auxiliares para poder testearlas si hace falta.
     _parsearSalario: parsearSalario,
     _mapearNivelGetonbrd: mapearNivelGetonbrd,

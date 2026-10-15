@@ -148,9 +148,15 @@
                         }
                         <div class="titulo-meta-responsive">
                             <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
-                            <span class="titulo-fecha-responsive" [title]="'Detectada: ' + (oferta.fecha_extraccion | date:'dd/MM/yy')">
-                                Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
-                            </span>
+                            @if (tieneReaparicion(oferta)) {
+                                <span class="titulo-fecha-responsive" [title]="'Primera detección: ' + (oferta.fecha_extraccion | date:'dd/MM/yyyy HH:mm') + ' | Última detección: ' + (oferta.fecha_ultima_extraccion | date:'dd/MM/yyyy HH:mm')">
+                                    Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }} (Reaparición: {{ oferta.fecha_ultima_extraccion | date:'dd/MM/yy' }})
+                                </span>
+                            } @else {
+                                <span class="titulo-fecha-responsive" [title]="'Detectada: ' + (oferta.fecha_extraccion | date:'dd/MM/yy')">
+                                    Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
+                                </span>
+                            }
                             @if (oferta.fecha_publicacion) {
                                 <span class="titulo-fecha-responsive" [title]="(esFechaAproximada(oferta) ? 'Publicada (aproximada): ' : 'Publicada: ') + (oferta.fecha_publicacion | date:'dd/MM/yy')">
                                     · Pub{{ esFechaAproximada(oferta) ? ' (aprox)' : '' }}: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}
@@ -198,9 +204,15 @@
                         [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                 </td>
                 <td class="columna-extraida celda-mono celda-fecha">
-                    <span [title]="'Detectada: ' + (oferta.fecha_extraccion | date:'dd/MM/yyyy HH:mm')">
-                        Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
-                    </span>
+                    @if (tieneReaparicion(oferta)) {
+                        <span [title]="'Primera detección: ' + (oferta.fecha_extraccion | date:'dd/MM/yyyy HH:mm') + ' | Última detección: ' + (oferta.fecha_ultima_extraccion | date:'dd/MM/yyyy HH:mm')">
+                            Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }} (Reaparición: {{ oferta.fecha_ultima_extraccion | date:'dd/MM/yy' }})
+                        </span>
+                    } @else {
+                        <span [title]="'Detectada: ' + (oferta.fecha_extraccion | date:'dd/MM/yyyy HH:mm')">
+                            Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}
+                        </span>
+                    }
                     @if (oferta.fecha_publicacion) {
                         <br />
                         <span style="font-size: 0.75rem; opacity: 0.8;" [title]="(esFechaAproximada(oferta) ? 'Publicada (aproximada): ' : 'Publicada: ') + (oferta.fecha_publicacion | date:'dd/MM/yyyy')">
@@ -301,7 +313,13 @@
                             </span>
                         }
                         <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
-                        <span class="card-oferta__fecha">{{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                        @if (tieneReaparicion(oferta)) {
+                            <span class="card-oferta__fecha" [title]="'Primera detección: ' + (oferta.fecha_extraccion | date:'dd/MM/yyyy HH:mm') + ' | Última detección: ' + (oferta.fecha_ultima_extraccion | date:'dd/MM/yyyy HH:mm')">
+                                {{ oferta.fecha_extraccion | date:'dd/MM/yy' }} (Reap: {{ oferta.fecha_ultima_extraccion | date:'dd/MM/yy' }})
+                            </span>
+                        } @else {
+                            <span class="card-oferta__fecha">{{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                        }
                     </div>
 
                     <!-- Footer: estado + postulación -->

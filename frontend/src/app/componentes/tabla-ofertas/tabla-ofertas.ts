@@ -262,6 +262,17 @@ export class TablaOfertas {
         return !!(oferta.fecha_publicacion_aproximada || oferta.datos_crudos?.['fechaAproximada'] || oferta.datos_crudos?.['fechaTexto']);
     }
 
+    tieneReaparicion(oferta: Oferta): boolean {
+        if (!oferta.fecha_ultima_extraccion) return false;
+        if (!oferta.fecha_extraccion) return true;
+        const tUltima = new Date(oferta.fecha_ultima_extraccion).getTime();
+        const tPrimera = new Date(oferta.fecha_extraccion).getTime();
+        if (Number.isFinite(tUltima) && Number.isFinite(tPrimera)) {
+            return tUltima !== tPrimera;
+        }
+        return oferta.fecha_ultima_extraccion !== oferta.fecha_extraccion;
+    }
+
     verDetalle(oferta: Oferta): void {
         this.ofertaSeleccionada.emit(oferta);
     }
