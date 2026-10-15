@@ -343,8 +343,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         console.log(`Scraping Computrabajo: ${urls.length} URL(s) de búsqueda generadas (tope: ${MAX_PETICIONES_COMPUTRABAJO} peticiones, máx ${MAX_DETALLES_POR_TERMINO} detalles/término).`);
 
         // === Paso 1: Extraer cards básicos del listado ===
-        // Deduplicación temprana en memoria con Set antes de fetchear detalles.
-        const identidadesVistas = new Set();
+        // Deduplicación temprana y consolidación en memoria con Map antes de fetchear detalles.
+        const tarjetasVistas = new Map();
         const ofertasElegibles = [];
         let totalCrudos = 0;
         let duplicadasDescartadas = 0;
@@ -442,11 +442,6 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 
                     const identidad = obtenerIdentidadCanonica({ url: urlAbsoluta, plataforma: 'computrabajo' });
 
-                    if (identidadesVistas.has(identidad)) {
-                        duplicadasDescartadas++;
-                        return;
-                    }
-
                     // Fecha en texto plano: "Hace 2 horas", "Hace 6 días", "Hace 2 meses", etc.
                     const fechaTexto = $listado(el).find('p.fs13.fc_aux.mt15').text().trim() || null;
 
@@ -459,15 +454,29 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         }
                     }
 
-                    identidadesVistas.add(identidad);
-
                     // Empresa: primer párrafo con las clases fs16 fc_base mt5.
                     const empresa = $listado(el).find('p.fs16.fc_base.mt5').first().text().trim() || null;
 
                     // Ubicación: span.mr10 dentro del segundo párrafo de ese estilo.
                     const ubicacion = $listado(el).find('p.fs16.fc_base.mt5 span.mr10').text().trim() || null;
 
-                    tarjetasTermino.push({ url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto });
+                    const tarjetaActual = { url: urlAbsoluta, titulo, empresa, ubicacion, fechaTexto, identidad };
+
+                    if (tarjetasVistas.has(identidad)) {
+                        duplicadasDescartadas++;
+                        const existente = tarjetasVistas.get(identidad);
+                        // Consolidamos campos si la tarjeta previa estaba incompleta y la nueva aporta datos
+                        if (!existente.empresa && tarjetaActual.empresa) existente.empresa = tarjetaActual.empresa;
+                        if (!existente.ubicacion && tarjetaActual.ubicacion) existente.ubicacion = tarjetaActual.ubicacion;
+                        if (!existente.fechaTexto && tarjetaActual.fechaTexto) existente.fechaTexto = tarjetaActual.fechaTexto;
+                        if (tarjetaActual.titulo && tarjetaActual.titulo.length > (existente.titulo || '').length) {
+                            existente.titulo = tarjetaActual.titulo;
+                        }
+                        return;
+                    }
+
+                    tarjetasVistas.set(identidad, tarjetaActual);
+                    tarjetasTermino.push(tarjetaActual);
                 });
 
                 // Cuota de detalles para este término en esta ronda:

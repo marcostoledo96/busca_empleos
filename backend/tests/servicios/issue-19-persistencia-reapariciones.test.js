@@ -375,4 +375,124 @@ contexto('Issue #19 - Persistencia y Reapariciones de Ofertas', () => {
         expect(reconciliada.identidad_canonica).toBe('glassdoor:100889977');
         expect(reconciliada.descripcion).toContain('Nueva descripción detallada');
     });
+
+    test('13. Enriquecimiento de nivel_requerido (null -> senior) marca REEVALUACION_SOLICITADA y repetición idéntica no reevalúa', async () => {
+        // Oferta creada inicialmente sin nivel_requerido y aprobada
+        const ofertaSinNivel = {
+            ...ofertaBase,
+            nivel_requerido: null,
+            url: 'https://www.linkedin.com/jobs/view/4436157999',
+        };
+        const creada = await modeloOferta.crearOferta(ofertaSinNivel);
+        expect(creada.nivel_requerido).toBeNull();
+
+        await modeloOferta.actualizarEvaluacion(creada.id, 'aprobada', 'Evaluada sin nivel explícito', 85);
+
+        // Reaparición que incorpora nivel_requerido = 'senior'
+        const reaparicionSenior = await modeloOferta.crearOferta({
+            ...ofertaSinNivel,
+            nivel_requerido: 'senior',
+        });
+
+        expect(reaparicionSenior.id).toBe(creada.id);
+        expect(reaparicionSenior.nivel_requerido).toBe('senior');
+        expect(reaparicionSenior.fue_actualizada).toBe(true);
+        expect(reaparicionSenior.estado_evaluacion).toBe('pendiente');
+        expect(reaparicionSenior.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
+        expect(reaparicionSenior.porcentaje_match).toBeNull();
+        expect(reaparicionSenior.razon_evaluacion).toBe('Información de la oferta actualizada por nueva extracción; requiere reevaluación.');
+
+        // Se vuelve a evaluar
+        await modeloOferta.actualizarEvaluacion(creada.id, 'rechazada', 'Nivel senior excluido para perfil junior', 15);
+
+        // Reaparición idéntica con el mismo nivel_requerido = 'senior'
+        const reaparicionIdentica = await modeloOferta.crearOferta({
+            ...ofertaSinNivel,
+            nivel_requerido: 'senior',
+        });
+
+        expect(reaparicionIdentica.id).toBe(creada.id);
+        expect(reaparicionIdentica.fue_actualizada).toBe(false);
+        expect(reaparicionIdentica.es_reaparicion).toBe(true);
+        expect(reaparicionIdentica.resultado_persistencia).toBe('reaparicion');
+        // Conserva intacta la evaluación rechazada
+        expect(reaparicionIdentica.estado_evaluacion).toBe('rechazada');
+        expect(reaparicionIdentica.porcentaje_match).toBe(15);
+    });
+
+    test('14. Conflicto de URL entre portales distintos o IDs distintos no sobrescribe la fila anterior y aísla la oferta nueva', async () => {
+        const urlCompartida = 'https://empresa.com/careers/software-engineer';
+
+        // 1. Inserción inicial desde Adzuna con datos específicos
+        const ofertaAdzuna = {
+            titulo: 'Ingeniero de Software (Adzuna)',
+            empresa: 'Empresa Global S.A.',
+            url: urlCompartida,
+            plataforma: 'adzuna',
+            datos_crudos: { id: 'adzuna-item-123' },
+        };
+        const insertadaAdzuna = await modeloOferta.crearOferta(ofertaAdzuna);
+        expect(insertadaAdzuna.plataforma).toBe('adzuna');
+        expect(insertadaAdzuna.identidad_canonica).toBe('adzuna:adzuna-item-123');
+
+        // Usuario envía CV y guarda estado manual
+        await modeloOferta.actualizarPostulacion(insertadaAdzuna.id, 'cv_enviado');
+
+        // 2. Extracción posterior desde Jooble con la misma URL externa
+        const ofertaJooble = {
+            titulo: 'Software Engineer Backend (Jooble)',
+            empresa: 'Empresa Global S.A.',
+            url: urlCompartida,
+            plataforma: 'jooble',
+            datos_crudos: { id: 'jooble-item-456' },
+        };
+        const resultadoJooble = await modeloOferta.crearOferta(ofertaJooble);
+
+        // Ambas filas deben coexistir en la base de datos sin sobreescribirse
+        expect(resultadoJooble).not.toBeNull();
+        expect(resultadoJooble.id).not.toBe(insertadaAdzuna.id);
+        expect(resultadoJooble.plataforma).toBe('jooble');
+        expect(resultadoJooble.identidad_canonica).toBe('jooble:jooble-item-456');
+
+        // La fila previa de Adzuna debe permanecer 100% inalterada
+        const adzunaLeida = await modeloOferta.obtenerOfertaPorId(insertadaAdzuna.id);
+        expect(adzunaLeida.plataforma).toBe('adzuna');
+        expect(adzunaLeida.identidad_canonica).toBe('adzuna:adzuna-item-123');
+        expect(adzunaLeida.estado_postulacion).toBe('cv_enviado');
+        expect(adzunaLeida.titulo).toBe('Ingeniero de Software (Adzuna)');
+
+        const totalFilas = await pool.query('SELECT COUNT(*)::integer AS total FROM ofertas');
+        expect(totalFilas.rows[0].total).toBe(2);
+    });
+
+    test('15. Concurrencia real con Promise.all: dos upserts simultáneos con el mismo ID no generan duplicados ni errores', async () => {
+        const ofertaConcurrente = {
+            titulo: 'Desarrollador Fullstack Concurrente',
+            empresa: 'Tech Corp',
+            ubicacion: 'CABA, Argentina',
+            modalidad: 'remoto',
+            descripcion: 'Descripción concurrente para probar locking atómico...',
+            url: 'https://www.linkedin.com/jobs/view/9998887771',
+            plataforma: 'linkedin',
+        };
+
+        // Ejecuto simultáneamente dos llamadas idénticas
+        const [res1, res2] = await Promise.all([
+            modeloOferta.crearOferta(ofertaConcurrente),
+            modeloOferta.crearOferta(ofertaConcurrente),
+        ]);
+
+        expect(res1).not.toBeNull();
+        expect(res2).not.toBeNull();
+        expect(res1.id).toBe(res2.id);
+
+        // Exactamente una es nueva y la otra es reaparición
+        const esNuevas = [res1.es_nueva, res2.es_nueva];
+        expect(esNuevas).toContain(true);
+        expect(esNuevas).toContain(false);
+
+        // Exactamente 1 fila existe en la base de datos
+        const conteo = await pool.query('SELECT COUNT(*)::integer AS total FROM ofertas WHERE identidad_canonica = $1', ['linkedin:9998887771']);
+        expect(conteo.rows[0].total).toBe(1);
+    });
 });

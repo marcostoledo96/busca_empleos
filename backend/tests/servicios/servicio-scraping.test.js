@@ -1215,6 +1215,63 @@ describe('Servicio de scraping', () => {
                 ]);
             }
         });
+
+        test('consolida en memoria tarjetas duplicadas incompletas con tarjetas posteriores ricas antes de pedir detalles (B-04)', async () => {
+            const htmlListadoConDuplicadas = `
+                <html><body>
+                    <!-- Tarjeta 1: incompleta (sin empresa ni ubicación ni fecha, título corto) -->
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-consolidar-1">Dev Junior</a></h2>
+                    </article>
+                    <!-- Tarjeta 2: misma URL / identidad pero con datos completos y título más descriptivo -->
+                    <article class="box_offer">
+                        <h2><a class="js-o-link" href="/ofertas-de-trabajo/oferta-consolidar-1">Dev Junior Fullstack Node</a></h2>
+                        <p class="fs16 fc_base mt5">Empresa Enriquecida S.A. <span class="mr10">Córdoba</span></p>
+                        <p class="fs13 fc_aux mt15">Hace 1 día</p>
+                    </article>
+                </body></html>
+            `;
+
+            const htmlDetalle = `
+                <html><body>
+                    <h1 class="fwB">Dev Junior Fullstack Node</h1>
+                    <p class="mbB">Buscamos un desarrollador junior para incorporarse al equipo de backend y frontend.</p>
+                </body></html>
+            `;
+
+            let llamadasDetalle = 0;
+            global.fetch.mockImplementation(async (url) => {
+                if (url.includes('p=')) {
+                    return { ok: true, text: async () => '<html><body></body></html>' };
+                }
+                if (url.includes('trabajo-de-')) {
+                    return { ok: true, text: async () => htmlListadoConDuplicadas };
+                }
+                if (url.includes('oferta-consolidar-1')) {
+                    llamadasDetalle++;
+                    return { ok: true, text: async () => htmlDetalle };
+                }
+                return { ok: true, text: async () => '<html><body></body></html>' };
+            });
+
+            const resultado = await ejecutarScrapingComputrabajo({
+                terminos: ['frontend'],
+                maxResultados: 10,
+            });
+
+            // Se debe haber procesado exactamente 1 oferta (no 2)
+            expect(resultado.length).toBe(1);
+            // Solo se debió fetchear el detalle 1 vez, evitando peticiones duplicadas innecesarias
+            expect(llamadasDetalle).toBe(1);
+            // La métrica de duplicadas descartadas debe reflejar la tarjeta repetida
+            expect(resultado.metricas.duplicadasDescartadas).toBe(1);
+
+            // Los datos consolidados de la tarjeta 2 enriquecieron a la tarjeta 1
+            const oferta = resultado[0];
+            expect(oferta.empresa).toContain('Empresa Enriquecida S.A.');
+            expect(oferta.ubicacion).toBe('Córdoba');
+            expect(oferta.titulo).toBe('Dev Junior Fullstack Node');
+        });
     });
 
     describe('ejecutarScrapingIndeed()', () => {
