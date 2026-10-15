@@ -81,13 +81,15 @@ function obtenerProgresoEvaluacion(req, res) {
 
 /**
  * POST /api/evaluacion/cancelar
- * Activo la bandera de cancelación para interrumpir el loop.
+ * Activo la cancelación de una evaluación en curso o limpio un lote huérfano.
  */
-function cancelarEvaluacion(req, res) {
-    servicioEvaluacion.cancelarEvaluacionPendiente();
+async function cancelarEvaluacion(req, res) {
+    const resultado = await servicioEvaluacion.cancelarEvaluacionPendiente();
+    const activa = Boolean(resultado?.activa);
     res.json({
         exito: true,
-        mensaje: 'Se solicitó la cancelación de la evaluación.',
+        activa,
+        mensaje: resultado?.mensaje || 'Se solicitó la cancelación de la evaluación.',
     });
 }
 
@@ -138,4 +140,67 @@ async function resetearEvaluaciones(req, res) {
     }
 }
 
-module.exports = { ejecutarEvaluacion, obtenerProgresoEvaluacion, cancelarEvaluacion, resetearEvaluaciones };
+/**
+ * POST /api/evaluacion/reintentar-errores
+ * Reintenta evaluar las ofertas que tuvieron un error técnico en los últimos 30 días.
+ */
+async function reintentarErrores(req, res) {
+    const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
+    if (!lock.ok) {
+        return res.status(409).json({
+            exito: false,
+            mensaje: 'Ya hay una evaluación en curso.',
+        });
+    }
+
+    const progreso = servicioEvaluacion.obtenerProgresoEvaluacion();
+    if (progreso.activo) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        return res.status(409).json({
+            exito: false,
+            mensaje: 'Ya hay una evaluación en curso.',
+        });
+    }
+
+    let ofertasConError;
+    try {
+        ofertasConError = await modeloOferta.obtenerOfertasConErrores();
+    } catch (error) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        throw error;
+    }
+
+    if (!ofertasConError || ofertasConError.length === 0) {
+        await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        return res.status(200).json({
+            exito: true,
+            total: 0,
+            mensaje: 'No hay ofertas con errores de evaluación para reintentar.',
+        });
+    }
+
+    // Lanzo el worker en segundo plano; el lock lo retiene la conexión del worker
+    // hasta su finalización en el bloque finally.
+    servicioEvaluacion.evaluarOfertasPendientes(ofertasConError)
+        .catch((error) => {
+            console.error('[Evaluación] Error en segundo plano al reintentar errores:', error.message);
+        })
+        .finally(async () => {
+            await bloqueo.liberarBloqueoSeguro(lock.client, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        });
+
+    return res.status(200).json({
+        exito: true,
+        en_curso: true,
+        total: ofertasConError.length,
+        mensaje: `Reintento de evaluación iniciado para ${ofertasConError.length} oferta(s) con error.`,
+    });
+}
+
+module.exports = {
+    ejecutarEvaluacion,
+    obtenerProgresoEvaluacion,
+    cancelarEvaluacion,
+    resetearEvaluaciones,
+    reintentarErrores,
+};

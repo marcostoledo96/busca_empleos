@@ -195,6 +195,38 @@ describe('Controlador de evaluación', () => {
             expect(res.body.mensaje).toContain('cancelación');
             expect(servicioEvaluacion.cancelarEvaluacionPendiente).toHaveBeenCalledTimes(1);
         });
+
+        test('informa si se canceló una ejecución activa', async () => {
+            servicioEvaluacion.cancelarEvaluacionPendiente.mockResolvedValue({
+                activa: true,
+                cancelada: true,
+                mensaje: 'Se solicitó la cancelación de la evaluación activa en curso.',
+            });
+
+            const res = await request(app)
+                .post('/api/evaluacion/cancelar');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.activa).toBe(true);
+            expect(res.body.mensaje).toContain('cancelación');
+        });
+
+        test('informa si se limpió un estado de evaluación interrumpido o inactivo', async () => {
+            servicioEvaluacion.cancelarEvaluacionPendiente.mockResolvedValue({
+                activa: false,
+                cancelada: true,
+                mensaje: 'Se canceló y limpió el estado de evaluación interrumpido.',
+            });
+
+            const res = await request(app)
+                .post('/api/evaluacion/cancelar');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.activa).toBe(false);
+            expect(res.body.mensaje).toContain('canceló');
+        });
     });
 
     // ========================================================
@@ -430,6 +462,164 @@ describe('Controlador de evaluación', () => {
             expect(res.status).toBe(200);
             expect(res.body.exito).toBe(true);
             expect(modeloOferta.resetearEvaluacionesPorDias).toHaveBeenCalledWith(30);
+        });
+    });
+
+    // === POST /api/evaluacion/reintentar-errores ===
+
+    describe('POST /api/evaluacion/reintentar-errores', () => {
+        let mockClient;
+
+        beforeEach(() => {
+            mockClient = { id: 'cliente_pg_mock' };
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: true, client: mockClient });
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: false });
+        });
+
+        test('retiene el advisory lock durante la ejecución en segundo plano y solo lo libera en el finally al completar', async () => {
+            const ofertasConError = [
+                { id: 1, titulo: 'Desarrollador Node.js Junior' },
+                { id: 2, titulo: 'Backend Express' },
+            ];
+            modeloOferta.obtenerOfertasConErrores.mockResolvedValue(ofertasConError);
+
+            let resolverWorker;
+            const promesaWorker = new Promise((resolve) => {
+                resolverWorker = resolve;
+            });
+            servicioEvaluacion.evaluarOfertasPendientes.mockReturnValue(promesaWorker);
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.en_curso).toBe(true);
+            expect(res.body.total).toBe(2);
+            expect(modeloOferta.obtenerOfertasConErrores).toHaveBeenCalledTimes(1);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledWith(ofertasConError);
+
+            // Verifico que el lock NO fue liberado síncronamente mientras el worker está corriendo
+            expect(bloqueo.liberarBloqueoSeguro).not.toHaveBeenCalled();
+
+            // Resuelvo el worker en background y doy paso al event loop
+            resolverWorker({ total: 2, aprobadas: 2, rechazadas: 0, errores: 0 });
+            await promesaWorker;
+            await new Promise((resolve) => setImmediate(resolve));
+
+            // Verifico que el lock se liberó en el finally con la conexión del cliente
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledWith(mockClient, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        });
+
+        test('retiene el advisory lock durante la ejecución y lo libera en el finally si el worker falla', async () => {
+            const ofertasConError = [{ id: 3, titulo: 'QA Automation' }];
+            modeloOferta.obtenerOfertasConErrores.mockResolvedValue(ofertasConError);
+
+            let rechazarWorker;
+            const promesaWorker = new Promise((_, reject) => {
+                rechazarWorker = reject;
+            });
+            servicioEvaluacion.evaluarOfertasPendientes.mockReturnValue(promesaWorker);
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(200);
+            expect(bloqueo.liberarBloqueoSeguro).not.toHaveBeenCalled();
+
+            // Simulo fallo en background
+            rechazarWorker(new Error('Fallo crítico de worker'));
+            await promesaWorker.catch(() => {});
+            await new Promise((resolve) => setImmediate(resolve));
+
+            // Verifico que aun en caso de fallo el lock fue liberado de forma segura
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledWith(mockClient, bloqueo.CLAVES.EVALUACION_OFERTAS);
+        });
+
+        test('rechaza con 409 una petición concurrente mientras el worker está corriendo y permite adquirir tras finalizar', async () => {
+            const ofertasConError = [{ id: 4, titulo: 'Fullstack Dev' }];
+            modeloOferta.obtenerOfertasConErrores.mockResolvedValue(ofertasConError);
+
+            let resolverWorker;
+            const promesaWorker = new Promise((resolve) => {
+                resolverWorker = resolve;
+            });
+            servicioEvaluacion.evaluarOfertasPendientes.mockReturnValue(promesaWorker);
+
+            // Primera petición: adquiere el lock y arranca el worker
+            const res1 = await request(app).post('/api/evaluacion/reintentar-errores');
+            expect(res1.status).toBe(200);
+
+            // Segunda petición concurrente: el lock no está disponible porque el worker lo retiene
+            bloqueo.intentarAdquirirLock.mockResolvedValueOnce({ ok: false });
+            const res2 = await request(app).post('/api/evaluacion/reintentar-errores');
+            expect(res2.status).toBe(409);
+            expect(res2.body.exito).toBe(false);
+            expect(res2.body.mensaje).toContain('en curso');
+
+            // Segunda variante concurrente: progreso.activo es true
+            bloqueo.intentarAdquirirLock.mockResolvedValueOnce({ ok: true, client: { id: 'otro_cliente' } });
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValueOnce({ activo: true });
+            const res3 = await request(app).post('/api/evaluacion/reintentar-errores');
+            expect(res3.status).toBe(409);
+            expect(res3.body.mensaje).toContain('en curso');
+
+            // Concluye el primer worker
+            resolverWorker({ total: 1 });
+            await promesaWorker;
+            await new Promise((resolve) => setImmediate(resolve));
+
+            // Tercera petición posterior: ahora sí puede adquirir el lock
+            bloqueo.intentarAdquirirLock.mockResolvedValueOnce({ ok: true, client: { id: 'cliente_nuevo' } });
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValueOnce({ activo: false });
+            modeloOferta.obtenerOfertasConErrores.mockResolvedValueOnce([]);
+
+            const res4 = await request(app).post('/api/evaluacion/reintentar-errores');
+            expect(res4.status).toBe(200);
+            expect(res4.body.total).toBe(0);
+        });
+
+        test('responde 200 con total 0 y libera el lock de inmediato si no hay ofertas con error', async () => {
+            modeloOferta.obtenerOfertasConErrores.mockResolvedValue([]);
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.total).toBe(0);
+            expect(res.body.mensaje).toContain('No hay ofertas con errores');
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledWith(mockClient, bloqueo.CLAVES.EVALUACION_OFERTAS);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).not.toHaveBeenCalled();
+        });
+
+        test('libera el lock inmediatamente si falla obtenerOfertasConErrores', async () => {
+            modeloOferta.obtenerOfertasConErrores.mockRejectedValue(new Error('Fallo de conexión a PostgreSQL'));
+
+            await expect(request(app).post('/api/evaluacion/reintentar-errores')).resolves.toHaveProperty('status', 500);
+
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledWith(mockClient, bloqueo.CLAVES.EVALUACION_OFERTAS);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).not.toHaveBeenCalled();
+        });
+
+        test('retorna 409 si el advisory lock ya está ocupado', async () => {
+            bloqueo.intentarAdquirirLock.mockResolvedValue({ ok: false });
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(409);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.mensaje).toContain('en curso');
+            expect(servicioEvaluacion.evaluarOfertasPendientes).not.toHaveBeenCalled();
+        });
+
+        test('retorna 409 si el progreso ya está activo en memoria', async () => {
+            servicioEvaluacion.obtenerProgresoEvaluacion.mockReturnValue({ activo: true });
+
+            const res = await request(app).post('/api/evaluacion/reintentar-errores');
+
+            expect(res.status).toBe(409);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.mensaje).toContain('en curso');
+            expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledWith(mockClient, bloqueo.CLAVES.EVALUACION_OFERTAS);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).not.toHaveBeenCalled();
         });
     });
 });

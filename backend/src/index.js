@@ -64,10 +64,12 @@ async function iniciarServidor() {
                 : 'la tabla ofertas todavía no existe.'
         );
 
-        app.listen(PUERTO, async () => {
+        // Rehidrato el progreso antes de aceptar conexiones HTTP para evitar condiciones de carrera.
+        await servicioEvaluacion.rehidratarProgreso();
+
+        app.listen(PUERTO, () => {
             logger.info(`Servidor escuchando en http://localhost:${PUERTO}`);
             logger.info(`Entorno: ${process.env.NODE_ENV || 'development'}`);
-            await servicioEvaluacion.rehidratarProgreso();
         });
     } catch (error) {
         logger.error('No pude iniciar el backend porque falló la conexión a PostgreSQL.');

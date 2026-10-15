@@ -209,4 +209,42 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(texto).not.toContain('Última reevaluación no aplicada');
         expect(texto).not.toContain('Se conserva la evaluación anterior válida');
     });
+
+    it('oferta con error técnico en estado pendiente muestra alerta de fallo técnico y no la de criterios modificados', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'pendiente',
+            evaluacion_error_mensaje: 'Fallo al conectar con el motor de IA (timeout)',
+            firma_criterios_evaluacion: null,
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Evaluación no completada (fallo técnico)');
+        expect(texto).toContain('La evaluación no pudo completarse satisfactoriamente. Motivo: Fallo al conectar con el motor de IA (timeout)');
+        expect(texto).not.toContain('Evaluación desactualizada — pendiente de reevaluación');
+        expect(texto).not.toContain('La descripción o los criterios se modificaron');
+    });
+
+    it('oferta previamente aprobada con reevaluación fallida muestra la evaluación anterior y la alerta de fallo reciente', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'aprobada',
+            porcentaje_match: 85,
+            evaluacion_error_mensaje: 'Error 500: servicio no disponible al reevaluar',
+            firma_criterios_evaluacion: 'firma-aprobada-valida',
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('APROBADA');
+        expect(texto).toContain('Compatibilidad estimada: 85%');
+        expect(texto).toContain('Última reevaluación no aplicada');
+        expect(texto).toContain('Se conserva la evaluación anterior válida. Motivo: Error 500: servicio no disponible al reevaluar');
+        expect(texto).not.toContain('Evaluación desactualizada — pendiente de reevaluación');
+    });
 });

@@ -58,13 +58,13 @@
                 @if (o.prioridad_ia) {
                     <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
                 }
-                @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                @if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
                     <span class="tag-desactualizada" role="status">Evaluación desactualizada — pendiente de reevaluación</span>
                 }
             </div>
 
             <!-- Alerta cuando la evaluación está desactualizada o pendiente -->
-            @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+            @if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">history</span>
                     <div class="alerta-desactualizada-texto">
@@ -76,7 +76,10 @@
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                     <div class="alerta-desactualizada-texto">
-                        @if (o.firma_criterios_evaluacion) {
+                        @if (o.estado_evaluacion === 'pendiente') {
+                            <strong>Evaluación no completada (fallo técnico)</strong>
+                            <span>La evaluación no pudo completarse satisfactoriamente. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                        } @else if (o.firma_criterios_evaluacion) {
                             <strong>Última reevaluación no aplicada</strong>
                             <span>Se conserva la evaluación anterior válida. Motivo: {{ o.evaluacion_error_mensaje }}</span>
                         } @else {

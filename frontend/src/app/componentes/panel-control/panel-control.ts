@@ -13,7 +13,7 @@ import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
-import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping } from '../../modelos/respuesta-api.model';
+import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping, InicioEvaluacion } from '../../modelos/respuesta-api.model';
 import { obtenerOpcionesScrapingPlataforma, PLATAFORMAS_ACTIVAS, PLATAFORMAS } from '../../config/plataformas';
 
 @Component({
@@ -101,7 +101,7 @@ export class PanelControl implements OnInit, OnDestroy {
         }
     }
 
-    readonly busquedaOcupada = computed(() => this.modoDemo() || this.ejecutandoCiclo() || this.scrapeandoAlguno() || this.evaluando());
+    readonly busquedaOcupada = computed(() => this.modoDemo() || this.ejecutandoCiclo() || this.scrapeandoAlguno() || this.evaluando() || this.reintentandoErrores());
 
     private prepararBusqueda(plataforma: string | null, continuar: () => void): void {
         if (this.busquedaOcupada()) return;
@@ -128,6 +128,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoInfojobs = signal(false);
     readonly scrapeandoAdzuna = signal(false);
     readonly evaluando = signal(false);
+    readonly reintentandoErrores = signal(false);
     readonly errorEvaluacion = signal<string | null>(null);
 
     // Computed: hay algún scraping individual en curso (para deshabilitar selector mobile).
@@ -251,6 +252,17 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.evaluando.set(true);
                     this.progresoEvaluacion.set(respuesta.datos);
                     this.iniciarPollingEvaluacion();
+                } else if (respuesta.exito && !respuesta.datos.activo && respuesta.datos.estado === 'error' && respuesta.datos.mensaje_error?.toLowerCase().includes('reinicio')) {
+                    this.evaluando.set(false);
+                    this.progresoEvaluacion.set(respuesta.datos);
+                    const detalle = respuesta.datos.mensaje_error || 'La evaluación previa fue interrumpida por reinicio del servidor. Podés continuar o reintentar.';
+                    this.errorEvaluacion.set(detalle);
+                    this.mensajes.add({
+                        severity: 'warn',
+                        summary: 'Evaluación interrumpida',
+                        detail: detalle,
+                        life: 5000,
+                    });
                 } else if (respuesta.exito && (respuesta.datos.estado === 'error' || respuesta.datos.errores > 0)) {
                     this.finalizarSeguimientoEvaluacion(respuesta.datos);
                 }
@@ -394,18 +406,38 @@ export class PanelControl implements OnInit, OnDestroy {
         this.detenerPollingEvaluacion();
         this.evaluando.set(false);
         this.progresoEvaluacion.set(p);
-        const fallo = p.estado === 'error' || p.errores > 0;
+        const esInterrumpido = !!p.mensaje_error?.toLowerCase().includes('reinicio');
+        const fallo = esInterrumpido || p.estado === 'error' || p.errores > 0;
         const cancelada = !fallo && (p.estado === 'cancelado' || p.evaluadas < p.total);
         const pendientes = p.pendientes ?? Math.max(0, p.total - p.evaluadas);
         const conteos = `${p.evaluadas} resultado(s) actualizado(s), ${pendientes} pendiente(s)`;
-        const detalle = fallo
-            ? `${p.mensaje_error || 'La evaluación terminó con errores.'} ${conteos}. Conservo el último resultado válido cuando existe.`
-            : cancelada ? `Evaluación cancelada: ${conteos}.`
-            : `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`;
+
+        let summary: string;
+        let detalle: string;
+        let severity: 'error' | 'info' | 'success' | 'warn';
+
+        if (esInterrumpido) {
+            summary = 'Evaluación interrumpida';
+            detalle = p.mensaje_error || 'La evaluación previa fue interrumpida por reinicio del servidor. Podés continuar o reintentar.';
+            severity = 'warn';
+        } else if (fallo) {
+            summary = 'Error en evaluación';
+            detalle = `${p.mensaje_error || 'La evaluación terminó con errores.'} ${conteos}. Conservo el último resultado válido cuando existe.`;
+            severity = 'error';
+        } else if (cancelada) {
+            summary = 'Evaluación cancelada';
+            detalle = `Evaluación cancelada: ${conteos}.`;
+            severity = 'info';
+        } else {
+            summary = 'Evaluación completada';
+            detalle = `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`;
+            severity = 'success';
+        }
+
         this.errorEvaluacion.set(fallo ? detalle : null);
         this.mensajes.add({
-            severity: fallo ? 'error' : cancelada ? 'info' : 'success',
-            summary: fallo ? 'Error en evaluación' : cancelada ? 'Evaluación cancelada' : 'Evaluación completada',
+            severity,
+            summary,
             detail: detalle,
             life: 5000,
         });
@@ -968,7 +1000,7 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     ejecutarEvaluacion(ids?: number[]): void {
-        if (this.modoDemo() || this.evaluando() || this.ejecutandoCiclo() || this.scrapeandoAlguno()) return;
+        if (this.modoDemo() || this.evaluando() || this.reintentandoErrores() || this.ejecutandoCiclo() || this.scrapeandoAlguno()) return;
         if (ids !== undefined && (ids.length < 1 || ids.length > 200 || new Set(ids).size !== ids.length ||
             ids.some(id => !Number.isSafeInteger(id) || id <= 0))) {
             this.errorEvaluacion.set('Seleccioná entre 1 y 200 ofertas válidas, sin duplicados.');
@@ -1017,6 +1049,67 @@ export class PanelControl implements OnInit, OnDestroy {
                 });
             },
             error: () => {}
+        });
+    }
+
+    reintentarErrores(): void {
+        if (this.modoDemo() || this.evaluando() || this.reintentandoErrores() || this.ejecutandoCiclo() || this.scrapeandoAlguno()) return;
+        this.errorEvaluacion.set(null);
+        this.reintentandoErrores.set(true);
+        this.evaluacionService.reintentarErrores().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: (respuesta) => {
+                this.reintentandoErrores.set(false);
+                const resp = respuesta as InicioEvaluacion & { total?: number };
+                if (!resp.exito || !resp.en_curso) {
+                    if (resp.total === 0) {
+                        this.mensajes.add({
+                            severity: 'info',
+                            summary: 'Sin errores técnicos',
+                            detail: resp.mensaje || 'No hay ofertas recientes con errores técnicos para reintentar.',
+                            life: 5000,
+                        });
+                    } else {
+                        const errorMsg = resp.mensaje || 'No se pudo iniciar el reintento de evaluación.';
+                        this.errorEvaluacion.set(errorMsg);
+                        this.mensajes.add({
+                            severity: 'error',
+                            summary: 'Error al reintentar',
+                            detail: errorMsg,
+                            life: 5000,
+                        });
+                    }
+                    return;
+                }
+                this.evaluando.set(true);
+                this.iniciarPollingEvaluacion();
+                this.mensajes.add({
+                    severity: 'info',
+                    summary: 'Reintentando errores',
+                    detail: 'Reintentando evaluación de ofertas con fallos técnicos...',
+                    life: 5000,
+                });
+            },
+            error: (error) => {
+                this.reintentandoErrores.set(false);
+                if (error?.status === 409) {
+                    this.mensajes.add({
+                        severity: 'info',
+                        summary: 'Evaluación ya en curso',
+                        detail: 'Ya hay una evaluación en curso. Retomando el seguimiento.',
+                        life: 4000,
+                    });
+                    this.rehidratarEvaluacion();
+                    return;
+                }
+                const detalle = error?.error?.mensaje || error?.error?.error || 'Error al conectar con el servidor para reintentar errores.';
+                this.errorEvaluacion.set(detalle);
+                this.mensajes.add({
+                    severity: 'error',
+                    summary: 'Error al reintentar',
+                    detail: detalle,
+                    life: 5000,
+                });
+            }
         });
     }
 }

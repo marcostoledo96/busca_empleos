@@ -52,6 +52,11 @@ let progresoEvaluacion = {
 // Bandera para interrumpir el loop de evaluación.
 let _cancelarEvaluacion = false;
 
+// Estado del worker en memoria y lote en curso.
+let _workerActivo = false;
+let _loteActivoId = null;
+let _ultimoLoteInterrumpidoId = null;
+
 /**
  * Devuelvo una copia del estado actual del progreso.
  * @returns {Object} Estado del progreso de evaluación.
@@ -61,11 +66,55 @@ function obtenerProgresoEvaluacion() {
 }
 
 /**
- * Activo la bandera de cancelación para que el loop de evaluarOfertasPendientes
- * se detenga después de procesar la oferta actual (no la corta a mitad de oferta).
+ * Cancela la evaluación pendiente o limpia un lote interrumpido/huérfano.
+ *
+ * Contemplo dos casos:
+ * a) Si hay un worker corriendo en memoria: activo la bandera _cancelarEvaluacion = true
+ *    para que el loop de evaluarOfertasPendientes se detenga ordenadamente.
+ * b) Si no hay worker activo pero el progreso en memoria o la BD quedaron en estado 'activo':
+ *    fuerzo la limpieza inmediata del estado en memoria y finalizo el lote en BD como 'cancelado'.
+ *
+ * @returns {Promise<Object>} Resultado de la cancelación informando si fue activa o limpieza.
  */
-function cancelarEvaluacionPendiente() {
-    _cancelarEvaluacion = true;
+async function cancelarEvaluacionPendiente() {
+    if (_workerActivo) {
+        _cancelarEvaluacion = true;
+        return {
+            activa: true,
+            cancelada: true,
+            mensaje: 'Se solicitó la cancelación de la evaluación activa en curso.',
+        };
+    }
+
+    _cancelarEvaluacion = false;
+    const habiaEstadoActivo = progresoEvaluacion.activo;
+    progresoEvaluacion.activo = false;
+    progresoEvaluacion.estado = 'cancelado';
+    progresoEvaluacion.mensaje_error = 'Evaluación cancelada.';
+
+    let loteIdParaCerrar = _loteActivoId;
+    try {
+        if (!loteIdParaCerrar) {
+            const ultimoLote = await evaluacionLote.obtenerUltimoLote();
+            if (ultimoLote && ultimoLote.estado === 'activo') {
+                loteIdParaCerrar = ultimoLote.id;
+            }
+        }
+        if (loteIdParaCerrar) {
+            await evaluacionLote.finalizarLote(loteIdParaCerrar, 'cancelado');
+        }
+    } catch (err) {
+        console.warn('[Evaluación] Error al finalizar lote huérfano en cancelación:', err.message);
+    }
+    _loteActivoId = null;
+
+    return {
+        activa: false,
+        cancelada: true,
+        mensaje: habiaEstadoActivo || loteIdParaCerrar
+            ? 'Se canceló y limpió el estado de evaluación interrumpido.'
+            : 'No había evaluación activa; se restableció el estado a cancelado.',
+    };
 }
 
 /**
@@ -330,7 +379,9 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
 async function evaluarOfertasPendientes(seleccionadas) {
     // Inicializo el progreso y reseteo la bandera de cancelación.
     _cancelarEvaluacion = false;
+    _workerActivo = true;
     let loteId = null;
+    _loteActivoId = null;
     let errorLote = null;
     let resumen;
     progresoEvaluacion = {
@@ -363,6 +414,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
         try {
             const lote = await evaluacionLote.crearLote(pendientes.length, modeloIA);
             loteId = lote.id;
+            _loteActivoId = loteId;
         } catch (err) {
             console.warn('[Evaluación] No se pudo crear lote en BD, el progreso solo estará en memoria:', err.message);
         }
@@ -402,7 +454,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
                 && ['aprobada', 'rechazada'].includes(oferta.estado_evaluacion)
                 && Boolean(oferta.fecha_evaluacion)
                 && (!oferta.evaluacion_error_mensaje || oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
-            const estado = conservarAnterior ? oferta.estado_evaluacion : (esInconsistente ? 'pendiente' : (resultado.match ? 'aprobada' : 'rechazada'));
+            const estado = conservarAnterior ? oferta.estado_evaluacion : (tieneFallo ? 'pendiente' : (resultado.match ? 'aprobada' : 'rechazada'));
             const errorMensaje = tieneFallo ? resultado.razon : null;
 
             const explicacionParaGuardar = (
@@ -424,13 +476,13 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     oferta.descripcion,
                     ...(oferta.descripcion_modificada_en !== undefined ? [oferta.descripcion_modificada_en] : [])
                 );
-            } else if (esInconsistente) {
+            } else if (tieneFallo) {
                 resActualizacion = await modeloOferta.actualizarEvaluacion(
                     oferta.id,
                     'pendiente',
                     resultado.razon,
                     null,
-                    resultado.razon,
+                    errorMensaje,
                     null,
                     null,
                     explicacionParaGuardar,
@@ -549,6 +601,8 @@ async function evaluarOfertasPendientes(seleccionadas) {
             if (!errorLote) errorLote = errorFinal;
         }
         progresoEvaluacion.activo = false;
+        _workerActivo = false;
+        _loteActivoId = null;
         if (resumen) Object.assign(resumen, progresoEvaluacion);
         if (errorLote) throw errorLote;
     }
@@ -557,32 +611,149 @@ async function evaluarOfertasPendientes(seleccionadas) {
 /**
  * Rehidrata el progreso de evaluación desde el último lote persistido en BD.
  * Se ejecuta al arrancar el servidor para recuperar el estado si se reinició.
+ * Si el último lote está 'activo' en BD pero no hay worker corriendo en memoria,
+ * lo finaliza como 'error' y deja el progreso inactivo para no bloquear nuevas evaluaciones.
+ * Esta función es completamente idempotente: llamadas sucesivas no duplican operaciones.
  */
 async function rehidratarProgreso() {
+    // Si ya hay un worker en curso en este proceso, evito clasificar erróneamente su lote.
+    if (_workerActivo) {
+        return;
+    }
+
     try {
         const lote = await evaluacionLote.obtenerUltimoLote();
 
         if (lote) {
+            let estadoFinal = lote.estado;
+            let mensajeError = null;
+
+            if (lote.estado === 'activo') {
+                if (_workerActivo) {
+                    return;
+                }
+
+                if (_ultimoLoteInterrumpidoId !== lote.id) {
+                    let loteFinalizado = null;
+                    try {
+                        loteFinalizado = await evaluacionLote.finalizarLote(lote.id, 'error');
+                    } catch (errLote) {
+                        console.warn('[Evaluación] No se pudo finalizar lote interrumpido en BD:', errLote.message);
+                        return;
+                    }
+
+                    if (!loteFinalizado || loteFinalizado.estado !== 'error') {
+                        console.warn(`[Evaluación] No se pudo finalizar lote #${lote.id} interrumpido en BD: actualización retornó vacío.`);
+                        return;
+                    }
+
+                    _ultimoLoteInterrumpidoId = lote.id;
+                    lote.estado = 'error';
+                    estadoFinal = 'error';
+                    mensajeError = 'La evaluación previa fue interrumpida por reinicio del servidor.';
+                } else {
+                    lote.estado = 'error';
+                    estadoFinal = 'error';
+                    mensajeError = 'La evaluación previa fue interrumpida por reinicio del servidor.';
+                }
+            } else if (lote.estado === 'error') {
+                mensajeError = progresoEvaluacion.mensaje_error || 'El lote terminó con errores. Revisá los resultados y las ofertas pendientes.';
+            }
+
             progresoEvaluacion = {
-                activo: lote.estado === 'activo',
-                estado: lote.estado,
-                mensaje_error: lote.estado === 'error' ? 'El lote terminó con errores. Revisá los resultados y las ofertas pendientes.' : null,
-                procesadas: lote.evaluadas + lote.errores,
-                pendientes: Math.max(0, lote.total - lote.evaluadas),
-                total: lote.total,
-                evaluadas: lote.evaluadas,
-                aprobadas: lote.aprobadas,
-                rechazadas: lote.rechazadas,
-                errores: lote.errores,
+                activo: false,
+                estado: estadoFinal,
+                mensaje_error: mensajeError,
+                procesadas: (lote.evaluadas || 0) + (lote.errores || 0),
+                pendientes: Math.max(0, (lote.total || 0) - (lote.evaluadas || 0)),
+                total: lote.total || 0,
+                evaluadas: lote.evaluadas || 0,
+                aprobadas: lote.aprobadas || 0,
+                rechazadas: lote.rechazadas || 0,
+                errores: lote.errores || 0,
                 supersedidas: 0,
-                porcentaje: lote.porcentaje,
+                porcentaje: lote.porcentaje || 0,
             };
 
-            console.log(`[Evaluación] Progreso rehidratado: lote #${lote.id}, ${lote.porcentaje}%`);
+            console.log(`[Evaluación] Progreso rehidratado: lote #${lote.id}, estado: ${estadoFinal}, ${lote.porcentaje}%`);
         }
     } catch (err) {
         console.warn('[Evaluación] No se pudo rehidratar el progreso:', err.message);
     }
+}
+
+/**
+ * Reintenta evaluar las ofertas que tuvieron un error técnico en los últimos 30 días.
+ * Consulta las ofertas usando modeloOferta.obtenerOfertasConErrores().
+ * Si no hay ofertas con errores, retorna de inmediato informándolo.
+ * Si las hay, dispara el worker de evaluación en segundo plano únicamente para esas ofertas.
+ *
+ * @returns {Promise<Object>} Resumen con total de ofertas a reintentar y estado.
+ */
+async function reintentarErroresEvaluacion() {
+    const ofertasConError = await modeloOferta.obtenerOfertasConErrores();
+
+    if (!ofertasConError || ofertasConError.length === 0) {
+        return {
+            exito: true,
+            total: 0,
+            mensaje: 'No hay ofertas con errores de evaluación para reintentar.',
+        };
+    }
+
+    evaluarOfertasPendientes(ofertasConError).catch((error) => {
+        console.error('[Evaluación] Error en segundo plano al reintentar errores:', error.message);
+    });
+
+    return {
+        exito: true,
+        en_curso: true,
+        total: ofertasConError.length,
+        mensaje: `Reintento de evaluación iniciado para ${ofertasConError.length} oferta(s) con error.`,
+    };
+}
+
+/**
+ * Helper interno para pruebas: expone el estado interno del worker y lotes.
+ */
+function _obtenerEstadoInterno() {
+    return {
+        cancelarEvaluacion: _cancelarEvaluacion,
+        workerActivo: _workerActivo,
+        loteActivoId: _loteActivoId,
+        ultimoLoteInterrumpidoId: _ultimoLoteInterrumpidoId,
+    };
+}
+
+/**
+ * Helper interno para pruebas: permite fijar workerActivo en tests unitarios.
+ */
+function _establecerWorkerActivo(activo) {
+    _workerActivo = Boolean(activo);
+}
+
+/**
+ * Helper interno para pruebas: resetea el estado interno entre ejecuciones de tests.
+ */
+function _resetearEstadoInterno() {
+    _cancelarEvaluacion = false;
+    _workerActivo = false;
+    _loteActivoId = null;
+    _ultimoLoteInterrumpidoId = null;
+    progresoEvaluacion = {
+        activo: false,
+        total: 0,
+        evaluadas: 0,
+        aprobadas: 0,
+        rechazadas: 0,
+        errores: 0,
+        supersedidas: 0,
+        porcentaje: 0,
+        estado: 'inactivo',
+        mensaje_error: null,
+        procesadas: 0,
+        pendientes: 0,
+    };
 }
 
 module.exports = {
@@ -594,4 +765,8 @@ module.exports = {
     obtenerProgresoEvaluacion,
     cancelarEvaluacionPendiente,
     rehidratarProgreso,
+    reintentarErroresEvaluacion,
+    _obtenerEstadoInterno,
+    _establecerWorkerActivo,
+    _resetearEstadoInterno,
 };

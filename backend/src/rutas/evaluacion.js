@@ -13,4 +13,7 @@ router.post('/cancelar', controlador.cancelarEvaluacion);
 // Permite volver a evaluar ofertas recientes tras cambiar el perfil.
 router.post('/resetear', controlador.resetearEvaluaciones);
 
+// Reintenta evaluar las ofertas que tuvieron un fallo técnico.
+router.post('/reintentar-errores', controlador.reintentarErrores);
+
 module.exports = router;

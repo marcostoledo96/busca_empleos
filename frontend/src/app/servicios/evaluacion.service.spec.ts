@@ -101,4 +101,16 @@ describe('EvaluacionService', () => {
             },
         });
     });
+
+    it('debería reintentar evaluación de ofertas con fallos técnicos (POST)', () => {
+        servicio.reintentarErrores().subscribe((resp) => {
+            expect(resp.exito).toBeTrue();
+            expect(resp.en_curso).toBeTrue();
+        });
+
+        const req = httpMock.expectOne(`${urlBase}/reintentar-errores`);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({});
+        req.flush({ exito: true, mensaje: 'Reintento iniciado.', en_curso: true });
+    });
 });

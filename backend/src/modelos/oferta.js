@@ -358,6 +358,24 @@ async function obtenerOfertasPendientes() {
 }
 
 /**
+ * Obtengo las ofertas con errores de evaluación en los últimos 30 días,
+ * excluyendo las que solo tienen una reevaluación solicitada pendiente.
+ *
+ * @returns {Promise<Array>} Lista de ofertas con error recuperable.
+ */
+async function obtenerOfertasConErrores() {
+    const resultado = await pool.query(
+        `SELECT * FROM ofertas
+         WHERE fecha_extraccion >= NOW() - INTERVAL '30 days'
+           AND evaluacion_error_mensaje IS NOT NULL
+           AND evaluacion_error_mensaje != 'REEVALUACION_SOLICITADA'
+         ORDER BY fecha_extraccion DESC`
+    );
+
+    return resultado.rows;
+}
+
+/**
  * Actualizo el resultado de la evaluación de una oferta.
  * Se llama después de que DeepSeek evalúa la oferta.
  *
@@ -626,6 +644,8 @@ module.exports = {
     obtenerBloqueSincronizacion,
     obtenerOfertaPorId,
     obtenerOfertasPendientes,
+    obtenerOfertasConErrores,
+    obtenerOfertasConErrorRecuperable: obtenerOfertasConErrores,
     obtenerEstadisticas,
     actualizarEvaluacion,
     actualizarPostulacion,

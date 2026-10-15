@@ -26,6 +26,8 @@ jest.mock('../../src/config/deepseek', () => ({
 jest.mock('../../src/modelos/oferta', () => ({
     obtenerOfertasPendientes: jest.fn(),
     actualizarEvaluacion: jest.fn(),
+    registrarErrorEvaluacion: jest.fn(),
+    obtenerOfertasConErrores: jest.fn(),
 }));
 
 // Mockeo el modelo de preferencias para controlar qué perfil se usa.
@@ -1526,6 +1528,204 @@ describe('Servicio de evaluación con IA', () => {
                 ofertaDeseableJava.descripcion
             );
             expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('Distinción de error técnico vs rechazo laboral (WU 1 - Issue 18)', () => {
+
+        test('error 503 de DeepSeek no convierte la oferta en rechazada y permanece en pendiente', async () => {
+            const oferta503 = { ...ofertaEjemplo, id: 301, estado_evaluacion: 'pendiente' };
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([oferta503]);
+            consultarDeepSeek.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...oferta503,
+                estado_evaluacion: 'pendiente',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.errores).toBe(1);
+            expect(resumen.rechazadas).toBe(0);
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.estado).toBe('error');
+
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                301,
+                'pendiente',
+                expect.stringContaining('503 Service Unavailable'),
+                null,
+                expect.stringContaining('503 Service Unavailable'),
+                null,
+                null,
+                null,
+                oferta503.descripcion
+            );
+            expect(modeloOferta.actualizarEvaluacion).not.toHaveBeenCalledWith(
+                expect.anything(),
+                'rechazada',
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything(),
+                expect.anything()
+            );
+            expect(evaluacionCache.guardarCache).not.toHaveBeenCalled();
+        });
+
+        test('timeout no genera rechazo laboral y conserva la oferta como pendiente', async () => {
+            const ofertaTimeout = { ...ofertaEjemplo, id: 302, estado_evaluacion: 'pendiente' };
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaTimeout]);
+            consultarDeepSeek.mockRejectedValueOnce(new Error('Connection timed out after 30000ms'));
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...ofertaTimeout,
+                estado_evaluacion: 'pendiente',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.errores).toBe(1);
+            expect(resumen.rechazadas).toBe(0);
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                302,
+                'pendiente',
+                expect.stringContaining('Connection timed out'),
+                null,
+                expect.stringContaining('Connection timed out'),
+                null,
+                null,
+                null,
+                ofertaTimeout.descripcion
+            );
+        });
+
+        test('error 429 se registra como error técnico y la oferta queda en pendiente con mensaje de error', async () => {
+            const oferta429 = { ...ofertaEjemplo, id: 303, estado_evaluacion: 'pendiente' };
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([oferta429]);
+            consultarDeepSeek.mockRejectedValueOnce(new Error('429 Rate limit exceeded'));
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...oferta429,
+                estado_evaluacion: 'pendiente',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.errores).toBe(1);
+            expect(resumen.rechazadas).toBe(0);
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                303,
+                'pendiente',
+                expect.stringContaining('429 Rate limit exceeded'),
+                null,
+                expect.stringContaining('429 Rate limit exceeded'),
+                null,
+                null,
+                null,
+                oferta429.descripcion
+            );
+        });
+
+        test('reevaluación fallida conserva la aprobación o rechazo previo', async () => {
+            const ofertaPreviamenteAprobada = {
+                ...ofertaEjemplo,
+                id: 304,
+                estado_evaluacion: 'aprobada',
+                fecha_evaluacion: '2026-02-15T12:00:00Z',
+                razon_evaluacion: 'Cumple stack principal',
+                porcentaje_match: 90,
+                evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA',
+            };
+            consultarDeepSeek.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+            modeloOferta.registrarErrorEvaluacion.mockResolvedValueOnce({
+                ...ofertaPreviamenteAprobada,
+                evaluacion_error_mensaje: 'Error al evaluar con DeepSeek: 503 Service Unavailable',
+            });
+
+            const resumen = await evaluarOfertasPendientes([ofertaPreviamenteAprobada]);
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.errores).toBe(1);
+            expect(resumen.rechazadas).toBe(0);
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.detalle[0].estado).toBe('aprobada');
+            expect(modeloOferta.registrarErrorEvaluacion).toHaveBeenCalledWith(
+                304,
+                expect.stringContaining('503 Service Unavailable'),
+                ofertaPreviamenteAprobada.descripcion
+            );
+            expect(modeloOferta.actualizarEvaluacion).not.toHaveBeenCalled();
+        });
+
+        test('oferta con fallo técnico incrementa solo el contador de errores, no de rechazadas', async () => {
+            const ofertaFallo1 = { ...ofertaEjemplo, id: 305, titulo: 'Fallo 1' };
+            const ofertaFallo2 = { ...ofertaEjemplo, id: 306, titulo: 'Fallo 2' };
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaFallo1, ofertaFallo2]);
+
+            consultarDeepSeek
+                .mockRejectedValueOnce(new Error('Timeout en lote'))
+                .mockRejectedValueOnce(new Error('503 en lote'));
+
+            modeloOferta.actualizarEvaluacion
+                .mockResolvedValueOnce({ ...ofertaFallo1, estado_evaluacion: 'pendiente' })
+                .mockResolvedValueOnce({ ...ofertaFallo2, estado_evaluacion: 'pendiente' });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(2);
+            expect(resumen.errores).toBe(2);
+            expect(resumen.rechazadas).toBe(0);
+            expect(resumen.aprobadas).toBe(0);
+            expect(resumen.estado).toBe('error');
+        });
+
+        test('oferta genuinamente rechazada sí se guarda como rechazada', async () => {
+            const ofertaRechazoGenuino = { ...ofertaEjemplo, id: 307, titulo: 'C++ Developer' };
+            modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaRechazoGenuino]);
+
+            consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
+                match: false,
+                porcentaje: 20,
+                razon: 'No cumple stack requerido (requiere C++ y arquitectura embebida).',
+            }));
+
+            parsearRespuestaEvaluacionIa.mockReturnValueOnce({
+                match: false,
+                porcentaje: 20,
+                razon: 'No cumple stack requerido (requiere C++ y arquitectura embebida).',
+                error: false,
+                invalido: false,
+                inconsistente: false,
+                prioridad_ia: false,
+                evidencias_prioridad_ia: [],
+                explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
+                desglose_disponible: false,
+            });
+
+            modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
+                ...ofertaRechazoGenuino,
+                estado_evaluacion: 'rechazada',
+            });
+
+            const resumen = await evaluarOfertasPendientes();
+
+            expect(resumen.total).toBe(1);
+            expect(resumen.rechazadas).toBe(1);
+            expect(resumen.errores).toBe(0);
+            expect(resumen.aprobadas).toBe(0);
+            expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
+                307,
+                'rechazada',
+                'No cumple stack requerido (requiere C++ y arquitectura embebida).',
+                20,
+                null,
+                null,
+                expect.any(String),
+                null,
+                ofertaRechazoGenuino.descripcion
+            );
         });
     });
 });

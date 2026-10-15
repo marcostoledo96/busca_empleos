@@ -77,12 +77,15 @@ async function finalizarLote(loteId, estado = 'completado') {
     if (!['completado', 'cancelado', 'error'].includes(estado)) {
         throw new Error('Estado terminal de evaluación inválido.');
     }
-    await pool.query(
+    const resultado = await pool.query(
         `UPDATE evaluacion_lotes
          SET estado = $1, finalizado_en = NOW(), actualizado_en = NOW()
-         WHERE id = $2`,
+         WHERE id = $2
+         RETURNING *`,
         [estado, loteId]
     );
+
+    return resultado.rows.length > 0 ? resultado.rows[0] : null;
 }
 
 module.exports = {

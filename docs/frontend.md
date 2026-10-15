@@ -389,15 +389,16 @@ Archivo: `frontend/src/app/componentes/panel-control/`
 | Outputs | `accionCompletada: void`, `evaluacionEnProgreso: void` |
 
 **Estado interno (signals):**
-- `scrapeandoLinkedin`, `scrapeandoComputrabajo`, `evaluando` — control de spinners.
+- `scrapeandoLinkedin`, `scrapeandoComputrabajo`, `evaluando`, `reintentandoErrores` — control de spinners.
 - `cronActivo`, `ultimaEjecucion` — estado del cron.
 - `automatizacionActiva`, `progresoAutomatizacion` — estado del ciclo de automatización.
 
 **Comportamiento:**
-- `ngOnInit()` → `consultarEstadoCron()`: consulta el estado del cron al montar. También consulta `GET /api/automatizacion/progreso` para rehidratar el estado si hay un ciclo activo.
+- `ngOnInit()` → `consultarEstadoCron()`: consulta el estado del cron al montar. También consulta `GET /api/automatizacion/progreso` para rehidratar el estado si hay un ciclo activo y `rehidratarEvaluacion()` para detectar lotes en curso o interrumpidos por reinicio (mostrando el aviso correspondiente sin bloquear la interfaz).
 - `toggleCron(activar)`: inicia o detiene el cron según el switch.
 - `scrapearLinkedin()` / `scrapearComputrabajo()`: ejecutan scraping con feedback toast.
 - `ejecutarEvaluacion()`: ejecuta evaluación con feedback toast.
+- `reintentarErrores()`: ejecuta `POST /api/evaluacion/reintentar-errores` para reintentar exclusivamente ofertas que sufrieron un fallo técnico. Si no hay ofertas fallidas, muestra un toast informativo; si hay, activa el seguimiento por polling.
 - `ejecutarAutomatizacion()`: envía `POST /api/automatizacion/ejecutar`. Si recibe `202`, inicia polling a `GET /api/automatizacion/progreso` y NO cierra el overlay de progreso hasta que el ciclo termine realmente. Si recibe `409`, rehidrata el progreso del ciclo existente en lugar de mostrar error fatal.
 - Durante el polling de evaluación, emite `evaluacionEnProgreso` en cada tick para que el `Dashboard` refresque contadores sin esperar al final.
 - Durante el polling de automatización, emite `accionCompletada` cuando el ciclo finaliza para que el Dashboard recargue datos.
