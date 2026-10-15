@@ -356,6 +356,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |
+| POST | `/api/evaluacion/reintentar-errores` | Reintentar evaluación de ofertas con fallo técnico reciente | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
 | POST | `/api/automatizacion/detener` | Detener el cron | **Sí** | No |
@@ -866,11 +867,25 @@ evaluación en curso. Consulto GET `/api/evaluacion/progreso` para el avance y P
 `/api/evaluacion/cancelar` para detener después de la oferta actual. Si falla una
 reevaluación forzada, conservo el último resultado válido (estado, razón, porcentaje,
 fecha, firma y prioridad) y registro solamente `evaluacion_error_mensaje`. Sin resultado
-válido previo mantengo el rechazo técnico existente; nunca lo convierto en descarte manual.
+válido previo, un fallo técnico (HTTP 503, 429, timeout, conexión o JSON no conforme)
+mantiene la oferta en `estado_evaluacion = 'pendiente'` con `evaluacion_error_mensaje`;
+nunca la guardo como rechazada ni la convierto en descarte manual.
 Solo reemplazo caché después de persistir exitosamente la oferta; un fallo opcional de
 caché no revierte el resultado guardado.
 Guardar preferencias no inicia evaluación ni scraping; solo esta ejecución explícita
 puede consumir IA cuando las exclusiones no resuelven la oferta.
+
+### POST /api/evaluacion/reintentar-errores
+
+Reintenta evaluar exclusivamente las ofertas de los últimos **30 días** que hayan
+sufrido un fallo técnico (`evaluacion_error_mensaje IS NOT NULL AND evaluacion_error_mensaje != 'REEVALUACION_SOLICITADA'`).
+
+- No reevalúa ofertas aprobadas o rechazadas válidas que no tengan error.
+- Si no hay ofertas con fallos técnicos, responde **200** con `{ exito: true, total: 0, mensaje: 'No hay ofertas con errores de evaluación para reintentar.' }`.
+- Si hay ofertas con error, responde **200** `{ exito: true, en_curso: true, total: N, mensaje: 'Reintentando evaluación de ofertas con error...' }` y procesa en background bajo el mismo Advisory Lock (`EVALUACION_OFERTAS`).
+- Si ya hay una evaluación activa, responde **409 Conflict**.
+- Si el reintento es exitoso, limpia `evaluacion_error_mensaje = null`, asigna el resultado laboral (`aprobada` o `rechazada`), firma canónica y desglose explicable.
+- Si vuelve a fallar, actualiza el mensaje de error y conserva el estado recuperable.
 
 ### GET /api/evaluacion/progreso
 

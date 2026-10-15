@@ -500,3 +500,24 @@ Cada ítem del desglose conserva: `requisito`, `tipo` (`obligatorio` | `deseable
 
 ### 6. Muestra de referencia para regresión (25 casos)
 - Se incorporó la suite sintética en `backend/tests/fixtures/casos-muestra-matching.js` con 25 casos representativos (QA, Soporte, Angular, exclusión Java, Java deseable, inglés excluyente vs deseable, empresas líderes vs candidato líder, restricciones territoriales, extractos parciales, porcentajes inconsistentes, etc.) con la marca `estado_revision: 'propuesta_pendiente_revision_humana'`.
+
+## Distinción de errores técnicos y recuperación de lotes (#18)
+
+A partir de la issue #18, se separa conceptual y fácticamente el **rechazo laboral** (la vacante no coincide con el perfil tras una evaluación válida) del **fallo técnico** (imposibilidad de evaluar por problemas del proveedor DeepSeek, límites HTTP 429, timeouts, desconexiones o respuestas no conformes):
+
+### 1. Manejo estricto de fallos técnicos en el evaluador
+- **Sin falsos rechazos:** Las ofertas pendientes que sufran un error técnico (HTTP 503, 429, timeout, error de red, JSON malformado o `null`) **no** se persisten como `estado_evaluacion = 'rechazada'`. Permanecen en `estado_evaluacion = 'pendiente'` con el detalle en `evaluacion_error_mensaje`.
+- **Preservación de evaluaciones previas:** Si una oferta previamente aprobada o rechazada sufre un fallo técnico durante una reevaluación forzada, se conserva su veredicto anterior (`aprobada`/`rechazada`), su porcentaje, su firma y su fecha original, registrando el nuevo fallo en `evaluacion_error_mensaje` sin degradar el historial válido.
+- **Aislamiento en caché:** Las respuestas fallidas o inconsistentes nunca se persisten en `evaluaciones_cache`.
+- **Parser tolerante a primitivos y null:** `parsearRespuestaEvaluacionIa()` valida que la respuesta sea un objeto no nulo y no array antes de acceder a propiedades como `.match`, evitando excepciones de tipo `TypeError` ante textos JSON `null`, números, cadenas o arrays.
+
+### 2. Recuperación idempotente de lotes interrumpidos
+- **Reinicio del servidor sin bloqueos:** Al bootear el backend (`src/index.js`), `rehidratarProgreso()` inspecciona el último lote persistido en `evaluacion_lotes`. Si el lote figuraba como `estado = 'activo'` pero no existe un worker en ejecución, se finaliza en base de datos como `'error'`, y en memoria se establece `progresoEvaluacion.activo = false` con `mensaje_error: 'La evaluación previa fue interrumpida por reinicio del servidor.'`.
+- **Desbloqueo inmediato:** Esto previene que un lote huérfano bloquee nuevos ciclos de evaluación con HTTP 409 de Advisory Lock o validación concurrente.
+- **Cancelación segura:** `cancelarEvaluacionPendiente()` distingue si hay un worker realmente iterando en memoria (señalando parada ordenada) o si se trata de un lote interrumpido/huérfano (cerrando inmediatamente el lote en BD como `'cancelado'` y reseteando el progreso en memoria).
+
+### 3. Acción «Reintentar errores»
+- Endpoint `POST /api/evaluacion/reintentar-errores`: selecciona exclusivamente ofertas extraídas en los últimos 30 días con `evaluacion_error_mensaje IS NOT NULL AND evaluacion_error_mensaje != 'REEVALUACION_SOLICITADA'`.
+- Reutiliza el worker, mutex y progreso existentes sin disparar reevaluaciones indiscriminadas de ofertas ya aprobadas o rechazadas.
+- Si el reintento resulta exitoso, limpia `evaluacion_error_mensaje = null`, guarda el nuevo estado de evaluación y actualiza la firma canónica.
+
