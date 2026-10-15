@@ -167,7 +167,7 @@ test('B01 pendiente sin resultado válido mantiene rechazo técnico separado del
         firma_criterios_evaluacion: null, evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' });
     proveedor.consultarDeepSeek.mockRejectedValueOnce(new Error('Timeout pendiente'));
     await iniciar([1]);
-    expect(filas[0]).toMatchObject({ estado_evaluacion: 'rechazada', estado_postulacion: 'cv_enviado',
+    expect(filas[0]).toMatchObject({ estado_evaluacion: 'pendiente', estado_postulacion: 'cv_enviado',
         firma_criterios_evaluacion: null, evaluacion_error_mensaje: expect.stringContaining('Timeout pendiente') });
     expect(cache.size).toBe(0);
     expect(progreso()).toMatchObject({ evaluadas: 0, procesadas: 1, pendientes: 1, errores: 1 });

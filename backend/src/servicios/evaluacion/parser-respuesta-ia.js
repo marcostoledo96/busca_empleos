@@ -446,6 +446,26 @@ function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
         };
     }
 
+    if (!respuesta || typeof respuesta !== 'object' || Array.isArray(respuesta)) {
+        return {
+            match: false,
+            porcentaje: null,
+            razon: `La respuesta de DeepSeek no es un objeto JSON válido, se recibió: ${JSON.stringify(respuesta)}`,
+            error: true,
+            invalido: true,
+            inconsistente: true,
+            prioridad_ia: false,
+            evidencias_prioridad_ia: [],
+            explicacion: {
+                cumplidos: [],
+                no_cumplidos: [],
+                por_confirmar: [],
+                exclusiones: [],
+            },
+            desglose_disponible: false,
+        };
+    }
+
     if (typeof respuesta.match !== 'boolean') {
         return {
             match: false,
