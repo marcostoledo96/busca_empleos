@@ -185,7 +185,28 @@ async function crearOferta(datos) {
                     THEN EXCLUDED.origen_descripcion
                     ELSE ofertas.origen_descripcion
                 END,
-                datos_crudos = COALESCE(ofertas.datos_crudos, '{}'::jsonb) || COALESCE(EXCLUDED.datos_crudos, '{}'::jsonb),
+                datos_crudos = (COALESCE(ofertas.datos_crudos, '{}'::jsonb) || COALESCE(EXCLUDED.datos_crudos, '{}'::jsonb))
+                    || jsonb_build_object(
+                        '_meta_upsert', jsonb_build_object(
+                            'fue_actualizada', (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND EXCLUDED.descripcion IS NOT NULL
+                                 AND LENGTH(EXCLUDED.descripcion) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR ((ofertas.empresa IS NULL OR TRIM(ofertas.empresa) = '') AND EXCLUDED.empresa IS NOT NULL AND TRIM(EXCLUDED.empresa) != '')
+                                OR ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '') AND EXCLUDED.ubicacion IS NOT NULL AND TRIM(EXCLUDED.ubicacion) != '')
+                                OR ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '') AND EXCLUDED.modalidad IS NOT NULL AND TRIM(EXCLUDED.modalidad) != '')
+                                OR ((ofertas.nivel_requerido IS NULL OR TRIM(ofertas.nivel_requerido) = '') AND EXCLUDED.nivel_requerido IS NOT NULL AND TRIM(EXCLUDED.nivel_requerido) != '')
+                                OR (ofertas.salario_min IS NULL AND EXCLUDED.salario_min IS NOT NULL)
+                                OR (ofertas.salario_max IS NULL AND EXCLUDED.salario_max IS NOT NULL)
+                                OR ((ofertas.moneda IS NULL OR TRIM(ofertas.moneda) = '') AND EXCLUDED.moneda IS NOT NULL AND TRIM(EXCLUDED.moneda) != '')
+                            ),
+                            'descripcion_cambio', (
+                                ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                AND EXCLUDED.descripcion IS NOT NULL
+                                AND LENGTH(EXCLUDED.descripcion) > COALESCE(LENGTH(ofertas.descripcion), 0)
+                            )
+                        )
+                    ),
                 estado_evaluacion = CASE
                     WHEN (
                         (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
@@ -355,7 +376,7 @@ async function crearOferta(datos) {
                 const filaPrevia = resExistente.rows[0];
                 const platPrevia = String(filaPrevia.plataforma || '').toLowerCase().trim();
                 const platNueva = String(plataforma || '').toLowerCase().trim();
-                const mismaPlataforma = platPrevia === platNueva || platPrevia === 'general' || platNueva === 'general';
+                const mismaPlataforma = platPrevia === platNueva && platPrevia !== '';
 
                 // Verifico si ambas filas poseen identificadores nativos de proveedor explícitos incompatibles
                 const esTipoUrlOHash = (ident) => !ident || ident.includes(':url:') || ident.includes(':url-hash:') || ident.includes(':raw:');
@@ -390,7 +411,7 @@ async function crearOferta(datos) {
                                     identidad_canonica = $16::text,
                                     url = COALESCE(ofertas.url, $6::text),
                                     titulo = COALESCE(ofertas.titulo, $1::text),
-                                    plataforma = COALESCE(ofertas.plataforma, $7::text),
+                                    plataforma = $7::text,
                                     fecha_ultima_extraccion = NOW(),
                                     fecha_publicacion = COALESCE(ofertas.fecha_publicacion, $12::timestamp),
                                     empresa = CASE
@@ -449,7 +470,28 @@ async function crearOferta(datos) {
                                         THEN $14::text
                                         ELSE ofertas.origen_descripcion
                                     END,
-                                    datos_crudos = COALESCE(ofertas.datos_crudos, '{}'::jsonb) || COALESCE($13::jsonb, '{}'::jsonb),
+                                    datos_crudos = (COALESCE(ofertas.datos_crudos, '{}'::jsonb) || COALESCE($13::jsonb, '{}'::jsonb))
+                                        || jsonb_build_object(
+                                            '_meta_upsert', jsonb_build_object(
+                                                'fue_actualizada', (
+                                                    (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                                     AND $5::text IS NOT NULL
+                                                     AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                                    OR ((ofertas.empresa IS NULL OR TRIM(ofertas.empresa) = '') AND $2::text IS NOT NULL AND TRIM($2::text) != '')
+                                                    OR ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '') AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                                                    OR ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '') AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                                    OR ((ofertas.nivel_requerido IS NULL OR TRIM(ofertas.nivel_requerido) = '') AND $8::text IS NOT NULL AND TRIM($8::text) != '')
+                                                    OR (ofertas.salario_min IS NULL AND $9::numeric IS NOT NULL)
+                                                    OR (ofertas.salario_max IS NULL AND $10::numeric IS NOT NULL)
+                                                    OR ((ofertas.moneda IS NULL OR TRIM(ofertas.moneda) = '') AND $11::text IS NOT NULL AND TRIM($11::text) != '')
+                                                ),
+                                                'descripcion_cambio', (
+                                                    ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                                    AND $5::text IS NOT NULL
+                                                    AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0)
+                                                )
+                                            )
+                                        ),
                                     estado_evaluacion = CASE
                                         WHEN (
                                             (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
@@ -587,7 +629,7 @@ async function crearOferta(datos) {
                     // Portales distintos o IDs distintos con la misma URL externa:
                     // NO sobrescribo la fila existente. Aíslo el conflicto de URL desambiguando
                     // para que ambas ofertas coexistan de forma independiente.
-                    const sufijoOrigen = `#origen-${platNueva}${idNueva ? '-' + idNueva : ''}`;
+                    const sufijoOrigen = `#origen-${platNueva}-${identidadCanonicaFinal.replace(/[:/#]/g, '_')}`;
                     const urlDesambiguada = `${urlCanonica || url}${sufijoOrigen}`;
                     const paramsAlt = [...parametros];
                     paramsAlt[5] = urlDesambiguada;
@@ -609,64 +651,49 @@ async function crearOferta(datos) {
     const esNueva = fila.es_nueva !== undefined ? Boolean(fila.es_nueva) : true;
     let fueActualizada = false;
 
-    // Si no es nueva pero previa_id vino null (carrera concurrente entre dos inserciones simultáneas),
-    // consulto la fila previa real para no desincronizar los contadores de actualización.
-    if (fila.es_nueva !== undefined && !esNueva && fila.previa_id == null) {
-        try {
-            const resConcurrente = await pool.query(
-                `SELECT id, empresa, ubicacion, modalidad, nivel_requerido,
-                        salario_min, salario_max, moneda, descripcion, origen_descripcion
-                 FROM ofertas
-                 WHERE id = $1`,
-                [fila.id]
+    const metaUpsert = fila.datos_crudos && typeof fila.datos_crudos === 'object'
+        ? (typeof fila.datos_crudos._meta_upsert === 'string'
+            ? JSON.parse(fila.datos_crudos._meta_upsert)
+            : fila.datos_crudos._meta_upsert)
+        : null;
+
+    if (!esNueva) {
+        if (metaUpsert && typeof metaUpsert.fue_actualizada === 'boolean') {
+            fueActualizada = Boolean(metaUpsert.fue_actualizada);
+        } else if (fila.previa_id != null) {
+            const descripcionCambio = fila.previa_origen_descripcion !== 'manual'
+                && Boolean(descripcion)
+                && descripcion.length > (fila.previa_descripcion ? fila.previa_descripcion.length : 0);
+            const modalidadCompleto = (!fila.previa_modalidad || fila.previa_modalidad.trim() === '')
+                && Boolean(modalidad && String(modalidad).trim() !== '');
+            const ubicacionCompleto = (!fila.previa_ubicacion || fila.previa_ubicacion.trim() === '')
+                && Boolean(ubicacion && String(ubicacion).trim() !== '');
+            const empresaCompleto = (!fila.previa_empresa || fila.previa_empresa.trim() === '')
+                && Boolean(empresa && String(empresa).trim() !== '');
+            const nivelCompleto = (!fila.previa_nivel_requerido || fila.previa_nivel_requerido.trim() === '')
+                && Boolean(nivel_requerido && String(nivel_requerido).trim() !== '');
+            const salarioMinCompleto = (fila.previa_salario_min == null)
+                && salario_min != null;
+            const salarioMaxCompleto = (fila.previa_salario_max == null)
+                && salario_max != null;
+            const monedaCompleto = (!fila.previa_moneda || fila.previa_moneda.trim() === '')
+                && Boolean(moneda && String(moneda).trim() !== '');
+
+            fueActualizada = Boolean(
+                descripcionCambio
+                || modalidadCompleto
+                || ubicacionCompleto
+                || empresaCompleto
+                || nivelCompleto
+                || salarioMinCompleto
+                || salarioMaxCompleto
+                || monedaCompleto
             );
-            if (resConcurrente.rows && resConcurrente.rows.length > 0) {
-                const p = resConcurrente.rows[0];
-                fila.previa_id = p.id;
-                fila.previa_empresa = p.empresa;
-                fila.previa_ubicacion = p.ubicacion;
-                fila.previa_modalidad = p.modalidad;
-                fila.previa_nivel_requerido = p.nivel_requerido;
-                fila.previa_salario_min = p.salario_min;
-                fila.previa_salario_max = p.salario_max;
-                fila.previa_moneda = p.moneda;
-                fila.previa_descripcion = p.descripcion;
-                fila.previa_origen_descripcion = p.origen_descripcion;
-            }
-        } catch {
-            // Defensivo ante mocks de tests que no soportan esta consulta
         }
     }
 
-    if (!esNueva && fila.previa_id != null) {
-        const descripcionCambio = fila.previa_origen_descripcion !== 'manual'
-            && Boolean(descripcion)
-            && descripcion.length > (fila.previa_descripcion ? fila.previa_descripcion.length : 0);
-        const modalidadCompleto = (!fila.previa_modalidad || fila.previa_modalidad.trim() === '')
-            && Boolean(modalidad && String(modalidad).trim() !== '');
-        const ubicacionCompleto = (!fila.previa_ubicacion || fila.previa_ubicacion.trim() === '')
-            && Boolean(ubicacion && String(ubicacion).trim() !== '');
-        const empresaCompleto = (!fila.previa_empresa || fila.previa_empresa.trim() === '')
-            && Boolean(empresa && String(empresa).trim() !== '');
-        const nivelCompleto = (!fila.previa_nivel_requerido || fila.previa_nivel_requerido.trim() === '')
-            && Boolean(nivel_requerido && String(nivel_requerido).trim() !== '');
-        const salarioMinCompleto = (fila.previa_salario_min == null)
-            && salario_min != null;
-        const salarioMaxCompleto = (fila.previa_salario_max == null)
-            && salario_max != null;
-        const monedaCompleto = (!fila.previa_moneda || fila.previa_moneda.trim() === '')
-            && Boolean(moneda && String(moneda).trim() !== '');
-
-        fueActualizada = Boolean(
-            descripcionCambio
-            || modalidadCompleto
-            || ubicacionCompleto
-            || empresaCompleto
-            || nivelCompleto
-            || salarioMinCompleto
-            || salarioMaxCompleto
-            || monedaCompleto
-        );
+    if (fila.datos_crudos && typeof fila.datos_crudos === 'object') {
+        delete fila.datos_crudos._meta_upsert;
     }
 
     const esReaparicion = !esNueva && !fueActualizada;

@@ -53,6 +53,14 @@ contexto('Migración 023 — Validación de Backfill SQL vs Runtime JS en Postgr
             { titulo: 'Dev 600', empresa: 'Corp', url: url600, plataforma: 'general' },
             { titulo: 'Dev 2048', empresa: 'Corp', url: url2048, plataforma: 'general' },
 
+            // B-01: Paridad estricta SQL vs WHATWG URL (host minúsculas, puertos default, root slash, encoding de espacios, regex utm_)
+            { titulo: 'Upper Host', empresa: 'Corp', url: 'https://EXAMPLE.COM/puestos/dev?id=123', plataforma: 'general' },
+            { titulo: 'Default Port 443', empresa: 'Corp', url: 'https://example.com:443/puestos/dev?id=456', plataforma: 'general' },
+            { titulo: 'Default Port 80', empresa: 'Corp', url: 'http://example.com:80/puestos/dev?id=789', plataforma: 'general' },
+            { titulo: 'Root Domain Slash', empresa: 'Corp', url: 'https://empleos.example/', plataforma: 'general' },
+            { titulo: 'Space Encoding', empresa: 'Corp', url: 'https://example.com/search?q=desarrollador%20junior&city=buenos aires', plataforma: 'general' },
+            { titulo: 'Utmax Not Tracking', empresa: 'Corp', url: 'https://example.com/puestos?utmax=100&utm_source=fb', plataforma: 'general' },
+
             // Query funcional + tracking universal
             {
                 titulo: 'Dev Query Funcional',

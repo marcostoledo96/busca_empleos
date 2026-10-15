@@ -495,4 +495,150 @@ contexto('Issue #19 - Persistencia y Reapariciones de Ofertas', () => {
         const conteo = await pool.query('SELECT COUNT(*)::integer AS total FROM ofertas WHERE identidad_canonica = $1', ['linkedin:9998887771']);
         expect(conteo.rows[0].total).toBe(1);
     });
+
+    test('16. B-02: Conflicto de URL entre plataforma "general" y plataforma específica no trata "general" como comodín y aísla la fila', async () => {
+        const urlCompartida = 'https://empresa.com/jobs/dev-lead-4455';
+
+        // 1. Inserción inicial previa con plataforma "general"
+        const ofertaGeneral = {
+            titulo: 'Dev Lead (General)',
+            empresa: 'Empresa X',
+            url: urlCompartida,
+            plataforma: 'general',
+            descripcion: 'Descripción general previa...',
+        };
+        const insertadaGeneral = await modeloOferta.crearOferta(ofertaGeneral);
+        expect(insertadaGeneral.plataforma).toBe('general');
+        expect(insertadaGeneral.identidad_canonica).toBe(`general:url:${urlCompartida}`);
+
+        // 2. Nueva inserción con la misma URL pero plataforma 'linkedin' e ID explícito
+        const ofertaLinkedin = {
+            titulo: 'Dev Lead (LinkedIn)',
+            empresa: 'Empresa X',
+            url: urlCompartida,
+            plataforma: 'linkedin',
+            descripcion: 'Descripción completa desde LinkedIn...',
+            datos_crudos: { id: '4455990011' },
+        };
+        const resultadoLinkedin = await modeloOferta.crearOferta(ofertaLinkedin);
+
+        // Ambas filas deben coexistir de forma independiente
+        expect(resultadoLinkedin).not.toBeNull();
+        expect(resultadoLinkedin.id).not.toBe(insertadaGeneral.id);
+        expect(resultadoLinkedin.plataforma).toBe('linkedin');
+        expect(resultadoLinkedin.identidad_canonica).toBe('linkedin:4455990011');
+
+        // La fila general permanece inalterada
+        const generalLeida = await modeloOferta.obtenerOfertaPorId(insertadaGeneral.id);
+        expect(generalLeida.plataforma).toBe('general');
+        expect(generalLeida.identidad_canonica).toBe(`general:url:${urlCompartida}`);
+        expect(generalLeida.titulo).toBe('Dev Lead (General)');
+
+        const totalFilas = await pool.query('SELECT COUNT(*)::integer AS total FROM ofertas');
+        expect(totalFilas.rows[0].total).toBe(2);
+    });
+
+    test('17. B-04: Concurrencia con payloads DIFERENTES vía Promise.all calcula _meta_upsert atómicamente bajo lock de fila', async () => {
+        // Payload A: información incompleta (sin nivel, descripción corta)
+        const payloadIncompleto = {
+            titulo: 'Fullstack Dev Concurrente',
+            empresa: 'Global Tech',
+            ubicacion: 'Remoto',
+            modalidad: 'remoto',
+            descripcion: 'Texto corto.',
+            url: 'https://www.linkedin.com/jobs/view/7776665554',
+            plataforma: 'linkedin',
+        };
+
+        // Payload B: información enriquecida (con nivel senior y descripción completa)
+        const payloadEnriquecido = {
+            titulo: 'Fullstack Dev Concurrente',
+            empresa: 'Global Tech',
+            ubicacion: 'Remoto',
+            modalidad: 'remoto',
+            nivel_requerido: 'senior',
+            descripcion: 'Texto completo y enriquecido con detalles técnicos que excede en longitud al texto corto.',
+            url: 'https://www.linkedin.com/jobs/view/7776665554',
+            plataforma: 'linkedin',
+        };
+
+        // Ejecución concurrente real con Promise.all
+        const [resA, resB] = await Promise.all([
+            modeloOferta.crearOferta(payloadIncompleto),
+            modeloOferta.crearOferta(payloadEnriquecido),
+        ]);
+
+        expect(resA).not.toBeNull();
+        expect(resB).not.toBeNull();
+        expect(resA.id).toBe(resB.id);
+
+        const resultados = [resA, resB];
+        const resNueva = resultados.find(r => r.es_nueva);
+        const resSecundaria = resultados.find(r => !r.es_nueva);
+
+        expect(resNueva).toBeDefined();
+        expect(resSecundaria).toBeDefined();
+
+        // En la base de datos se debe haber consolidado la información enriquecida
+        const filaBd = await modeloOferta.obtenerOfertaPorId(resNueva.id);
+        expect(filaBd.nivel_requerido).toBe('senior');
+        expect(filaBd.descripcion).toBe('Texto completo y enriquecido con detalles técnicos que excede en longitud al texto corto.');
+
+        // Exactamente 1 fila existe
+        const conteo = await pool.query('SELECT COUNT(*)::integer AS total FROM ofertas WHERE identidad_canonica = $1', ['linkedin:7776665554']);
+        expect(conteo.rows[0].total).toBe(1);
+    });
+
+    test('18. B-04: Ambos órdenes de llegada secuenciales con payloads diferentes actualizan atómicamente y solicitan reevaluación', async () => {
+        // Orden 1: Incompleto primero, luego Enriquecido
+        const oferta1Incompleta = {
+            titulo: 'Backend Orden 1',
+            empresa: 'Empresa 1',
+            descripcion: 'Desc 1 corta.',
+            url: 'https://www.linkedin.com/jobs/view/1112223334',
+            plataforma: 'linkedin',
+        };
+        const res1 = await modeloOferta.crearOferta(oferta1Incompleta);
+        expect(res1.es_nueva).toBe(true);
+
+        const oferta1Enriquecida = {
+            ...oferta1Incompleta,
+            nivel_requerido: 'junior',
+            descripcion: 'Desc 1 completa y extensa para verificar actualización.',
+        };
+        const res1Update = await modeloOferta.crearOferta(oferta1Enriquecida);
+        expect(res1Update.es_nueva).toBe(false);
+        expect(res1Update.fue_actualizada).toBe(true);
+        expect(res1Update.resultado_persistencia).toBe('actualizada');
+        expect(res1Update.evaluacion_error_mensaje).toBe('REEVALUACION_SOLICITADA');
+
+        // Orden 2: Enriquecido primero, luego Incompleto (reaparición sin downgrade)
+        const oferta2Enriquecida = {
+            titulo: 'Backend Orden 2',
+            empresa: 'Empresa 2',
+            nivel_requerido: 'trainee',
+            descripcion: 'Desc 2 completa y extensa desde el inicio.',
+            url: 'https://www.linkedin.com/jobs/view/5556667778',
+            plataforma: 'linkedin',
+        };
+        const res2 = await modeloOferta.crearOferta(oferta2Enriquecida);
+        expect(res2.es_nueva).toBe(true);
+
+        const oferta2Incompleta = {
+            titulo: 'Backend Orden 2',
+            empresa: 'Empresa 2',
+            descripcion: 'Desc corta posterior.',
+            url: 'https://www.linkedin.com/jobs/view/5556667778',
+            plataforma: 'linkedin',
+        };
+        const res2Reaparicion = await modeloOferta.crearOferta(oferta2Incompleta);
+        expect(res2Reaparicion.es_nueva).toBe(false);
+        expect(res2Reaparicion.fue_actualizada).toBe(false);
+        expect(res2Reaparicion.es_reaparicion).toBe(true);
+        expect(res2Reaparicion.resultado_persistencia).toBe('reaparicion');
+
+        const fila2 = await modeloOferta.obtenerOfertaPorId(res2.id);
+        expect(fila2.descripcion).toBe('Desc 2 completa y extensa desde el inicio.');
+        expect(fila2.nivel_requerido).toBe('trainee');
+    });
 });

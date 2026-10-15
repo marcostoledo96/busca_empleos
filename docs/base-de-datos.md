@@ -366,6 +366,7 @@ $env:ALLOW_DB_TESTS="true"; $env:NODE_ENV="test"; npx jest tests/modelos --verbo
 | 021 | `migracion-021-filtrar-nivel-linkedin.sql` | Agrega columna `filtrar_nivel_linkedin` en `preferencias`. | Aditiva |
 | 022 | `migracion-022-matching-explicable-y-descripcion.sql` | Agrega desglose explicable y trazabilidad de descripciones manuales a `ofertas`. | Aditiva |
 | 023 | `migracion-023-identidad-y-reapariciones.sql` | Identidad canónica y seguimiento de reapariciones de ofertas con backfill seguro e índices `idx_ofertas_identidad_canonica` e `idx_ofertas_actividad_reciente`. | Aditiva |
+| 024 | `migracion-024-reparar-identidades-canonicas.sql` | Reparación y sincronización de identidades canónicas históricas post-023 con resolución conservadora de colisiones. | Aditiva |
 
 ### Gotchas
 

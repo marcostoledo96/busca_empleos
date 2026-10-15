@@ -10,7 +10,7 @@
     "test:vertical": "NODE_ENV=test BUSQUEDAS_VERTICAL=1 jest tests/integracion/busquedas-vertical.test.js --runInBand --verbose",
     "test:modelos": "jest tests/modelos --verbose --runInBand",
     "test:integracion": "jest tests/integracion --verbose --runInBand",
-    "test:db": "NODE_ENV=test ALLOW_DB_TESTS=true jest tests/modelos tests/servicios/issue-19-persistencia-reapariciones.test.js tests/servicios/flujo-integrado-issue-19.test.js --verbose --runInBand",
+    "test:db": "NODE_ENV=test ALLOW_DB_TESTS=true jest tests/modelos tests/sql tests/servicios/issue-19-persistencia-reapariciones.test.js tests/servicios/flujo-integrado-issue-19.test.js --verbose --runInBand",
     "db:migrate": "node scripts/migrar.js",
     "db:migrate:apply": "node scripts/migrar.js --apply",
     "diagnostico:infojobs": "node scripts/diagnostico-infojobs.js"

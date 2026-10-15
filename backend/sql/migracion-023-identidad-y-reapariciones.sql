@@ -18,68 +18,108 @@ CREATE OR REPLACE FUNCTION fn_canonizar_url_023(p_url text, p_plataforma text)
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
     v_url text := TRIM(COALESCE(p_url, ''));
-    v_base text;
-    v_query text;
+    v_proto text;
+    v_rest text;
+    v_authority text;
+    v_path text;
+    v_query text := '';
     v_param text;
     v_clave text;
+    v_val text;
     v_params_limpios text[] := ARRAY[]::text[];
     v_plat text := LOWER(TRIM(COALESCE(p_plataforma, 'general')));
+    v_pos_slash integer;
+    v_pos_q integer;
 BEGIN
     IF v_url = '' THEN RETURN ''; END IF;
 
     -- Quitar fragmento #
     v_url := split_part(v_url, '#', 1);
 
-    -- Si no tiene query string, devolver base sin trailing slash innecesario
-    IF position('?' in v_url) = 0 THEN
-        IF LENGTH(v_url) > 1 AND RIGHT(v_url, 1) = '/' THEN
-            v_url := LEFT(v_url, -1);
-        END IF;
+    -- Extraer protocolo: http o https
+    IF v_url ~* '^https?://' THEN
+        v_proto := LOWER(substring(v_url from '^([a-zA-Z]+)://'));
+        v_rest := substring(v_url from '^[a-zA-Z]+://(.*)$');
+    ELSE
+        -- Si no tiene protocolo estándar http/https, devolver URL limpia
         RETURN v_url;
     END IF;
 
-    v_base := split_part(v_url, '?', 1);
-    v_query := substr(v_url, position('?' in v_url) + 1);
-
-    IF LENGTH(v_base) > 1 AND RIGHT(v_base, 1) = '/' THEN
-        v_base := LEFT(v_base, -1);
+    -- Separar query string si existe
+    v_pos_q := position('?' in v_rest);
+    IF v_pos_q > 0 THEN
+        v_query := substring(v_rest from v_pos_q + 1);
+        v_rest := substring(v_rest from 1 for v_pos_q - 1);
     END IF;
 
-    -- Filtrar parámetros de tracking descartando únicamente tracking volátil
-    FOREACH v_param IN ARRAY string_to_array(v_query, '&') LOOP
-        IF v_param IS NOT NULL AND v_param != '' THEN
-            IF position('=' in v_param) = 0 THEN
-                v_param := v_param || '=';
-            END IF;
-            v_clave := LOWER(split_part(v_param, '=', 1));
+    -- Extraer authority (host y puerto) y path
+    v_pos_slash := position('/' in v_rest);
+    IF v_pos_slash > 0 THEN
+        v_authority := substring(v_rest from 1 for v_pos_slash - 1);
+        v_path := substring(v_rest from v_pos_slash);
+    ELSE
+        v_authority := v_rest;
+        v_path := '/';
+    END IF;
 
-            -- Parámetros de tracking universales
-            IF v_clave LIKE 'utm_%'
-               OR v_clave IN ('fbclid', 'gclid', 'msclkid', 'dclid', 'mc_cid', 'mc_eid', 'igshid') THEN
-                CONTINUE;
-            END IF;
+    -- Host a minúsculas
+    v_authority := LOWER(TRIM(v_authority));
 
-            -- Parámetros de tracking específicos de plataforma
-            IF v_plat = 'indeed' AND v_clave IN ('from', 'vjs', 'tk', 'advn', 'adloc', 'qd', 'subts', 'iaf', 'attributionid', 'mobview') THEN
-                CONTINUE;
-            END IF;
-            IF v_plat = 'linkedin' AND v_clave IN ('refid', 'trackingid', 'trk', 'midtoken', 'originalsubdomain', 'trkinfo') THEN
-                CONTINUE;
-            END IF;
-            IF v_plat = 'computrabajo' AND v_clave = 'id_origen' THEN
-                CONTINUE;
-            END IF;
+    -- Eliminar puertos por defecto (:80 para http, :443 para https)
+    IF v_proto = 'http' AND v_authority LIKE '%:80' THEN
+        v_authority := substring(v_authority from 1 for length(v_authority) - 3);
+    ELSIF v_proto = 'https' AND v_authority LIKE '%:443' THEN
+        v_authority := substring(v_authority from 1 for length(v_authority) - 4);
+    END IF;
 
-            v_params_limpios := array_append(v_params_limpios, v_param);
-        END IF;
-    END LOOP;
+    -- Normalizar path: si tiene longitud > 1 y termina en '/', quitar la barra final (idéntico a JS)
+    IF LENGTH(v_path) > 1 AND RIGHT(v_path, 1) = '/' THEN
+        v_path := LEFT(v_path, -1);
+    END IF;
+
+    -- Filtrar parámetros de tracking
+    IF v_query != '' THEN
+        FOREACH v_param IN ARRAY string_to_array(v_query, '&') LOOP
+            IF v_param IS NOT NULL AND v_param != '' THEN
+                v_clave := split_part(v_param, '=', 1);
+                IF position('=' in v_param) > 0 THEN
+                    v_val := substring(v_param from position('=' in v_param) + 1);
+                ELSE
+                    v_val := '';
+                END IF;
+
+                -- Comparación exacta case-insensitive de clave
+                -- Parámetros de tracking universales (regex ^utm_ para no borrar utmax)
+                IF v_clave ~* '^utm_'
+                   OR LOWER(v_clave) IN ('fbclid', 'gclid', 'msclkid', 'dclid', 'mc_cid', 'mc_eid', 'igshid') THEN
+                    CONTINUE;
+                END IF;
+
+                -- Parámetros de tracking específicos de plataforma
+                IF v_plat = 'indeed' AND LOWER(v_clave) IN ('from', 'vjs', 'tk', 'advn', 'adloc', 'qd', 'subts', 'iaf', 'attributionid', 'mobview') THEN
+                    CONTINUE;
+                END IF;
+                IF v_plat = 'linkedin' AND LOWER(v_clave) IN ('refid', 'trackingid', 'trk', 'midtoken', 'originalsubdomain', 'trkinfo') THEN
+                    CONTINUE;
+                END IF;
+                IF v_plat = 'computrabajo' AND LOWER(v_clave) = 'id_origen' THEN
+                    CONTINUE;
+                END IF;
+
+                -- Normalizar espacios (%20 y literal espacio a + idéntico a URLSearchParams)
+                v_val := replace(replace(v_val, '%20', '+'), ' ', '+');
+
+                v_params_limpios := array_append(v_params_limpios, v_clave || '=' || v_val);
+            END IF;
+        END LOOP;
+    END IF;
 
     -- Ordenar parámetros alfabéticamente (idéntico a parseada.searchParams.sort() de JS)
     IF array_length(v_params_limpios, 1) > 0 THEN
         SELECT array_agg(p ORDER BY p ASC) INTO v_params_limpios FROM unnest(v_params_limpios) AS p;
-        RETURN v_base || '?' || array_to_string(v_params_limpios, '&');
+        RETURN v_proto || '://' || v_authority || v_path || '?' || array_to_string(v_params_limpios, '&');
     ELSE
-        RETURN v_base;
+        RETURN v_proto || '://' || v_authority || v_path;
     END IF;
 END;
 $$;
