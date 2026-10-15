@@ -260,6 +260,62 @@ contexto('Migración 023 — Validación de Backfill SQL vs Runtime JS en Postgr
                 url: 'https://empleos.example/oferta?café=1&cafe=2',
                 plataforma: 'general',
             },
+
+            // B-01 / B-02 / B-03 reauditoría Lote 6: Precedencia Indeed/LinkedIn, boundaries y UTF-8 truncado WHATWG
+            {
+                titulo: 'Indeed prioridad jk sobre vjk inverso (?vjk=...&jk=...)',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob?vjk=OLD456&jk=NEW123',
+                plataforma: 'indeed',
+            },
+            {
+                titulo: 'Indeed prioridad jk sobre vjk directo (?jk=...&vjk=...)',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob?jk=NEW999&vjk=OLD456',
+                plataforma: 'indeed',
+            },
+            {
+                titulo: 'LinkedIn prioridad currentJobId sobre jobId inverso (?jobId=...&currentJobId=...)',
+                empresa: 'LinkedInCorp',
+                url: 'https://www.linkedin.com/jobs/search/?jobId=11111111&currentJobId=22222222',
+                plataforma: 'linkedin',
+            },
+            {
+                titulo: 'LinkedIn prioridad currentJobId sobre jobId directo (?currentJobId=...&jobId=...)',
+                empresa: 'LinkedInCorp',
+                url: 'https://www.linkedin.com/jobs/search/?currentJobId=33333333&jobId=11111111',
+                plataforma: 'linkedin',
+            },
+            {
+                titulo: 'LinkedIn 17 dígitos no se confunde con prefijo de 16 dígitos',
+                empresa: 'LinkedInCorp',
+                url: 'https://www.linkedin.com/jobs/view/12345678901234567',
+                plataforma: 'linkedin',
+            },
+            {
+                titulo: 'UTF-8 truncado 3 bytes %E2%82 (reemplazo U+FFFD único)',
+                empresa: 'TruncCorp',
+                url: 'https://empleos.example/oferta?q=%E2%82',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'UTF-8 truncado 4 bytes %F0%9F%9A (reemplazo U+FFFD único)',
+                empresa: 'TruncCorp',
+                url: 'https://empleos.example/oferta?term=%F0%9F%9A',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'UTF-8 continuación interrumpida %E2%28%A1 (reemplazo U+FFFD y ascii)',
+                empresa: 'TruncCorp',
+                url: 'https://empleos.example/oferta?q=%E2%28%A1',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'UTF-8 sobrelongitud inválida %C0%AF (dos U+FFFD)',
+                empresa: 'TruncCorp',
+                url: 'https://empleos.example/oferta?q=%C0%AF',
+                plataforma: 'general',
+            },
         ];
 
         // 1. Inserto todas las filas como si vinieran del sistema pre-023 (sin identidad_canonica)

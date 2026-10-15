@@ -424,5 +424,47 @@ describe('Servicio de identidad y canonización de ofertas', () => {
             const id1Reejecutada = obtenerIdentidadCanonica({ url: urlLarga1, plataforma: 'general' });
             expect(id1Reejecutada).toBe(id1);
         });
+
+        // B-01 reauditoría Lote 6: Precedencia estricta Indeed (jk sobre vjk) y LinkedIn (currentJobId sobre jobId)
+        test('B-01 Lote 6: Indeed prioriza jk sobre vjk sin importar el orden en la query', () => {
+            const urlInv = 'https://ar.indeed.com/viewjob?vjk=OLD456&jk=NEW123';
+            const urlDir = 'https://ar.indeed.com/viewjob?jk=NEW123&vjk=OLD456';
+
+            expect(obtenerIdentidadCanonica({ url: urlInv, plataforma: 'indeed' })).toBe('indeed:new123');
+            expect(obtenerIdentidadCanonica({ url: urlDir, plataforma: 'indeed' })).toBe('indeed:new123');
+            expect(canonizarUrlPlataforma(urlInv, 'indeed')).toBe('https://ar.indeed.com/viewjob?jk=new123');
+            expect(canonizarUrlPlataforma(urlDir, 'indeed')).toBe('https://ar.indeed.com/viewjob?jk=new123');
+        });
+
+        test('B-01 Lote 6: LinkedIn prioriza currentJobId sobre jobId sin importar el orden en la query', () => {
+            const urlInv = 'https://www.linkedin.com/jobs/search/?jobId=11111111&currentJobId=22222222';
+            const urlDir = 'https://www.linkedin.com/jobs/search/?currentJobId=22222222&jobId=11111111';
+
+            expect(obtenerIdentidadCanonica({ url: urlInv, plataforma: 'linkedin' })).toBe('linkedin:22222222');
+            expect(obtenerIdentidadCanonica({ url: urlDir, plataforma: 'linkedin' })).toBe('linkedin:22222222');
+            expect(canonizarUrlPlataforma(urlInv, 'linkedin')).toBe('https://www.linkedin.com/jobs/view/22222222');
+            expect(canonizarUrlPlataforma(urlDir, 'linkedin')).toBe('https://www.linkedin.com/jobs/view/22222222');
+        });
+
+        // B-03 reauditoría Lote 6: LinkedIn con 17 dígitos no se captura como ID de 16 dígitos
+        test('B-03 Lote 6: LinkedIn con 17 dígitos no se captura como ID parcial y usa fallback URL', () => {
+            const url17 = 'https://www.linkedin.com/jobs/view/12345678901234567';
+            const id = obtenerIdentidadCanonica({ url: url17, plataforma: 'linkedin' });
+            expect(id).toBe('linkedin:url:https://www.linkedin.com/jobs/view/12345678901234567');
+            expect(id).not.toBe('linkedin:1234567890123456');
+        });
+
+        // B-02 reauditoría Lote 6: UTF-8 percent-encoded truncado WHATWG
+        test('B-02 Lote 6: UTF-8 percent-encoded truncado produce reemplazo único U+FFFD', () => {
+            const urlTrunc3 = 'https://empleos.example/oferta?q=%E2%82';
+            const urlTrunc4 = 'https://empleos.example/oferta?q=%F0%9F%9A';
+            const urlInterrumpido = 'https://empleos.example/oferta?q=%E2%28%A1';
+            const urlOverlong = 'https://empleos.example/oferta?q=%C0%AF';
+
+            expect(canonizarUrlPlataforma(urlTrunc3, 'general')).toBe('https://empleos.example/oferta?q=%EF%BF%BD');
+            expect(canonizarUrlPlataforma(urlTrunc4, 'general')).toBe('https://empleos.example/oferta?q=%EF%BF%BD');
+            expect(canonizarUrlPlataforma(urlInterrumpido, 'general')).toBe('https://empleos.example/oferta?q=%EF%BF%BD%28%EF%BF%BD');
+            expect(canonizarUrlPlataforma(urlOverlong, 'general')).toBe('https://empleos.example/oferta?q=%EF%BF%BD%EF%BF%BD');
+        });
     });
 });

@@ -108,7 +108,7 @@ function extraerIdentificadorPlataforma(url, plataforma, datosCrudos = null) {
             jk = crudos.jk || crudos.vjk || crudos.key || crudos.jobKey || crudos.id;
         }
         if (!jk && typeof url === 'string') {
-            const matchJk = url.match(/[?&](?:jk|vjk)=([a-zA-Z0-9]+)/i);
+            const matchJk = url.match(/[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)/i) || url.match(/[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)/i);
             if (matchJk) {
                 jk = matchJk[1];
             } else {
@@ -144,6 +144,11 @@ function extraerIdentificadorPlataforma(url, plataforma, datosCrudos = null) {
             const matchView = url.match(/\/jobs\/view\/(?:[a-zA-Z0-9_%-]+-)?(\d{8,16})(?:[/?#]|$)/i);
             if (matchView) {
                 jobId = matchView[1];
+            } else {
+                const matchQuery = url.match(/[?&]currentJobId=(\d{8,16})(?:[&#]|$)/i) || url.match(/[?&]jobId=(\d{8,16})(?:[&#]|$)/i);
+                if (matchQuery) {
+                    jobId = matchQuery[1];
+                }
             }
         }
 

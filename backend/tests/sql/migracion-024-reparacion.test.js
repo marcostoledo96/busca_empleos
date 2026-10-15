@@ -108,6 +108,41 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
                 plataforma: 'general',
                 identidadDesfasada: 'general:url:https://empleos.example/oferta?tag=a&tag=z',
             },
+            {
+                titulo: 'Indeed con precedencia jk sobre vjk desfasada',
+                empresa: 'IndeedCorp',
+                url: 'https://ar.indeed.com/viewjob?vjk=OLD456&jk=NEW123',
+                plataforma: 'indeed',
+                identidadDesfasada: 'indeed:old456',
+            },
+            {
+                titulo: 'LinkedIn con precedencia currentJobId sobre jobId desfasada',
+                empresa: 'LinkedInCorp',
+                url: 'https://www.linkedin.com/jobs/search/?jobId=11111111&currentJobId=22222222',
+                plataforma: 'linkedin',
+                identidadDesfasada: 'linkedin:11111111',
+            },
+            {
+                titulo: 'LinkedIn 17 dígitos desfasada como 16 dígitos',
+                empresa: 'LinkedInCorp',
+                url: 'https://www.linkedin.com/jobs/view/12345678901234567',
+                plataforma: 'linkedin',
+                identidadDesfasada: 'linkedin:1234567890123456',
+            },
+            {
+                titulo: 'UTF-8 truncado %E2%82 desfasado con doble U+FFFD',
+                empresa: 'TruncCorp',
+                url: 'https://empleos.example/oferta?q=%E2%82',
+                plataforma: 'general',
+                identidadDesfasada: 'general:url:https://empleos.example/oferta?q=%EF%BF%BD%EF%BF%BD',
+            },
+            {
+                titulo: 'UTF-8 truncado %F0%9F%9A desfasado con triple U+FFFD',
+                empresa: 'TruncCorp',
+                url: 'https://empleos.example/oferta?term=%F0%9F%9A',
+                plataforma: 'general',
+                identidadDesfasada: 'general:url:https://empleos.example/oferta?term=%EF%BF%BD%EF%BF%BD%EF%BF%BD',
+            },
         ];
 
         for (const fila of filas) {

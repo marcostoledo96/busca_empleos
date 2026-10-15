@@ -26,8 +26,9 @@ DECLARE
     v_blen integer;
     v_char text;
     v_char_bytes bytea;
-    v_seq_len integer := 0;
-    v_valid boolean := false;
+    v_cb1 integer;
+    v_cb2 integer;
+    v_cb3 integer;
     v_sub bytea;
 BEGIN
     IF p_input IS NULL THEN RETURN ''; END IF;
@@ -57,28 +58,107 @@ BEGIN
         ELSIF v_b < 128 THEN
             v_res := v_res || chr(v_b);
             v_i := v_i + 1;
-        ELSE
-            v_seq_len := 0;
-            v_valid := false;
-            IF (v_b & 224) = 192 AND v_b >= 194 THEN v_seq_len := 2;
-            ELSIF (v_b & 240) = 224 THEN v_seq_len := 3;
-            ELSIF (v_b & 248) = 240 AND v_b <= 244 THEN v_seq_len := 4;
-            END IF;
-            IF v_seq_len > 0 AND v_i + v_seq_len <= v_blen THEN
-                v_sub := substring(v_raw from v_i + 1 for v_seq_len);
-                BEGIN
+        ELSIF v_b >= 194 AND v_b <= 223 THEN
+            -- Secuencia UTF-8 de 2 bytes (espera 1 byte de continuación 128..191)
+            IF v_i + 1 < v_blen THEN
+                v_cb1 := get_byte(v_raw, v_i + 1);
+                IF v_cb1 >= 128 AND v_cb1 <= 191 THEN
+                    v_sub := substring(v_raw from v_i + 1 for 2);
                     v_res := v_res || convert_from(v_sub, 'UTF8');
-                    v_valid := true;
-                EXCEPTION WHEN OTHERS THEN
-                    v_valid := false;
-                END;
-            END IF;
-            IF v_valid THEN
-                v_i := v_i + v_seq_len;
+                    v_i := v_i + 2;
+                ELSE
+                    -- cb1 inválido; subparte máxima = solo lead byte (1 byte)
+                    v_res := v_res || chr(65533);
+                    v_i := v_i + 1;
+                END IF;
             ELSE
+                -- Truncado / EOF; subparte máxima = solo lead byte (1 byte)
                 v_res := v_res || chr(65533);
                 v_i := v_i + 1;
             END IF;
+        ELSIF v_b >= 224 AND v_b <= 239 THEN
+            -- Secuencia UTF-8 de 3 bytes (espera 2 bytes de continuación)
+            IF v_i + 1 < v_blen THEN
+                v_cb1 := get_byte(v_raw, v_i + 1);
+                IF (v_b = 224 AND v_cb1 >= 160 AND v_cb1 <= 191)
+                   OR (v_b = 237 AND v_cb1 >= 128 AND v_cb1 <= 159)
+                   OR (v_b != 224 AND v_b != 237 AND v_cb1 >= 128 AND v_cb1 <= 191) THEN
+                    IF v_i + 2 < v_blen THEN
+                        v_cb2 := get_byte(v_raw, v_i + 2);
+                        IF v_cb2 >= 128 AND v_cb2 <= 191 THEN
+                            v_sub := substring(v_raw from v_i + 1 for 3);
+                            v_res := v_res || convert_from(v_sub, 'UTF8');
+                            v_i := v_i + 3;
+                        ELSE
+                            -- cb2 inválido; subparte máxima = lead byte + cb1 (2 bytes)
+                            v_res := v_res || chr(65533);
+                            v_i := v_i + 2;
+                        END IF;
+                    ELSE
+                        -- Truncado en cb2 / EOF; subparte máxima = lead byte + cb1 (2 bytes)
+                        v_res := v_res || chr(65533);
+                        v_i := v_i + 2;
+                    END IF;
+                ELSE
+                    -- cb1 inválido; subparte máxima = solo lead byte (1 byte)
+                    v_res := v_res || chr(65533);
+                    v_i := v_i + 1;
+                END IF;
+            ELSE
+                -- Truncado en cb1 / EOF; subparte máxima = solo lead byte (1 byte)
+                v_res := v_res || chr(65533);
+                v_i := v_i + 1;
+            END IF;
+        ELSIF v_b >= 240 AND v_b <= 244 THEN
+            -- Secuencia UTF-8 de 4 bytes (espera 3 bytes de continuación)
+            IF v_i + 1 < v_blen THEN
+                v_cb1 := get_byte(v_raw, v_i + 1);
+                IF (v_b = 240 AND v_cb1 >= 144 AND v_cb1 <= 191)
+                   OR (v_b = 244 AND v_cb1 >= 128 AND v_cb1 <= 143)
+                   OR (v_b >= 241 AND v_b <= 243 AND v_cb1 >= 128 AND v_cb1 <= 191) THEN
+                    IF v_i + 2 < v_blen THEN
+                        v_cb2 := get_byte(v_raw, v_i + 2);
+                        IF v_cb2 >= 128 AND v_cb2 <= 191 THEN
+                            IF v_i + 3 < v_blen THEN
+                                v_cb3 := get_byte(v_raw, v_i + 3);
+                                IF v_cb3 >= 128 AND v_cb3 <= 191 THEN
+                                    v_sub := substring(v_raw from v_i + 1 for 4);
+                                    v_res := v_res || convert_from(v_sub, 'UTF8');
+                                    v_i := v_i + 4;
+                                ELSE
+                                    -- cb3 inválido; subparte máxima = lead byte + cb1 + cb2 (3 bytes)
+                                    v_res := v_res || chr(65533);
+                                    v_i := v_i + 3;
+                                END IF;
+                            ELSE
+                                -- Truncado en cb3 / EOF; subparte máxima = lead byte + cb1 + cb2 (3 bytes)
+                                v_res := v_res || chr(65533);
+                                v_i := v_i + 3;
+                            END IF;
+                        ELSE
+                            -- cb2 inválido; subparte máxima = lead byte + cb1 (2 bytes)
+                            v_res := v_res || chr(65533);
+                            v_i := v_i + 2;
+                        END IF;
+                    ELSE
+                        -- Truncado en cb2 / EOF; subparte máxima = lead byte + cb1 (2 bytes)
+                        v_res := v_res || chr(65533);
+                        v_i := v_i + 2;
+                    END IF;
+                ELSE
+                    -- cb1 inválido; subparte máxima = solo lead byte (1 byte)
+                    v_res := v_res || chr(65533);
+                    v_i := v_i + 1;
+                END IF;
+            ELSE
+                -- Truncado en cb1 / EOF; subparte máxima = solo lead byte (1 byte)
+                v_res := v_res || chr(65533);
+                v_i := v_i + 1;
+            END IF;
+        ELSE
+            -- Byte inválido fuera del rango de lead bytes (ej. 128..193 o 245..255)
+            v_res := v_res || chr(65533);
+            v_i := v_i + 1;
         END IF;
     END LOOP;
     RETURN v_res;
@@ -97,10 +177,9 @@ DECLARE
     v_blen integer;
     v_char text;
     v_char_bytes bytea;
-    v_seq_len integer := 0;
-    v_valid boolean := false;
-    v_sub bytea;
-    v_k integer;
+    v_cb1 integer;
+    v_cb2 integer;
+    v_cb3 integer;
 BEGIN
     IF p_input IS NULL THEN RETURN ''; END IF;
     v_len := length(p_input);
@@ -135,33 +214,100 @@ BEGIN
            OR v_b = 95 THEN
             v_res := v_res || chr(v_b);
             v_i := v_i + 1;
-        ELSIF v_b >= 128 THEN
-            v_seq_len := 0;
-            v_valid := false;
-            IF (v_b & 224) = 192 AND v_b >= 194 THEN v_seq_len := 2;
-            ELSIF (v_b & 240) = 224 THEN v_seq_len := 3;
-            ELSIF (v_b & 248) = 240 AND v_b <= 244 THEN v_seq_len := 4;
+        ELSIF v_b < 128 THEN
+            v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0');
+            v_i := v_i + 1;
+        ELSIF v_b >= 194 AND v_b <= 223 THEN
+            -- Secuencia UTF-8 de 2 bytes
+            IF v_i + 1 < v_blen THEN
+                v_cb1 := get_byte(v_raw, v_i + 1);
+                IF v_cb1 >= 128 AND v_cb1 <= 191 THEN
+                    v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0')
+                                   || '%' || LPAD(UPPER(to_hex(v_cb1)), 2, '0');
+                    v_i := v_i + 2;
+                ELSE
+                    v_res := v_res || '%EF%BF%BD';
+                    v_i := v_i + 1;
+                END IF;
+            ELSE
+                v_res := v_res || '%EF%BF%BD';
+                v_i := v_i + 1;
             END IF;
-            IF v_seq_len > 0 AND v_i + v_seq_len <= v_blen THEN
-                v_sub := substring(v_raw from v_i + 1 for v_seq_len);
-                BEGIN
-                    PERFORM convert_from(v_sub, 'UTF8');
-                    v_valid := true;
-                EXCEPTION WHEN OTHERS THEN
-                    v_valid := false;
-                END;
+        ELSIF v_b >= 224 AND v_b <= 239 THEN
+            -- Secuencia UTF-8 de 3 bytes
+            IF v_i + 1 < v_blen THEN
+                v_cb1 := get_byte(v_raw, v_i + 1);
+                IF (v_b = 224 AND v_cb1 >= 160 AND v_cb1 <= 191)
+                   OR (v_b = 237 AND v_cb1 >= 128 AND v_cb1 <= 159)
+                   OR (v_b != 224 AND v_b != 237 AND v_cb1 >= 128 AND v_cb1 <= 191) THEN
+                    IF v_i + 2 < v_blen THEN
+                        v_cb2 := get_byte(v_raw, v_i + 2);
+                        IF v_cb2 >= 128 AND v_cb2 <= 191 THEN
+                            v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0')
+                                           || '%' || LPAD(UPPER(to_hex(v_cb1)), 2, '0')
+                                           || '%' || LPAD(UPPER(to_hex(v_cb2)), 2, '0');
+                            v_i := v_i + 3;
+                        ELSE
+                            v_res := v_res || '%EF%BF%BD';
+                            v_i := v_i + 2;
+                        END IF;
+                    ELSE
+                        v_res := v_res || '%EF%BF%BD';
+                        v_i := v_i + 2;
+                    END IF;
+                ELSE
+                    v_res := v_res || '%EF%BF%BD';
+                    v_i := v_i + 1;
+                END IF;
+            ELSE
+                v_res := v_res || '%EF%BF%BD';
+                v_i := v_i + 1;
             END IF;
-            IF v_valid THEN
-                FOR v_k IN 0 .. v_seq_len - 1 LOOP
-                    v_res := v_res || '%' || LPAD(UPPER(to_hex(get_byte(v_sub, v_k))), 2, '0');
-                END LOOP;
-                v_i := v_i + v_seq_len;
+        ELSIF v_b >= 240 AND v_b <= 244 THEN
+            -- Secuencia UTF-8 de 4 bytes
+            IF v_i + 1 < v_blen THEN
+                v_cb1 := get_byte(v_raw, v_i + 1);
+                IF (v_b = 240 AND v_cb1 >= 144 AND v_cb1 <= 191)
+                   OR (v_b = 244 AND v_cb1 >= 128 AND v_cb1 <= 143)
+                   OR (v_b >= 241 AND v_b <= 243 AND v_cb1 >= 128 AND v_cb1 <= 191) THEN
+                    IF v_i + 2 < v_blen THEN
+                        v_cb2 := get_byte(v_raw, v_i + 2);
+                        IF v_cb2 >= 128 AND v_cb2 <= 191 THEN
+                            IF v_i + 3 < v_blen THEN
+                                v_cb3 := get_byte(v_raw, v_i + 3);
+                                IF v_cb3 >= 128 AND v_cb3 <= 191 THEN
+                                    v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0')
+                                                   || '%' || LPAD(UPPER(to_hex(v_cb1)), 2, '0')
+                                                   || '%' || LPAD(UPPER(to_hex(v_cb2)), 2, '0')
+                                                   || '%' || LPAD(UPPER(to_hex(v_cb3)), 2, '0');
+                                    v_i := v_i + 4;
+                                ELSE
+                                    v_res := v_res || '%EF%BF%BD';
+                                    v_i := v_i + 3;
+                                END IF;
+                            ELSE
+                                v_res := v_res || '%EF%BF%BD';
+                                v_i := v_i + 3;
+                            END IF;
+                        ELSE
+                            v_res := v_res || '%EF%BF%BD';
+                            v_i := v_i + 2;
+                        END IF;
+                    ELSE
+                        v_res := v_res || '%EF%BF%BD';
+                        v_i := v_i + 2;
+                    END IF;
+                ELSE
+                    v_res := v_res || '%EF%BF%BD';
+                    v_i := v_i + 1;
+                END IF;
             ELSE
                 v_res := v_res || '%EF%BF%BD';
                 v_i := v_i + 1;
             END IF;
         ELSE
-            v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0');
+            -- Byte inválido fuera del rango de lead bytes (ej. 128..193 o 245..255)
+            v_res := v_res || '%EF%BF%BD';
             v_i := v_i + 1;
         END IF;
     END LOOP;
@@ -234,18 +380,27 @@ BEGIN
 
     -- Formatos específicos por plataforma si hay ID nativo reconocible
     IF v_plat = 'indeed' THEN
-        IF v_url ~* '[?&](jk|vjk)=([a-zA-Z0-9]+)' THEN
-            v_match := regexp_match(v_url, '[?&](?:jk|vjk)=([a-zA-Z0-9]+)', 'i');
+        IF v_url ~* '[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)', 'i');
             RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
-        ELSIF v_url ~* '/job/.*-([a-zA-Z0-9]{16})' THEN
-            v_match := regexp_match(v_url, '/job/.*-([a-zA-Z0-9]{16})', 'i');
+        ELSIF v_url ~* '[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)', 'i');
+            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
+        ELSIF v_url ~* '/job/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '/job/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)', 'i');
             RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
         END IF;
     END IF;
 
     IF v_plat = 'linkedin' THEN
-        IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})' THEN
-            v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})', 'i');
+        IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:[/?#]|$)', 'i');
+            RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
+        ELSIF v_url ~* '[?&]currentJobId=([0-9]{8,16})(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]currentJobId=([0-9]{8,16})(?:[&#]|$)', 'i');
+            RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
+        ELSIF v_url ~* '[?&]jobId=([0-9]{8,16})(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]jobId=([0-9]{8,16})(?:[&#]|$)', 'i');
             RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
         END IF;
     END IF;
@@ -319,11 +474,11 @@ BEGIN
 
     -- 1. Indeed: jk / vjk (URL o datos_crudos: jk, vjk, key, jobKey, id)
     IF v_plat = 'indeed' THEN
-        IF v_url ~* '[?&](jk|vjk)=([a-zA-Z0-9]+)' THEN
-            v_match := regexp_match(v_url, '[?&](?:jk|vjk)=([a-zA-Z0-9]+)', 'i');
+        IF v_url ~* '[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)', 'i');
             RETURN 'indeed:' || LOWER(v_match[1]);
-        ELSIF v_url ~* '/job/.*-([a-zA-Z0-9]{16})' THEN
-            v_match := regexp_match(v_url, '/job/.*-([a-zA-Z0-9]{16})', 'i');
+        ELSIF v_url ~* '[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)', 'i');
             RETURN 'indeed:' || LOWER(v_match[1]);
         ELSIF (v_datos->>'jk') ~ '^[a-zA-Z0-9]+$' THEN
             RETURN 'indeed:' || LOWER(v_datos->>'jk');
@@ -335,16 +490,22 @@ BEGIN
             RETURN 'indeed:' || LOWER(v_datos->>'jobKey');
         ELSIF (v_datos->>'id') ~ '^[a-zA-Z0-9]+$' THEN
             RETURN 'indeed:' || LOWER(v_datos->>'id');
+        ELSIF v_url ~* '/job/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '/job/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)', 'i');
+            RETURN 'indeed:' || LOWER(v_match[1]);
         END IF;
     END IF;
 
     -- 2. LinkedIn: jobId (URL o datos_crudos: jobId, currentJobId, id)
     IF v_plat = 'linkedin' THEN
-        IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})' THEN
-            v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})', 'i');
+        IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:[/?#]|$)', 'i');
             RETURN 'linkedin:' || v_match[1];
-        ELSIF v_url ~* '[?&](currentJobId|jobId)=([0-9]{8,16})' THEN
-            v_match := regexp_match(v_url, '[?&](?:currentJobId|jobId)=([0-9]{8,16})', 'i');
+        ELSIF v_url ~* '[?&]currentJobId=([0-9]{8,16})(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]currentJobId=([0-9]{8,16})(?:[&#]|$)', 'i');
+            RETURN 'linkedin:' || v_match[1];
+        ELSIF v_url ~* '[?&]jobId=([0-9]{8,16})(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&]jobId=([0-9]{8,16})(?:[&#]|$)', 'i');
             RETURN 'linkedin:' || v_match[1];
         ELSIF (v_datos->>'jobId') ~ '^[0-9]{8,16}$' THEN
             RETURN 'linkedin:' || (v_datos->>'jobId');
@@ -357,9 +518,9 @@ BEGIN
 
     -- 3. GetOnBrd: slug o id
     IF v_plat = 'getonbrd' THEN
-        IF v_url ~* '/jobs/(?:[a-zA-Z0-9_-]+/)?([a-zA-Z0-9_-]+)'
-           AND (regexp_match(v_url, '/jobs/(?:[a-zA-Z0-9_-]+/)?([a-zA-Z0-9_-]+)', 'i'))[1] != 'jobs' THEN
-            v_match := regexp_match(v_url, '/jobs/(?:[a-zA-Z0-9_-]+/)?([a-zA-Z0-9_-]+)', 'i');
+        IF v_url ~* '/jobs/(?:[a-zA-Z0-9_-]+/)?([a-zA-Z0-9_-]+)(?:[/?#]|$)'
+           AND (regexp_match(v_url, '/jobs/(?:[a-zA-Z0-9_-]+/)?([a-zA-Z0-9_-]+)(?:[/?#]|$)', 'i'))[1] != 'jobs' THEN
+            v_match := regexp_match(v_url, '/jobs/(?:[a-zA-Z0-9_-]+/)?([a-zA-Z0-9_-]+)(?:[/?#]|$)', 'i');
             RETURN 'getonbrd:' || v_match[1];
         ELSIF (v_datos->>'id') ~ '^[a-zA-Z0-9_-]+$' THEN
             RETURN 'getonbrd:' || (v_datos->>'id');
@@ -370,16 +531,16 @@ BEGIN
     IF v_plat = 'computrabajo' THEN
         IF (v_datos->>'id') ~ '^[a-zA-Z0-9]+$' THEN
             RETURN 'computrabajo:' || (v_datos->>'id');
-        ELSIF v_url ~* '(?:ofertas?-de-trabajo-[a-zA-Z0-9]*?-|oferta-de-trabajo-)([a-fA-F0-9]{24,40}|[a-zA-Z0-9]{24,40})' THEN
-            v_match := regexp_match(v_url, '(?:ofertas?-de-trabajo-[a-zA-Z0-9]*?-|oferta-de-trabajo-)([a-fA-F0-9]{24,40}|[a-zA-Z0-9]{24,40})', 'i');
+        ELSIF v_url ~* '(?:ofertas?-de-trabajo-[a-zA-Z0-9]*?-|oferta-de-trabajo-)([a-fA-F0-9]{24,40}|[a-zA-Z0-9]{24,40})(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '(?:ofertas?-de-trabajo-[a-zA-Z0-9]*?-|oferta-de-trabajo-)([a-fA-F0-9]{24,40}|[a-zA-Z0-9]{24,40})(?:[/?#]|$)', 'i');
             RETURN 'computrabajo:' || v_match[1];
         END IF;
     END IF;
 
     -- 5. Bumeran
     IF v_plat = 'bumeran' THEN
-        IF v_url ~* '-([0-9]+)\.html' THEN
-            v_match := regexp_match(v_url, '-([0-9]+)\.html', 'i');
+        IF v_url ~* '-([0-9]+)\.html(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '-([0-9]+)\.html(?:[/?#]|$)', 'i');
             RETURN 'bumeran:' || v_match[1];
         ELSIF (v_datos->>'id') ~ '^[0-9]+$' THEN
             RETURN 'bumeran:' || (v_datos->>'id');
@@ -388,11 +549,11 @@ BEGIN
 
     -- 6. Glassdoor
     IF v_plat = 'glassdoor' THEN
-        IF v_url ~* '[?&](jl|jobListingId)=([0-9]+)' THEN
-            v_match := regexp_match(v_url, '[?&](?:jl|jobListingId)=([0-9]+)', 'i');
+        IF v_url ~* '[?&](?:jl|jobListingId)=([0-9]+)(?:[&#]|$)' THEN
+            v_match := regexp_match(v_url, '[?&](?:jl|jobListingId)=([0-9]+)(?:[&#]|$)', 'i');
             RETURN 'glassdoor:' || v_match[1];
-        ELSIF v_url ~* '(?:/|-|_|\b)(?:jl|jobListingId)[-_=]?([0-9]+)' THEN
-            v_match := regexp_match(v_url, '(?:/|-|_|\b)(?:jl|jobListingId)[-_=]?([0-9]+)', 'i');
+        ELSIF v_url ~* '(?:/|-|_|\b)(?:jl|jobListingId)[-_=]?([0-9]+)(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '(?:/|-|_|\b)(?:jl|jobListingId)[-_=]?([0-9]+)(?:[/?#]|$)', 'i');
             RETURN 'glassdoor:' || v_match[1];
         ELSIF (v_datos->>'jl') ~ '^[0-9]+$' THEN
             RETURN 'glassdoor:' || (v_datos->>'jl');
@@ -407,8 +568,8 @@ BEGIN
     IF v_plat IN ('jooble', 'remoteok', 'remotive', 'infojobs', 'adzuna') THEN
         IF (v_datos->>'id') ~ '^[a-zA-Z0-9_-]+$' THEN
             RETURN v_plat || ':' || (v_datos->>'id');
-        ELSIF v_plat = 'jooble' AND v_url ~* '/desc/([a-zA-Z0-9_-]+)' THEN
-            v_match := regexp_match(v_url, '/desc/([a-zA-Z0-9_-]+)', 'i');
+        ELSIF v_plat = 'jooble' AND v_url ~* '/desc/([a-zA-Z0-9_-]+)(?:[/?#]|$)' THEN
+            v_match := regexp_match(v_url, '/desc/([a-zA-Z0-9_-]+)(?:[/?#]|$)', 'i');
             RETURN 'jooble:' || v_match[1];
         END IF;
     END IF;
