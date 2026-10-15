@@ -198,6 +198,68 @@ contexto('Migración 023 — Validación de Backfill SQL vs Runtime JS en Postgr
                 url: 'https://example.com/puestos?q=%2f',
                 plataforma: 'general',
             },
+
+            // B-01 / B-02 / B-03 reauditoría Lote 5: Multibyte UTF-8, NUL %00, invalid %FF, duplicate keys y COLLATE C
+            {
+                titulo: 'Multibyte UTF-8 query percent-encoding caf%C3%A9',
+                empresa: 'CafeCorp',
+                url: 'https://empleos.example/oferta?q=caf%C3%A9',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Multibyte UTF-8 query percent-encoding %C3%AD',
+                empresa: 'CafeCorp',
+                url: 'https://empleos.example/oferta?q=%C3%AD',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Emoji UTF-8 query percent-encoding',
+                empresa: 'RocketCorp',
+                url: 'https://empleos.example/oferta?q=🚀',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Claves repetidas tag=z y tag=a (estabilidad ordinal)',
+                empresa: 'TagCorp',
+                url: 'https://empleos.example/oferta?tag=z&tag=a',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Claves repetidas tag=a y tag=z (estabilidad ordinal inversa)',
+                empresa: 'TagCorp',
+                url: 'https://empleos.example/oferta?tag=a&tag=z',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'NUL percent-escaped %00 sin abortar migración',
+                empresa: 'NullCorp',
+                url: 'https://empleos.example/oferta?q=a%00b',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Invalid UTF-8 byte %FF reemplazado por U+FFFD',
+                empresa: 'InvalidCorp',
+                url: 'https://empleos.example/oferta?q=a%FFb',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Mezcla de orden alfabético y claves repetidas',
+                empresa: 'OrderCorp',
+                url: 'https://empleos.example/oferta?b=2&a=1&b=1',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Tracking utm_* filtrado preservando utmax y estabilidad',
+                empresa: 'UtmCorp',
+                url: 'https://empleos.example/oferta?utm_source=google&q=caf%C3%A9&utmax=1&tag=z&tag=a',
+                plataforma: 'general',
+            },
+            {
+                titulo: 'Orden binario C con caracteres acentuados café vs cafe',
+                empresa: 'AccentCorp',
+                url: 'https://empleos.example/oferta?café=1&cafe=2',
+                plataforma: 'general',
+            },
         ];
 
         // 1. Inserto todas las filas como si vinieran del sistema pre-023 (sin identidad_canonica)

@@ -87,6 +87,27 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
                 plataforma: 'general',
                 identidadDesfasada: 'general:url:https://example.com/puestos?q=a~b',
             },
+            {
+                titulo: 'Query multibyte caf%C3%A9',
+                empresa: 'CafeCorp',
+                url: 'https://empleos.example/oferta?q=caf%C3%A9',
+                plataforma: 'general',
+                identidadDesfasada: 'general:url:https://empleos.example/oferta?q=caf%C3%83%C2%A9',
+            },
+            {
+                titulo: 'Query con %00 NUL byte',
+                empresa: 'NullCorp',
+                url: 'https://empleos.example/oferta?q=a%00b',
+                plataforma: 'general',
+                identidadDesfasada: 'general:url:https://empleos.example/oferta?q=a%00b#old',
+            },
+            {
+                titulo: 'Query con claves repetidas tag=z y tag=a',
+                empresa: 'TagCorp',
+                url: 'https://empleos.example/oferta?tag=z&tag=a',
+                plataforma: 'general',
+                identidadDesfasada: 'general:url:https://empleos.example/oferta?tag=a&tag=z',
+            },
         ];
 
         for (const fila of filas) {

@@ -14,50 +14,115 @@
 CREATE OR REPLACE FUNCTION fn_url_decode_023(p_input text)
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
-    v_output text := '';
     v_len integer;
     v_i integer := 1;
     v_hex text;
-    v_byte integer;
+    v_raw bytea := ''::bytea;
+    v_res text := '';
+    v_b integer;
+    v_blen integer;
+    v_char text;
+    v_char_bytes bytea;
+    v_seq_len integer := 0;
+    v_valid boolean := false;
+    v_sub bytea;
 BEGIN
     IF p_input IS NULL THEN RETURN ''; END IF;
     v_len := length(p_input);
     WHILE v_i <= v_len LOOP
         IF substring(p_input from v_i for 1) = '%' AND v_i + 2 <= v_len AND substring(p_input from v_i + 1 for 2) ~ '^[0-9a-fA-F]{2}$' THEN
             v_hex := substring(p_input from v_i + 1 for 2);
-            v_byte := ('x' || v_hex)::bit(8)::integer;
-            v_output := v_output || chr(v_byte);
+            v_raw := v_raw || decode(v_hex, 'hex');
             v_i := v_i + 3;
         ELSIF substring(p_input from v_i for 1) = '+' THEN
-            v_output := v_output || ' ';
+            v_raw := v_raw || decode('20', 'hex');
             v_i := v_i + 1;
         ELSE
-            v_output := v_output || substring(p_input from v_i for 1);
+            v_char := substring(p_input from v_i for 1);
+            v_char_bytes := convert_to(v_char, 'UTF8');
+            v_raw := v_raw || v_char_bytes;
             v_i := v_i + 1;
         END IF;
     END LOOP;
-    RETURN v_output;
+    v_blen := octet_length(v_raw);
+    v_i := 0;
+    WHILE v_i < v_blen LOOP
+        v_b := get_byte(v_raw, v_i);
+        IF v_b = 0 THEN
+            -- En PostgreSQL text no admite NUL (0x00); omito para comparación de clave sin abortar
+            v_i := v_i + 1;
+        ELSIF v_b < 128 THEN
+            v_res := v_res || chr(v_b);
+            v_i := v_i + 1;
+        ELSE
+            v_seq_len := 0;
+            v_valid := false;
+            IF (v_b & 224) = 192 AND v_b >= 194 THEN v_seq_len := 2;
+            ELSIF (v_b & 240) = 224 THEN v_seq_len := 3;
+            ELSIF (v_b & 248) = 240 AND v_b <= 244 THEN v_seq_len := 4;
+            END IF;
+            IF v_seq_len > 0 AND v_i + v_seq_len <= v_blen THEN
+                v_sub := substring(v_raw from v_i + 1 for v_seq_len);
+                BEGIN
+                    v_res := v_res || convert_from(v_sub, 'UTF8');
+                    v_valid := true;
+                EXCEPTION WHEN OTHERS THEN
+                    v_valid := false;
+                END;
+            END IF;
+            IF v_valid THEN
+                v_i := v_i + v_seq_len;
+            ELSE
+                v_res := v_res || chr(65533);
+                v_i := v_i + 1;
+            END IF;
+        END IF;
+    END LOOP;
+    RETURN v_res;
 END;
 $$;
 
 CREATE OR REPLACE FUNCTION fn_url_encode_form_023(p_input text)
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
-    v_decoded text;
-    v_bytes bytea;
     v_len integer;
-    v_b integer;
+    v_i integer := 1;
+    v_hex text;
+    v_raw bytea := ''::bytea;
     v_res text := '';
-    v_i integer;
+    v_b integer;
+    v_blen integer;
+    v_char text;
+    v_char_bytes bytea;
+    v_seq_len integer := 0;
+    v_valid boolean := false;
+    v_sub bytea;
+    v_k integer;
 BEGIN
     IF p_input IS NULL THEN RETURN ''; END IF;
-    v_decoded := fn_url_decode_023(p_input);
-    v_bytes := convert_to(v_decoded, 'UTF8');
-    v_len := octet_length(v_bytes);
-    FOR v_i IN 0 .. v_len - 1 LOOP
-        v_b := get_byte(v_bytes, v_i);
+    v_len := length(p_input);
+    WHILE v_i <= v_len LOOP
+        IF substring(p_input from v_i for 1) = '%' AND v_i + 2 <= v_len AND substring(p_input from v_i + 1 for 2) ~ '^[0-9a-fA-F]{2}$' THEN
+            v_hex := substring(p_input from v_i + 1 for 2);
+            v_raw := v_raw || decode(v_hex, 'hex');
+            v_i := v_i + 3;
+        ELSIF substring(p_input from v_i for 1) = '+' THEN
+            v_raw := v_raw || decode('20', 'hex');
+            v_i := v_i + 1;
+        ELSE
+            v_char := substring(p_input from v_i for 1);
+            v_char_bytes := convert_to(v_char, 'UTF8');
+            v_raw := v_raw || v_char_bytes;
+            v_i := v_i + 1;
+        END IF;
+    END LOOP;
+    v_blen := octet_length(v_raw);
+    v_i := 0;
+    WHILE v_i < v_blen LOOP
+        v_b := get_byte(v_raw, v_i);
         IF v_b = 32 THEN
             v_res := v_res || '+';
+            v_i := v_i + 1;
         ELSIF (v_b >= 48 AND v_b <= 57)
            OR (v_b >= 65 AND v_b <= 90)
            OR (v_b >= 97 AND v_b <= 122)
@@ -66,8 +131,35 @@ BEGIN
            OR v_b = 46
            OR v_b = 95 THEN
             v_res := v_res || chr(v_b);
+            v_i := v_i + 1;
+        ELSIF v_b >= 128 THEN
+            v_seq_len := 0;
+            v_valid := false;
+            IF (v_b & 224) = 192 AND v_b >= 194 THEN v_seq_len := 2;
+            ELSIF (v_b & 240) = 224 THEN v_seq_len := 3;
+            ELSIF (v_b & 248) = 240 AND v_b <= 244 THEN v_seq_len := 4;
+            END IF;
+            IF v_seq_len > 0 AND v_i + v_seq_len <= v_blen THEN
+                v_sub := substring(v_raw from v_i + 1 for v_seq_len);
+                BEGIN
+                    PERFORM convert_from(v_sub, 'UTF8');
+                    v_valid := true;
+                EXCEPTION WHEN OTHERS THEN
+                    v_valid := false;
+                END;
+            END IF;
+            IF v_valid THEN
+                FOR v_k IN 0 .. v_seq_len - 1 LOOP
+                    v_res := v_res || '%' || LPAD(UPPER(to_hex(get_byte(v_sub, v_k))), 2, '0');
+                END LOOP;
+                v_i := v_i + v_seq_len;
+            ELSE
+                v_res := v_res || '%EF%BF%BD';
+                v_i := v_i + 1;
+            END IF;
         ELSE
             v_res := v_res || '%' || LPAD(UPPER(to_hex(v_b)), 2, '0');
+            v_i := v_i + 1;
         END IF;
     END LOOP;
     RETURN v_res;
@@ -88,11 +180,13 @@ DECLARE
     v_clave text;
     v_val text;
     v_clave_limpia text;
-    v_params_limpios text[] := ARRAY[]::text[];
     v_plat text := LOWER(TRIM(COALESCE(p_plataforma, 'general')));
     v_pos_slash integer;
     v_pos_q integer;
     v_match text[];
+    v_idx integer := 0;
+    v_items text[] := ARRAY[]::text[];
+    v_params_limpios text[] := ARRAY[]::text[];
 BEGIN
     IF v_url = '' THEN RETURN ''; END IF;
 
@@ -162,6 +256,7 @@ BEGIN
     IF v_query != '' THEN
         FOREACH v_param IN ARRAY string_to_array(v_query, '&') LOOP
             IF v_param IS NOT NULL AND v_param != '' THEN
+                v_idx := v_idx + 1;
                 v_clave := split_part(v_param, '=', 1);
                 IF position('=' in v_param) > 0 THEN
                     v_val := substring(v_param from position('=' in v_param) + 1);
@@ -169,7 +264,7 @@ BEGIN
                     v_val := '';
                 END IF;
 
-                -- Clave decodificada para comparación precisa de tracking
+                -- Clave decodificada para comparación precisa de tracking y ordenamiento estable
                 v_clave_limpia := fn_url_decode_023(v_clave);
 
                 -- Parámetros de tracking universales (regex ^utm_ para no borrar utmax)
@@ -189,15 +284,17 @@ BEGIN
                     CONTINUE;
                 END IF;
 
-                -- Serializar clave y valor con fn_url_encode_form_023 (100% idéntico a URLSearchParams de WHATWG)
-                v_params_limpios := array_append(v_params_limpios, fn_url_encode_form_023(v_clave) || '=' || fn_url_encode_form_023(v_val));
+                -- Guardar clave decodificada para ordenamiento, ordinalidad para estabilidad de claves repetidas, y par serializado form-url-encoded
+                v_items := array_append(v_items, v_clave_limpia || E'\x01' || LPAD(v_idx::text, 6, '0') || E'\x01' || fn_url_encode_form_023(v_clave) || '=' || fn_url_encode_form_023(v_val));
             END IF;
         END LOOP;
     END IF;
 
-    -- Ordenar parámetros alfabéticamente (idéntico a parseada.searchParams.sort() de JS)
-    IF array_length(v_params_limpios, 1) > 0 THEN
-        SELECT array_agg(p ORDER BY p ASC) INTO v_params_limpios FROM unnest(v_params_limpios) AS p;
+    -- Ordenar parámetros alfabéticamente por clave con ordenamiento binario C y estabilidad ordinal (idéntico a parseada.searchParams.sort() de JS)
+    IF array_length(v_items, 1) > 0 THEN
+        SELECT array_agg(split_part(x, E'\x01', 3) ORDER BY x COLLATE "C" ASC)
+        INTO v_params_limpios
+        FROM unnest(v_items) AS x;
         RETURN v_proto || '://' || v_authority || v_path || '?' || array_to_string(v_params_limpios, '&');
     ELSE
         RETURN v_proto || '://' || v_authority || v_path;
