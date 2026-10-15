@@ -148,7 +148,7 @@ function normalizarExplicacion(explicacionCruda) {
 /** Umbral mínimo de porcentaje requerido para un match positivo en el sistema. */
 const UMBRAL_MATCH_MINIMO = 60;
 
-const PATRON_OPCIONAL_EVIDENCIA = /\b(?:deseables?|opcional(?:es)?|plus|preferible|preferentemente|valorable|nice[-\s]+to[-\s]+have|optional|preferred)\b|\bno[-\s]+(?:es[-\s]+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/i;
+const PATRON_OPCIONAL_EVIDENCIA = /\b(?:deseables?|opcional(?:es)?|plus|preferibles?|preferentes?|preferentemente|valoramos|valorables?|nice[-\s]+to[-\s]+have|optional|preferred)\b|\bno[-\s]+(?:es[-\s]+)?(?:excluyente|obligatori[oa]|requerid[oa]|necesari[oa])\b/i;
 const PATRON_NEGACION_EVIDENCIA = /\b(?:no[-\s]+(?:se[-\s]+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin[-\s]+(?:necesidad|experiencia)|not[-\s]+required|do[-\s]+not[-\s]+require)\b/i;
 
 /**
@@ -192,6 +192,83 @@ function contieneTokenNormalizado(textoNormalizado, evidenciaNormalizada) {
     if (!textoNormalizado || !evidenciaNormalizada) return false;
     const patron = new RegExp(`(?:^|\\s)${escaparRegex(evidenciaNormalizada)}(?:\\s|$)`);
     return patron.test(textoNormalizado);
+}
+
+/**
+ * Extrae oraciones y cláusulas contextualizadas del texto de la oferta,
+ * preservando la categoría de encabezados de sección (p. ej. "Deseables:", "Requisitos obligatorios:")
+ * hacia los elementos de lista o viñetas correspondientes, y evitando dividir nombres de tecnologías
+ * con punto como "Node.js" o "ASP.NET".
+ *
+ * @param {string} textoOferta - Texto del aviso.
+ * @returns {string[]} Lista de cláusulas normalizadas para verificación contextual.
+ */
+function extraerClausulasConContexto(textoOferta) {
+    if (typeof textoOferta !== 'string' || !textoOferta.trim()) {
+        return [];
+    }
+
+    // Normalizo saltos de línea y viñetas HTML si existieran
+    const textoConSaltos = textoOferta
+        .replace(/•|<li\b[^>]*>/gi, '\n- ')
+        .replace(/<\/?(?:p|div|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n');
+
+    const lineas = textoConSaltos.split(/\r?\n+/);
+    const clausulas = [];
+    let seccionActual = null; // 'opcional' | 'obligatoria' | null
+
+    for (const lineaCruda of lineas) {
+        const linea = lineaCruda.trim();
+        if (!linea) continue;
+
+        const lineaNorm = normalizarTextoComparacion(linea);
+        if (!lineaNorm) continue;
+
+        // Verifico si la línea es un encabezado de sección
+        const esEncabezado = /:$/.test(linea) || (
+            lineaNorm.split(' ').length <= 4 && (
+                /^(?:requisitos|requirements|deseables?|opcionales?|obligatorios?|excluyentes?|plus|beneficios|responsabilidades|tareas)\b/.test(lineaNorm)
+            )
+        );
+
+        if (esEncabezado) {
+            if (PATRON_OPCIONAL_EVIDENCIA.test(lineaNorm)) {
+                seccionActual = 'opcional';
+            } else if (/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/i.test(lineaNorm) || /^requisitos:?$/.test(lineaNorm)) {
+                seccionActual = 'obligatoria';
+            } else {
+                seccionActual = null;
+            }
+            continue;
+        }
+
+        // Si es un párrafo largo que no inicia con viñeta, corta el alcance de la lista
+        const esItemLista = /^[-*•–—]\s*/.test(linea);
+        const palabras = lineaNorm.split(' ');
+        if (!esItemLista && palabras.length > 15) {
+            seccionActual = null;
+        }
+
+        // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
+        // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
+        // O por otros signos de puntuación: [!?;]
+        const partes = linea.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).filter(p => p.trim());
+
+        for (const parte of partes) {
+            const parteNorm = normalizarTextoComparacion(parte);
+            if (!parteNorm) continue;
+
+            if (seccionActual === 'opcional') {
+                clausulas.push(`deseable ${parteNorm}`);
+            } else if (seccionActual === 'obligatoria') {
+                clausulas.push(`obligatorio ${parteNorm}`);
+            } else {
+                clausulas.push(parteNorm);
+            }
+        }
+    }
+
+    return clausulas;
 }
 
 /**
@@ -249,18 +326,19 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion, textoOferta 
 
                     // Verifico que en el texto del aviso, las oraciones o cláusulas que contienen la cita
                     // no sean exclusivamente opcionales o deseables (evita falsos rechazos por palabras aisladas)
-                    const oraciones = String(textoOferta)
-                        .split(/(?:[.!?;\n\r\t•]|\n\s*[-–—]\s+)+/)
-                        .map((o) => normalizarTextoComparacion(o))
-                        .filter(Boolean);
+                    const oraciones = extraerClausulasConContexto(textoOferta);
                     const oracionesConEvidencia = oraciones.filter((o) => contieneTokenNormalizado(o, evidenciaNormalizada));
-                    if (oracionesConEvidencia.length > 0) {
-                        const algunaEsValida = oracionesConEvidencia.some(
-                            (o) => !PATRON_OPCIONAL_EVIDENCIA.test(o) && !PATRON_NEGACION_EVIDENCIA.test(o)
-                        );
-                        if (!algunaEsValida) {
-                            return false;
-                        }
+
+                    // Regla fail-closed: la ausencia de una cláusula que contenga completa la cita no equivale a prueba validada
+                    if (oracionesConEvidencia.length === 0) {
+                        return false;
+                    }
+
+                    const algunaEsValida = oracionesConEvidencia.some(
+                        (o) => !PATRON_OPCIONAL_EVIDENCIA.test(o) && !PATRON_NEGACION_EVIDENCIA.test(o)
+                    );
+                    if (!algunaEsValida) {
+                        return false;
                     }
                 }
 
@@ -404,5 +482,7 @@ module.exports = {
         UMBRAL_MATCH_MINIMO,
         RAZON_FALLBACK_MATCH,
         RAZON_FALLBACK_NO_MATCH,
+        contieneTokenNormalizado,
+        extraerClausulasConContexto,
     },
 };

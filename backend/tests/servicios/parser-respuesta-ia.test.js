@@ -756,6 +756,113 @@ describe('Parser respuesta IA', () => {
             expect(resultado.invalido).toBeUndefined();
             expect(resultado.error).toBeUndefined();
         });
+
+        test('Caso 9 (B-11 Caso A): Requisito Java bajo sección separada Deseables se descarta como exclusión obligatoria', () => {
+            const textoOferta = 'Frontend Angular.\nRequisitos obligatorios:\n- Angular\nDeseables:\n- Java';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Angular', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
+
+        test('Caso 10 (B-11 Caso B): Requisito Node.js deseable no excluyente no se fragmenta por el punto y se descarta como exclusión', () => {
+            const textoOferta = 'Backend Developer. Node.js deseable, no excluyente.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Node.js obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', explicacion: 'No sabe Node.js' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+            expect(resultado.razon).toContain('Inconsistencia detectada');
+        });
+
+        test('Caso 11 (B-11 Control positivo): Requisito Node.js obligatorio no se fragmenta por el punto y se valida como exclusión', () => {
+            const textoOferta = 'Backend Developer. Node.js obligatorio y excluyente.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Node.js excluyente',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Backend', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js obligatorio y excluyente', explicacion: 'No sabe Node' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
+
+        test('Caso 12 (B-11 Control positivo): Requisito Java en viñeta bajo Requisitos obligatorios se valida como exclusión', () => {
+            const textoOferta = 'Backend Developer.\nRequisitos obligatorios:\n- Java\n- Spring Boot';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Java obligatorio',
+                explicacion: {
+                    cumplidos: [{ requisito: 'Spring Boot', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBeUndefined();
+            expect(resultado.invalido).toBeUndefined();
+            expect(resultado.error).toBeUndefined();
+        });
+
+        test('Caso 13 (B-11 Fail-closed): Cita no encontrada en ninguna cláusula coherente se descarta como exclusión válida', () => {
+            const textoOferta = 'Buscamos desarrollador Frontend con React y TypeScript.';
+            const respuesta = JSON.stringify({
+                match: false,
+                porcentaje: 85,
+                razon: 'Rechazada por Docker',
+                explicacion: {
+                    cumplidos: [{ requisito: 'React', tipo: 'obligatorio', explicacion: 'Cumple' }],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: [{ requisito: 'Docker', tipo: 'obligatorio', evidencia_oferta: 'Docker', explicacion: 'No sabe Docker' }],
+                },
+            });
+            const resultado = parsearRespuestaEvaluacionIa(respuesta, textoOferta);
+
+            expect(resultado.match).toBe(false);
+            expect(resultado.inconsistente).toBe(true);
+            expect(resultado.invalido).toBe(true);
+            expect(resultado.error).toBe(true);
+        });
     });
 
     // ──────────────────────────────────────────────────────────
