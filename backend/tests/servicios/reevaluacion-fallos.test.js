@@ -107,7 +107,7 @@ test.each(['timeout', 'JSON inválido'])('B01 %s conserva todos los campos del r
     expect(filas[0].evaluacion_error_mensaje).toBeTruthy();
     const actualizaciones = pool.query.mock.calls.filter(([sql]) => sql.includes('UPDATE ofertas'));
     expect(actualizaciones).toHaveLength(1);
-    expect(actualizaciones[0][0]).toBe('UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2 RETURNING *');
+    expect(actualizaciones[0][0]).toContain('UPDATE ofertas SET evaluacion_error_mensaje = $1 WHERE id = $2');
     expect([...cache]).toEqual(cacheAnterior);
     expect(progreso()).toMatchObject({ activo: false, estado: 'error', evaluadas: 0, procesadas: 1, pendientes: 1, errores: 1 });
     expect(proveedor.consultarDeepSeek.mock.calls.every(([texto]) => texto.includes('Perfil guardado') && !texto.includes('No guardado'))).toBe(true);

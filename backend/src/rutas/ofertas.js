@@ -33,4 +33,7 @@ router.patch('/bulk/postulacion', controlador.actualizarPostulacionMasiva);
 // Uso PATCH (no PUT) porque solo modifico UN campo, no la oferta entera.
 router.patch('/:id/postulacion', controlador.actualizarPostulacion);
 
+// PATCH para actualizar la descripción de una oferta manualmente.
+router.patch('/:id/descripcion', controlador.actualizarDescripcion);
+
 module.exports = router;

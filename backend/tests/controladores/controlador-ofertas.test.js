@@ -362,12 +362,19 @@ describe('Controlador de ofertas', () => {
             expect(res.body.error).toContain('no encontrada');
         });
 
-        test('retorna 400 si el ID no es un número válido', async () => {
+        test('retorna 400 si el ID no es un número válido o contiene caracteres no numéricos', async () => {
             const res = await request(app).get('/api/ofertas/abc');
-
             expect(res.status).toBe(400);
             expect(res.body.exito).toBe(false);
             expect(res.body.error).toContain('número entero positivo');
+
+            const resSufijo = await request(app).get('/api/ofertas/1abc');
+            expect(resSufijo.status).toBe(400);
+            expect(resSufijo.body.exito).toBe(false);
+
+            const resDecimal = await request(app).get('/api/ofertas/1.5');
+            expect(resDecimal.status).toBe(400);
+            expect(resDecimal.body.exito).toBe(false);
         });
 
         test('retorna 400 si el ID es negativo', async () => {
@@ -499,6 +506,137 @@ describe('Controlador de ofertas', () => {
 
             expect(res.status).toBe(400);
             expect(res.body.exito).toBe(false);
+        });
+    });
+
+    // === PATCH /api/ofertas/:id/descripcion ===
+
+    describe('PATCH /api/ofertas/:id/descripcion', () => {
+        test('actualiza la descripción manualmente y retorna 200 con vigencia', async () => {
+            const nuevaDesc = 'Esta es una descripción detallada completa de la posición requerida para testing.';
+            modeloOferta.actualizarDescripcionManual.mockResolvedValue({
+                id: 1,
+                titulo: 'Dev Junior React',
+                descripcion: nuevaDesc,
+                origen_descripcion: 'manual',
+                descripcion_completitud: 'completa',
+                estado_evaluacion: 'pendiente',
+                evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA',
+            });
+
+            const res = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({ descripcion: nuevaDesc });
+
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(res.body.datos.descripcion).toBe(nuevaDesc);
+            expect(res.body.datos.origen_descripcion).toBe('manual');
+            expect(res.body.mensaje).toContain('Descripción actualizada correctamente');
+            expect(modeloOferta.actualizarDescripcionManual).toHaveBeenCalledWith(1, nuevaDesc);
+        });
+
+        test('trimea espacios en la descripción al llamar al modelo', async () => {
+            const nuevaDesc = '   Esta es una descripción detallada completa con espacios adelante y atrás.   ';
+            modeloOferta.actualizarDescripcionManual.mockResolvedValue({
+                id: 1,
+                descripcion: nuevaDesc.trim(),
+            });
+
+            const res = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({ descripcion: nuevaDesc });
+
+            expect(res.status).toBe(200);
+            expect(modeloOferta.actualizarDescripcionManual).toHaveBeenCalledWith(1, nuevaDesc.trim());
+        });
+
+        test('retorna 400 si el ID no es un número entero positivo', async () => {
+            const resInvalido = await request(app)
+                .patch('/api/ofertas/abc/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud para ser válida.' });
+
+            expect(resInvalido.status).toBe(400);
+            expect(resInvalido.body.exito).toBe(false);
+            expect(resInvalido.body.error).toContain('número entero positivo');
+
+            const resSufijo = await request(app)
+                .patch('/api/ofertas/1abc/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud para ser válida.' });
+
+            expect(resSufijo.status).toBe(400);
+            expect(resSufijo.body.exito).toBe(false);
+
+            const resDecimal = await request(app)
+                .patch('/api/ofertas/1.5/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud para ser válida.' });
+
+            expect(resDecimal.status).toBe(400);
+            expect(resDecimal.body.exito).toBe(false);
+
+            const resNegativo = await request(app)
+                .patch('/api/ofertas/-1/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud para ser válida.' });
+
+            expect(resNegativo.status).toBe(400);
+            expect(resNegativo.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si falta el campo descripción o es string vacío', async () => {
+            const resFalta = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({});
+
+            expect(resFalta.status).toBe(400);
+            expect(resFalta.body.exito).toBe(false);
+            expect(resFalta.body.error).toContain('obligatoria');
+
+            const resVacio = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({ descripcion: '    ' });
+
+            expect(resVacio.status).toBe(400);
+            expect(resVacio.body.exito).toBe(false);
+
+            const resTipo = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({ descripcion: 12345 });
+
+            expect(resTipo.status).toBe(400);
+            expect(resTipo.body.exito).toBe(false);
+        });
+
+        test('retorna 400 si la descripción es muy corta (<20 caracteres)', async () => {
+            const res = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({ descripcion: 'Muy corta' });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('entre 20 y 50.000 caracteres');
+        });
+
+        test('retorna 400 si la descripción excede 50.000 caracteres', async () => {
+            const textoGigante = 'a'.repeat(50001);
+            const res = await request(app)
+                .patch('/api/ofertas/1/descripcion')
+                .send({ descripcion: textoGigante });
+
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('entre 20 y 50.000 caracteres');
+        });
+
+        test('retorna 404 si la oferta no existe', async () => {
+            modeloOferta.actualizarDescripcionManual.mockResolvedValue(null);
+
+            const res = await request(app)
+                .patch('/api/ofertas/999/descripcion')
+                .send({ descripcion: 'Descripción con suficiente longitud pero oferta inexistente.' });
+
+            expect(res.status).toBe(404);
+            expect(res.body.exito).toBe(false);
+            expect(res.body.error).toContain('no encontrada');
         });
     });
 });

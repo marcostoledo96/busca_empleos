@@ -2,6 +2,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { DetalleOferta } from './detalle-oferta';
 import { OfertasService } from '../../servicios/ofertas.service';
+import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { of } from 'rxjs';
 
 describe('DetalleOferta — Accesibilidad de foco en modal', () => {
@@ -30,13 +31,18 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
 
     async function crearComponente(): Promise<{ fixture: ComponentFixture<DetalleOferta>; component: DetalleOferta }> {
         const mockOfertasService = {
-            actualizarPostulacion: () => of({ exito: true, datos: { estado_postulacion: 'cv_enviado' } })
+            actualizarPostulacion: () => of({ exito: true, datos: { estado_postulacion: 'cv_enviado' } }),
+            actualizarDescripcion: () => of({ exito: true, datos: mockOferta })
+        };
+        const mockEvaluacionService = {
+            ejecutarEvaluacion: () => of({ exito: true, mensaje: 'Iniciada' })
         };
 
         await TestBed.configureTestingModule({
             imports: [DetalleOferta],
             providers: [
                 { provide: OfertasService, useValue: mockOfertasService },
+                { provide: EvaluacionService, useValue: mockEvaluacionService },
                 provideNoopAnimations(),
             ],
         }).compileComponents();
@@ -117,5 +123,90 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(etiqueta?.textContent).toContain('PRIORIDAD_IA');
         expect(fixture.nativeElement.textContent).toContain('Claude Code');
         expect(fixture.nativeElement.textContent).toContain('RECHAZADA');
+    });
+
+    it('en modoDemo bloquea iniciarEdicionDescripcion, guardarDescripcion y solicitarReevaluacion', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', mockOferta as any);
+        fixture.componentRef.setInput('modoDemo', true);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        // 1. Iniciar edición no debe abrir el formulario
+        component.iniciarEdicionDescripcion();
+        expect(component.modoEdicionDescripcion()).toBe(false);
+
+        // 2. Guardar descripción no debe hacer nada
+        component.guardarDescripcion();
+        expect(component.guardandoDescripcion()).toBe(false);
+
+        // 3. Solicitar reevaluación no debe disparar servicio
+        component.solicitarReevaluacion();
+        expect(component.reevaluandoOferta()).toBe(false);
+        expect(component.mensajeReevaluacion()).toBeNull();
+
+        // 4. Los botones editoriales de descripción y reevaluación no se renderizan en el DOM
+        const btnEditar = fixture.nativeElement.querySelector('.btn-editar-descripcion');
+        const btnReevaluar = fixture.nativeElement.querySelector('.btn-reevaluar-oferta');
+        expect(btnEditar).toBeNull();
+        expect(btnReevaluar).toBeNull();
+    });
+
+    it('tieneDesglose detecta correctamente presencia de desglose estructurado', async () => {
+        const { component } = await crearComponente();
+
+        expect(component.tieneDesglose(null)).toBe(false);
+        expect(component.tieneDesglose({} as any)).toBe(false);
+        expect(component.tieneDesglose({ explicacion_evaluacion: null } as any)).toBe(false);
+
+        // Con flag explícito
+        expect(component.tieneDesglose({
+            explicacion_evaluacion: { desglose_disponible: true }
+        } as any)).toBe(true);
+
+        // Sin flag pero con items en cumplidos
+        expect(component.tieneDesglose({
+            explicacion_evaluacion: { cumplidos: [{ requisito: 'TypeScript' }] }
+        } as any)).toBe(true);
+
+        // Sin flag y arrays vacíos
+        expect(component.tieneDesglose({
+            explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [] }
+        } as any)).toBe(false);
+    });
+
+    it('renderiza banner de reevaluación no aplicada cuando existe firma_criterios_evaluacion previa (O-01)', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'aprobada',
+            evaluacion_error_mensaje: 'Error de conexión con la IA al reevaluar',
+            firma_criterios_evaluacion: 'firma-valida-previa',
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Última reevaluación no aplicada');
+        expect(texto).toContain('Se conserva la evaluación anterior válida. Motivo: Error de conexión con la IA al reevaluar');
+        expect(texto).not.toContain('Evaluación no completada');
+    });
+
+    it('renderiza banner neutral de evaluación no completada cuando firma_criterios_evaluacion es null (O-01)', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            estado_evaluacion: 'rechazada',
+            evaluacion_error_mensaje: 'No se pudo interpretar la respuesta de DeepSeek',
+            firma_criterios_evaluacion: null,
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Evaluación no completada');
+        expect(texto).toContain('La evaluación no pudo completarse satisfactoriamente. Motivo: No se pudo interpretar la respuesta de DeepSeek');
+        expect(texto).not.toContain('Última reevaluación no aplicada');
+        expect(texto).not.toContain('Se conserva la evaluación anterior válida');
     });
 });

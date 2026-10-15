@@ -16,6 +16,26 @@ export type PlataformaId =
     | 'infojobs'
     | 'adzuna';
 
+// Detalle de un requisito evaluado en la explicación de matching.
+export interface ItemRequisitoExplicacion {
+    requisito: string;
+    tipo: 'obligatorio' | 'deseable' | 'desconocido';
+    evidencia_oferta?: string | null;
+    evidencia_perfil?: string | null;
+    explicacion?: string | null;
+}
+
+// Estructura detallada y explicable del matching de una oferta.
+export interface ExplicacionEvaluacion {
+    cumplidos: ItemRequisitoExplicacion[];
+    no_cumplidos: ItemRequisitoExplicacion[];
+    por_confirmar: ItemRequisitoExplicacion[];
+    exclusiones: ItemRequisitoExplicacion[];
+    desglose_disponible?: boolean;
+    inconsistente?: boolean;
+    invalido?: boolean;
+}
+
 // Interfaz que representa una oferta de empleo tal como viene de la API.
 // Mapea 1:1 con las columnas de la tabla "ofertas" de PostgreSQL.
 export interface Oferta {
@@ -44,6 +64,12 @@ export interface Oferta {
     prioridad_ia?: boolean;
     puntaje_prioridad_ia?: number;
     evidencias_prioridad_ia?: string[];
+    explicacion_evaluacion?: ExplicacionEvaluacion | null;
+    origen_descripcion?: 'tarjeta' | 'scraper' | 'manual' | string | null;
+    descripcion_completitud?: 'completa' | 'parcial' | 'desconocida' | 'ausente' | string | null;
+    descripcion_original?: string | null;
+    descripcion_modificada_en?: string | null;
+    evaluacion_error_mensaje?: string | null;
 }
 
 // Estadísticas agregadas del total de ofertas.

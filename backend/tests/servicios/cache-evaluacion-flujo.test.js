@@ -184,7 +184,7 @@ test('lote con falla del proveedor persiste firma null, no criterios actuales', 
 
 test('lote persiste la firma exitosa y conserva prioridad y fecha mediante el modelo', async () => {
     await servicio.evaluarOfertasPendientes();
-    expect(ofertas.actualizarEvaluacion).toHaveBeenCalledWith(9, 'aprobada', 'Compatible', 80, null, expect.anything(), expect.stringMatching(/^[a-f0-9]{64}$/));
+    expect(ofertas.actualizarEvaluacion).toHaveBeenCalledWith(9, 'aprobada', 'Compatible', 80, null, expect.anything(), expect.stringMatching(/^[a-f0-9]{64}$/), null, expect.anything());
     await servicio.evaluarOfertasPendientes();
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
 });

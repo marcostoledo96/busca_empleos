@@ -1,10 +1,11 @@
-import { Component, ElementRef, inject, input, model, output, effect, OnDestroy } from '@angular/core';
+import { Component, ElementRef, inject, input, model, output, effect, signal, OnDestroy } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { Oferta } from '../../modelos/oferta.model';
 import { OfertasService } from '../../servicios/ofertas.service';
+import { EvaluacionService } from '../../servicios/evaluacion.service';
 
 @Component({
     selector: 'app-detalle-oferta',
@@ -15,6 +16,7 @@ import { OfertasService } from '../../servicios/ofertas.service';
 export class DetalleOferta implements OnDestroy {
 
     private readonly ofertasService = inject(OfertasService);
+    private readonly evaluacionService = inject(EvaluacionService);
 
     // La oferta a mostrar. null = diálogo cerrado.
     readonly oferta = input<Oferta | null>(null);
@@ -31,6 +33,15 @@ export class DetalleOferta implements OnDestroy {
     // Evento que emite cuando inicia o termina un optimistic update de postulación.
     // pendiente = true cuando empieza, false cuando termina (éxito o error).
     readonly postulacionPendiente = output<{ id: number; pendiente: boolean }>();
+
+    // Signals de estado para edición de descripción y reevaluación (Issue #17)
+    readonly modoEdicionDescripcion = signal<boolean>(false);
+    readonly nuevaDescripcion = signal<string>('');
+    readonly guardandoDescripcion = signal<boolean>(false);
+    readonly errorEdicionDescripcion = signal<string | null>(null);
+    readonly reevaluandoOferta = signal<boolean>(false);
+    readonly mensajeReevaluacion = signal<string | null>(null);
+    readonly ofertaActualizada = output<Oferta>();
 
     readonly opcionesPostulacion = [
         { label: 'No postulado', value: 'no_postulado' },
@@ -61,6 +72,8 @@ export class DetalleOferta implements OnDestroy {
             } else {
                 this.limpiarTimeoutFoco();
                 this.restaurarFoco();
+                this.cancelarEdicionDescripcion();
+                this.mensajeReevaluacion.set(null);
             }
         });
     }
@@ -172,6 +185,94 @@ export class DetalleOferta implements OnDestroy {
                 o.estado_postulacion = estadoAnterior;
                 this.postulacionActualizada.emit();
                 console.error('Error al actualizar postulación:', error);
+            }
+        });
+    }
+
+    // Evalúa de forma robusta si la oferta cuenta con desglose estructurado disponible.
+    tieneDesglose(oferta: Oferta | null): boolean {
+        if (!oferta?.explicacion_evaluacion) return false;
+        const exp = oferta.explicacion_evaluacion;
+        if (exp.desglose_disponible === true) return true;
+        return (
+            (Array.isArray(exp.cumplidos) && exp.cumplidos.length > 0) ||
+            (Array.isArray(exp.no_cumplidos) && exp.no_cumplidos.length > 0) ||
+            (Array.isArray(exp.exclusiones) && exp.exclusiones.length > 0) ||
+            (Array.isArray(exp.por_confirmar) && exp.por_confirmar.length > 0)
+        );
+    }
+
+    // Inicia el modo de edición de la descripción copiando el texto actual.
+    iniciarEdicionDescripcion(): void {
+        if (this.modoDemo()) return;
+        const o = this.oferta();
+        this.nuevaDescripcion.set(o?.descripcion ?? '');
+        this.errorEdicionDescripcion.set(null);
+        this.modoEdicionDescripcion.set(true);
+    }
+
+    // Cancela la edición y resetea el error sin modificar la oferta.
+    cancelarEdicionDescripcion(): void {
+        this.modoEdicionDescripcion.set(false);
+        this.errorEdicionDescripcion.set(null);
+    }
+
+    // Valida y guarda la nueva descripción en el backend.
+    guardarDescripcion(): void {
+        if (this.modoDemo()) return;
+        const o = this.oferta();
+        if (!o) return;
+
+        const texto = this.nuevaDescripcion().trim();
+        if (texto.length < 20 || texto.length > 50000) {
+            this.errorEdicionDescripcion.set('La descripción debe tener entre 20 y 50000 caracteres');
+            return;
+        }
+
+        this.guardandoDescripcion.set(true);
+        this.errorEdicionDescripcion.set(null);
+
+        this.ofertasService.actualizarDescripcion(o.id, this.nuevaDescripcion()).subscribe({
+            next: (respuesta) => {
+                this.guardandoDescripcion.set(false);
+                if (respuesta.exito && respuesta.datos) {
+                    // Actualizar la oferta local con los datos actualizados.
+                    Object.assign(o, respuesta.datos);
+                    this.ofertaActualizada.emit(o);
+                    this.modoEdicionDescripcion.set(false);
+                } else {
+                    this.errorEdicionDescripcion.set(respuesta.error || 'Error al guardar la descripción');
+                }
+            },
+            error: (error) => {
+                this.guardandoDescripcion.set(false);
+                const mensaje = error?.error?.error || error?.message || 'Error al guardar la descripción';
+                this.errorEdicionDescripcion.set(mensaje);
+                console.error('Error al guardar descripción:', error);
+            }
+        });
+    }
+
+    // Solicita reevaluación de la oferta con los criterios vigentes.
+    solicitarReevaluacion(): void {
+        if (this.modoDemo()) return;
+        const o = this.oferta();
+        if (!o) return;
+
+        this.reevaluandoOferta.set(true);
+        this.mensajeReevaluacion.set(null);
+
+        this.evaluacionService.ejecutarEvaluacion([o.id]).subscribe({
+            next: () => {
+                this.reevaluandoOferta.set(false);
+                this.mensajeReevaluacion.set('Reevaluación solicitada correctamente');
+                o.estado_evaluacion = 'pendiente';
+                this.ofertaActualizada.emit(o);
+            },
+            error: (error) => {
+                this.reevaluandoOferta.set(false);
+                this.mensajeReevaluacion.set('Error al solicitar la reevaluación');
+                console.error('Error al solicitar reevaluación:', error);
             }
         });
     }

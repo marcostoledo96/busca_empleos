@@ -490,6 +490,8 @@ function normalizarOfertaBumeran(item) {
         descripcion: item.descripcion || null,
         url,
         plataforma: 'bumeran',
+        origen_descripcion: 'tarjeta',
+        descripcion_completitud: item.descripcion ? 'parcial' : 'ausente',
         // La tarjeta de búsqueda de Bumeran no muestra nivel, salario ni fecha exacta.
         // DeepSeek puede inferir el nivel desde la descripción.
         nivel_requerido: null,

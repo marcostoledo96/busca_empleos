@@ -113,6 +113,11 @@ psql -U postgres -d busca_empleos -f backend/sql/crear-tablas.sql
 | `fecha_evaluacion` | TIMESTAMP | DEFAULT NULL | Momento en que la IA evaluó la oferta. Backfill: se copia `fecha_extraccion` para ofertas ya evaluadas. Migración 005. |
 | `evaluacion_error_mensaje` | TEXT | — | Mensaje de error si la API de DeepSeek falló al evaluar. Separa errores técnicos de `razon_evaluacion`. Migración 008b. |
 | `firma_criterios_evaluacion` | TEXT | NULL permitido | Firma SHA-256 de los criterios efectivos de la evaluación exitosa. Migración 019. |
+| `explicacion_evaluacion` | JSONB | NULL permitido | Desglose estructurado de matching (`cumplidos`, `no_cumplidos`, `por_confirmar`, `exclusiones`). Migración 022. |
+| `descripcion_original` | TEXT | NULL permitido | Texto original extraído por el scraper antes de cualquier edición manual. Migración 022. |
+| `origen_descripcion` | VARCHAR(50) | DEFAULT `'scraper'` | Procedencia del texto: `'scraper'`, `'tarjeta'` o `'manual'`. Migración 022. |
+| `descripcion_completitud` | VARCHAR(50) | DEFAULT `'desconocida'` | Estado de completitud: `'completa'`, `'parcial'`, `'desconocida'`, `'ausente'`. Migración 022. |
+| `descripcion_modificada_en` | TIMESTAMP | NULL permitido | Momento en que el usuario editó o completó manualmente la descripción. Migración 022. |
 
 Conservo firmas legacy en NULL (criterios desconocidos), sin backfill. Al reevaluar,
 reemplazo el resultado y su firma solo ante éxito, sin modificar estados ni notas manuales;

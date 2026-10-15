@@ -463,6 +463,18 @@ Archivo: `frontend/src/app/componentes/detalle-oferta/`
 - Muestra un diálogo PrimeNG con todos los datos de la oferta.
 - `model()` permite que el padre controle la visibilidad del diálogo con binding bidireccional.
 - `abrirEnPagina()`: abre la URL de la oferta en una nueva pestaña con `noopener,noreferrer` (seguridad).
+- **Matching explicable (#17):**
+  * Presenta el score como **Compatibilidad estimada** (nunca como probabilidad de contratación).
+  * Si hay desglose (`explicacion_evaluacion`), organiza las evidencias en:
+    - **A favor del match:** requisitos cumplidos con evidencias del aviso y del perfil.
+    - **En contra del match:** requisitos no cumplidos y exclusiones obligatorias activadas.
+    - **Por confirmar:** requisitos inciertos o no verificables en extractos.
+  * Si es una evaluación histórica sin desglose, muestra la razón anterior con leyenda explicativa.
+  * Si la evaluación está desactualizada (`evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA'` o estado pendiente), muestra alerta y botón de **Reevaluar oferta**.
+- **Edición manual de descripción (#17):**
+  * Informa procedencia y completitud (`Extracto parcial de tarjeta`, `Descripción manual`, `Descripción completa`).
+  * Botón **Completar descripción** para pegar el texto completo.
+  * Valida longitud (20 a 50.000 caracteres), previene pérdidas conservando el borrador ante error de red y permite cancelar sin mutar los datos guardados.
 
 **Accesibilidad y responsive:**
 - `p-dialog` con `aria-labelledby="detalle-titulo"` apuntando al título visible de la oferta (`id="detalle-titulo"`).

@@ -4,7 +4,7 @@
     [modal]="true"
     [focusTrap]="false"
     [focusOnShow]="false"
-    [style]="{ width: 'min(680px, calc(100vw - 32px))', maxHeight: '90vh' }"
+    [style]="{ width: 'min(720px, calc(100vw - 32px))', maxHeight: '90vh' }"
     [draggable]="false"
     [resizable]="false"
     [breakpoints]="{ '768px': { width: '100vw', maxHeight: '100vh' } }"
@@ -25,19 +25,19 @@
             <div class="detalle-meta">
                 @if (o.empresa) {
                     <span class="meta-item">
-                        <span class="material-symbols-outlined">business</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">business</span>
                         {{ o.empresa }}
                     </span>
                 }
                 @if (o.ubicacion) {
                     <span class="meta-item">
-                        <span class="material-symbols-outlined">location_on</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
                         {{ o.ubicacion }}
                     </span>
                 }
                 @if (o.modalidad) {
                     <span class="meta-item">
-                        <span class="material-symbols-outlined">computer</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">computer</span>
                         {{ o.modalidad }}
                     </span>
                 }
@@ -49,8 +49,8 @@
                 <span class="tag-detalle" [attr.data-estado]="o.estado_evaluacion">
                     {{ o.estado_evaluacion | uppercase }}
                 </span>
-                @if (o.porcentaje_match !== null) {
-                    <span class="tag-match">{{ o.porcentaje_match }}% MATCH</span>
+                @if (o.porcentaje_match !== null && o.estado_evaluacion !== 'pendiente' && o.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA') {
+                    <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
                 }
                 @if (o.nivel_requerido) {
                     <span class="tag-detalle">{{ o.nivel_requerido | uppercase }}</span>
@@ -58,7 +58,42 @@
                 @if (o.prioridad_ia) {
                     <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
                 }
+                @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                    <span class="tag-desactualizada" role="status">Evaluación desactualizada — pendiente de reevaluación</span>
+                }
             </div>
+
+            <!-- Alerta cuando la evaluación está desactualizada o pendiente -->
+            @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                <div class="alerta-desactualizada" role="status" aria-live="polite">
+                    <span class="material-symbols-outlined" aria-hidden="true">history</span>
+                    <div class="alerta-desactualizada-texto">
+                        <strong>Evaluación desactualizada — pendiente de reevaluación</strong>
+                        <span>La descripción o los criterios se modificaron. Podés solicitar la reevaluación para refrescar el análisis.</span>
+                    </div>
+                </div>
+            } @else if (o.evaluacion_error_mensaje) {
+                <div class="alerta-desactualizada" role="status" aria-live="polite">
+                    <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                    <div class="alerta-desactualizada-texto">
+                        @if (o.firma_criterios_evaluacion) {
+                            <strong>Última reevaluación no aplicada</strong>
+                            <span>Se conserva la evaluación anterior válida. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                        } @else {
+                            <strong>Evaluación no completada</strong>
+                            <span>La evaluación no pudo completarse satisfactoriamente. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Mensaje temporal de reevaluación -->
+            @if (mensajeReevaluacion()) {
+                <div class="alerta-mensaje-reevaluacion" role="status" aria-live="polite">
+                    <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                    <span>{{ mensajeReevaluacion() }}</span>
+                </div>
+            }
 
             <div class="detalle-separador"></div>
 
@@ -78,13 +113,193 @@
                 </div>
             }
 
-            <!-- Evaluación IA -->
-            @if (o.razon_evaluacion) {
-                <div class="detalle-seccion">
-                    <span class="seccion-label">EVALUACIÓN_IA</span>
-                    <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
+            <!-- Desglose de Matching y Evaluación -->
+            <div class="detalle-seccion seccion-matching">
+                <div class="seccion-cabecera-matching">
+                    <span class="seccion-label">EVALUACIÓN Y MATCHING</span>
+                    @if (o.porcentaje_match !== null && o.estado_evaluacion !== 'pendiente' && o.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA') {
+                        <span class="compatibilidad-destacada">
+                            Compatibilidad estimada: {{ o.porcentaje_match }}%
+                        </span>
+                    }
                 </div>
-            }
+
+                @if (o.razon_evaluacion) {
+                    <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
+                }
+
+                @if (tieneDesglose(o)) {
+                    <!-- Advertencia si el score es alto pero fue rechazada por exclusión -->
+                    @if (o.estado_evaluacion === 'rechazada' && (o.porcentaje_match ?? 0) >= 70 && (o.explicacion_evaluacion?.exclusiones?.length ?? 0) > 0) {
+                        <div class="alerta-exclusion-score-alto" role="alert">
+                            <span class="material-symbols-outlined" aria-hidden="true">warning</span>
+                            <div class="alerta-exclusion-texto">
+                                <strong>Atención: Compatibilidad estimada alta rechazada por exclusión</strong>
+                                <span>Aunque la compatibilidad estimada es del {{ o.porcentaje_match }}%, la oferta no es elegible porque incumple criterios excluyentes.</span>
+                            </div>
+                        </div>
+                    }
+
+                    <!-- A favor del match -->
+                    @if (o.explicacion_evaluacion!.cumplidos.length > 0) {
+                        <div class="bloque-desglose desglose-cumplidos">
+                            <div class="desglose-encabezado">
+                                <span class="material-symbols-outlined icono-cumplido" aria-hidden="true">check_circle</span>
+                                <span class="desglose-titulo">A favor del match ({{ o.explicacion_evaluacion!.cumplidos.length }})</span>
+                            </div>
+                            <ul class="lista-requisitos">
+                                @for (item of o.explicacion_evaluacion!.cumplidos; track item.requisito) {
+                                    <li class="item-requisito item-cumplido">
+                                        <div class="item-cabecera">
+                                            <span class="badge-tipo badge-tipo-{{ item.tipo }}">{{ item.tipo | uppercase }}</span>
+                                            <span class="requisito-texto">{{ item.requisito }}</span>
+                                        </div>
+                                        @if (item.explicacion) {
+                                            <p class="requisito-explicacion">{{ item.explicacion }}</p>
+                                        }
+                                        @if (item.evidencia_oferta || item.evidencia_perfil) {
+                                            <div class="requisito-evidencias">
+                                                @if (item.evidencia_oferta) {
+                                                    <span class="evidencia-tag">
+                                                        <strong>Oferta:</strong> {{ item.evidencia_oferta }}
+                                                    </span>
+                                                }
+                                                @if (item.evidencia_perfil) {
+                                                    <span class="evidencia-tag">
+                                                        <strong>Perfil:</strong> {{ item.evidencia_perfil }}
+                                                    </span>
+                                                }
+                                            </div>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    <!-- En contra del match: exclusiones y no cumplidos -->
+                    @if ((o.explicacion_evaluacion!.exclusiones.length > 0) || (o.explicacion_evaluacion!.no_cumplidos.length > 0)) {
+                        <div class="bloque-desglose desglose-en-contra">
+                            <div class="desglose-encabezado">
+                                <span class="material-symbols-outlined icono-en-contra" aria-hidden="true">cancel</span>
+                                <span class="desglose-titulo">En contra del match</span>
+                            </div>
+
+                            <!-- Exclusiones obligatorias -->
+                            @if (o.explicacion_evaluacion!.exclusiones.length > 0) {
+                                <div class="subseccion-desglose">
+                                    <span class="subseccion-titulo">Exclusiones obligatorias</span>
+                                    <ul class="lista-requisitos">
+                                        @for (item of o.explicacion_evaluacion!.exclusiones; track item.requisito) {
+                                            <li class="item-requisito item-exclusion">
+                                                <div class="item-cabecera">
+                                                    <span class="badge-tipo badge-tipo-exclusion">EXCLUSIÓN OBLIGATORIA</span>
+                                                    <span class="requisito-texto">{{ item.requisito }}</span>
+                                                </div>
+                                                @if (item.explicacion) {
+                                                    <p class="requisito-explicacion">{{ item.explicacion }}</p>
+                                                }
+                                                @if (item.evidencia_oferta || item.evidencia_perfil) {
+                                                    <div class="requisito-evidencias">
+                                                        @if (item.evidencia_oferta) {
+                                                            <span class="evidencia-tag">
+                                                                <strong>Oferta:</strong> {{ item.evidencia_oferta }}
+                                                            </span>
+                                                        }
+                                                        @if (item.evidencia_perfil) {
+                                                            <span class="evidencia-tag">
+                                                                <strong>Perfil:</strong> {{ item.evidencia_perfil }}
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+
+                            <!-- Requisitos no cumplidos -->
+                            @if (o.explicacion_evaluacion!.no_cumplidos.length > 0) {
+                                <div class="subseccion-desglose">
+                                    <span class="subseccion-titulo">Requisitos no cumplidos</span>
+                                    <ul class="lista-requisitos">
+                                        @for (item of o.explicacion_evaluacion!.no_cumplidos; track item.requisito) {
+                                            <li class="item-requisito item-no-cumplido">
+                                                <div class="item-cabecera">
+                                                    <span class="badge-tipo badge-tipo-{{ item.tipo }}">{{ item.tipo | uppercase }}</span>
+                                                    <span class="requisito-texto">{{ item.requisito }}</span>
+                                                </div>
+                                                @if (item.explicacion) {
+                                                    <p class="requisito-explicacion">{{ item.explicacion }}</p>
+                                                }
+                                                @if (item.evidencia_oferta || item.evidencia_perfil) {
+                                                    <div class="requisito-evidencias">
+                                                        @if (item.evidencia_oferta) {
+                                                            <span class="evidencia-tag">
+                                                                <strong>Oferta:</strong> {{ item.evidencia_oferta }}
+                                                            </span>
+                                                        }
+                                                        @if (item.evidencia_perfil) {
+                                                            <span class="evidencia-tag">
+                                                                <strong>Perfil:</strong> {{ item.evidencia_perfil }}
+                                                            </span>
+                                                        }
+                                                    </div>
+                                                }
+                                            </li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Por confirmar -->
+                    @if (o.explicacion_evaluacion!.por_confirmar.length > 0) {
+                        <div class="bloque-desglose desglose-por-confirmar">
+                            <div class="desglose-encabezado">
+                                <span class="material-symbols-outlined icono-por-confirmar" aria-hidden="true">help_outline</span>
+                                <span class="desglose-titulo">Por confirmar ({{ o.explicacion_evaluacion!.por_confirmar.length }})</span>
+                            </div>
+                            <p class="desglose-nota">Requisitos no confirmados en el perfil o pendientes de corroborar en la oferta completa.</p>
+                            <ul class="lista-requisitos">
+                                @for (item of o.explicacion_evaluacion!.por_confirmar; track item.requisito) {
+                                    <li class="item-requisito item-por-confirmar">
+                                        <div class="item-cabecera">
+                                            <span class="badge-tipo badge-tipo-{{ item.tipo }}">{{ item.tipo | uppercase }}</span>
+                                            <span class="requisito-texto">{{ item.requisito }}</span>
+                                        </div>
+                                        @if (item.explicacion) {
+                                            <p class="requisito-explicacion">{{ item.explicacion }}</p>
+                                        }
+                                        @if (item.evidencia_oferta || item.evidencia_perfil) {
+                                            <div class="requisito-evidencias">
+                                                @if (item.evidencia_oferta) {
+                                                    <span class="evidencia-tag">
+                                                        <strong>Oferta:</strong> {{ item.evidencia_oferta }}
+                                                    </span>
+                                                }
+                                                @if (item.evidencia_perfil) {
+                                                    <span class="evidencia-tag">
+                                                        <strong>Perfil:</strong> {{ item.evidencia_perfil }}
+                                                    </span>
+                                                }
+                                            </div>
+                                        }
+                                    </li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                } @else {
+                    <!-- Fallback sin desglose estructurado -->
+                    <div class="aviso-historico-sin-desglose">
+                        <span class="material-symbols-outlined" aria-hidden="true">info</span>
+                        <p>Esta evaluación histórica no cuenta con desglose estructurado detallado. Podés solicitar una reevaluación para obtener el análisis completo.</p>
+                    </div>
+                }
+            </div>
 
             @if (o.prioridad_ia && o.evidencias_prioridad_ia?.length) {
                 <div class="detalle-seccion">
@@ -108,29 +323,134 @@
                     appendTo="body" />
             </div>
 
-            <!-- Descripción -->
-            @if (o.descripcion) {
-                <div class="detalle-seccion">
-                    <span class="seccion-label">DESCRIPCIÓN</span>
-                    <div class="detalle-descripcion">{{ o.descripcion }}</div>
+            <!-- Sección de Descripción y Completitud -->
+            <div class="detalle-seccion seccion-descripcion">
+                <div class="descripcion-cabecera">
+                    <div class="descripcion-titulos">
+                        <span class="seccion-label">DESCRIPCIÓN DE LA VACANTE</span>
+                        <!-- Badges de procedencia -->
+                        @if (o.descripcion_completitud === 'parcial' || o.origen_descripcion === 'tarjeta') {
+                            <span class="badge-procedencia badge-parcial" aria-label="Extracto parcial de tarjeta">
+                                Extracto parcial de tarjeta
+                            </span>
+                        } @else if (o.origen_descripcion === 'manual') {
+                            <span class="badge-procedencia badge-manual" aria-label="Descripción completada manualmente">
+                                Descripción completada manualmente
+                            </span>
+                        } @else if (o.descripcion_completitud === 'completa') {
+                            <span class="badge-procedencia badge-completa" aria-label="Descripción completa">
+                                Descripción completa
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Botones de acción en modo visualización (solo fuera de modo demo) -->
+                    @if (!modoEdicionDescripcion() && !modoDemo()) {
+                        <div class="descripcion-acciones">
+                            <button
+                                type="button"
+                                class="btn-accion-editorial btn-editar-descripcion"
+                                (click)="iniciarEdicionDescripcion()"
+                                aria-label="Completar o editar descripción">
+                                <span class="material-symbols-outlined" aria-hidden="true">edit</span>
+                                {{ (o.descripcion_completitud === 'parcial' || o.origen_descripcion === 'tarjeta' || !o.descripcion) ? 'Completar descripción' : 'Editar descripción' }}
+                            </button>
+
+                            @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || !tieneDesglose(o)) {
+                                <button
+                                    type="button"
+                                    class="btn-accion-editorial btn-reevaluar-oferta"
+                                    (click)="solicitarReevaluacion()"
+                                    [disabled]="reevaluandoOferta()"
+                                    aria-label="Reevaluar oferta">
+                                    <span class="material-symbols-outlined" [class.icono-girando]="reevaluandoOferta()" aria-hidden="true">refresh</span>
+                                    {{ reevaluandoOferta() ? 'Reevaluando...' : 'Reevaluar oferta' }}
+                                </button>
+                            }
+                        </div>
+                    }
                 </div>
-            }
+
+                @if (o.descripcion_modificada_en) {
+                    <span class="descripcion-modificada-en">
+                        Modificada: {{ o.descripcion_modificada_en | date:'dd/MM/yyyy HH:mm' }}
+                    </span>
+                }
+
+                <!-- Modo visualización de la descripción -->
+                @if (!modoEdicionDescripcion()) {
+                    @if (o.descripcion) {
+                        <div class="detalle-descripcion">{{ o.descripcion }}</div>
+                    } @else {
+                        <div class="detalle-descripcion descripcion-vacia">
+                            Sin descripción registrada. Podés completarla manualmente haciendo clic en "Completar descripción".
+                        </div>
+                    }
+                } @else if (!modoDemo()) {
+                    <!-- Modo edición de la descripción -->
+                    <div class="formulario-edicion">
+                        <textarea
+                            class="textarea-edicion"
+                            rows="9"
+                            [ngModel]="nuevaDescripcion()"
+                            (ngModelChange)="nuevaDescripcion.set($event)"
+                            placeholder="Pegá o redactá la descripción completa de la vacante..."
+                            aria-label="Editor de descripción de la oferta"
+                            [disabled]="guardandoDescripcion()"></textarea>
+
+                        <div class="edicion-info-longitud">
+                            <span
+                                class="contador-caracteres"
+                                [class.contador-invalido]="nuevaDescripcion().trim().length < 20 || nuevaDescripcion().trim().length > 50000">
+                                {{ nuevaDescripcion().length }} / 50.000 caracteres (mínimo 20)
+                            </span>
+                        </div>
+
+                        @if (errorEdicionDescripcion()) {
+                            <div class="alerta-error-edicion" role="alert" aria-live="assertive">
+                                <span class="material-symbols-outlined" aria-hidden="true">error</span>
+                                <span>{{ errorEdicionDescripcion() }}</span>
+                            </div>
+                        }
+
+                        <div class="edicion-acciones">
+                            <button
+                                type="button"
+                                class="btn-detalle-secundario"
+                                (click)="cancelarEdicionDescripcion()"
+                                [disabled]="guardandoDescripcion()"
+                                aria-label="Cancelar edición de descripción">
+                                Cancelar
+                            </button>
+                            <button
+                                type="button"
+                                class="btn-detalle-primario"
+                                (click)="guardarDescripcion()"
+                                [disabled]="guardandoDescripcion() || nuevaDescripcion().trim().length < 20 || nuevaDescripcion().trim().length > 50000"
+                                aria-label="Guardar descripción">
+                                <span class="material-symbols-outlined" aria-hidden="true">check</span>
+                                {{ guardandoDescripcion() ? 'Guardando...' : 'Guardar descripción' }}
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
 
             <!-- Fechas -->
             <div class="detalle-separador"></div>
             <div class="detalle-fechas">
                 <span class="fecha-item">
-                    <span class="material-symbols-outlined">calendar_today</span>
+                    <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
                     Detectada: {{ o.fecha_extraccion | date:'dd/MM/yyyy HH:mm' }}
                 </span>
                 @if (o.fecha_publicacion) {
                     <span class="fecha-item">
-                        <span class="material-symbols-outlined">event_available</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">event_available</span>
                         Publicada{{ esFechaAproximada(o) ? ' (aprox)' : '' }}: {{ o.fecha_publicacion | date:'dd/MM/yyyy' }}
                     </span>
                 } @else {
                     <span class="fecha-item" style="opacity: 0.7;">
-                        <span class="material-symbols-outlined">event_busy</span>
+                        <span class="material-symbols-outlined" aria-hidden="true">event_busy</span>
                         Publicación: Desconocida / No informada
                     </span>
                 }

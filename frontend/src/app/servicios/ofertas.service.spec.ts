@@ -142,4 +142,16 @@ describe('OfertasService', () => {
         expect(req.request.body).toEqual({ ids: [1, 2, 3], estado_postulacion: 'cv_enviado' });
         req.flush({ exito: true, datos: { actualizadas: 3 } });
     });
+
+    it('debería actualizar descripción manualmente (PATCH)', () => {
+        servicio.actualizarDescripcion(42, 'Texto completo de la oferta...').subscribe((resp) => {
+            expect(resp.exito).toBeTrue();
+            expect(resp.datos.descripcion).toBe('Texto completo de la oferta...');
+        });
+
+        const req = httpMock.expectOne(`${urlBase}/42/descripcion`);
+        expect(req.request.method).toBe('PATCH');
+        expect(req.request.body).toEqual({ descripcion: 'Texto completo de la oferta...' });
+        req.flush({ exito: true, datos: { id: 42, descripcion: 'Texto completo de la oferta...' } });
+    });
 });

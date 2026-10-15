@@ -5,7 +5,7 @@ const { VERSION_PRIORIDAD_IA } = require('./detector-prioridad-ia');
 const { ordenarObjeto, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./entradas-evaluacion');
 
 // Incremento esta versión cuando cambia el contrato de reglas o del parser.
-const VERSION_CONTRATO_EVALUACION = 'evaluacion-v3';
+const VERSION_CONTRATO_EVALUACION = 'evaluacion-v4';
 
 function serializarCanonico(valor) {
     return JSON.stringify(ordenarObjeto(valor));
