@@ -295,7 +295,7 @@ function normalizarOfertaIndeed(item) {
         empresa: item.employer?.name || null,
         ubicacion,
         modalidad,
-        descripcion: item.description?.text || null,
+        descripcion: item.description?.text || (typeof item.description === 'string' ? item.description : null) || null,
         url,
         identidad_canonica: identidadCanonica,
         plataforma: 'indeed',

@@ -289,4 +289,90 @@ contexto('Issue #19 - Persistencia y Reapariciones de Ofertas', () => {
             metadata: { version: 2 },
         });
     });
+
+    test('10. Reaparición que completa empresa, nivel, salario o moneda marca fue_actualizada=true y resultado_persistencia="actualizada"', async () => {
+        const ofertaParcial = {
+            ...ofertaBase,
+            empresa: null,
+            nivel_requerido: null,
+            salario_min: null,
+            salario_max: null,
+            moneda: null,
+        };
+        const creada = await modeloOferta.crearOferta(ofertaParcial);
+        expect(creada.empresa).toBeNull();
+        expect(creada.nivel_requerido).toBeNull();
+
+        const reaparicion = await modeloOferta.crearOferta({
+            ...ofertaBase,
+            empresa: 'Globant Argentina S.A.',
+            nivel_requerido: 'semi_senior',
+            salario_min: 1800000,
+            salario_max: 2500000,
+            moneda: 'ARS',
+        });
+
+        expect(reaparicion.id).toBe(creada.id);
+        expect(reaparicion.es_nueva).toBe(false);
+        expect(reaparicion.fue_actualizada).toBe(true);
+        expect(reaparicion.es_reaparicion).toBe(false);
+        expect(reaparicion.resultado_persistencia).toBe('actualizada');
+        expect(reaparicion.empresa).toBe('Globant Argentina S.A.');
+        expect(reaparicion.nivel_requerido).toBe('semi_senior');
+        expect(Number(reaparicion.salario_min)).toBe(1800000);
+        expect(Number(reaparicion.salario_max)).toBe(2500000);
+        expect(reaparicion.moneda).toBe('ARS');
+    });
+
+    test('11. URL extremadamente larga (>500 caracteres) se persiste y deduplica sin violar límites de columna', async () => {
+        const paramsLargo = 'paramExtra='.repeat(50) + 'valorFinalLargo';
+        const urlLarga = `https://portal-desconocido.com/empleos/oferta-tecnica-especial?id=123456&${paramsLargo}`;
+        expect(urlLarga.length).toBeGreaterThan(600);
+
+        const ofertaLarga = {
+            titulo: 'Desarrollador con URL Extensa',
+            empresa: 'Empresa Global',
+            url: urlLarga,
+            plataforma: 'desconocida',
+        };
+
+        const insertada = await modeloOferta.crearOferta(ofertaLarga);
+        expect(insertada).not.toBeNull();
+        expect(insertada.identidad_canonica).toBeDefined();
+        expect(insertada.identidad_canonica.length).toBeLessThanOrEqual(500);
+
+        // Reaparición con la misma URL extensa
+        const reaparicion = await modeloOferta.crearOferta(ofertaLarga);
+        expect(reaparicion.id).toBe(insertada.id);
+        expect(reaparicion.es_nueva).toBe(false);
+        expect(reaparicion.resultado_persistencia).toBe('reaparicion');
+    });
+
+    test('12. Reconciliación transparente ante conflicto de URL histórica sin identidad_canonica', async () => {
+        const urlHistorica = 'https://www.glassdoor.com.ar/job-listing/developer-jl=100889977';
+        const resPrevia = await pool.query(
+            `INSERT INTO ofertas (
+                titulo, empresa, url, plataforma, identidad_canonica,
+                fecha_extraccion, fecha_ultima_extraccion, estado_evaluacion, estado_postulacion
+            ) VALUES (
+                'Fila Histórica', 'Empresa X', $1, 'glassdoor', 'glassdoor:url:https://www.glassdoor.com.ar/job-listing/developer-jl=100889977',
+                NOW() - INTERVAL '10 days', NOW() - INTERVAL '10 days', 'pendiente', 'no_postulado'
+            ) RETURNING *`,
+            [urlHistorica]
+        );
+        const idHistorico = resPrevia.rows[0].id;
+
+        const ofertaNueva = {
+            titulo: 'Fila Histórica Enriquecida',
+            empresa: 'Empresa X',
+            url: urlHistorica,
+            plataforma: 'glassdoor',
+            descripcion: 'Nueva descripción detallada que enriquece la fila histórica recuperada.',
+        };
+
+        const reconciliada = await modeloOferta.crearOferta(ofertaNueva);
+        expect(reconciliada.id).toBe(idHistorico);
+        expect(reconciliada.identidad_canonica).toBe('glassdoor:100889977');
+        expect(reconciliada.descripcion).toContain('Nueva descripción detallada');
+    });
 });

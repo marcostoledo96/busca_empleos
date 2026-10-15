@@ -92,6 +92,8 @@ const {
     ejecutarScrapingRemoteOK,
     ejecutarScrapingAdzuna,
     _filtrarPorVentanaPublicacion,
+    consolidarOfertaDuplicada,
+    deduplicarYConsolidarLote,
 } = require('../../src/servicios/servicio-scraping');
 
 // Datos de prueba que simulan la respuesta de los actores.
@@ -3037,6 +3039,129 @@ describe('Servicio de scraping', () => {
         test('retorna array vacío si el input está vacío', () => {
             const resultado = _filtrarPorVentanaPublicacion([], 30, ahora);
             expect(resultado).toEqual([]);
+        });
+    });
+
+    describe('B-03: Consolidación y selección del mejor contenido entre duplicados del mismo lote', () => {
+        test('consolidarOfertaDuplicada conserva la descripción más completa sin importar el orden', () => {
+            const ofertaCorta = {
+                titulo: 'Dev',
+                descripcion: 'Texto corto',
+                ubicacion: null,
+                modalidad: null,
+                empresa: 'Acme',
+            };
+            const ofertaLarga = {
+                titulo: 'Dev',
+                descripcion: 'Texto largo y completo con todos los requisitos...',
+                ubicacion: 'CABA',
+                modalidad: 'Remoto',
+                empresa: 'Acme',
+            };
+
+            // Orden 1: corta primero, larga después
+            const consolidada1 = consolidarOfertaDuplicada(ofertaCorta, ofertaLarga);
+            expect(consolidada1.descripcion).toBe(ofertaLarga.descripcion);
+            expect(consolidada1.ubicacion).toBe('CABA');
+            expect(consolidada1.modalidad).toBe('Remoto');
+
+            // Orden 2: larga primero, corta después
+            const consolidada2 = consolidarOfertaDuplicada(ofertaLarga, ofertaCorta);
+            expect(consolidada2.descripcion).toBe(ofertaLarga.descripcion);
+            expect(consolidada2.ubicacion).toBe('CABA');
+            expect(consolidada2.modalidad).toBe('Remoto');
+        });
+
+        test('consolidarOfertaDuplicada completa empresa, nivel, salarios y moneda ausentes', () => {
+            const existente = {
+                titulo: 'Dev',
+                empresa: null,
+                nivel_requerido: null,
+                salario_min: null,
+                salario_max: null,
+                moneda: null,
+            };
+            const nueva = {
+                titulo: 'Dev',
+                empresa: 'Empresa SA',
+                nivel_requerido: 'Junior',
+                salario_min: 1000,
+                salario_max: 2000,
+                moneda: 'USD',
+            };
+
+            const consolidada = consolidarOfertaDuplicada(existente, nueva);
+            expect(consolidada.empresa).toBe('Empresa SA');
+            expect(consolidada.nivel_requerido).toBe('Junior');
+            expect(consolidada.salario_min).toBe(1000);
+            expect(consolidada.salario_max).toBe(2000);
+            expect(consolidada.moneda).toBe('USD');
+        });
+
+        test('deduplicarYConsolidarLote consolida duplicados con la misma identidad en ambos órdenes', () => {
+            const itemIncompleto = {
+                url: 'https://ar.indeed.com/viewjob?jk=5a8b3c2d1e0f9876&from=serp',
+                plataforma: 'indeed',
+                titulo: 'Backend Dev',
+                descripcion: 'Extracto parcial',
+                ubicacion: null,
+            };
+            const itemCompleto = {
+                url: 'https://ar.indeed.com/viewjob?jk=5a8b3c2d1e0f9876&utm_source=share',
+                plataforma: 'indeed',
+                titulo: 'Backend Dev',
+                descripcion: 'Descripción completa y detallada con tecnologías...',
+                ubicacion: 'Buenos Aires',
+            };
+
+            // Caso A: incompleto primero, completo segundo
+            const resA = deduplicarYConsolidarLote([itemIncompleto, itemCompleto]);
+            expect(resA.ofertasDeduplicadas.length).toBe(1);
+            expect(resA.duplicadasDescartadas).toBe(1);
+            expect(resA.ofertasDeduplicadas[0].descripcion).toBe(itemCompleto.descripcion);
+            expect(resA.ofertasDeduplicadas[0].ubicacion).toBe('Buenos Aires');
+
+            // Caso B: completo primero, incompleto segundo
+            const resB = deduplicarYConsolidarLote([itemCompleto, itemIncompleto]);
+            expect(resB.ofertasDeduplicadas.length).toBe(1);
+            expect(resB.duplicadasDescartadas).toBe(1);
+            expect(resB.ofertasDeduplicadas[0].descripcion).toBe(itemCompleto.descripcion);
+            expect(resB.ofertasDeduplicadas[0].ubicacion).toBe('Buenos Aires');
+        });
+
+        test('ejecutarScrapingIndeed preserva el contenido completo entre duplicados del mismo lote en ambos órdenes', async () => {
+            const itemSinDesc = {
+                url: 'https://ar.indeed.com/viewjob?jk=5a8b3c2d1e0f9876&from=serp',
+                title: 'Backend Dev',
+                employer: { name: 'Empresa Test' },
+                location: { city: 'CABA', countryName: 'Argentina' },
+                description: { text: '' },
+            };
+            const itemConDesc = {
+                url: 'https://ar.indeed.com/viewjob?jk=5a8b3c2d1e0f9876&utm_source=campaign',
+                title: 'Backend Dev',
+                employer: { name: 'Empresa Test' },
+                location: { city: 'CABA', countryName: 'Argentina' },
+                description: { text: 'Descripción completa y rica obtenida en la misma corrida...' },
+            };
+
+            // Orden 1: sin descripción primero
+            clienteApify.dataset().listItems.mockResolvedValueOnce({
+                items: [itemSinDesc, itemConDesc],
+            });
+            const res1 = await ejecutarScrapingIndeed();
+            expect(res1.length).toBe(1);
+            expect(res1.duplicadasDescartadas).toBe(1);
+            expect(res1[0].descripcion).toBe(itemConDesc.description.text);
+
+            // Orden 2: con descripción primero
+            clienteApify.dataset().listItems.mockResolvedValueOnce({
+                items: [itemConDesc, itemSinDesc],
+            });
+            const res2 = await ejecutarScrapingIndeed();
+            expect(res2.length).toBe(1);
+            expect(res2.duplicadasDescartadas).toBe(1);
+            expect(res2[0].descripcion).toBe(itemConDesc.description.text);
         });
     });
 

@@ -104,7 +104,9 @@ async function crearOferta(datos) {
 
     const query = `
         WITH previa AS (
-            SELECT id, descripcion, modalidad, ubicacion, origen_descripcion, fecha_extraccion
+            SELECT id, empresa, ubicacion, modalidad, nivel_requerido,
+                   salario_min, salario_max, moneda, descripcion, origen_descripcion,
+                   fecha_extraccion
             FROM ofertas
             WHERE identidad_canonica = $16
         ),
@@ -278,15 +280,20 @@ async function crearOferta(datos) {
         )
         SELECT upsert.*,
                previa.id AS previa_id,
-               previa.descripcion AS previa_descripcion,
-               previa.modalidad AS previa_modalidad,
+               previa.empresa AS previa_empresa,
                previa.ubicacion AS previa_ubicacion,
+               previa.modalidad AS previa_modalidad,
+               previa.nivel_requerido AS previa_nivel_requerido,
+               previa.salario_min AS previa_salario_min,
+               previa.salario_max AS previa_salario_max,
+               previa.moneda AS previa_moneda,
+               previa.descripcion AS previa_descripcion,
                previa.origen_descripcion AS previa_origen_descripcion
         FROM upsert
         LEFT JOIN previa ON TRUE;
     `;
 
-    const resultado = await pool.query(query, [
+    const parametros = [
         titulo,
         empresa,
         ubicacion,
@@ -303,7 +310,203 @@ async function crearOferta(datos) {
         origenDescripcionFinal,
         descripcionCompletitudFinal,
         identidadCanonicaFinal,
-    ]);
+    ];
+
+    let resultado;
+    try {
+        resultado = await pool.query(query, parametros);
+    } catch (error) {
+        // Reconciliación si la fila histórica tenía la misma URL pero distinta identidad canónica (violación ofertas_url_key)
+        const esViolacionUrl = error && (
+            error.code === '23505'
+            && (error.constraint === 'ofertas_url_key' || String(error.message).includes('ofertas_url_key') || String(error.message).includes('url'))
+        );
+
+        if (esViolacionUrl) {
+            const queryReconciliacionUrl = `
+                WITH previa AS (
+                    SELECT id, empresa, ubicacion, modalidad, nivel_requerido,
+                           salario_min, salario_max, moneda, descripcion, origen_descripcion,
+                           fecha_extraccion
+                    FROM ofertas
+                    WHERE url = $6::text
+                ),
+                actualizar AS (
+                    UPDATE ofertas SET
+                        identidad_canonica = $16::text,
+                        titulo = COALESCE(ofertas.titulo, $1::text),
+                        plataforma = COALESCE(ofertas.plataforma, $7::text),
+                        fecha_ultima_extraccion = NOW(),
+                        fecha_publicacion = COALESCE(ofertas.fecha_publicacion, $12::timestamp),
+                        empresa = CASE
+                            WHEN (ofertas.empresa IS NULL OR TRIM(ofertas.empresa) = '') AND $2::text IS NOT NULL AND TRIM($2::text) != ''
+                            THEN $2::text
+                            ELSE ofertas.empresa
+                        END,
+                        ubicacion = CASE
+                            WHEN (ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '') AND $3::text IS NOT NULL AND TRIM($3::text) != ''
+                            THEN $3::text
+                            ELSE ofertas.ubicacion
+                        END,
+                        modalidad = CASE
+                            WHEN (ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '') AND $4::text IS NOT NULL AND TRIM($4::text) != ''
+                            THEN $4::text
+                            ELSE ofertas.modalidad
+                        END,
+                        nivel_requerido = CASE
+                            WHEN (ofertas.nivel_requerido IS NULL OR TRIM(ofertas.nivel_requerido) = '') AND $8::text IS NOT NULL AND TRIM($8::text) != ''
+                            THEN $8::text
+                            ELSE ofertas.nivel_requerido
+                        END,
+                        salario_min = CASE
+                            WHEN ofertas.salario_min IS NULL AND $9::numeric IS NOT NULL
+                            THEN $9::numeric
+                            ELSE ofertas.salario_min
+                        END,
+                        salario_max = CASE
+                            WHEN ofertas.salario_max IS NULL AND $10::numeric IS NOT NULL
+                            THEN $10::numeric
+                            ELSE ofertas.salario_max
+                        END,
+                        moneda = CASE
+                            WHEN (ofertas.moneda IS NULL OR TRIM(ofertas.moneda) = '') AND $11::text IS NOT NULL AND TRIM($11::text) != ''
+                            THEN $11::text
+                            ELSE ofertas.moneda
+                        END,
+                        descripcion = CASE
+                            WHEN ofertas.origen_descripcion = 'manual'
+                            THEN ofertas.descripcion
+                            WHEN $5::text IS NOT NULL AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0)
+                            THEN $5::text
+                            ELSE ofertas.descripcion
+                        END,
+                        descripcion_completitud = CASE
+                            WHEN ofertas.origen_descripcion = 'manual'
+                            THEN ofertas.descripcion_completitud
+                            WHEN $5::text IS NOT NULL AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0)
+                            THEN $15::text
+                            ELSE ofertas.descripcion_completitud
+                        END,
+                        origen_descripcion = CASE
+                            WHEN ofertas.origen_descripcion = 'manual'
+                            THEN ofertas.origen_descripcion
+                            WHEN $5::text IS NOT NULL AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0)
+                            THEN $14::text
+                            ELSE ofertas.origen_descripcion
+                        END,
+                        datos_crudos = COALESCE(ofertas.datos_crudos, '{}'::jsonb) || COALESCE($13::jsonb, '{}'::jsonb),
+                        estado_evaluacion = CASE
+                            WHEN (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND $5::text IS NOT NULL
+                                 AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR
+                                ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '')
+                                 AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                OR
+                                ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '')
+                                 AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                            )
+                            THEN 'pendiente'
+                            ELSE ofertas.estado_evaluacion
+                        END,
+                        evaluacion_error_mensaje = CASE
+                            WHEN (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND $5::text IS NOT NULL
+                                 AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR
+                                ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '')
+                                 AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                OR
+                                ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '')
+                                 AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                            )
+                            THEN 'REEVALUACION_SOLICITADA'
+                            ELSE ofertas.evaluacion_error_mensaje
+                        END,
+                        porcentaje_match = CASE
+                            WHEN (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND $5::text IS NOT NULL
+                                 AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR
+                                ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '')
+                                 AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                OR
+                                ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '')
+                                 AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                            )
+                            THEN NULL
+                            ELSE ofertas.porcentaje_match
+                        END,
+                        razon_evaluacion = CASE
+                            WHEN (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND $5::text IS NOT NULL
+                                 AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR
+                                ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '')
+                                 AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                OR
+                                ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '')
+                                 AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                            )
+                            THEN 'Información de la oferta actualizada por nueva extracción; requiere reevaluación.'
+                            ELSE ofertas.razon_evaluacion
+                        END,
+                        explicacion_evaluacion = CASE
+                            WHEN (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND $5::text IS NOT NULL
+                                 AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR
+                                ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '')
+                                 AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                OR
+                                ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '')
+                                 AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                            )
+                            THEN NULL
+                            ELSE ofertas.explicacion_evaluacion
+                        END,
+                        firma_criterios_evaluacion = CASE
+                            WHEN (
+                                (ofertas.origen_descripcion IS DISTINCT FROM 'manual'
+                                 AND $5::text IS NOT NULL
+                                 AND LENGTH($5::text) > COALESCE(LENGTH(ofertas.descripcion), 0))
+                                OR
+                                ((ofertas.modalidad IS NULL OR TRIM(ofertas.modalidad) = '')
+                                 AND $4::text IS NOT NULL AND TRIM($4::text) != '')
+                                OR
+                                ((ofertas.ubicacion IS NULL OR TRIM(ofertas.ubicacion) = '')
+                                 AND $3::text IS NOT NULL AND TRIM($3::text) != '')
+                            )
+                            THEN NULL
+                            ELSE ofertas.firma_criterios_evaluacion
+                        END
+                    WHERE url = $6::text
+                    RETURNING *, FALSE AS es_nueva
+                )
+                SELECT actualizar.*,
+                       previa.id AS previa_id,
+                       previa.empresa AS previa_empresa,
+                       previa.ubicacion AS previa_ubicacion,
+                       previa.modalidad AS previa_modalidad,
+                       previa.nivel_requerido AS previa_nivel_requerido,
+                       previa.salario_min AS previa_salario_min,
+                       previa.salario_max AS previa_salario_max,
+                       previa.moneda AS previa_moneda,
+                       previa.descripcion AS previa_descripcion,
+                       previa.origen_descripcion AS previa_origen_descripcion
+                FROM actualizar
+                LEFT JOIN previa ON TRUE;
+            `;
+            resultado = await pool.query(queryReconciliacionUrl, parametros);
+        } else {
+            throw error;
+        }
+    }
 
     if (!resultado.rows || resultado.rows.length === 0) {
         return null;
@@ -321,17 +524,41 @@ async function crearOferta(datos) {
             && Boolean(modalidad && String(modalidad).trim() !== '');
         const ubicacionCompleto = (!fila.previa_ubicacion || fila.previa_ubicacion.trim() === '')
             && Boolean(ubicacion && String(ubicacion).trim() !== '');
+        const empresaCompleto = (!fila.previa_empresa || fila.previa_empresa.trim() === '')
+            && Boolean(empresa && String(empresa).trim() !== '');
+        const nivelCompleto = (!fila.previa_nivel_requerido || fila.previa_nivel_requerido.trim() === '')
+            && Boolean(nivel_requerido && String(nivel_requerido).trim() !== '');
+        const salarioMinCompleto = (fila.previa_salario_min == null)
+            && salario_min != null;
+        const salarioMaxCompleto = (fila.previa_salario_max == null)
+            && salario_max != null;
+        const monedaCompleto = (!fila.previa_moneda || fila.previa_moneda.trim() === '')
+            && Boolean(moneda && String(moneda).trim() !== '');
 
-        fueActualizada = Boolean(descripcionCambio || modalidadCompleto || ubicacionCompleto);
+        fueActualizada = Boolean(
+            descripcionCambio
+            || modalidadCompleto
+            || ubicacionCompleto
+            || empresaCompleto
+            || nivelCompleto
+            || salarioMinCompleto
+            || salarioMaxCompleto
+            || monedaCompleto
+        );
     }
 
     const esReaparicion = !esNueva && !fueActualizada;
     const resultadoPersistencia = esNueva ? 'insertada' : (fueActualizada ? 'actualizada' : 'reaparicion');
 
     delete fila.previa_id;
-    delete fila.previa_descripcion;
-    delete fila.previa_modalidad;
+    delete fila.previa_empresa;
     delete fila.previa_ubicacion;
+    delete fila.previa_modalidad;
+    delete fila.previa_nivel_requerido;
+    delete fila.previa_salario_min;
+    delete fila.previa_salario_max;
+    delete fila.previa_moneda;
+    delete fila.previa_descripcion;
     delete fila.previa_origen_descripcion;
 
     return {

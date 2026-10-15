@@ -5,7 +5,9 @@
 // la identidad canónica de una oferta.
 //
 // Regla fundamental: en ningún caso utilizo título ni empresa como sustituto
-// de identidad de oferta.
+const crypto = require('crypto');
+
+const LONGITUD_MAXIMA_IDENTIDAD = 500;
 
 const PARAMETROS_TRACKING_UNIVERSALES = new Set([
     'fbclid',
@@ -213,7 +215,9 @@ function extraerIdentificadorPlataforma(url, plataforma, datosCrudos = null) {
         if (urlObj) {
             id = urlObj.searchParams.get('jl') || urlObj.searchParams.get('jobListingId');
             if (!id) {
-                const match = urlObj.pathname.match(/jl=(\d+)/i) || urlObj.pathname.match(/jobListingId=(\d+)/i);
+                const match = urlObj.pathname.match(/(?:jl|jobListingId)=([0-9]+)/i)
+                    || urlObj.pathname.match(/(?:^|[-_/])(?:jl|jobListingId)[-_=]?([0-9]+)/i)
+                    || urlObj.pathname.match(/_jl([0-9]+)/i);
                 if (match) {
                     id = match[1];
                 }
@@ -378,6 +382,29 @@ function canonizarUrlPlataforma(url, plataforma = 'general') {
 }
 
 /**
+ * Aseguro que una identidad no exceda la longitud máxima de seguridad (500 caracteres),
+ * generando un hash determinista (MD5) colisión-resistente para URLs o strings extensas.
+ *
+ * @param {string} identidad - Identidad canónica candidata.
+ * @param {number} [maxLongitud=LONGITUD_MAXIMA_IDENTIDAD] - Límite de caracteres.
+ * @returns {string} Identidad acotada de forma determinista y coherente con PostgreSQL md5().
+ */
+function acotarIdentidadLongitudSegura(identidad, maxLongitud = LONGITUD_MAXIMA_IDENTIDAD) {
+    if (!identidad || typeof identidad !== 'string' || identidad.length <= maxLongitud) {
+        return identidad;
+    }
+
+    const partes = identidad.split(':');
+    const prefijo = partes[0] || 'general';
+    const tipo = partes[1] || 'url';
+    const tipoHash = tipo.endsWith('-hash') ? tipo : `${tipo}-hash`;
+    const contenido = partes.slice(2).join(':') || identidad;
+    const hash = crypto.createHash('md5').update(contenido).digest('hex');
+
+    return `${prefijo}:${tipoHash}:${hash}`;
+}
+
+/**
  * Obtengo la identidad canónica única e inmutable de una oferta.
  *
  * En ningún caso se utiliza título ni empresa para sustituir la identidad.
@@ -406,7 +433,7 @@ function obtenerIdentidadCanonica(oferta) {
     if (!urlCruda || typeof urlCruda !== 'string' || urlCruda.trim() === '') {
         const idDirecto = extraerIdentificadorPlataforma(null, plat, datosCrudos);
         if (idDirecto) {
-            return `${platPrefijo}:${idDirecto}`;
+            return acotarIdentidadLongitudSegura(`${platPrefijo}:${idDirecto}`);
         }
         return `${platPrefijo}:raw:`;
     }
@@ -421,77 +448,78 @@ function obtenerIdentidadCanonica(oferta) {
             throw new Error('Protocolo no soportado');
         }
     } catch {
-        // URLs no válidas: retorno plataforma:raw:urlLimpia para evitar colisiones accidentales
-        return `${platPrefijo}:raw:${urlLimpia}`;
+        // URLs no válidas: retorno plataforma:raw:urlLimpia (o raw-hash si es muy extensa)
+        return acotarIdentidadLongitudSegura(`${platPrefijo}:raw:${urlLimpia}`);
     }
 
     const id = extraerIdentificadorPlataforma(urlLimpia, plat, datosCrudos);
 
+    let identidadBruta = '';
+
     if (plat === 'indeed') {
         if (id) {
-            return `indeed:${id.toLowerCase()}`;
+            identidadBruta = `indeed:${id.toLowerCase()}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'indeed');
+            identidadBruta = `indeed:url:${urlCanonica}`;
         }
-        const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'indeed');
-        return `indeed:url:${urlCanonica}`;
-    }
-
-    if (plat === 'linkedin') {
+    } else if (plat === 'linkedin') {
         if (id) {
-            return `linkedin:${id}`;
+            identidadBruta = `linkedin:${id}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'linkedin');
+            identidadBruta = `linkedin:url:${urlCanonica}`;
         }
-        const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'linkedin');
-        return `linkedin:url:${urlCanonica}`;
-    }
-
-    if (plat === 'getonbrd') {
+    } else if (plat === 'getonbrd') {
         if (id) {
-            return `getonbrd:${id}`;
+            identidadBruta = `getonbrd:${id}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'getonbrd');
+            identidadBruta = `getonbrd:url:${urlCanonica}`;
         }
-        const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'getonbrd');
-        return `getonbrd:url:${urlCanonica}`;
-    }
-
-    if (plat === 'computrabajo') {
+    } else if (plat === 'computrabajo') {
         if (id) {
-            return `computrabajo:${id}`;
+            identidadBruta = `computrabajo:${id}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'computrabajo');
+            identidadBruta = `computrabajo:url:${urlCanonica}`;
         }
-        const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'computrabajo');
-        return `computrabajo:url:${urlCanonica}`;
-    }
-
-    if (plat === 'bumeran') {
+    } else if (plat === 'bumeran') {
         if (id) {
-            return `bumeran:${id}`;
+            identidadBruta = `bumeran:${id}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'bumeran');
+            identidadBruta = `bumeran:url:${urlCanonica}`;
         }
-        const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'bumeran');
-        return `bumeran:url:${urlCanonica}`;
-    }
-
-    if (plat === 'glassdoor') {
+    } else if (plat === 'glassdoor') {
         if (id) {
-            return `glassdoor:${id}`;
+            identidadBruta = `glassdoor:${id}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'glassdoor');
+            identidadBruta = `glassdoor:url:${urlCanonica}`;
         }
-        const urlCanonica = canonizarUrlPlataforma(urlLimpia, 'glassdoor');
-        return `glassdoor:url:${urlCanonica}`;
-    }
-
-    if (['jooble', 'remoteok', 'remotive', 'infojobs', 'adzuna'].includes(plat)) {
+    } else if (['jooble', 'remoteok', 'remotive', 'infojobs', 'adzuna'].includes(plat)) {
         if (id) {
-            return `${plat}:${id}`;
+            identidadBruta = `${plat}:${id}`;
+        } else {
+            const urlCanonica = canonizarUrlPlataforma(urlLimpia, plat);
+            identidadBruta = `${plat}:url:${urlCanonica}`;
         }
+    } else {
+        // Desconocidas o General
         const urlCanonica = canonizarUrlPlataforma(urlLimpia, plat);
-        return `${plat}:url:${urlCanonica}`;
+        identidadBruta = `${platPrefijo}:url:${urlCanonica}`;
     }
 
-    // Desconocidas o General
-    const urlCanonica = canonizarUrlPlataforma(urlLimpia, plat);
-    return `${platPrefijo}:url:${urlCanonica}`;
+    return acotarIdentidadLongitudSegura(identidadBruta);
 }
 
 module.exports = {
     extraerIdentificadorPlataforma,
     canonizarUrlPlataforma,
     obtenerIdentidadCanonica,
+    acotarIdentidadLongitudSegura,
+    LONGITUD_MAXIMA_IDENTIDAD,
     // Exporto auxiliares para verificación y tests si hiciera falta
     _esParametroTrackingUniversal: esParametroTrackingUniversal,
     _esParametroTrackingIndeed: esParametroTrackingIndeed,

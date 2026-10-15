@@ -375,5 +375,54 @@ describe('Servicio de identidad y canonización de ofertas', () => {
             expect(resultado.identidad_canonica).toBe('computrabajo:BD5787E139E8632061373E686DCF3405');
             expect(resultado.datos_crudos.url_original).toBe(item.url);
         });
+
+        // B-01: Glassdoor con ID jl en path
+        test('B-01: Glassdoor extrae ID jl desde el path (/senior-engineer-jl=100889977) de forma coherente', () => {
+            const urlPath = 'https://www.glassdoor.com/job-listing/senior-engineer-jl=100889977?utm_campaign=google';
+            const urlQuery = 'https://www.glassdoor.com/job-listing/?jl=100889977';
+
+            const idPath = obtenerIdentidadCanonica({ url: urlPath, plataforma: 'glassdoor' });
+            const idQuery = obtenerIdentidadCanonica({ url: urlQuery, plataforma: 'glassdoor' });
+
+            expect(idPath).toBe('glassdoor:100889977');
+            expect(idQuery).toBe('glassdoor:100889977');
+            expect(idPath).toBe(idQuery);
+        });
+
+        // B-01: GetOnBrd prioridad a slug de path sobre datos_crudos.id
+        test('B-01: GetOnBrd prioriza slug de path sobre datos_crudos.id arbitrario', () => {
+            const item = {
+                url: 'https://www.getonbrd.com/jobs/react-developer#seccion',
+                plataforma: 'getonbrd',
+                datos_crudos: { id: 'uuid-aleatorio-1234' },
+            };
+            const identidad = obtenerIdentidadCanonica(item);
+            expect(identidad).toBe('getonbrd:react-developer');
+        });
+
+        // B-04: URL extensa sin ID (> 500 chars) genera clave estable sin colisión ni exceder 500 chars
+        test('B-04: URL extensa sin ID (> 500 chars) genera clave estable sin exceder 500 chars', () => {
+            const paramLargo = 'a'.repeat(600);
+            const urlLarga1 = `https://portal-desconocido.com/empleo?token=${paramLargo}&ref=1`;
+            const urlLarga2 = `https://portal-desconocido.com/empleo?token=${paramLargo}&ref=2`;
+
+            const id1 = obtenerIdentidadCanonica({ url: urlLarga1, plataforma: 'general' });
+            const id2 = obtenerIdentidadCanonica({ url: urlLarga2, plataforma: 'general' });
+
+            // Longitud segura
+            expect(id1.length).toBeLessThanOrEqual(500);
+            expect(id2.length).toBeLessThanOrEqual(500);
+
+            // Formato determinista url-hash
+            expect(id1).toMatch(/^general:url-hash:[a-f0-9]{32}$/);
+            expect(id2).toMatch(/^general:url-hash:[a-f0-9]{32}$/);
+
+            // URLs distintas no colisionan
+            expect(id1).not.toBe(id2);
+
+            // Misma URL da exactamente el mismo hash determinista
+            const id1Reejecutada = obtenerIdentidadCanonica({ url: urlLarga1, plataforma: 'general' });
+            expect(id1Reejecutada).toBe(id1);
+        });
     });
 });
