@@ -65,8 +65,16 @@ const contexto = (dbTestsPermitidos && entornoSeguro) ? describe : describe.skip
 contexto('Issue #19 — Flujo Integrado de Identidad Canónica y Reapariciones', () => {
     beforeEach(async () => {
         jest.clearAllMocks();
+        // Uso una credencial sintética; el cliente de Apify permanece completamente simulado.
+        jest.replaceProperty(process, 'env', { ...process.env, APIFY_TOKEN: 'token-apify-sintetico' });
         await asegurarBaseDeDatosDeTest(pool);
         await pool.query('TRUNCATE TABLE ofertas RESTART IDENTITY CASCADE');
+    });
+
+    afterEach(() => {
+        jest.restoreAllMocks();
+        mockActorCall.mockReset();
+        mockDatasetListItems.mockReset();
     });
 
     afterAll(async () => {
@@ -98,7 +106,7 @@ contexto('Issue #19 — Flujo Integrado de Identidad Canónica y Reapariciones',
             baseSalary: { min: 1500000, max: 2200000, currencyCode: 'ARS' },
         };
 
-        mockActorCall.mockResolvedValueOnce({ defaultDatasetId: 'dataset-indeed-sintetico-1' });
+        mockActorCall.mockResolvedValueOnce({ status: 'SUCCEEDED', defaultDatasetId: 'dataset-indeed-sintetico-1' });
         mockDatasetListItems.mockResolvedValueOnce({
             items: [itemIndeedTracking1, itemIndeedTracking2],
         });
@@ -200,7 +208,7 @@ contexto('Issue #19 — Flujo Integrado de Identidad Canónica y Reapariciones',
             datePublished: '2026-10-15T11:00:00.000Z',
         };
 
-        mockActorCall.mockResolvedValueOnce({ defaultDatasetId: 'dataset-indeed-sintetico-2' });
+        mockActorCall.mockResolvedValueOnce({ status: 'SUCCEEDED', defaultDatasetId: 'dataset-indeed-sintetico-2' });
         mockDatasetListItems.mockResolvedValueOnce({ items: [itemSinteticoCompleto] });
 
         const loteScraping = await servicioScraping.ejecutarScrapingIndeed({ maxResultados: 10 });
@@ -275,7 +283,7 @@ contexto('Issue #19 — Flujo Integrado de Identidad Canónica y Reapariciones',
             datePublished: '2026-10-15T15:00:00.000Z',
         };
 
-        mockActorCall.mockResolvedValueOnce({ defaultDatasetId: 'dataset-indeed-sintetico-3' });
+        mockActorCall.mockResolvedValueOnce({ status: 'SUCCEEDED', defaultDatasetId: 'dataset-indeed-sintetico-3' });
         mockDatasetListItems.mockResolvedValueOnce({ items: [itemNuevoScraper] });
 
         const scrapingNuevo = await servicioScraping.ejecutarScrapingIndeed({ maxResultados: 10 });
@@ -332,7 +340,7 @@ contexto('Issue #19 — Flujo Integrado de Identidad Canónica y Reapariciones',
             datePublished: '2026-10-15T09:00:00.000Z',
         };
 
-        mockActorCall.mockResolvedValueOnce({ defaultDatasetId: 'dataset-indeed-sintetico-4' });
+        mockActorCall.mockResolvedValueOnce({ status: 'SUCCEEDED', defaultDatasetId: 'dataset-indeed-sintetico-4' });
         mockDatasetListItems.mockResolvedValueOnce({ items: [itemReaparicionHoy] });
 
         const loteReaparicion = await servicioScraping.ejecutarScrapingIndeed({ maxResultados: 10 });
