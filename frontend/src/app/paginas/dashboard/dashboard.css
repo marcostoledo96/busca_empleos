@@ -134,6 +134,11 @@
     white-space: nowrap;
 }
 
+/* Evito que la caja inline del panel se superponga a los controles de las ofertas. */
+p-tabpanel:not([hidden]) {
+    display: block;
+}
+
 /* Tabs de PrimeNG — overrides editoriales */
 .resultados :deep(.p-tabs) {
     background: transparent;

@@ -188,6 +188,25 @@ describe('Issue 21 — tabla, selección y guardado', () => {
         expect(buscar('.tabla-vacia').textContent).toContain('No hay ofertas que coincidan');
     }));
 
+    for (const mobile of [false, true]) {
+        it(`conservo las ofertas sin un falso estado vacío al buscar un espacio en ${mobile ? 'mobile' : 'escritorio'}`, fakeAsync(() => {
+            vistaMobile = mobile;
+            fixture.componentRef.setInput('ofertas', crearOfertas(3).map(oferta => ({
+                ...oferta, titulo: 'Angular', empresa: 'ACME', ubicacion: 'CABA',
+            })));
+            renderizar();
+            filtrar(' ', mobile);
+            expect(buscar('#filtro-busqueda-input').value).toBe(' ');
+            expect(buscar('#filtro-busqueda-cards').value).toBe(' ');
+            expect(fixture.nativeElement.querySelectorAll('tbody tr').length).toBe(3);
+            expect(fixture.nativeElement.querySelectorAll('.card-oferta').length).toBe(3);
+            expect(buscar('.tabla-vacia')).toBeNull();
+            expect(buscar('.cards-vacio')).toBeNull();
+            expect(fixture.nativeElement.textContent).not.toContain('No hay ofertas que coincidan con los filtros actuales');
+            expect(fixture.nativeElement.textContent).not.toContain('Limpiar filtros');
+        }));
+    }
+
     it('las acciones mobile intersectan su página efectiva y no la primera de escritorio', fakeAsync(() => {
         cargar(45);
         vistaMobile = true;

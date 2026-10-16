@@ -217,6 +217,16 @@ describe('Issue 21 — integración dashboard, tabla y detalle', () => {
         expect(dashboard.sincronizando()).toBeFalse();
     }));
 
+    it('los contenedores activos no superponen su caja inline sobre los controles de ofertas', fakeAsync(() => {
+        renderizar();
+        const panel = buscar('p-tabpanel:not([hidden])');
+        expect(getComputedStyle(panel).display).toBe('block');
+        expect(getComputedStyle(panel.querySelector('app-tabla-ofertas')).display).toBe('block');
+        fixture.nativeElement.querySelectorAll('p-tabpanel[hidden]').forEach((oculto: HTMLElement) => {
+            expect(getComputedStyle(oculto).display).toBe('none');
+        });
+    }));
+
     it('bulk bloquea detalle y protege confirmaciones ante GET iniciado antes de la escritura', fakeAsync(() => {
         spyOn(dashboard, 'cargarDatos'); renderizar();
         dashboard.onProgresoEvaluacion();
