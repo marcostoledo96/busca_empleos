@@ -121,9 +121,8 @@ describe('Issue 21 — tabla, selección y guardado', () => {
         filtrar('Angular'); seleccionarPagina();
         fixture.componentRef.setInput('ofertas', crearOfertas(3).map(o => ({ ...o, titulo: o.id === 1 ? 'Angular' : 'React' })));
         renderizar();
-        // PrimeNG vuelve a filtrar al refrescar value e invalida la selección anterior.
-        expect(componente.seleccionadas().size).toBe(0);
-        buscar('tbody input[type=checkbox]').click(); renderizar();
+        // PrimeNG vuelve a filtrar al refrescar value: sólo conservo el ID aún visible.
+        expect([...componente.seleccionadas()]).toEqual([1]);
         // Simulo además un ID obsoleto: la guarda debe excluirlo aunque exista en el input padre.
         componente.toggleSeleccion(2);
         const emitido = jasmine.createSpy('accionMasiva'); componente.accionMasiva.subscribe(emitido);

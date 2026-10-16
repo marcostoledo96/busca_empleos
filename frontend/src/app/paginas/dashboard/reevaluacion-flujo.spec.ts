@@ -188,7 +188,7 @@ describe('Reevaluación — selección visible', () => {
         }));
         fixture.componentRef.setInput('ofertas', ofertas);
         await fixture.whenStable();
-        const cabecera = () => fixture.nativeElement.querySelector('input[aria-label="Seleccionar todas las ofertas"]') as HTMLInputElement;
+        const cabecera = () => fixture.nativeElement.querySelector('input[aria-label="Seleccionar ofertas de esta página"]') as HTMLInputElement;
         const comprobarPagina = async (ids: number[]) => {
             cabecera().click();
             await fixture.whenStable();
@@ -225,6 +225,9 @@ describe('Reevaluación — selección visible', () => {
         buscador.value = 'Oferta sintética 2';
         buscador.dispatchEvent(new Event('input'));
         expect(componente.seleccionadas().size).toBe(0);
+        // El buscador ahora filtra ambas vistas; limpio antes de pedir una segunda página.
+        buscador.value = '';
+        buscador.dispatchEvent(new Event('input'));
         fixture.componentRef.setInput('ofertas', Array.from({ length: 25 }, (_, i) => ofertaSintetica(i + 1)));
         await fixture.whenStable();
         componente.toggleSeleccion(1);

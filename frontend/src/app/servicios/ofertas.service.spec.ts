@@ -143,6 +143,32 @@ describe('OfertasService', () => {
         req.flush({ exito: true, datos: { actualizadas: 3 } });
     });
 
+    for (const masiva of [false, true]) {
+        for (const fallo of ['false', '500', 'red']) {
+            it(`conservo el contrato de error ${fallo} en postulación ${masiva ? 'masiva' : 'individual'}`, () => {
+                const respuesta = jasmine.createSpy('respuesta');
+                const error = jasmine.createSpy('error');
+                if (masiva) servicio.actualizarPostulacionMasiva([1, 2], 'en_proceso').subscribe({ next: respuesta, error });
+                else servicio.actualizarPostulacion(1, 'en_proceso').subscribe({ next: respuesta, error });
+                const req = httpMock.expectOne(`${urlBase}/${masiva ? 'bulk' : '1'}/postulacion`);
+                expect(req.request.method).toBe('PATCH');
+                expect(req.request.body).toEqual(masiva
+                    ? { ids: [1, 2], estado_postulacion: 'en_proceso' }
+                    : { estado_postulacion: 'en_proceso' });
+                if (fallo === 'false') {
+                    req.flush({ exito: false, error: 'Fallo sintético' });
+                    expect(respuesta).toHaveBeenCalledOnceWith({ exito: false, error: 'Fallo sintético' });
+                    expect(error).not.toHaveBeenCalled();
+                } else {
+                    if (fallo === '500') req.flush({}, { status: 500, statusText: 'Fallo' });
+                    else req.error(new ProgressEvent('error'));
+                    expect(error.calls.mostRecent().args[0].status).toBe(fallo === '500' ? 500 : 0);
+                    expect(respuesta).not.toHaveBeenCalled();
+                }
+            });
+        }
+    }
+
     it('debería actualizar descripción manualmente (PATCH)', () => {
         servicio.actualizarDescripcion(42, 'Texto completo de la oferta...').subscribe((resp) => {
             expect(resp.exito).toBeTrue();

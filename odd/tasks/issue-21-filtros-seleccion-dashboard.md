@@ -192,9 +192,9 @@ Entrega autorizada: commits convencionales en español, push y una única PR con
 > No hagas merge ni cierres #21.
 
 ## Tasks
-T1 | S1-S7 | delegated worker: tabla, selección, mobile, postulación individual y pruebas DOM | done | Focal 42 PASS, diff-check PASS. Primer runner TS2307 (0 tests, no RED funcional), primer run funcional40PASS/2FAIL por supuestos de tests corregidos; GREEN42. Commit de unidad registrado abajo. Revisión independiente del PR slice conjunto en T3; assess native medium/reviewDue false, elevado a high para verificación por concurrencia.
-T2 | S2-S4,S6-S8 | delegated worker: Dashboard/Detalle, toast compartido, bulk, integración, docs y tests servicio | in_progress | commit pendiente.
-T3 | S1-S8 | independent verify + parent: suite/build, navegador, revisión nativa pertinente, corrección acotada, publicación y CI | pending | commit pendiente.
+T1 | S1-S7 | delegated worker: tabla, selección, mobile, postulación individual y pruebas DOM | done | Focal 42 PASS, diff-check PASS. Primer runner TS2307 (0 tests, no RED funcional), primer run funcional40PASS/2FAIL por supuestos de tests corregidos; GREEN42. Commit de unidad 87a6cca6f130e857be12c0621d101a7b6fe0ae5a. Revisión independiente del PR slice conjunto en T3; assess native medium/reviewDue false, elevado a high para verificación por concurrencia.
+T2 | S2-S4,S6-S8 | delegated worker: Dashboard/Detalle, toast compartido, bulk, integración, docs y tests servicio | done | RED13FAIL/91PASS/3SKIP → GREEN105PASS/3SKIP; parcial refresh RED1FAIL/104PASS → GREEN105. Suite365PASS/3SKIPPED; build y diff-checkPASS. Parent focal tabla42PASS. Commit de unidad pendiente de registro. Assess native medium/reviewDuefalse, high para verificación de concurrencia; review independiente T3.
+T3 | S1-S8 | independent verify + parent: suite/build, navegador, revisión nativa pertinente, corrección acotada, publicación y CI | in_progress | Falta revisión independiente y viewport mobile; ownchecks completados en T2, sin PR aún.
 
 ## Log
 L1 — Solicitud original de Marcos (apertura literal): «Actuá como desarrollador responsable de Busca Empleos. Implementá completamente la issue #21 utilizando obligatoriamente la metodología Gentle AI en Gentle Shell de Pi.» La solicitud completa está en el turno inicial; los requisitos y ejemplos literales se conservan en Specs. Issue completa leída vía gh el inicio: https://github.com/marcostoledo96/busca_empleos/issues/21.

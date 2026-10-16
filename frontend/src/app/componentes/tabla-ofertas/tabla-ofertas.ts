@@ -50,6 +50,15 @@ export class TablaOfertas {
     readonly confirmandoReevaluacion = signal(false);
 
     private ultimoOrden: { field?: string; order?: number } | null = null;
+    private ultimoFiltro = '';
+
+    onFiltrado(evento: { filters?: unknown }): void {
+        const filtro = JSON.stringify(evento.filters ?? {});
+        // PrimeNG reemite al refrescar value; conservo sólo los IDs aún visibles.
+        if (filtro !== this.ultimoFiltro) this.limpiarSeleccion();
+        else this.revalidarSeleccion();
+        this.ultimoFiltro = filtro;
+    }
 
     onOrdenamiento(orden: { field?: string; order?: number }): void {
         // PrimeNG reemite el mismo orden al reemplazar value; sólo limpio

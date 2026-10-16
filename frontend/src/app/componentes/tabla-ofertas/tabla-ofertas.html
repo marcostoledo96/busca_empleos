@@ -79,7 +79,7 @@
         [sortOrder]="sortOrder()"
         styleClass="p-datatable-sm"
         (onPage)="limpiarSeleccion()"
-        (onFilter)="limpiarSeleccion()"
+        (onFilter)="onFiltrado($event)"
         (onSort)="onOrdenamiento($event)"
         #tablaOfertas>
 
