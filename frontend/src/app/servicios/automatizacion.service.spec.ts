@@ -23,6 +23,15 @@ describe('AutomatizacionService', () => {
         httpMock.verify();
     });
 
+    it('consulto historial durable sin transformar ids ni duraciones de PostgreSQL', () => {
+        const fila = { id: '17', tipo: 'individual', inicio: '2026-06-01T10:00:00Z', fin: null,
+            estado: 'interrumpida', duracion_ms: '42', resumen: { estado: 'interrumpida', fuentes: [] } };
+        servicio.obtenerHistorial().subscribe(resp => expect(resp.datos).toEqual([fila] as any));
+        const req = httpMock.expectOne(`${urlBase}/historial`);
+        expect(req.request.method).toBe('GET');
+        req.flush({ exito: true, datos: [fila] });
+    });
+
     it('should be created', () => {
         expect(servicio).toBeTruthy();
     });

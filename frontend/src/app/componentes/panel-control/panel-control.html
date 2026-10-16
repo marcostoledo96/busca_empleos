@@ -16,7 +16,7 @@
             </div>
             <p class="overlay-carga__titulo">EXTRAYENDO OFERTAS</p>
             <p class="overlay-carga__plataforma">{{ plataformaEnProceso() }}</p>
-            <p class="overlay-carga__aviso">Esto puede tardar hasta 2 minutos.</p>
+            <p class="overlay-carga__aviso">La espera depende de los presupuestos de la fuente. Consultá el resultado al finalizar.</p>
         </div>
     </div>
 }
@@ -94,7 +94,7 @@
                             @for (resumen of grupo.resumenes; track resumen.plataforma) {
                                 <article>
                                     <strong>{{ resumen.nombre }}</strong>
-                                    — {{ !resumen.habilitada ? 'Deshabilitada' : grupo.esCiclo && resumen.motivoOmision ? 'Omitida' : resumen.ejecutable ? 'Disponible' : 'No disponible' }}
+                                    — {{ !resumen.habilitada ? 'Deshabilitada' : grupo.esCiclo && resumen.motivoOmision ? 'Omitida' : resumen.ejecutable ? 'Habilitada para intentar' : 'No disponible' }}
                                     <p>Términos: {{ resumen.terminos.slice(0, 5).join(', ') || 'Sin términos aplicables' }}
                                         @if (resumen.terminos.length > 5) { (+{{ resumen.terminos.length - 5 }} más) }
                                         · Origen: {{ resumen.origen.terminos }}</p>
@@ -132,6 +132,42 @@
                 }
             }
         </section>
+        @if (!modoDemo()) {
+            <section class="busqueda-resumen" aria-label="Resultados de búsquedas">
+                <p>Habilitada en configuración permite intentar la consulta; no garantiza disponibilidad del proveedor.</p>
+                @if (resultadoIndividual(); as fuente) {
+                    <h3>Última búsqueda individual</h3>
+                    <app-resultado-fuente [fuente]="fuente" />
+                }
+                @if (resultadoCiclo(); as resultado) {
+                    <h3>Último ciclo: {{ etiquetaEstado(resultado.estado) }}</h3>
+                    <p>Scraping: {{ etiquetaEstado(resultado.estadoScraping) }} · Evaluación: {{ etiquetaEstado(resultado.estadoEvaluacion) }} (global de pendientes, no atribuible a cada fuente).</p>
+                    @if (resultado.errorHistorial || resultado.historial?.guardado === false) {
+                        <p role="alert">{{ resultado.errorHistorial || resultado.historial?.error }}</p>
+                    }
+                    @for (fuente of resultado.fuentes; track fuente.plataforma) {
+                        <app-resultado-fuente [fuente]="fuente" />
+                    }
+                }
+                <h3>Ejecuciones recientes (hasta 20)</h3>
+                <button type="button" (click)="actualizarHistorial()" [disabled]="cargandoHistorial()">Actualizar historial</button>
+                @if (cargandoHistorial()) { <p role="status">Consultando historial...</p> }
+                @if (errorHistorial(); as error) { <p role="alert">{{ error }}</p> }
+                @for (ejecucion of historial(); track ejecucion.id) {
+                    <details>
+                        <summary>{{ ejecucion.tipo }} · {{ ejecucion.inicio }} · {{ etiquetaEstado(ejecucion.estado) }}</summary>
+                        <p>Inicio: {{ ejecucion.inicio }} · Fin: {{ ejecucion.fin || 'Sin finalización' }} · Duración: {{ ejecucion.duracion_ms }} ms</p>
+                        <p>Scraping: {{ etiquetaEstado(ejecucion.resumen.estadoScraping) }} · Evaluación: {{ etiquetaEstado(ejecucion.resumen.estadoEvaluacion) }} (global, sin atribución por fuente).</p>
+                        @if (ejecucion.resumen.motivoFinalizacion) { <p>Finalización: {{ ejecucion.resumen.motivoFinalizacion }}</p> }
+                        @for (fuente of ejecucion.resumen.fuentes; track fuente.plataforma) {
+                            <app-resultado-fuente [fuente]="fuente" />
+                        }
+                    </details>
+                } @empty {
+                    @if (!cargandoHistorial() && !errorHistorial()) { <p>No hay ejecuciones recientes.</p> }
+                }
+            </section>
+        }
         <!-- Scraping -->
         <div class="panel-grupo" role="group" aria-label="Acciones de scraping">
             <span class="grupo-label" id="label-scraping">Scraping</span>
@@ -260,14 +296,20 @@
                     <p-toggleswitch
                         [ngModel]="cronActivo()"
                         (ngModelChange)="toggleCron($event)"
-                        [disabled]="modoDemo()"
+                        [disabled]="modoDemo() || cambiandoCron()"
                         [pTooltip]="modoDemo() ? 'Activa un ciclo automático que se ejecuta cada martes a las 20:00 (ART) sin intervención manual.' : undefined"
                         tooltipPosition="top"
                         aria-label="Activar automatización semanal los martes a las 20:00" />
                     <span class="cron-texto" [class.cron-activo]="cronActivo()" aria-live="polite">
-                        {{ cronActivo() ? 'Martes 20:00' : 'Inactivo' }}
+                        {{ cronActivo() ? expresionCron() : 'Inactivo' }}
                     </span>
                 </div>
+                @if (zonaHoraria()) { <p>Zona horaria: {{ zonaHoraria() }}</p> }
+                @if (cambiandoCron()) { <p role="status">Confirmando automatización...</p> }
+                @if (errorCron(); as error) {
+                    <p role="alert">{{ error }}</p>
+                    <button type="button" (click)="consultarEstadoCron()">Consultar estado de automatización</button>
+                }
             </div>
         </div>
     </div>

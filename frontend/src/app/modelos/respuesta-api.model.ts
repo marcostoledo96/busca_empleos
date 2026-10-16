@@ -71,12 +71,71 @@ export interface ResumenBusqueda {
     };
 }
 
+export type EstadoFuente = 'completada' | 'sin_resultados' | 'parcial' | 'error' | 'timeout' | 'sin_credenciales' | 'deshabilitada' | 'omitida' | 'interrumpida' | 'ejecutando';
+
+export interface ErrorFuente {
+    tipo: string;
+    codigoHttp?: number;
+    mensaje?: string;
+}
+
+// El resumen durable omite nombres, mensajes y métricas no atribuibles.
+export interface ResultadoFuente {
+    plataforma: string;
+    nombre?: string;
+    estado: EstadoFuente;
+    estadoScraping?: EstadoFuente;
+    nuevas?: number | null;
+    actualizadas?: number | null;
+    reapariciones?: number | null;
+    duplicadas?: number | null;
+    duplicadasDescartadas?: number | null;
+    idiomaDescartadas?: number | null;
+    antiguasDescartadas?: number | null;
+    totalCrudos?: number | null;
+    totalElegibles?: number | null;
+    peticionesRealizadas?: number | null;
+    consultasEjecutadas?: number | null;
+    errores?: ErrorFuente[];
+    motivoFinalizacion?: string;
+    duracionMs?: number | null;
+    resultadosConsultas?: {
+        consulta: string | null;
+        estado: EstadoFuente;
+        peticionesRealizadas: number | null;
+        totalCrudos: number | null;
+        errores: ErrorFuente[];
+    }[];
+}
+
+export interface ResultadoBusqueda {
+    estado?: EstadoFuente;
+    estadoScraping?: EstadoFuente;
+    estadoEvaluacion?: EstadoFuente;
+    fuentes?: ResultadoFuente[];
+    configuracion?: ResumenBusqueda[];
+    historial?: { id: number | string; guardado: boolean; error?: string };
+    errorHistorial?: string;
+}
+
+export interface EjecucionBusqueda {
+    id: number | string;
+    tipo: 'individual' | 'ciclo_manual' | 'cron';
+    inicio: string;
+    fin: string | null;
+    estado: EstadoFuente;
+    duracion_ms: number | string;
+    resumen: ResultadoBusqueda & { motivoFinalizacion?: string; evaluacionGlobal?: boolean };
+}
+
 export interface InicioAutomatizacion {
     configuracion?: ResumenBusqueda[];
 }
 
 // Respuesta específica de los endpoints de scraping.
 export interface RespuestaScraping {
+    fuente?: ResultadoFuente;
+    historial?: { id: number | string; guardado: boolean; error?: string };
     mensaje: string;
     plataforma: string;
     ofertas_nuevas: number;
@@ -146,7 +205,9 @@ export interface EstadoAutomatizacion {
     activo: boolean;
     expresionCron: string | null;
     ultimaEjecucion: string | null;
-    ultimoResultado: (Record<string, unknown> & { configuracion?: ResumenBusqueda[] }) | null;
+    zonaHoraria?: string;
+    errorCron?: string | null;
+    ultimoResultado: ResultadoBusqueda | null;
 }
 
 // Respuesta al iniciar/detener el cron.
@@ -168,6 +229,7 @@ export interface PasoProgreso {
 
 // Progreso del ciclo automático completo.
 export interface ProgresoAutomatizacion {
+    error?: string;
     configuracion?: ResumenBusqueda[];
     activo: boolean;
     pasos: PasoProgreso[];

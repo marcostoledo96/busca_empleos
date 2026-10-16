@@ -210,8 +210,8 @@ Pruebas: Jest backend, Angular, build, PostgreSQL aislado y `git diff --check`. 
 
 ## Tasks
 T1 | S1-S3,S6-S7 | delegated worker: scrapers y presupuestos | done | 4b54778; RED 19 nuevas fallidas/129 previas PASS; GREEN y parent spot check 169 PASS; diff-check PASS. Revisión independiente del PR slice al finalizar integración.
-T2 | S1-S5,S7 | delegated worker: orquestación, historial y cron | in_progress | commit pendiente.
-T3 | S1-S2,S4,S6-S7 | delegated worker: panel, contratos Angular y docs | pending | commit pendiente.
+T2 | S1-S5,S7 | delegated worker: orquestación, historial y cron | done | 62fe20b; 143 pruebas focales PASS; PostgreSQL real 1 PASS (migración idempotente, 20 filas, sanitización, reinicio e interrupción protegida). RED host inet con máscara corregido a host(inet_server_addr()).
+T3 | S1-S2,S4,S6-S7 | delegated worker: panel, contratos Angular y docs | in_progress | commit pendiente.
 T4 | S1-S8 | independent verify + parent: integración, revisión, publicación y CI | pending | commit pendiente.
 
 ## Log
