@@ -2,8 +2,8 @@
 //
 // InfoJobs está desactivado en el registry de plataformas (activa: false).
 // El endpoint sigue existiendo para compatibilidad con el frontend, pero
-// retorna inmediatamente una respuesta controlada sin invocar el servicio
-// de scraping ni la base de datos.
+// retorna una respuesta controlada sin invocar el scraper ni persistir ofertas.
+// Simulo el historial de ejecución para que esta suite no requiera PostgreSQL.
 //
 // ¿Qué cubre esta suite?
 // ------------------------------------------------------------------
@@ -11,6 +11,12 @@
 //   b) Respuesta incluye codigo_resultado 'PLATAFORMA_INACTIVA' y advertencia.
 //   c) No se invoca crearOferta (no toca la BD).
 
+jest.mock('../../src/config/base-datos', () => ({ query: jest.fn() }));
+jest.mock('../../src/modelos/ejecucion-busqueda', () => ({
+    iniciar: jest.fn(async () => ({ id: 1 })),
+    finalizar: jest.fn(async () => {}),
+    listar: jest.fn(),
+}));
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
@@ -22,6 +28,8 @@ const request = require('supertest');
 const app = require('../../src/app');
 const servicioScraping = require('../../src/servicios/servicio-scraping');
 const modeloOferta = require('../../src/modelos/oferta');
+const historial = require('../../src/modelos/ejecucion-busqueda');
+const pool = require('../../src/config/base-datos');
 
 describe('Integración: POST /api/scraping/infojobs (inactiva en registry)', () => {
 
@@ -47,8 +55,13 @@ describe('Integración: POST /api/scraping/infojobs (inactiva en registry)', () 
         // El servicio de scraping NO fue invocado.
         expect(servicioScraping.ejecutarScrapingInfojobs).not.toHaveBeenCalled();
 
-        // La base de datos NO fue tocada.
+        // Registro la consulta deshabilitada sin tocar PostgreSQL ni guardar ofertas.
         expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
+        expect(pool.query).not.toHaveBeenCalled();
+        expect(historial.iniciar).toHaveBeenCalledWith('individual');
+        expect(historial.finalizar).toHaveBeenCalledTimes(1);
+        expect(res.body.datos.fuente.estado).toBe('deshabilitada');
+        expect(res.body.datos.historial).toEqual({ id: 1, guardado: true });
     });
 
     // -----------------------------------------------------------------------
