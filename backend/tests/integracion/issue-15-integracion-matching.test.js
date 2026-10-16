@@ -22,6 +22,11 @@ jest.mock('../../src/modelos/oferta', () => ({
     guardarResultadoEvaluacion: jest.fn().mockImplementation((id, res) => Promise.resolve({ id, ...res })),
 }));
 
+jest.mock('../../src/modelos/evaluacion-cache', () => ({
+    buscarCache: jest.fn().mockResolvedValue(null),
+    guardarCache: jest.fn().mockResolvedValue(),
+}));
+
 const { consultarDeepSeek } = require('../../src/config/deepseek');
 
 describe('Issue #15: Integración Normalización → Ingreso → Evaluación', () => {

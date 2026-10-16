@@ -1,0 +1,23 @@
+// Comparto ejemplos sintéticos de precedencia y validación entre JavaScript y SQL.
+module.exports = [
+    ['indeed', 'https://ar.indeed.com/viewjob?jk=BAD%20&vjk=ABC123', {}, 'abc123'],
+    ['indeed', 'https://ar.indeed.com/viewjob?vjk=ABC123&jk=BAD%20', {}, 'abc123'],
+    ['indeed', 'https://ar.indeed.com/viewjob?jk=%41BC123', {}, 'abc123'],
+    ['indeed', 'https://ar.indeed.com/viewjob?jk=ABC?junk&vjk=DEF456', {}, 'def456'],
+    ['indeed', 'https://ar.indeed.com/viewjob?%6Ak=ABC123', {}, 'abc123'],
+    ['indeed', 'https://ar.indeed.com/viewjob?JK=ABC123', {}, null],
+    ['indeed', 'https://ar.indeed.com/viewjob?jk=AB%00C&vjk=DEF456', {}, 'def456'],
+    ['indeed', 'https://ar.indeed.com/viewjob?jk=BAD%20&jk=OTRO&vjk=ABC123', {}, 'abc123'],
+    ['indeed', 'https://ar.indeed.com/job/dev-1111111111111111', { jk: '2222222222222222' }, '1111111111111111'],
+    ['indeed', 'https://ar.indeed.com/job/dev-2222222222222222', { jk: '1111111111111111' }, '2222222222222222'],
+    ['indeed', 'https://ar.indeed.com/job/dev-1111111111111111', { jk: '1111111111111111' }, '1111111111111111'],
+    ['indeed', 'https://ar.indeed.com/viewjob', { jk: 'BAD ', vjk: 'ABC123' }, 'abc123'],
+    ['indeed', 'https://ar.indeed.com/viewjob', {}, null],
+    ['linkedin', 'https://www.linkedin.com/jobs/search/?currentJobId=BAD&jobId=1234567890', {}, '1234567890'],
+    ['linkedin', 'https://www.linkedin.com/jobs/search/?jobId=1234567890&currentJobId=BAD', {}, '1234567890'],
+    ['linkedin', 'https://www.linkedin.com/jobs/search/?%63urrentJobId=%311234567890', {}, '11234567890'],
+    ['linkedin', 'https://www.linkedin.com/jobs/view/1234567890123456', {}, '1234567890123456'],
+    ['linkedin', 'https://www.linkedin.com/jobs/view/12345678901234567', {}, null],
+    ['linkedin', 'https://www.linkedin.com/jobs/search/', { jobId: 'BAD', currentJobId: '1234567890' }, '1234567890'],
+    ['linkedin', 'https://www.linkedin.com/jobs/search/?jobId=1234567890x', {}, null],
+];

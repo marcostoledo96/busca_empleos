@@ -436,15 +436,41 @@ Parsea strings de salario como `"$50,000.00/yr - $70,000.00/yr"`:
 - **Diseño resiliente:** es mejor tener 99 ofertas que 0 por un item roto.
 - Soporta todas las plataformas del registry (ver `backend/src/config/plataformas.js`), con normalización automática de slugs HTTP a ids internos (ej: `google-jobs` → `google_jobs`).
 
-## Guardado en BD (en el controlador)
+## Deduplicación por identidad canónica y gestión de reapariciones (issue #19)
 
-El controlador de scraping orquesta el flujo completo:
-1. Llama al servicio de scraping → obtiene ofertas normalizadas.
-2. Llama a `crearOferta()` por cada oferta → guarda en BD.
-3. Cuenta nuevas vs. duplicadas (deduplicación por URL).
-4. Responde con resumen JSON.
+Documento la precedencia exacta de IDs contradictorios, parámetros codificados,
+preservación histórica y migración incremental 025 en
+[Identidad de ofertas](identidad-ofertas.md). Normalización y persistencia comparten
+la URL nativa elegida; no fusiono IDs diferentes aunque coincidan título y empresa.
 
-El guardado está en el controlador (no en el servicio) para mantener la separación de responsabilidades: el servicio solo extrae y normaliza, el controlador orquesta.
+### Deduplicación intra-ejecución en memoria
+- Antes de entregar el array de ofertas normalizadas o aplicar el límite estricto `slice(0, maxResultados)`, cada scraper deduplica en memoria utilizando la identidad canónica calculada por `obtenerIdentidadCanonica()` (`servicio-identidad-ofertas.js`).
+- Plataformas con identificadores específicos (Indeed `jk`, LinkedIn `jobId`, Computrabajo hash, Bumeran ID, etc.) son unificadas sin importar variaciones en dominios (`ar.indeed.com` vs `indeed.com`), rutas (`/viewjob` vs `/rc/clk`) o parámetros volátiles de tracking (`utm_source`, `refId`, etc.).
+- Las ofertas repetidas dentro de la misma ejecución son descartadas tempranamente y registradas en la métrica `duplicadasDescartadas` (disponible en `resultado.metricas.duplicadasDescartadas` y como propiedad no enumerable).
+
+### Reglas de calidad y persistencia de reapariciones
+- La persistencia unificada se realiza a través de `guardarLoteOfertasAislado` (en `servicio-ingreso-ofertas.js`), consumido tanto por los controladores de scraping individual como por el ciclo de automatización (`servicio-automatizacion.js`).
+- **Nuevas ofertas:** Persistidas con `es_nueva = true`, `resultado_persistencia = 'insertada'`, asignando `fecha_extraccion = NOW()` y `fecha_ultima_extraccion = NOW()`.
+- **Reapariciones:**
+  - `fecha_extraccion` histórica se preserva inalterada.
+  - `fecha_ultima_extraccion` se actualiza al timestamp actual (`NOW()`).
+  - El estado manual de postulación (`cv_enviado`, `en_proceso`, `descartada`) nunca se sobrescribe.
+  - Si `origen_descripcion = 'manual'`, la descripción manual confirmada por el usuario nunca se sobrescribe.
+  - Si la nueva extracción aporta una descripción más larga o completa modalidad o ubicación ausentes, se enriquecen dichos campos, la oferta pasa a `estado_evaluacion = 'pendiente'` y se marca `evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA'` sin disparar reevaluaciones automáticas de pago.
+- **Nuevos contadores:**
+  - `ofertas_nuevas` (`guardadas`): Ofertas insertadas por primera vez en la base de datos.
+  - `ofertas_actualizadas` (`actualizadas`): Ofertas existentes cuyos datos fueron enriquecidos (descripción más larga, modalidad o ubicación completada).
+  - `ofertas_reapariciones` (`reapariciones`): Ofertas existentes detectadas nuevamente sin cambios estructurales en sus datos esenciales.
+  - `ofertas_duplicadas` (`duplicadas`): Suma de actualizadas y reapariciones, manteniendo compatibilidad hacia atrás con clientes y tests que esperan el total de ofertas preexistentes.
+
+## Guardado en BD (en el controlador y automatización)
+
+El controlador de scraping y el servicio de automatización orquestan el flujo completo:
+1. Llaman al servicio de scraping → obtienen ofertas normalizadas y deduplicadas intra-ejecución.
+2. Aplican `filtrarOfertasPorIdioma` para descartar ofertas en inglés.
+3. Llaman a `guardarLoteOfertasAislado(ofertas, modeloOferta)` → persistencia atómica con upsert seguro por identidad canónica.
+4. Discriminan contadores: `guardadas` (nuevas), `actualizadas` (enriquecidas), `reapariciones` (vistas nuevamente) y `duplicadas` (total preexistentes).
+5. Responden con resumen JSON detallado.
 
 ## InfoJobs España — estado actual
 

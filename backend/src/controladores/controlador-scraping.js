@@ -32,6 +32,8 @@ function construirRespuestaScraping({
     ofertasNormalizadas,
     ofertasParaGuardar,
     guardadas,
+    actualizadas = 0,
+    reapariciones = 0,
     duplicadas,
     errores = 0,
     resumen,
@@ -50,7 +52,7 @@ function construirRespuestaScraping({
 
     const configuracion = resumen || null;
 
-    let mensaje = `Scraping de ${nombre} completado: ${guardadas} ofertas nuevas.`;
+    let mensaje = `Scraping de ${nombre} completado: ${guardadas} ofertas nuevas, ${actualizadas} actualizadas y ${reapariciones} reapariciones.`;
     if (errores > 0) {
         mensaje += ` (${errores} errores aislados al persistir).`;
     }
@@ -59,6 +61,8 @@ function construirRespuestaScraping({
         mensaje,
         plataforma,
         ofertas_nuevas: guardadas,
+        ofertas_actualizadas: actualizadas,
+        ofertas_reapariciones: reapariciones,
         ofertas_duplicadas: duplicadas,
         ofertas_errores: errores,
         total_extraidas: ofertasNormalizadas.length,
@@ -90,7 +94,7 @@ function construirRespuestaScraping({
 }
 
 function responderScraping(res, payload) {
-    const { ofertasParaGuardar, guardadas, duplicadas, errores = 0, nombre } = payload;
+    const { ofertasParaGuardar, guardadas, actualizadas = 0, reapariciones = 0, duplicadas, errores = 0, nombre } = payload;
     const falloTotal = ofertasParaGuardar.length > 0 && errores > 0 && guardadas === 0 && duplicadas === 0;
 
     const status = falloTotal ? 500 : 200;
@@ -115,7 +119,7 @@ async function scrapearLinkedin(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingLinkedin(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'linkedin',
@@ -123,6 +127,8 @@ async function scrapearLinkedin(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -142,7 +148,7 @@ async function scrapearComputrabajo(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingComputrabajo(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'computrabajo',
@@ -150,6 +156,8 @@ async function scrapearComputrabajo(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -169,7 +177,7 @@ async function scrapearIndeed(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingIndeed(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'indeed',
@@ -177,6 +185,8 @@ async function scrapearIndeed(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -195,7 +205,7 @@ async function scrapearBumeran(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingBumeran(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'bumeran',
@@ -203,6 +213,8 @@ async function scrapearBumeran(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -222,7 +234,7 @@ async function scrapearGlassdoor(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingGlassdoor(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'glassdoor',
@@ -230,6 +242,8 @@ async function scrapearGlassdoor(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -275,7 +289,7 @@ async function scrapearJooble(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingJooble(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'jooble',
@@ -283,6 +297,8 @@ async function scrapearJooble(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -310,6 +326,8 @@ async function scrapearGoogleJobs(req, res) {
             mensaje: `${plataforma.label} está desactivado. ${plataforma.motivo || 'No se realizó ninguna extracción.'}`,
             plataforma: plataforma.id,
             ofertas_nuevas: 0,
+            ofertas_actualizadas: 0,
+            ofertas_reapariciones: 0,
             ofertas_duplicadas: 0,
             total_extraidas: 0,
             codigo_resultado: 'PLATAFORMA_INACTIVA',
@@ -335,7 +353,7 @@ async function scrapearRemotive(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemotive(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'remotive',
@@ -343,6 +361,8 @@ async function scrapearRemotive(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -366,7 +386,7 @@ async function scrapearRemoteOK(req, res) {
     const ofertasNormalizadas = await servicioScraping.ejecutarScrapingRemoteOK(opciones);
 
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'remoteok',
@@ -374,6 +394,8 @@ async function scrapearRemoteOK(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,
@@ -395,6 +417,8 @@ async function scrapearInfojobs(req, res) {
             mensaje: `${plataforma.label} está desactivado. ${plataforma.motivo || 'No se realizó ninguna extracción.'}`,
             plataforma: plataforma.id,
             ofertas_nuevas: 0,
+            ofertas_actualizadas: 0,
+            ofertas_reapariciones: 0,
             ofertas_duplicadas: 0,
             total_extraidas: 0,
             codigo_resultado: 'PLATAFORMA_INACTIVA',
@@ -431,6 +455,8 @@ async function scrapearAdzuna(req, res) {
                 mensaje: 'Adzuna está deshabilitado por falta de credenciales.',
                 plataforma: 'adzuna',
                 ofertas_nuevas: 0,
+                ofertas_actualizadas: 0,
+                ofertas_reapariciones: 0,
                 ofertas_duplicadas: 0,
                 total_extraidas: 0,
                 codigo_resultado: resultadoServicio.codigo_resultado,
@@ -442,7 +468,7 @@ async function scrapearAdzuna(req, res) {
 
     const ofertasNormalizadas = resultadoServicio;
     const ofertasParaGuardar = filtrarOfertasPorIdioma(ofertasNormalizadas);
-    const { guardadas, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
+    const { guardadas, actualizadas, reapariciones, duplicadas, errores } = await guardarLoteOfertasAislado(ofertasParaGuardar, modeloOferta);
 
     return responderScraping(res, {
         plataforma: 'adzuna',
@@ -450,6 +476,8 @@ async function scrapearAdzuna(req, res) {
         ofertasNormalizadas,
         ofertasParaGuardar,
         guardadas,
+        actualizadas,
+        reapariciones,
         duplicadas,
         errores,
         resumen,

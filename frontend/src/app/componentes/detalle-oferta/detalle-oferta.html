@@ -444,8 +444,14 @@
             <div class="detalle-fechas">
                 <span class="fecha-item">
                     <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
-                    Detectada: {{ o.fecha_extraccion | date:'dd/MM/yyyy HH:mm' }}
+                    Primera detección: {{ o.fecha_extraccion | date:'dd/MM/yyyy HH:mm' }}
                 </span>
+                @if (tieneUltimaDeteccion(o)) {
+                    <span class="fecha-item">
+                        <span class="material-symbols-outlined" aria-hidden="true">history</span>
+                        Última detección: {{ o.fecha_ultima_extraccion | date:'dd/MM/yyyy HH:mm' }}
+                    </span>
+                }
                 @if (o.fecha_publicacion) {
                     <span class="fecha-item">
                         <span class="material-symbols-outlined" aria-hidden="true">event_available</span>

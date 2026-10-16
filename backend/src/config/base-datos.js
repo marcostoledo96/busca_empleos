@@ -20,14 +20,27 @@ const logger = require('../utils/logger');
 const esEntornoTest = process.env.NODE_ENV === 'test';
 const archivoEntorno = esEntornoTest ? '.env.test' : '.env';
 
-if (esEntornoTest) {
-    delete process.env.DATABASE_URL;
+const esBaseSintetica = process.env.DB_TEST_SINTETICA === 'true';
+if (esBaseSintetica) {
+    // Exijo conexión local explícita; nunca dejo que un archivo reemplace el aislamiento.
+    if ((!esEntornoTest && process.env.NODE_ENV !== 'production_test') || process.env.PGHOST !== '127.0.0.1'
+        || !/^[0-9]+$/.test(process.env.PGPORT || '')
+        || Number(process.env.PGPORT) < 1024 || Number(process.env.PGPORT) > 65535
+        || !(process.env.PGDATABASE || '').endsWith('_test')
+        || !process.env.PGUSER || !process.env.PGPASSWORD
+        || process.env.DATABASE_URL || process.env.PGSERVICE || process.env.PGSERVICEFILE
+        || process.env.PGSSLMODE !== 'disable') {
+        throw new Error('Configuración sintética de BD inválida.');
+    }
+} else {
+    if (esEntornoTest) {
+        delete process.env.DATABASE_URL;
+    }
+    require('dotenv').config({
+        path: path.resolve(__dirname, '../../', archivoEntorno),
+        override: esEntornoTest,
+    });
 }
-
-require('dotenv').config({
-    path: path.resolve(__dirname, '../../', archivoEntorno),
-    override: esEntornoTest,
-});
 
 // En producción (Railway, Render, etc.) el PaaS provee DATABASE_URL automáticamente.
 // Esa variable ya incluye host, puerto, usuario y contraseña en una sola cadena.

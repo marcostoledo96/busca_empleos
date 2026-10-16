@@ -247,4 +247,42 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(texto).toContain('Se conserva la evaluación anterior válida. Motivo: Error 500: servicio no disponible al reevaluar');
         expect(texto).not.toContain('Evaluación desactualizada — pendiente de reevaluación');
     });
+
+    it('renderiza Primera detección y no renderiza Última detección si no hay fecha_ultima_extraccion o es idéntica', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            fecha_extraccion: '2026-04-01T12:00:00',
+            fecha_ultima_extraccion: null,
+            fecha_publicacion: '2026-04-01T12:00:00',
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Primera detección:');
+        expect(texto).toContain('01/04/2026');
+        expect(texto).not.toContain('Última detección:');
+        expect(texto).toContain('Publicada: 01/04/2026');
+    });
+
+    it('renderiza Primera detección y Última detección cuando fecha_ultima_extraccion es distinta a fecha_extraccion', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', {
+            ...mockOferta,
+            fecha_extraccion: '2026-04-01T12:00:00',
+            fecha_ultima_extraccion: '2026-04-05T15:30:00',
+            fecha_publicacion: null,
+        } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const texto = fixture.nativeElement.textContent;
+        expect(texto).toContain('Primera detección:');
+        expect(texto).toContain('Última detección:');
+        expect(texto).toContain('01/04/2026');
+        expect(texto).toContain('05/04/2026');
+        expect(texto).toContain('Publicación: Desconocida / No informada');
+        expect(texto).not.toContain('Publicada: 05/04/2026');
+    });
 });

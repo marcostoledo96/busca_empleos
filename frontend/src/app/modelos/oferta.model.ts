@@ -58,6 +58,8 @@ export interface Oferta {
     fecha_publicacion: string | null;
     fecha_publicacion_aproximada?: boolean;
     fecha_extraccion: string;
+    fecha_ultima_extraccion?: string | null;
+    identidad_canonica?: string | null;
     datos_crudos: Record<string, unknown> | null;
     firma_criterios_evaluacion?: string | null;
     vigencia_evaluacion?: 'actual' | 'anterior' | 'desconocida';

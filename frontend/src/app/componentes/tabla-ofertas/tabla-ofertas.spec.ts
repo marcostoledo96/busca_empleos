@@ -211,4 +211,45 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
         }
         expect(true).toBeTrue(); // Sin ofertas, array vacío — test sigue siendo válido
     });
+
+    it('renderiza detección simple y tooltip estándar cuando no hay reaparición', () => {
+        const oferta = {
+            ...mockOfertas[0],
+            fecha_extraccion: '2026-04-01T12:00:00',
+            fecha_ultima_extraccion: null,
+        };
+        fixture.componentRef.setInput('ofertas', [oferta] as any);
+        fixture.detectChanges();
+
+        const celda = fixture.nativeElement.querySelector('td.columna-extraida');
+        expect(celda.textContent).toContain('Det: 01/04/26');
+        expect(celda.textContent).not.toContain('Reaparición');
+        const spanFecha = celda.querySelector('span');
+        expect(spanFecha.getAttribute('title')).toContain('Detectada: 01/04/2026 12:00');
+    });
+
+    it('renderiza reaparición y tooltip completo cuando fecha_ultima_extraccion es distinta a fecha_extraccion', () => {
+        const oferta = {
+            ...mockOfertas[0],
+            fecha_extraccion: '2026-04-01T12:00:00',
+            fecha_ultima_extraccion: '2026-04-05T15:30:00',
+        };
+        fixture.componentRef.setInput('ofertas', [oferta] as any);
+        fixture.detectChanges();
+
+        const celda = fixture.nativeElement.querySelector('td.columna-extraida');
+        expect(celda.textContent).toContain('Det: 01/04/26 (Reaparición: 05/04/26)');
+        const spanFecha = celda.querySelector('span');
+        expect(spanFecha.getAttribute('title')).toContain('Primera detección: 01/04/2026 12:00 | Última detección: 05/04/2026 15:30');
+    });
+
+    it('tieneReaparicion discrimina correctamente según fecha_ultima_extraccion', () => {
+        const oSinUltima = { ...mockOfertas[0], fecha_extraccion: '2026-04-01T12:00:00.000Z', fecha_ultima_extraccion: null } as any;
+        const oIgual = { ...mockOfertas[0], fecha_extraccion: '2026-04-01T12:00:00.000Z', fecha_ultima_extraccion: '2026-04-01T12:00:00.000Z' } as any;
+        const oDistinta = { ...mockOfertas[0], fecha_extraccion: '2026-04-01T12:00:00.000Z', fecha_ultima_extraccion: '2026-04-05T15:30:00.000Z' } as any;
+
+        expect(component.tieneReaparicion(oSinUltima)).toBeFalse();
+        expect(component.tieneReaparicion(oIgual)).toBeFalse();
+        expect(component.tieneReaparicion(oDistinta)).toBeTrue();
+    });
 });
