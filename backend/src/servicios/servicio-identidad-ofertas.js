@@ -98,68 +98,22 @@ function extraerIdentificadorPlataforma(url, plataforma, datosCrudos = null) {
         }
     }
 
-    if (plat === 'indeed') {
-        // Extraigo jk o vjk de searchParams o datosCrudos
-        let jk = null;
-        if (urlObj) {
-            jk = urlObj.searchParams.get('jk') || urlObj.searchParams.get('vjk');
-        }
-        if (!jk && crudos) {
-            jk = crudos.jk || crudos.vjk || crudos.key || crudos.jobKey || crudos.id;
-        }
-        if (!jk && typeof url === 'string') {
-            const matchJk = url.match(/[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)/i) || url.match(/[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)/i);
-            if (matchJk) {
-                jk = matchJk[1];
-            } else {
-                const matchJob = url.match(/\/job\/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)/i);
-                if (matchJob) {
-                    jk = matchJob[1];
-                }
-            }
-        }
-        if (jk && /^[a-zA-Z0-9]+$/.test(String(jk))) {
-            return String(jk).toLowerCase();
-        }
-        return null;
-    }
-
-    if (plat === 'linkedin') {
-        // Extraigo job ID de /jobs/view/{id}, /jobs/view/{slug}-{id}, currentJobId o jobId.
-        // Validar numérico /^\d{8,16}$/
-        let jobId = null;
-        if (urlObj) {
-            const pathname = urlObj.pathname;
-            const matchView = pathname.match(/\/jobs\/view\/(?:[a-zA-Z0-9_%-]+-)?(\d{8,16})(?:[/?#]|$)/i);
-            if (matchView) {
-                jobId = matchView[1];
-            }
-            if (!jobId) {
-                const qId = urlObj.searchParams.get('currentJobId') || urlObj.searchParams.get('jobId');
-                if (qId && /^\d{8,16}$/.test(qId)) {
-                    jobId = qId;
-                }
-            }
-        } else if (typeof url === 'string') {
-            const matchView = url.match(/\/jobs\/view\/(?:[a-zA-Z0-9_%-]+-)?(\d{8,16})(?:[/?#]|$)/i);
-            if (matchView) {
-                jobId = matchView[1];
-            } else {
-                const matchQuery = url.match(/[?&]currentJobId=(\d{8,16})(?:[&#]|$)/i) || url.match(/[?&]jobId=(\d{8,16})(?:[&#]|$)/i);
-                if (matchQuery) {
-                    jobId = matchQuery[1];
-                }
-            }
-        }
-
-        if (!jobId && crudos) {
-            const idCandidato = crudos.jobId || crudos.currentJobId || crudos.id;
-            if (idCandidato && /^\d{8,16}$/.test(String(idCandidato))) {
-                jobId = String(idCandidato);
-            }
-        }
-
-        return jobId || null;
+    if (plat === 'indeed' || plat === 'linkedin') {
+        // La URL identifica el aviso navegable; los crudos sólo completan una URL sin ID.
+        const esIndeed = plat === 'indeed';
+        const patron = esIndeed ? /^[a-zA-Z0-9]+$/ : /^\d{8,16}$/;
+        const clavesQuery = esIndeed ? ['jk', 'vjk'] : ['currentJobId', 'jobId'];
+        const clavesCrudos = esIndeed ? ['jk', 'vjk', 'key', 'jobKey', 'id'] : ['jobId', 'currentJobId', 'id'];
+        const idPath = urlObj?.pathname.match(esIndeed
+            ? /\/job\/.*-([a-zA-Z0-9]{16})(?:\/|$)/i
+            : /\/jobs\/view\/(?:[a-zA-Z0-9_%-]+-)?(\d{8,16})(?:\/|$)/i)?.[1];
+        const idsQuery = clavesQuery.map(clave => urlObj?.searchParams.get(clave));
+        const candidatos = [
+            ...(esIndeed ? [...idsQuery, idPath] : [idPath, ...idsQuery]),
+            ...clavesCrudos.map(clave => crudos?.[clave]),
+        ];
+        const id = candidatos.find(candidato => candidato != null && patron.test(String(candidato)));
+        return id == null ? null : (esIndeed ? String(id).toLowerCase() : String(id));
     }
 
     if (plat === 'getonbrd') {
@@ -261,9 +215,11 @@ function extraerIdentificadorPlataforma(url, plataforma, datosCrudos = null) {
  *
  * @param {string} url - URL a canonizar.
  * @param {string} [plataforma='general'] - Plataforma asociada.
+ * @param {Object|null} [datosCrudos=null] - Completo un ID ausente en la URL.
+ * @param {string|null} [identidadExistente=null] - Preservo una identidad nativa ya asignada.
  * @returns {string} URL canonizada o la URL original si es inválida.
  */
-function canonizarUrlPlataforma(url, plataforma = 'general') {
+function canonizarUrlPlataforma(url, plataforma = 'general', datosCrudos = null, identidadExistente = null) {
     if (!url || typeof url !== 'string' || url.trim() === '') {
         return url || '';
     }
@@ -286,7 +242,9 @@ function canonizarUrlPlataforma(url, plataforma = 'general') {
     parseada.hash = '';
 
     if (plat === 'indeed') {
-        const jk = extraerIdentificadorPlataforma(urlLimpia, 'indeed');
+        const jk = /^indeed:[a-z0-9]+$/.test(identidadExistente || '')
+            ? identidadExistente.slice(7)
+            : extraerIdentificadorPlataforma(urlLimpia, 'indeed', datosCrudos);
         if (jk) {
             parseada.pathname = '/viewjob';
             parseada.search = `?jk=${jk}`;
@@ -310,7 +268,9 @@ function canonizarUrlPlataforma(url, plataforma = 'general') {
     }
 
     if (plat === 'linkedin') {
-        const jobId = extraerIdentificadorPlataforma(urlLimpia, 'linkedin');
+        const jobId = /^linkedin:\d{8,16}$/.test(identidadExistente || '')
+            ? identidadExistente.slice(9)
+            : extraerIdentificadorPlataforma(urlLimpia, 'linkedin', datosCrudos);
         if (jobId) {
             return `https://www.linkedin.com/jobs/view/${jobId}`;
         }
@@ -426,6 +386,11 @@ function obtenerIdentidadCanonica(oferta) {
     const platOriginal = esString ? '' : (oferta.plataforma || '');
     const plat = String(platOriginal || '').toLowerCase().trim();
     const platPrefijo = plat || 'general';
+    // No sustituyo una identidad nativa ya asignada por evidencia contradictoria.
+    if (!esString && ((plat === 'indeed' && /^indeed:[a-z0-9]+$/.test(oferta.identidad_canonica || ''))
+        || (plat === 'linkedin' && /^linkedin:\d{8,16}$/.test(oferta.identidad_canonica || '')))) {
+        return oferta.identidad_canonica;
+    }
 
     const urlCruda = esString
         ? oferta

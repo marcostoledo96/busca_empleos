@@ -122,7 +122,7 @@ function normalizarOfertaLinkedin(item) {
     // Canonizo la URL: remuevo query params y fragments para deduplicar.
     // LinkedIn agrega parámetros de tracking como ?refId=abc que cambian
     // entre runs, causando duplicados en la tabla ofertas (UNIQUE(url)).
-    const url = canonizarUrlLinkedin(urlCruda);
+    const url = canonizarUrlPlataforma(urlCruda, 'linkedin', item);
 
     // Calculo la identidad canónica según reglas unificadas
     const identidadCanonica = obtenerIdentidadCanonica({
@@ -263,7 +263,7 @@ function normalizarOfertaIndeed(item) {
         throw new Error('El item de Indeed no tiene URL.');
     }
 
-    const url = canonizarUrlPlataforma(urlCruda, 'indeed');
+    const url = canonizarUrlPlataforma(urlCruda, 'indeed', item);
     const identidadCanonica = obtenerIdentidadCanonica({
         url: urlCruda,
         plataforma: 'indeed',

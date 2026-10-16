@@ -88,14 +88,10 @@ async function crearOferta(datos) {
         datos_crudos,
         origen_descripcion,
         descripcion_completitud,
-        identidad_canonica,
     } = datos;
 
-    const urlCanonica = canonizarUrlPlataforma(url, plataforma);
-    const identidadCanonicaFinal = identidad_canonica || obtenerIdentidadCanonica({
-        ...datos,
-        url: urlCanonica || url,
-    });
+    const identidadCanonicaFinal = obtenerIdentidadCanonica(datos);
+    const urlCanonica = canonizarUrlPlataforma(url, plataforma, datos_crudos, identidadCanonicaFinal);
 
     const origenDescripcionFinal = origen_descripcion
         || (plataforma === 'bumeran' ? 'tarjeta' : 'scraper');

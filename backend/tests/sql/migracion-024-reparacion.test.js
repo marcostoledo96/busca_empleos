@@ -30,6 +30,13 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
         await pool.end();
     });
 
+    test.each(require('../fixtures/casos-identidad'))('PR39 paridad 024: %s %s', async (plataforma, url, datos, id) => {
+        await pool.query(contenidoSql024);
+        const resultado = await pool.query('SELECT fn_obtener_identidad_canonica_023($1, $2, $3, 1) AS identidad', [url, plataforma, datos]);
+        expect(resultado.rows[0].identidad).toBe(obtenerIdentidadCanonica({ url, plataforma, datos_crudos: datos }));
+        if (id) expect(resultado.rows[0].identidad).toBe(`${plataforma}:${id}`);
+    });
+
     test('Repara identidades históricas en base donde 023 ya estaba registrada', async () => {
         // 1. Simulo que 023 corrió previamente y ya creó el índice UNIQUE
         await pool.query(contenidoSql023);
@@ -166,7 +173,10 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
                 plataforma: filaBd.plataforma,
                 datos_crudos: filaBd.datos_crudos,
             });
-            expect(filaBd.identidad_canonica).toBe(identidadEsperadaJs);
+            const identidadPrevia = filas.find(fila => fila.titulo === filaBd.titulo).identidadDesfasada;
+            // No demuestro equivalencia entre IDs nativos diferentes: conservo el asignado.
+            const nativaPrevia = /^(indeed:[a-z0-9]+|linkedin:[0-9]{8,16})$/.test(identidadPrevia);
+            expect(filaBd.identidad_canonica).toBe(nativaPrevia ? identidadPrevia : identidadEsperadaJs);
         }
 
         // 5. Idempotencia: correr 024 de nuevo no rompe nada
@@ -180,7 +190,9 @@ contexto('Migración 024 — Reparación de identidades canónicas post-023', ()
                 plataforma: filaBd.plataforma,
                 datos_crudos: filaBd.datos_crudos,
             });
-            expect(filaBd.identidad_canonica).toBe(identidadEsperadaJs);
+            const identidadPrevia = filas.find(fila => fila.titulo === filaBd.titulo).identidadDesfasada;
+            const nativaPrevia = /^(indeed:[a-z0-9]+|linkedin:[0-9]{8,16})$/.test(identidadPrevia);
+            expect(filaBd.identidad_canonica).toBe(nativaPrevia ? identidadPrevia : identidadEsperadaJs);
         }
     });
 

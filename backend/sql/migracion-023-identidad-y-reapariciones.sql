@@ -316,6 +316,59 @@ END;
 $$;
 
 -- Funciones auxiliares inmutables para canonización y cálculo de identidad idéntica a JavaScript
+-- Valido cada alternativa decodificada; con claves repetidas uso sólo la primera ocurrencia.
+CREATE OR REPLACE FUNCTION fn_parametro_id_023(p_url text, p_claves text[], p_patron text)
+RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    v_clave text;
+    v_par text;
+    v_valor text;
+    v_query text := COALESCE(substring(split_part(p_url, '#', 1) FROM '^[^?]*\?(.*)$'), '');
+BEGIN
+    FOREACH v_clave IN ARRAY p_claves LOOP
+        FOREACH v_par IN ARRAY string_to_array(v_query, '&') LOOP
+            IF split_part(v_par, '=', 1) !~* '%00'
+               AND fn_url_decode_023(split_part(v_par, '=', 1)) = v_clave THEN
+                v_valor := substring(v_par FROM position('=' in v_par) + 1);
+                IF position('=' in v_par) > 0 AND v_valor !~* '%00'
+                   AND fn_url_decode_023(v_valor) ~ p_patron THEN
+                    RETURN fn_url_decode_023(v_valor);
+                END IF;
+                EXIT;
+            END IF;
+        END LOOP;
+    END LOOP;
+    RETURN NULL;
+END $$;
+
+CREATE OR REPLACE FUNCTION fn_id_nativo_023(p_url text, p_plataforma text, p_crudos jsonb)
+RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
+DECLARE
+    v_path text := regexp_replace(split_part(split_part(COALESCE(p_url, ''), '?', 1), '#', 1), '^https?://[^/]*', '', 'i');
+    v_id text;
+    v_clave text;
+    v_patron text;
+    v_claves text[];
+BEGIN
+    IF p_plataforma = 'indeed' THEN
+        v_patron := '^[a-zA-Z0-9]+$';
+        v_claves := ARRAY['jk', 'vjk', 'key', 'jobKey', 'id'];
+        v_id := fn_parametro_id_023(p_url, ARRAY['jk', 'vjk'], v_patron);
+        IF v_id IS NULL THEN v_id := (regexp_match(v_path, '/job/.*-([a-zA-Z0-9]{16})(?:/|$)', 'i'))[1]; END IF;
+    ELSE
+        v_patron := '^[0-9]{8,16}$';
+        v_claves := ARRAY['jobId', 'currentJobId', 'id'];
+        v_id := (regexp_match(v_path, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:/|$)', 'i'))[1];
+        IF v_id IS NULL THEN v_id := fn_parametro_id_023(p_url, ARRAY['currentJobId', 'jobId'], v_patron); END IF;
+    END IF;
+    IF v_id IS NULL THEN
+        FOREACH v_clave IN ARRAY v_claves LOOP
+            IF (p_crudos->>v_clave) ~ v_patron THEN v_id := p_crudos->>v_clave; EXIT; END IF;
+        END LOOP;
+    END IF;
+    RETURN CASE WHEN p_plataforma = 'indeed' THEN lower(v_id) ELSE v_id END;
+END $$;
+
 CREATE OR REPLACE FUNCTION fn_canonizar_url_023(p_url text, p_plataforma text)
 RETURNS text LANGUAGE plpgsql IMMUTABLE AS $$
 DECLARE
@@ -378,30 +431,12 @@ BEGIN
         v_authority := substring(v_authority from 1 for length(v_authority) - 4);
     END IF;
 
-    -- Formatos específicos por plataforma si hay ID nativo reconocible
-    IF v_plat = 'indeed' THEN
-        IF v_url ~* '[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)' THEN
-            v_match := regexp_match(v_url, '[?&]jk=([a-zA-Z0-9]+)(?:[&#]|$)', 'i');
-            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
-        ELSIF v_url ~* '[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)' THEN
-            v_match := regexp_match(v_url, '[?&]vjk=([a-zA-Z0-9]+)(?:[&#]|$)', 'i');
-            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
-        ELSIF v_url ~* '/job/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)' THEN
-            v_match := regexp_match(v_url, '/job/.*-([a-zA-Z0-9]{16})(?:[/?#]|$)', 'i');
-            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || LOWER(v_match[1]);
-        END IF;
-    END IF;
-
-    IF v_plat = 'linkedin' THEN
-        IF v_url ~* '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:[/?#]|$)' THEN
-            v_match := regexp_match(v_url, '/jobs/view/(?:[a-zA-Z0-9_%-]+-)?([0-9]{8,16})(?:[/?#]|$)', 'i');
-            RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
-        ELSIF v_url ~* '[?&]currentJobId=([0-9]{8,16})(?:[&#]|$)' THEN
-            v_match := regexp_match(v_url, '[?&]currentJobId=([0-9]{8,16})(?:[&#]|$)', 'i');
-            RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
-        ELSIF v_url ~* '[?&]jobId=([0-9]{8,16})(?:[&#]|$)' THEN
-            v_match := regexp_match(v_url, '[?&]jobId=([0-9]{8,16})(?:[&#]|$)', 'i');
-            RETURN 'https://www.linkedin.com/jobs/view/' || v_match[1];
+    -- Uso el mismo selector que el backfill y la identidad en runtime.
+    IF v_plat IN ('indeed', 'linkedin') THEN
+        v_val := fn_id_nativo_023(v_url, v_plat, '{}'::jsonb);
+        IF v_val IS NOT NULL THEN
+            IF v_plat = 'linkedin' THEN RETURN 'https://www.linkedin.com/jobs/view/' || v_val; END IF;
+            RETURN v_proto || '://' || v_authority || '/viewjob?jk=' || v_val;
         END IF;
     END IF;
 
@@ -471,6 +506,14 @@ DECLARE
     v_match text[];
 BEGIN
     IF v_plat = '' THEN v_plat := 'general'; END IF;
+
+    IF v_plat IN ('indeed', 'linkedin') THEN
+        v_identidad := fn_id_nativo_023(v_url, v_plat, v_datos);
+        IF v_identidad IS NOT NULL THEN RETURN v_plat || ':' || v_identidad; END IF;
+        v_url_canonica := fn_canonizar_url_023(v_url, v_plat);
+        v_identidad := v_plat || ':url:' || v_url_canonica;
+        RETURN CASE WHEN length(v_identidad) > 500 THEN v_plat || ':url-hash:' || md5(v_url_canonica) ELSE v_identidad END;
+    END IF;
 
     -- 1. Indeed: jk / vjk (URL o datos_crudos: jk, vjk, key, jobKey, id)
     IF v_plat = 'indeed' THEN

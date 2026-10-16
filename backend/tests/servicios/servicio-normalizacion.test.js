@@ -125,7 +125,7 @@ describe('Servicio de normalización', () => {
             expect(resultado.titulo).toBe('Jr React Native Developer');
             expect(resultado.empresa).toBe('Rootstrap');
             expect(resultado.ubicacion).toBe('Carcarañá, Santa Fe, Argentina');
-            expect(resultado.url).toBe('https://ar.linkedin.com/jobs/view/jr-react-native-developer-at-rootstrap-4386138111');
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/4386138111');
             expect(resultado.plataforma).toBe('linkedin');
             expect(resultado.descripcion).toContain('Junior React Native Developer');
         });
@@ -154,7 +154,7 @@ describe('Servicio de normalización', () => {
         test('guarda el JSON crudo completo en datos_crudos', () => {
             const resultado = normalizarOfertaLinkedin(itemLinkedinReal);
 
-            expect(resultado.datos_crudos).toEqual(itemLinkedinReal);
+            expect(resultado.datos_crudos).toEqual({ ...itemLinkedinReal, url_original: itemLinkedinReal.link });
         });
 
         test('maneja salary vacío y no pone salario', () => {
@@ -220,14 +220,14 @@ describe('Servicio de normalización', () => {
             expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123');
         });
 
-        test('canoniza la URL removiendo múltiples query params de tracking', () => {
+        test('sin ID válido remuevo tracking conocido y conservo el parámetro source', () => {
             const itemConVariosParams = {
                 jobUrl: 'https://www.linkedin.com/jobs/view/390123?refId=abc&source=facebook&trackingId=xyz',
                 title: 'Developer',
             };
             const resultado = normalizarOfertaLinkedin(itemConVariosParams);
 
-            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123');
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/390123?source=facebook');
         });
 
         test('canoniza la URL removiendo fragment (#)', () => {
@@ -273,7 +273,7 @@ describe('Servicio de normalización', () => {
             };
             const resultado = normalizarOfertaLinkedin(itemActorViejo);
 
-            expect(resultado.url).toBe('https://ar.linkedin.com/jobs/view/dev-at-company-4386138111');
+            expect(resultado.url).toBe('https://www.linkedin.com/jobs/view/4386138111');
         });
     });
 

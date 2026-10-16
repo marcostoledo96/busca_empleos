@@ -3,6 +3,18 @@
 // Verifico los 8 criterios de aceptación de identidad de ofertas
 // definidos en la Issue #19, además de las funciones auxiliares de extracción y canonización.
 
+const casosIdentidad = require('../fixtures/casos-identidad');
+
+describe('PR39: candidatos válidos y URL coherente', () => {
+    test.each(casosIdentidad)('%s %s', (plataforma, url, datos_crudos, id) => {
+        expect(extraerIdentificadorPlataforma(url, plataforma, datos_crudos)).toBe(id);
+        const canonica = canonizarUrlPlataforma(url, plataforma, datos_crudos);
+        expect(extraerIdentificadorPlataforma(canonica, plataforma, datos_crudos)).toBe(id);
+        expect(obtenerIdentidadCanonica({ url: canonica, plataforma, datos_crudos }))
+            .toBe(obtenerIdentidadCanonica({ url, plataforma, datos_crudos }));
+    });
+});
+
 const {
     extraerIdentificadorPlataforma,
     canonizarUrlPlataforma,

@@ -438,6 +438,11 @@ Parsea strings de salario como `"$50,000.00/yr - $70,000.00/yr"`:
 
 ## Deduplicación por identidad canónica y gestión de reapariciones (issue #19)
 
+Documento la precedencia exacta de IDs contradictorios, parámetros codificados,
+preservación histórica y migración incremental 025 en
+[Identidad de ofertas](identidad-ofertas.md). Normalización y persistencia comparten
+la URL nativa elegida; no fusiono IDs diferentes aunque coincidan título y empresa.
+
 ### Deduplicación intra-ejecución en memoria
 - Antes de entregar el array de ofertas normalizadas o aplicar el límite estricto `slice(0, maxResultados)`, cada scraper deduplica en memoria utilizando la identidad canónica calculada por `obtenerIdentidadCanonica()` (`servicio-identidad-ofertas.js`).
 - Plataformas con identificadores específicos (Indeed `jk`, LinkedIn `jobId`, Computrabajo hash, Bumeran ID, etc.) son unificadas sin importar variaciones en dominios (`ar.indeed.com` vs `indeed.com`), rutas (`/viewjob` vs `/rc/clk`) o parámetros volátiles de tracking (`utm_source`, `refId`, etc.).

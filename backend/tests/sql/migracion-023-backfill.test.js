@@ -29,6 +29,13 @@ contexto('Migración 023 — Validación de Backfill SQL vs Runtime JS en Postgr
         await pool.end();
     });
 
+    test.each(require('../fixtures/casos-identidad'))('PR39 paridad 023: %s %s', async (plataforma, url, datos, id) => {
+        await pool.query(contenidoSql023);
+        const resultado = await pool.query('SELECT fn_obtener_identidad_canonica_023($1, $2, $3, 1) AS identidad', [url, plataforma, datos]);
+        expect(resultado.rows[0].identidad).toBe(obtenerIdentidadCanonica({ url, plataforma, datos_crudos: datos }));
+        if (id) expect(resultado.rows[0].identidad).toBe(`${plataforma}:${id}`);
+    });
+
     test('El backfill SQL genera exactamente la misma identidad que runtime JS para todos los portales y longitudes', async () => {
         // Genero URLs con longitudes calibradas con sintaxis válida
         const paramsExtenso = (longitudDeseada) => {

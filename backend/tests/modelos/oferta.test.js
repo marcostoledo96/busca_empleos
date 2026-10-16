@@ -76,6 +76,21 @@ contexto('Modelo de ofertas — CRUD', () => {
         await pool.end();
     });
 
+    test('PR39: persisto la misma identidad y URL con path contradictorio y crudos inválidos', async () => {
+        const oferta = await modeloOferta.crearOferta({ ...ofertaEjemplo,
+            plataforma: 'indeed', url: 'https://ar.indeed.com/job/dev-1111111111111111',
+            datos_crudos: { jk: '2222222222222222' },
+        });
+        expect(oferta.identidad_canonica).toBe('indeed:1111111111111111');
+        expect(oferta.url).toBe('https://ar.indeed.com/viewjob?jk=1111111111111111');
+        const alternativa = await modeloOferta.crearOferta({ ...ofertaEjemplo,
+            plataforma: 'indeed', url: 'https://ar.indeed.com/viewjob',
+            datos_crudos: { jk: 'BAD ', vjk: 'ABC123' },
+        });
+        expect(alternativa.identidad_canonica).toBe('indeed:abc123');
+        expect(alternativa.url).toBe('https://ar.indeed.com/viewjob?jk=abc123');
+    });
+
     // === crearOferta() ===
 
     describe('crearOferta()', () => {
