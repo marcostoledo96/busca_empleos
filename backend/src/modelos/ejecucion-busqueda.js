@@ -24,9 +24,10 @@ function limpiarFuente(fuente) {
     // Conservo la consulta efectiva, nunca errores textuales ni snapshots de configuración.
     salida.resultadosConsultas = (fuente.resultadosConsultas || []).slice(0, 100).map(consulta => ({
         consulta: typeof consulta.consulta === 'string' ? consulta.consulta.slice(0, 200) : null,
-        estado: ESTADOS.has(consulta.estado) ? consulta.estado : 'error',
+        estado: consulta.estado === null || ESTADOS.has(consulta.estado) ? consulta.estado : 'error',
         peticionesRealizadas: Number.isFinite(consulta.peticionesRealizadas) ? consulta.peticionesRealizadas : null,
         totalCrudos: Number.isFinite(consulta.totalCrudos) ? consulta.totalCrudos : null,
+        totalElegibles: Number.isFinite(consulta.totalElegibles) && consulta.totalElegibles >= 0 ? consulta.totalElegibles : null,
         errores: limpiarErrores(consulta.errores),
     }));
     return salida;

@@ -5,6 +5,11 @@ jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/modelos/evaluacion-cache');
 jest.mock('../../src/modelos/evaluacion-lote');
+jest.mock('node-cron');
+jest.mock('../../src/modelos/configuracion-cron');
+jest.mock('../../src/modelos/ejecucion-busqueda', () => ({
+    iniciar: jest.fn(async () => ({ id: 1 })), finalizar: jest.fn(async () => {}), listar: jest.fn(),
+}));
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-notificacion-email');
 const pool = require('../../src/config/base-datos');

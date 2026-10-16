@@ -223,6 +223,7 @@ test.each(['http', 'timeout'])('Computrabajo conserva tarjetas útiles ante fall
     expect(resultado).toHaveLength(1);
     expect(resultado[0].url).toBe('https://ar.computrabajo.com/ofertas/qa-123');
     expect(resultado.metricas).toMatchObject({ estado: 'parcial', totalCrudos: 1, totalElegibles: 1, duplicadasDescartadas: 0, peticionesRealizadas: 2, consultasEjecutadas: 1 });
+    expect(resultado.metricas.resultadosConsultas[0]).toMatchObject({ estado: 'parcial', totalElegibles: 1 });
     expect(resultado.metricas.errores).toEqual([expect.objectContaining({ tipo: tipo === 'http' ? 'http' : 'timeout' })]);
     expect(signal.aborted).toBe(tipo === 'timeout');
     expect(global.fetch).toHaveBeenCalledTimes(2);

@@ -8,6 +8,8 @@ function crearEjecucionFuente(plataforma, opciones = {}) {
     const limite = inicio + acotar(opciones.timeoutMs, TIEMPO_FUENTE_MS);
     const errores = [];
     const consultas = new Map();
+    const consultaPorUrl = new Map();
+    const consultasAtribuibles = new Set();
     let peticiones = 0;
     let snapshot = () => ({ ofertas: [], metricas: {} });
     let estadoForzado;
@@ -117,12 +119,17 @@ function crearEjecucionFuente(plataforma, opciones = {}) {
             idiomaDescartadas,
             errores: errores.slice(), duracionMs: Date.now() - inicio,
             motivoFinalizacion: motivoForzado || (timeout ? 'timeout' : limitado ? metricas.motivoFinalizacion : errores.length ? errores[0].tipo : metricas.motivoFinalizacion || 'agotado'),
-            resultadosConsultas: [...consultas.values()].map(c => ({
-                ...c,
-                estado: c.errores.length
-                    ? (c.errores.some(e => e.tipo === 'timeout') ? 'timeout' : 'error')
-                    : c.totalCrudos === 0 ? 'sin_resultados' : 'completada',
-            })),
+            resultadosConsultas: [...consultas.values()].map(c => {
+                const totalElegibles = consultasAtribuibles.has(c.consulta)
+                    ? resultado.filter(oferta => consultaPorUrl.get(oferta.url) === c.consulta).length : null;
+                return {
+                    ...c, totalElegibles,
+                    estado: c.errores.length
+                        ? (totalElegibles > 0 ? 'parcial' : c.errores.some(e => e.tipo === 'timeout') ? 'timeout' : 'error')
+                        : totalElegibles === null ? (c.totalCrudos === 0 ? 'sin_resultados' : null)
+                            : totalElegibles === 0 ? 'sin_resultados' : 'completada',
+                };
+            }),
         });
         for (const [clave, valor] of Object.entries({ ...metricas, metricas })) Object.defineProperty(resultado, clave, { value: valor, enumerable: false, configurable: true, writable: true });
         return resultado;
@@ -183,6 +190,12 @@ function crearEjecucionFuente(plataforma, opciones = {}) {
     };
     return {
         solicitar, esperar, finalizar, ejecutarActor, comprobar, registrarError,
+        atribuirOfertas: (consulta, ofertas) => {
+            consultasAtribuibles.add(consulta);
+            for (const oferta of ofertas) {
+                if (oferta.url && !consultaPorUrl.has(oferta.url)) consultaPorUrl.set(oferta.url, consulta);
+            }
+        },
         recibidas: (consulta, cantidad) => { consultaEjecutada(consulta).totalCrudos += cantidad; },
         contarIdioma: descartada => { idiomaDescartadas = (idiomaDescartadas || 0) + (descartada ? 1 : 0); },
         conservar: obtener => { snapshot = obtener; },

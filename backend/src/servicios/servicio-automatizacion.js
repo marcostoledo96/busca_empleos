@@ -358,7 +358,6 @@ async function ejecutarCicloRegistrado(opciones = {}, configuracionesPreparadas)
     resultado.exito = resultado.exito && ['completada', 'sin_resultados'].includes(resultado.estado);
     resultado.evaluacionAlcance = 'global_pendientes_sin_atribucion_por_fuente';
 
-    progreso.activo = false;
     progreso.porcentaje = 100;
     estado.ultimaEjecucion = inicio.toISOString();
     estado.ultimoResultado = resultado;

@@ -140,6 +140,48 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
+        test('mantengo la reserva hasta finalizar el historial, sin aceptar otro ciclo', async () => {
+            const historial = require('../../src/modelos/ejecucion-busqueda');
+            let liberar;
+            let avisar;
+            const finalizando = new Promise(resolve => { avisar = resolve; });
+            historial.finalizar.mockImplementationOnce(() => {
+                avisar();
+                return new Promise(resolve => { liberar = resolve; });
+            });
+            const ciclo = servicioAutomatizacion.ejecutarCicloCompleto();
+            await finalizando;
+            const activo = servicioAutomatizacion.cicloEnProgreso();
+            let rechazo;
+            try { await servicioAutomatizacion.prepararCiclo(); } catch (error) { rechazo = error; }
+            liberar();
+            await ciclo;
+            expect(activo).toBe(true);
+            expect(rechazo).toMatchObject({ statusCode: 409, message: 'Ya hay un ciclo de automatización en curso.' });
+            expect(historial.iniciar).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledTimes(1);
+            expect(servicioAutomatizacion.cicloEnProgreso()).toBe(false);
+            let terminarScraper;
+            let avisarScraper;
+            const scrapeando = new Promise(resolve => { avisarScraper = resolve; });
+            servicioScraping.ejecutarScrapingLinkedin.mockImplementationOnce(() => {
+                avisarScraper();
+                return new Promise(resolve => { terminarScraper = resolve; });
+            });
+            const siguiente = servicioAutomatizacion.ejecutarCicloCompleto();
+            await scrapeando;
+            const segundoActivo = servicioAutomatizacion.cicloEnProgreso();
+            let tercerRechazo;
+            try { await servicioAutomatizacion.prepararCiclo(); } catch (error) { tercerRechazo = error; }
+            terminarScraper([]);
+            await siguiente;
+            expect(segundoActivo).toBe(true);
+            expect(tercerRechazo).toMatchObject({ statusCode: 409 });
+            expect(historial.iniciar).toHaveBeenCalledTimes(2);
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(2);
+            expect(servicioAutomatizacion.cicloEnProgreso()).toBe(false);
+        });
         test('ejecuta scraping de las plataformas activas → guarda ofertas → evalúa', async () => {
             // Preparo datos simulados para las plataformas activas.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([

@@ -34,12 +34,19 @@ async function ejecutarFuente(plataforma, scraper, opciones = {}) {
     const metricas = datos.metricas || Object.fromEntries(['maxResultados', 'ventanaDias', 'consultasEjecutadas',
         'consultasOmitidas', 'consultasOmitidasPorPresupuesto', 'totalCrudos', 'totalElegibles', 'duplicadasDescartadas',
         'antiguasDescartadas', 'sinFechaConocida', 'motivoFinalizacion'].filter(clave => datos[clave] !== undefined).map(clave => [clave, datos[clave]]));
-    const estadoScraping = metricas.estado || (datos.deshabilitado ? 'sin_credenciales' : ofertas.length ? 'completada' : 'sin_resultados');
+    const estadoProveedor = metricas.estado || (datos.deshabilitado ? 'sin_credenciales' : ofertas.length ? 'completada' : 'sin_resultados');
     const filtradas = filtrarOfertasPorIdioma(ofertas);
+    const estadoScraping = ['completada', 'sin_resultados'].includes(estadoProveedor)
+        ? (filtradas.length ? 'completada' : 'sin_resultados') : estadoProveedor;
+    // Si ingreso descarta ofertas, no conservo una atribución por consulta que ya no puedo verificar.
+    const resultadosConsultas = (metricas.resultadosConsultas || []).map(consulta => filtradas.length === ofertas.length
+        ? consulta : { ...consulta, totalElegibles: null,
+            estado: ['completada', 'sin_resultados'].includes(consulta.estado) ? null : consulta.estado });
     const persistencia = await guardarLoteOfertasAislado(filtradas, modeloOferta);
     const fallas = persistencia.errores;
     return { ...base, ...metricas, plataforma, nombre: base.nombre, estadoScraping,
-        estado: fallas ? (persistencia.guardadas + persistencia.actualizadas + persistencia.reapariciones + persistencia.duplicadas > 0 ? 'parcial' : 'error') : estadoScraping,
+        estado: fallas ? (filtradas.length > fallas ? 'parcial' : 'error') : estadoScraping,
+        resultadosConsultas,
         ...(datos.deshabilitado ? { codigo_resultado: datos.codigo_resultado, advertencia: datos.advertencia } : {}),
         nuevas: persistencia.guardadas, actualizadas: persistencia.actualizadas,
         reapariciones: persistencia.reapariciones, duplicadas: persistencia.duplicadas,
@@ -47,7 +54,7 @@ async function ejecutarFuente(plataforma, scraper, opciones = {}) {
         idiomaDescartadas: (metricas.idiomaDescartadas || 0) + ofertas.length - filtradas.length,
         consultasEjecutadas: metricas.consultasEjecutadas ?? null,
         peticionesRealizadas: metricas.peticionesRealizadas ?? null,
-        totalCrudos: metricas.totalCrudos ?? ofertas.length, totalElegibles: metricas.totalElegibles ?? ofertas.length,
+        totalCrudos: metricas.totalCrudos ?? ofertas.length, totalElegibles: filtradas.length,
         motivoFinalizacion: metricas.motivoFinalizacion || estadoScraping,
         duracionScrapingMs: metricas.duracionMs ?? Date.now() - inicio,
         duracionMs: Date.now() - inicio,

@@ -425,6 +425,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                 peticionesListado++;
                 console.log(`Scraping Computrabajo: extrayendo listado de ${urlBusqueda} (página ${pagina})...`);
 
+                control.atribuirOfertas(urlBase, []);
                 const respListado = await control.solicitar(urlBusqueda, { headers: HEADERS_SCRAPING }, urlBase, 'text');
 
                 if (!respListado.ok) {
@@ -585,6 +586,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                             sinFechaConocida++;
                         }
 
+                        control.atribuirOfertas(urlBase, [normalizada]);
                         ofertasElegibles.push(normalizada);
                         if (ofertasElegibles.length >= maxResultados) break;
                     }
@@ -1237,6 +1239,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
 
                     // Normalizo y evalúo elegibilidad de inmediato por página
                     const normalizadas = normalizarLote(jobs, 'jooble');
+                    control.atribuirOfertas(estado.termino, []);
 
                     for (const oferta of normalizadas) {
                         const identidad = obtenerIdentidadCanonica(oferta);
@@ -1268,6 +1271,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
                         }
 
                         mapaPorIdentidad.set(identidad, oferta);
+                        control.atribuirOfertas(estado.termino, [oferta]);
                         ofertasElegibles.push(oferta);
                         if (ofertasElegibles.length >= maxResultados) break;
                     }
@@ -1411,6 +1415,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
             totalCrudos += jobs.length;
 
             const normalizadas = normalizarLote(jobs, 'remotive');
+            control.atribuirOfertas(categoria, []);
             for (const oferta of normalizadas) {
                 const identidad = obtenerIdentidadCanonica(oferta);
                 if (!identidad) continue;
@@ -1440,6 +1445,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
                 }
 
                 mapaPorIdentidad.set(identidad, oferta);
+                control.atribuirOfertas(categoria, [oferta]);
                 ofertasElegibles.push(oferta);
                 if (ofertasElegibles.length >= maxResultados) break;
             }
@@ -1558,6 +1564,7 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
             console.log(`Scraping RemoteOK: ${trabajos.length} ítem(s) para "${termino}".`);
 
             const normalizadas = normalizarLote(trabajos, 'remoteok');
+            control.atribuirOfertas(tag, []);
             let elegiblesTag = 0;
 
             for (const oferta of normalizadas) {
@@ -1595,6 +1602,7 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
                 }
 
                 mapaPorIdentidad.set(identidad, oferta);
+                control.atribuirOfertas(tag, [oferta]);
 
                 if (elegiblesTag < cupoObjetivoPorTag && ofertasElegibles.length < maxResultados) {
                     ofertasElegibles.push(oferta);

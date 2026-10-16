@@ -1,7 +1,9 @@
 jest.mock('dotenv', () => ({ config: jest.fn() }));
 jest.mock('../../src/config/base-datos', () => require('../helpers/bd-busquedas-memoria').crearAdaptadorBusqueda());
 jest.mock('apify-client', () => ({ ApifyClient: jest.fn(() => ({ actor: jest.fn(), dataset: jest.fn() })) }));
-jest.mock('node-cron', () => ({ validate: jest.fn(() => true), schedule: jest.fn(() => ({ stop: jest.fn() })) }));
+jest.mock('node-cron', () => ({ validate: jest.fn(() => true), createTask: jest.fn(() => ({
+    start: jest.fn(), stop: jest.fn(), destroy: jest.fn(), getStatus: jest.fn(() => 'idle'),
+})) }));
 jest.mock('../../src/utils/middleware-auth', () => ({
     verificarAuth: (req, res, next) => req.headers.authorization === 'Bearer prueba' ? next() : res.status(401).json({ exito: false }),
 }));
@@ -12,6 +14,10 @@ jest.mock('../../src/servicios/servicio-evaluacion', () => ({
 jest.mock('../../src/servicios/servicio-notificacion-email', () => ({ enviarResumenCiclo: jest.fn(async () => ({ enviado: false })) }));
 jest.mock('../../src/utils/bloqueo-concurrente', () => ({ CLAVES: {}, intentarAdquirirLock: jest.fn(async () => ({ ok: true, client: {} })), liberarBloqueoSeguro: jest.fn(async () => {}) }));
 
+// Declaro credenciales ficticias antes de cargar la configuración; los clientes están simulados.
+process.env.APIFY_TOKEN = 'apify-sintetico-sin-red';
+process.env.JOOBLE_API_KEY = 'jooble-sintetico-sin-red';
+afterAll(() => { delete process.env.APIFY_TOKEN; delete process.env.JOOBLE_API_KEY; });
 const request = require('supertest');
 const pool = require('../../src/config/base-datos');
 const { clienteApify } = require('../../src/config/apify');
@@ -30,7 +36,7 @@ beforeEach(() => {
     pool.ofertas.length = 0;
     automatizacion._resetearEstado();
     global.fetch = jest.fn(async () => { throw new Error('Request externa no simulada'); });
-    clienteApify.actor.mockReturnValue({ call: jest.fn(async () => ({ defaultDatasetId: 'sintetico' })) });
+    clienteApify.actor.mockReturnValue({ call: jest.fn(async () => ({ id: 'run-sintetico', status: 'SUCCEEDED', defaultDatasetId: 'sintetico' })) });
     clienteApify.dataset.mockReturnValue({ listItems: jest.fn(async () => ({ items: [
         { jobTitle: 'Soporte técnico', companyName: 'Empresa sintética', location: 'CABA', jobDescription: descripcionEs, jobUrl: `https://linkedin.com/jobs/view/es-${++numeroRun}` },
         { jobTitle: 'Software engineer', companyName: 'Synthetic', location: 'Remote', jobDescription: descripcionEn, jobUrl: `https://linkedin.com/jobs/view/en-${numeroRun}` },
@@ -126,11 +132,11 @@ test('consulta incompatible guardada omite únicamente fuentes incompatibles en 
     expect(clienteApify.actor().call.mock.calls.at(-1)[0].urls[0]).toContain('keywords=%23%23%23');
     expect(pool.query.mock.calls.some(([sql]) => /^UPDATE preferencias/i.test(sql))).toBe(false);
     expect(pool.obtenerPreferencias().terminos_busqueda).toEqual(['###']);
-    automatizacion.programarCron();
-    await cron.schedule.mock.calls.at(-1)[1]();
+    await automatizacion.programarCron();
+    await cron.createTask.mock.calls.at(-1)[1]();
     expect(scraping.ejecutarScrapingIndeed).not.toHaveBeenCalled();
     expect(automatizacion.obtenerEstado().ultimoResultado.omisiones.length).toBeGreaterThanOrEqual(4);
-    automatizacion.detenerCron();
+    await automatizacion.detenerCron();
 });
 
 test('QA y C# guardados ejecutan en todas las fuentes compatibles sin omitirse', async () => {
@@ -193,15 +199,15 @@ test('fuentes bloqueadas/inactivas no consumen APIs', async () => {
 test('cron simulado lee preferencias nuevas en cada callback y conserva default/estado', async () => {
     simularOtrasFuentes();
     expect(automatizacion.obtenerEstado().activo).toBe(false);
-    automatizacion.programarCron();
-    expect(cron.schedule).toHaveBeenCalledWith('0 20 * * 2', expect.any(Function), { timezone: 'America/Argentina/Buenos_Aires' });
-    const callback = cron.schedule.mock.calls[0][1];
+    await automatizacion.programarCron();
+    expect(cron.createTask).toHaveBeenCalledWith('0 20 * * 2', expect.any(Function), { timezone: 'America/Argentina/Buenos_Aires', noOverlap: true });
+    const callback = cron.createTask.mock.calls[0][1];
     await guardarPreferencias();
     await callback();
     await pedir('put', '/api/preferencias').send({ terminos_busqueda: ['asistencia técnica'] });
     await callback();
     expect(clienteApify.actor().call.mock.calls[1][0].urls[0]).toContain('asistencia+t%C3%A9cnica');
-    automatizacion.detenerCron();
+    await automatizacion.detenerCron();
     expect(automatizacion.obtenerEstado().activo).toBe(false);
 });
 
@@ -365,7 +371,8 @@ test('LinkedIn omite consulta incompatible ??? sin abortar batch ni llamar Apify
     expect(clienteApify.actor().call).toHaveBeenCalledWith(
         expect.objectContaining({
             urls: expect.arrayContaining([expect.stringContaining('keywords=QA')])
-        })
+        }),
+        { timeout: 120, waitSecs: 1 }
     );
 });
 

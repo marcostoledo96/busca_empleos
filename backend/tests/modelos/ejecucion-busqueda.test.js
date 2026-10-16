@@ -13,6 +13,23 @@ test('sanitizo con lista permitida sin ofertas, credenciales, snapshots ni error
         errores: [{ tipo: 'http', codigoHttp: 503 }], resultadosConsultas: [{ consulta: 'junior' }] }] });
     expect(JSON.stringify(resumen)).not.toContain('NO_GUARDAR');
 });
+test.each([
+    [null, null, null, null], ['error', 0, 'error', 0], ['completada', 2, 'completada', 2],
+    ['NO_GUARDAR', 'NO_GUARDAR', 'error', null], [undefined, undefined, 'error', null],
+])('conservo estado de consulta %s y elegibles %s sin inventar éxito ni error', (estado, elegibles, estadoEsperado, elegiblesEsperados) => {
+    const resumen = modelo.sanitizarResumen({ estado: 'sin_resultados', fuentes: [{
+        plataforma: 'linkedin', estado: 'sin_resultados', errores: [],
+        resultadosConsultas: [{ consulta: 'qa', estado, totalElegibles: elegibles,
+            errores: estado === 'error' ? [{ tipo: 'http', codigoHttp: 503, mensaje: 'NO_GUARDAR' }] : [],
+            token: 'NO_GUARDAR', ofertas: ['NO_GUARDAR'] }],
+    }] });
+    expect(resumen.fuentes[0].resultadosConsultas[0]).toEqual({
+        consulta: 'qa', estado: estadoEsperado, totalElegibles: elegiblesEsperados,
+        peticionesRealizadas: null, totalCrudos: null,
+        errores: estado === 'error' ? [{ tipo: 'http', codigoHttp: 503 }] : [],
+    });
+    expect(JSON.stringify(resumen)).not.toContain('NO_GUARDAR');
+});
 test('conservo motivo de evaluación global fallida separado de las fuentes correctas', () => {
     const resumen = modelo.sanitizarResumen({ estado: 'parcial', estadoScraping: 'completada', estadoEvaluacion: 'error', fuentes: [] });
     expect(resumen).toMatchObject({ estado: 'parcial', estadoScraping: 'completada', estadoEvaluacion: 'error', motivoFinalizacion: 'evaluacion' });

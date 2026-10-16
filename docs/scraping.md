@@ -26,7 +26,7 @@ real es `sin_credenciales`, no una desactivación del registry.
   por cupos y agrega el tipo de fallo o `sin_credenciales` cuando corresponde.
 - `consultasEjecutadas`: número de consultas distintas realmente enviadas, no las
   planificadas. `resultadosConsultas`: array de `{ consulta, estado,
-  peticionesRealizadas, totalCrudos, errores }`. Incluyo URLs públicas de búsqueda
+  peticionesRealizadas, totalCrudos, totalElegibles, errores }`. Incluyo URLs públicas de búsqueda
   en LinkedIn/Bumeran/Computrabajo; query OR en Indeed; keywords y ubicación del
   lote en Glassdoor; término en Jooble; categoría en Remotive; tag efectivo en
   RemoteOK; `remote <término>` en Adzuna. Las páginas y detalles se agrupan bajo
@@ -35,8 +35,16 @@ real es `sin_credenciales`, no una desactivación del registry.
   detalles). Para Apify es `null`: el SDK y el Actor hacen peticiones internas que
   no puedo medir exactamente. Tampoco invento crudos por consulta del dataset
   agregado: `totalCrudos: null` por consulta Apify, contador agregado en la fuente.
-  El estado por consulta expresa su respuesta, no inserciones ni elegibilidad
-  atribuida: `completada` puede contener datos que luego sean descartados.
+  Decido `sin_resultados` por ofertas elegibles, no por crudos recibidos. En
+  Computrabajo, Jooble, Remotive y RemoteOK atribuyo cada URL elegible a su primera
+  consulta y cuento sólo las ofertas del array final, después de idioma, antigüedad,
+  deduplicación y cupo. Si esa consulta conserva ofertas y tiene fallos, informo
+  `parcial`, no `error`. En datasets agregados Apify y Adzuna no invento atribución:
+  `totalElegibles: null` y `estado: null` cuando no puedo determinar el resultado
+  elegible de esa consulta; los errores/timeout y vacíos verificables siguen explícitos.
+  El resultado compartido por fuente recalcula elegibles y éxito vacío después del
+  filtro de idioma de ingreso, sin borrar estados `error`, `timeout` o `parcial`.
+  Si ese filtro invalida una atribución previa, la marco como no disponible (`null`).
 - Conservo `maxResultados`, `ventanaDias`, `consultasOmitidas` y los contadores de
   #16/#19 cuando están disponibles: `totalCrudos`, `totalElegibles`,
   `duplicadasDescartadas`, `antiguasDescartadas`, `sinFechaConocida`.
