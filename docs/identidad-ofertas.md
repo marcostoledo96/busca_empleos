@@ -69,6 +69,26 @@ mantiene datos y claves; una fila ya correcta no vuelve a escribirse. No cambio
 descripción manual ni otros campos/notas que una instalación pudiera tener.
 La migración no renueva artificialmente la última detección; la reaparición sí lo hace.
 
+### Regresión histórica autónoma (PR39, B-01/B-02)
+
+Uso el fixture versionado `backend/tests/fixtures/identidad-legacy-023-024.sql`,
+con las cuatro funciones originales idénticas de 023/024 del commit
+`7d504ec17de9051f735bd58ebf3bd28ef713055c`. Documento límites de extracción,
+hashes y reproducción en `backend/tests/fixtures/identidad-legacy-023-024.md`.
+Jest valida su SHA-256 y lo lee sin Git, historial ni red; un checkout shallow
+no necesita descargar commits antiguos ni cambiar la configuración de CI.
+
+Separo la preparación histórica de las aserciones: en un esquema sintético
+transaccional instalo las funciones antiguas, ambos UNIQUE y registros exitosos
+023/024 en `schema_migrations`. Con filas contradictorias y URLs cruzadas,
+selecciono y aplico sólo la pendiente 025. Comparo todas las columnas, incluidas
+fechas, postulación, descripción manual y una columna extendida `notas`, sin
+fusionar filas; verifico ledger e idempotencia con `ctid`/`xmin`. Hago rollback
+del esquema al terminar. Ejecuto el upgrade con y sin `notas` preexistentes en
+la tabla clonada, sin borrar columnas heredadas de instalaciones extendidas.
+Mantengo los casos existentes de instalación nueva y del modelo público; no
+ejecuto el runner original ni sus cargas de entorno.
+
 ## Contadores y matching
 
 Comparto la identidad con la deduplicación intraejecución de #16/A10. Mantengo

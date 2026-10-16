@@ -1,5 +1,12 @@
 const fs = require('fs');
 const path = require('path');
+const { createHash } = require('node:crypto');
+const leerLegacy = () => fs.readFileSync(path.resolve(__dirname, '../fixtures/identidad-legacy-023-024.sql'));
+
+test('verifico la integridad de las funciones históricas 023/024 sin depender de Git', () => {
+    expect(createHash('sha256').update(leerLegacy()).digest('hex'))
+        .toBe('f7a2e52e030941951aff72dcc3660e7f43381aff5c9ac59a327ee428f246aa84');
+});
 const pool = require('../../src/config/base-datos');
 const modelo = require('../../src/modelos/oferta');
 const { normalizarOfertaIndeed, normalizarOfertaLinkedin } = require('../../src/servicios/servicio-normalizacion');
@@ -44,18 +51,85 @@ contexto('PR39 — Reconciliación incremental y circuito completo', () => {
         expect(listado.ofertas.map(oferta => oferta.id)).toContain(inicial.id);
     });
 
-    test('025 actualizo funciones originales ya aplicadas sin volver a ejecutar su backfill', async () => {
-        const { execFileSync } = require('node:child_process');
-        // Cargo sólo funciones antiguas, sin correr la reconciliación insegura antigua.
-        for (const archivo of ['migracion-023-identidad-y-reapariciones.sql', 'migracion-024-reparar-identidades-canonicas.sql']) {
-            const original = execFileSync('git', ['show', `7d504ec17de9051f735bd58ebf3bd28ef713055c:backend/sql/${archivo}`], { encoding: 'utf8' });
-            const desde = original.indexOf('CREATE OR REPLACE FUNCTION');
-            const hasta = original.indexOf('\nDO $$', desde);
-            await pool.query(original.slice(desde, hasta));
-        }
-        await pool.query(leerMigracion(25));
-        const fila = (await pool.query("SELECT fn_obtener_identidad_canonica_023('https://ar.indeed.com/viewjob?jk=%41BC123', 'indeed', '{}'::jsonb, 1) AS identidad")).rows[0];
-        expect(fila.identidad).toBe('indeed:abc123');
+    describe.each([false, true])('upgrade histórico aislado 023/024 → sólo 025, notas preexistentes: %s', (notasPreexistentes) => {
+        let cliente;
+        let anteriores;
+        const nombres = [23, 24, 25].map(numero => ({
+            23: 'migracion-023-identidad-y-reapariciones.sql',
+            24: 'migracion-024-reparar-identidades-canonicas.sql',
+            25: 'migracion-025-identidad-conservadora.sql',
+        }[numero]));
+
+        beforeEach(async () => {
+            cliente = await pool.connect();
+            try {
+                await cliente.query('BEGIN');
+                await cliente.query('CREATE SCHEMA upgrade_025_sintetico');
+                await cliente.query('SET LOCAL search_path TO upgrade_025_sintetico');
+                // No heredo funciones nuevas ni registros de 025 desde public.
+                await cliente.query('CREATE TABLE ofertas (LIKE public.ofertas INCLUDING ALL)');
+                if (notasPreexistentes) {
+                    await cliente.query('ALTER TABLE ofertas ADD COLUMN IF NOT EXISTS notas text');
+                }
+                await cliente.query('ALTER TABLE ofertas ADD COLUMN IF NOT EXISTS notas text');
+                await cliente.query(fs.readFileSync(path.resolve(__dirname, '../../sql/migracion-014-schema-migrations.sql'), 'utf8'));
+                await cliente.query('INSERT INTO schema_migrations (id, exitoso) VALUES ($1, true), ($2, true)', nombres.slice(0, 2));
+                await cliente.query(leerLegacy().toString('utf8'));
+                await cliente.query(`INSERT INTO ofertas
+                    (id, titulo, plataforma, url, identidad_canonica, datos_crudos, fecha_extraccion,
+                     fecha_ultima_extraccion, fecha_publicacion, estado_postulacion, descripcion, origen_descripcion, notas)
+                    VALUES
+                    (101, 'Histórica A', 'indeed', 'https://ar.indeed.com/viewjob?jk=2222222222222222',
+                     'indeed:1111111111111111', '{"jk":"2222222222222222"}', '2026-01-01', '2026-01-02',
+                     '2025-12-31', 'en_proceso', 'Descripción manual A', 'manual', 'Nota sintética A'),
+                    (102, 'Histórica B', 'indeed', 'https://ar.indeed.com/viewjob?jk=1111111111111111',
+                     'indeed:2222222222222222', '{"jk":"1111111111111111"}', '2026-02-01', '2026-02-02',
+                     '2026-01-31', 'cv_enviado', 'Descripción manual B', 'manual', 'Nota sintética B')`);
+                anteriores = (await cliente.query('SELECT * FROM ofertas ORDER BY id')).rows;
+            } catch (error) {
+                throw new Error(`Falló la preparación del esquema histórico 023/024: ${error.message}`, { cause: error });
+            }
+        });
+
+        afterEach(async () => {
+            if (cliente) {
+                // También retiro esquema, funciones, notas y ledger sin tocar public.
+                await cliente.query('ROLLBACK');
+                cliente.release();
+                cliente = null;
+            }
+        });
+
+        test('025 actualizo funciones originales ya aplicadas sin volver a ejecutar su backfill', async () => {
+            const consulta = "SELECT fn_obtener_identidad_canonica_023('https://ar.indeed.com/viewjob?jk=%41BC123', 'indeed', '{}'::jsonb, 1) AS identidad";
+            expect((await cliente.query(consulta)).rows[0].identidad)
+                .toBe('indeed:url:https://ar.indeed.com/viewjob?jk=ABC123');
+            const indices = (await cliente.query(`SELECT indexdef FROM pg_indexes
+                WHERE schemaname = current_schema() AND tablename = 'ofertas'`)).rows;
+            expect(indices.some(({ indexdef }) => /UNIQUE INDEX.*\(url\)/.test(indexdef))).toBe(true);
+            expect(indices.some(({ indexdef }) => /UNIQUE INDEX.*\(identidad_canonica\)/.test(indexdef))).toBe(true);
+            const previas = (await cliente.query('SELECT * FROM schema_migrations ORDER BY id')).rows;
+            expect(previas.map(({ id, exitoso }) => ({ id, exitoso })))
+                .toEqual(nombres.slice(0, 2).map(id => ({ id, exitoso: true })));
+            const pendientes = nombres.filter(nombre => !previas.some(fila => fila.id === nombre && fila.exitoso));
+            expect(pendientes).toEqual([nombres[2]]);
+            for (const nombre of pendientes) {
+                await cliente.query(leerMigracion(25));
+                await cliente.query('INSERT INTO schema_migrations (id, exitoso) VALUES ($1, true)', [nombre]);
+            }
+            expect((await cliente.query(consulta)).rows[0].identidad).toBe('indeed:abc123');
+            const esperadas = anteriores.map(fila => ({
+                ...fila, url: `https://ar.indeed.com/viewjob?jk=${fila.identidad_canonica.split(':')[1]}`,
+            }));
+            // Comparo todas las columnas, incluidas notas de instalaciones extendidas.
+            expect((await cliente.query('SELECT * FROM ofertas ORDER BY id')).rows).toEqual(esperadas);
+            expect((await cliente.query('SELECT * FROM schema_migrations WHERE id = ANY($1) ORDER BY id', [nombres.slice(0, 2)])).rows).toEqual(previas);
+            expect((await cliente.query('SELECT id, exitoso FROM schema_migrations ORDER BY id')).rows)
+                .toEqual(nombres.map(id => ({ id, exitoso: true })));
+            const primera = (await cliente.query('SELECT *, xmin::text, ctid::text FROM ofertas ORDER BY id')).rows;
+            await cliente.query(leerMigracion(25));
+            expect((await cliente.query('SELECT *, xmin::text, ctid::text FROM ofertas ORDER BY id')).rows).toEqual(primera);
+        });
     });
 
     test('025 preservo ocupantes ajenos bajo UNIQUE(url) y mantengo el fragmento estable', async () => {
