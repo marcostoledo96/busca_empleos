@@ -333,10 +333,10 @@
                         [disabled]="modoDemo()" aria-describedby="ayuda-fecha-postulacion" />
                     <span id="ayuda-fecha-postulacion">Dejo vacío si desconozco la fecha. Puedo corregirla o borrarla.</span>
                     <label for="nota-postulacion">Nota de seguimiento</label>
-                    <textarea id="nota-postulacion" name="notaPostulacion" class="textarea-edicion" rows="4" maxlength="4000"
+                    <textarea id="nota-postulacion" name="notaPostulacion" class="textarea-edicion" rows="4"
                         [ngModel]="notaPostulacion()" (ngModelChange)="editarSeguimiento('nota', $event)"
                         [disabled]="modoDemo()" aria-describedby="ayuda-nota-postulacion"></textarea>
-                    <span id="ayuda-nota-postulacion">{{ notaPostulacion().length }} / 4000 caracteres. Vacío elimina la nota.</span>
+                    <span id="ayuda-nota-postulacion">{{ longitudNotaPostulacion() }} / 4000 caracteres Unicode. Vacío elimina la nota.</span>
                     @if (errorSeguimiento()) {
                         <p class="alerta-error-edicion" role="alert">{{ errorSeguimiento() }}</p>
                     }
@@ -344,7 +344,7 @@
                         {{ guardandoSeguimiento() ? 'Guardando seguimiento…' : mensajeSeguimiento() }}
                     </p>
                     <button type="submit" class="btn-detalle-primario" aria-label="Guardar seguimiento"
-                        [disabled]="modoDemo() || guardandoSeguimiento() || notaPostulacion().length > 4000">
+                        [disabled]="modoDemo() || guardandoSeguimiento() || longitudNotaPostulacion() > 4000">
                         Guardar seguimiento
                     </button>
                 </form>

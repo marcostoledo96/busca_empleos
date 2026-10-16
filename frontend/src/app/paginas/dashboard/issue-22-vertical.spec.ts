@@ -149,6 +149,26 @@ suite('Issue22 continua real — HTTP/DOM/IndexedDB', () => {
         await esperar(() => !fixture!.componentInstance.sincronizando());
         verificarDetalle();
         expect((await new PersistenciaDashboardService().obtenerOfertasSincronizadas())[0]).toEqual(jasmine.objectContaining({ id, estado_postulacion: 'en_proceso', nota_postulacion: 'Envié CV; próxima entrevista' }));
+        // Mantengo el editor A con su copia anterior mientras el cliente B escribe sólo la nota.
+        await editar('#fecha-postulacion', '2024-03-01');
+        await firstValueFrom(http.patch(`${base}/api/ofertas/${id}/seguimiento`, { nota_postulacion: 'Nota del cliente B' }));
+        await pulsar('[aria-label="Guardar seguimiento"]');
+        await esperar(() => fixture!.nativeElement.textContent.includes('Seguimiento guardado'));
+        expect((await observar()).oferta).toEqual(jasmine.objectContaining({
+            fecha_postulacion: '2024-03-01', nota_postulacion: 'Nota del cliente B',
+        }));
+        // Invierto los campos: una nota enviada desde A no puede borrar la fecha que confirmó B.
+        await editar('#nota-postulacion', 'Nota del cliente A');
+        await firstValueFrom(http.patch(`${base}/api/ofertas/${id}/seguimiento`, { fecha_postulacion: '2024-03-02' }));
+        await pulsar('[aria-label="Guardar seguimiento"]');
+        await esperar(() => fixture!.nativeElement.textContent.includes('Seguimiento guardado'));
+        expect((await observar()).oferta).toEqual(jasmine.objectContaining({
+            fecha_postulacion: '2024-03-02', nota_postulacion: 'Nota del cliente A',
+        }));
+        // Restauro explícitamente el fixture final que también verifica el runner PostgreSQL.
+        await firstValueFrom(http.patch(`${base}/api/ofertas/${id}/seguimiento`, {
+            fecha_postulacion: '2024-02-29', nota_postulacion: 'Envié CV; próxima entrevista',
+        }));
         await firstValueFrom(http.post(`${control}/completado`, {}));
     }, 60000);
 });

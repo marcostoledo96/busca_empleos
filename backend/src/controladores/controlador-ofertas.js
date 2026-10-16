@@ -369,7 +369,7 @@ async function actualizarSeguimiento(req, res) {
         }
     }
     if (Object.hasOwn(cambios, 'nota_postulacion') && cambios.nota_postulacion !== null
-        && (typeof cambios.nota_postulacion !== 'string' || cambios.nota_postulacion.length > 4000)) {
+        && (typeof cambios.nota_postulacion !== 'string' || [...cambios.nota_postulacion].length > 4000)) {
         return res.status(400).json({ exito: false, error: 'nota_postulacion debe ser un texto de hasta 4000 caracteres o null.' });
     }
     const oferta = await modeloOferta.actualizarSeguimiento(id, cambios);

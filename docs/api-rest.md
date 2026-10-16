@@ -602,8 +602,8 @@ Actualizo parcialmente fecha y nota, con autenticación habitual y sin modificar
 ```
 
 - `fecha_postulacion`: día real `YYYY-MM-DD` (años 0001–9999), sin hora/zona, o `null`. No infiero fechas históricas.
-- `nota_postulacion`: texto de hasta 4000 caracteres o `null`; admito texto vacío sin recortarlo.
-- Campo omitido: conservo su valor. `null` explícito: limpio ese campo.
+- `nota_postulacion`: texto de hasta 4000 puntos Unicode o `null`; admito texto vacío sin recortarlo. Cuento igual que `char_length` de PostgreSQL UTF8: 4000 emoji astrales son válidos, 4001 se rechazan con `400` sin escribir datos.
+- Campo omitido: conservo su valor. `null` explícito: limpio ese campo. Cada cliente debe enviar sólo los campos realmente editados; una respuesta de oferta completa no autoriza a reemplazar localmente campos ajenos al PATCH. No implemento versionado para conflictos del mismo campo.
 - Rechazo cuerpo vacío, arrays, campos adicionales, tipos incorrectos y fechas imposibles con `400`, sin escribir datos.
 - `200`: `{ "exito": true, "datos": { "id": 1, "fecha_postulacion": "2024-02-29", "nota_postulacion": "Envié CV", "...": "resto de la oferta" }, "mensaje": "Seguimiento actualizado correctamente." }`.
 - ID inválido: `400`; oferta inexistente: `404` (`Oferta no encontrada.`); fallo inesperado: `500` genérico. Sin token válido: `401`.

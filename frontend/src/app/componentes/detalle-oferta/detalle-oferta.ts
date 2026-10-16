@@ -56,6 +56,7 @@ export class DetalleOferta implements OnDestroy {
 
     readonly fechaPostulacion = signal('');
     readonly notaPostulacion = signal('');
+    readonly longitudNotaPostulacion = computed(() => [...this.notaPostulacion()].length);
     readonly errorSeguimiento = signal<string | null>(null);
     readonly mensajeSeguimiento = signal<string | null>(null);
     private readonly seguimientoGuardandoIds = signal<ReadonlySet<number>>(new Set());
@@ -64,6 +65,8 @@ export class DetalleOferta implements OnDestroy {
     private idBorrador: number | null = null;
     private revisionBorrador = 0;
     private sesionBorrador = 0;
+    private fechaBase = '';
+    private notaBase = '';
 
     editarSeguimiento(campo: 'fecha' | 'nota', valor: string): void {
         if (this.modoDemo()) return;
@@ -77,16 +80,16 @@ export class DetalleOferta implements OnDestroy {
     guardarSeguimiento(): void {
         const oferta = this.oferta();
         if (!oferta || this.modoDemo() || this.guardandoSeguimiento()) return;
-        if (this.notaPostulacion().length > 4000) {
+        if (this.longitudNotaPostulacion() > 4000) {
             this.errorSeguimiento.set('La nota debe tener hasta 4000 caracteres.');
             return;
         }
         const revision = this.revisionBorrador;
         const sesion = this.sesionBorrador;
-        const cambios = {
-            fecha_postulacion: this.fechaPostulacion() || null,
-            nota_postulacion: this.notaPostulacion() || null,
-        };
+        const cambios: Partial<Pick<Oferta, 'fecha_postulacion' | 'nota_postulacion'>> = {};
+        if (this.fechaPostulacion() !== this.fechaBase) cambios.fecha_postulacion = this.fechaPostulacion() || null;
+        if (this.notaPostulacion() !== this.notaBase) cambios.nota_postulacion = this.notaPostulacion() || null;
+        if (Object.keys(cambios).length === 0) return;
         this.seguimientoGuardandoIds.update(ids => new Set([...ids, oferta.id]));
         this.errorSeguimiento.set(null);
         this.mensajeSeguimiento.set(null);
@@ -107,15 +110,37 @@ export class DetalleOferta implements OnDestroy {
                     fallar();
                     return;
                 }
-                // Tomo sólo los campos de esta operación: el estado puede haber cambiado en paralelo.
-                oferta.fecha_postulacion = respuesta.datos.fecha_postulacion ?? null;
-                oferta.nota_postulacion = respuesta.datos.nota_postulacion ?? null;
-                this.ofertaActualizada.emit(oferta);
-                if (vigente()) {
-                    this.fechaPostulacion.set(oferta.fecha_postulacion ?? '');
-                    this.notaPostulacion.set(oferta.nota_postulacion ?? '');
-                    this.mensajeSeguimiento.set('Seguimiento guardado.');
+                const editor = this.oferta();
+                const mismoId = editor?.id === oferta.id;
+                const confirmar = mismoId && (vigente() || (
+                    this.fechaPostulacion() === this.fechaBase && this.notaPostulacion() === this.notaBase));
+                // Ignoro campos ajenos al PATCH: la respuesta completa puede ser anterior a otra confirmación.
+                if (Object.hasOwn(cambios, 'fecha_postulacion')) {
+                    const fecha = respuesta.datos.fecha_postulacion ?? null;
+                    oferta.fecha_postulacion = fecha;
+                    if (mismoId) {
+                        editor.fecha_postulacion = fecha;
+                        if (this.fechaPostulacion() === this.fechaBase
+                            || (mismaSesion() && this.fechaPostulacion() === (cambios.fecha_postulacion ?? ''))) {
+                            this.fechaPostulacion.set(fecha ?? '');
+                        }
+                        this.fechaBase = fecha ?? '';
+                    }
                 }
+                if (Object.hasOwn(cambios, 'nota_postulacion')) {
+                    const nota = respuesta.datos.nota_postulacion ?? null;
+                    oferta.nota_postulacion = nota;
+                    if (mismoId) {
+                        editor.nota_postulacion = nota;
+                        if (this.notaPostulacion() === this.notaBase
+                            || (mismaSesion() && this.notaPostulacion() === (cambios.nota_postulacion ?? ''))) {
+                            this.notaPostulacion.set(nota ?? '');
+                        }
+                        this.notaBase = nota ?? '';
+                    }
+                }
+                this.ofertaActualizada.emit(mismoId ? editor : oferta);
+                if (confirmar) this.mensajeSeguimiento.set('Seguimiento guardado.');
                 finalizar();
             },
             error: fallar,
@@ -142,8 +167,10 @@ export class DetalleOferta implements OnDestroy {
             this.idBorrador = oferta?.id ?? null;
             this.sesionBorrador++;
             this.revisionBorrador++;
-            this.fechaPostulacion.set(oferta?.fecha_postulacion ?? '');
-            this.notaPostulacion.set(oferta?.nota_postulacion ?? '');
+            this.fechaBase = oferta?.fecha_postulacion ?? '';
+            this.notaBase = oferta?.nota_postulacion ?? '';
+            this.fechaPostulacion.set(this.fechaBase);
+            this.notaPostulacion.set(this.notaBase);
             this.errorSeguimiento.set(null);
             this.mensajeSeguimiento.set(null);
         });

@@ -64,6 +64,41 @@ contexto('Issue #22 — seguimiento PostgreSQL sintético', () => {
         return request(api).patch(`/api/ofertas/${id}/seguimiento`).set('Authorization', 'Bearer sintetico').send(cambios);
     }
 
+    test('P3 HTTP y PostgreSQL aceptan 4000 emoji y rechazan 4001 sin modificar datos ni conteo', async () => {
+        const id = ids[4];
+        const aceptada = await guardar(id, { nota_postulacion: '😀'.repeat(4000) });
+        expect(aceptada.status).toBe(200);
+        expect(aceptada.body).toMatchObject({ exito: true, datos: { nota_postulacion: '😀'.repeat(4000) }, mensaje: 'Seguimiento actualizado correctamente.' });
+        const leer = () => request(api).get(`/api/ofertas/${id}`).set('Authorization', 'Bearer sintetico');
+        const listar = () => request(api).get('/api/ofertas').set('Authorization', 'Bearer sintetico');
+        const antes = await leer();
+        const listadoAntes = await listar();
+        expect(antes.status).toBe(200);
+        expect(antes.body.datos.nota_postulacion).toBe('😀'.repeat(4000));
+        expect((await pool.query('SELECT char_length(nota_postulacion) AS caracteres FROM ofertas WHERE id = $1', [id])).rows[0].caracteres).toBe(4000);
+        const rechazada = await guardar(id, { nota_postulacion: '😀'.repeat(4001) });
+        expect(rechazada.status).toBe(400);
+        expect(rechazada.body).toEqual({ exito: false, error: 'nota_postulacion debe ser un texto de hasta 4000 caracteres o null.' });
+        expect((await leer()).body).toEqual(antes.body);
+        expect((await listar()).body).toEqual(listadoAntes.body);
+    });
+
+    test('H02 dos clientes cambian campos distintos, omitir conserva y null limpia sólo el campo explícito', async () => {
+        const id = ids[4];
+        await guardar(id, { fecha_postulacion: '2026-01-01', nota_postulacion: 'Nota inicial' });
+        const nota = await guardar(id, { nota_postulacion: 'Nota cliente B' });
+        const fecha = await guardar(id, { fecha_postulacion: '2026-03-04' });
+        expect(nota.status).toBe(200);
+        expect(fecha.status).toBe(200);
+        expect(fecha.body.datos).toMatchObject({ fecha_postulacion: '2026-03-04', nota_postulacion: 'Nota cliente B' });
+        const limpiarFecha = await guardar(id, { fecha_postulacion: null });
+        expect(limpiarFecha.status).toBe(200);
+        expect(limpiarFecha.body.datos).toMatchObject({ fecha_postulacion: null, nota_postulacion: 'Nota cliente B' });
+        const limpiarNota = await guardar(id, { nota_postulacion: null });
+        expect(limpiarNota.status).toBe(200);
+        expect(limpiarNota.body.datos).toMatchObject({ fecha_postulacion: null, nota_postulacion: null });
+    });
+
     test('recorro persistencia, visibilidad, snapshot concurrente, estados y reaparición sin perder seguimiento', async () => {
         await modelo.actualizarPostulacion(ids[0], 'cv_enviado');
         await modelo.actualizarPostulacion(ids[1], 'en_proceso');

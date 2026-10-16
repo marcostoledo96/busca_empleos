@@ -269,6 +269,142 @@ describe('Issue 22 — seguimiento visible, persistencia y concurrencia', () => 
         expect(dashboard.accionMasivaEnCurso()).toBeFalse();
     }));
 
+    for (const nuevaEdicion of [false, true]) {
+        it(`H01 reconcilio A→B→A pendiente y preservo edición posterior=${nuevaEdicion}`, fakeAsync(() => {
+            abrir(); editar('#nota-postulacion', 'Nota confirmada de A'); guardar();
+            const pendiente = http.expectOne(`${url}/22/seguimiento`);
+            const ofertaA = dashboard.ofertas()[0];
+            dashboard.mostrarDetalle(historica({ id: 23, nota_postulacion: 'Nota de B' })); renderizar();
+            dashboard.mostrarDetalle(ofertaA); renderizar();
+            expect(buscar('[aria-label="Guardar seguimiento"]').disabled).toBeTrue();
+            if (nuevaEdicion) editar('#nota-postulacion', 'Nuevo borrador de A');
+            pendiente.flush({ exito: true, datos: historica({ nota_postulacion: 'Nota confirmada de A' }) }); renderizar();
+            expect(buscar('#nota-postulacion').value).toBe(nuevaEdicion ? 'Nuevo borrador de A' : 'Nota confirmada de A');
+            expect(ofertaA.nota_postulacion).toBe('Nota confirmada de A');
+            guardar();
+            if (nuevaEdicion) {
+                const siguiente = http.expectOne(`${url}/22/seguimiento`);
+                expect(siguiente.request.body).toEqual({ nota_postulacion: 'Nuevo borrador de A' });
+                siguiente.flush({ exito: true, datos: historica({ nota_postulacion: 'Nuevo borrador de A' }) }); renderizar();
+            } else {
+                http.expectNone(r => r.method === 'PATCH');
+            }
+            expect(ofertaA.nota_postulacion).toBe(nuevaEdicion ? 'Nuevo borrador de A' : 'Nota confirmada de A');
+        }));
+    }
+
+    for (const nuevaEdicion of [false, true]) {
+        it(`B1 emito la oferta reabierta distinta sin degradar fecha ni borrador posterior=${nuevaEdicion}`, fakeAsync(() => {
+            abrir();
+            const emitidos: Oferta[] = [];
+            detalle().ofertaActualizada.subscribe(oferta => emitidos.push(structuredClone(oferta)));
+            const original = dashboard.ofertas()[0];
+            editar('#nota-postulacion', 'Nota confirmada'); guardar();
+            const pendiente = http.expectOne(`${url}/22/seguimiento`);
+            expect(pendiente.request.body).toEqual({ nota_postulacion: 'Nota confirmada' });
+            dashboard.mostrarDetalle(historica({ id: 23 })); renderizar();
+            const reabierta = historica({ fecha_postulacion: '2026-04-05' });
+            expect(reabierta).not.toBe(original);
+            dashboard.ofertas.set([reabierta]);
+            dashboard.mostrarDetalle(reabierta); renderizar();
+            if (nuevaEdicion) editar('#nota-postulacion', 'Borrador posterior');
+            pendiente.flush({ exito: true, datos: historica({ nota_postulacion: 'Nota confirmada' }) }); renderizar();
+            expect(buscar('#nota-postulacion').value).toBe(nuevaEdicion ? 'Borrador posterior' : 'Nota confirmada');
+            expect(buscar('#fecha-postulacion').value).toBe('2026-04-05');
+            const confirmada = { id: 22, fecha_postulacion: '2026-04-05', nota_postulacion: 'Nota confirmada' };
+            expect(reabierta).toEqual(jasmine.objectContaining(confirmada));
+            expect(persistencia.leerCache()?.ofertas[0]).toEqual(jasmine.objectContaining(confirmada));
+            expect(emitidos.length).toBe(1);
+            expect(emitidos[0]).toEqual(jasmine.objectContaining(confirmada));
+            guardar();
+            if (nuevaEdicion) {
+                const siguiente = http.expectOne(`${url}/22/seguimiento`);
+                expect(siguiente.request.body).toEqual({ nota_postulacion: 'Borrador posterior' });
+                siguiente.flush({ exito: true, datos: historica({ nota_postulacion: 'Borrador posterior' }) }); renderizar();
+                expect(emitidos.length).toBe(2);
+            } else {
+                http.expectNone(r => r.method === 'PATCH');
+            }
+            const final = { ...confirmada, nota_postulacion: nuevaEdicion ? 'Borrador posterior' : 'Nota confirmada' };
+            expect(buscar('#fecha-postulacion').value).toBe('2026-04-05');
+            expect(buscar('#nota-postulacion').value).toBe(final.nota_postulacion);
+            expect(reabierta).toEqual(jasmine.objectContaining(final));
+            expect(persistencia.leerCache()?.ofertas[0]).toEqual(jasmine.objectContaining(final));
+            expect(emitidos[emitidos.length - 1]).toEqual(jasmine.objectContaining(final));
+            expect(emitidos[0]).toEqual(jasmine.objectContaining(confirmada));
+        }));
+    }
+
+    for (const orden of ['fecha-primero', 'nota-primero']) {
+        it(`H02 dos editores envían sólo cambios y concilian respuestas completas ${orden}`, fakeAsync(() => {
+            abrir(); editar('#fecha-postulacion', '2026-03-04'); guardar();
+            const fecha = http.expectOne(`${url}/22/seguimiento`);
+            const otro = TestBed.createComponent(Dashboard);
+            const clienteB = otro.componentInstance;
+            // Ambos editores parten de la misma confirmación; no comparten su borrador.
+            clienteB.ofertas.set([dashboard.ofertas()[0]]);
+            clienteB.mostrarDetalle(clienteB.ofertas()[0]); otro.detectChanges(); tick(400); otro.detectChanges();
+            // TestBed retira la raíz anterior al crear otro fixture; la reconecto para probar submit nativo.
+            document.body.appendChild(fixture.nativeElement);
+            expect(fixture.nativeElement.isConnected).toBeTrue();
+            expect(otro.nativeElement.isConnected).toBeTrue();
+            const campoB = otro.nativeElement.querySelector('#nota-postulacion');
+            campoB.value = 'Nota del cliente B'; campoB.dispatchEvent(new Event('input', { bubbles: true }));
+            otro.detectChanges(); tick(400); otro.detectChanges();
+            otro.nativeElement.querySelector('[aria-label="Guardar seguimiento"]').click();
+            const nota = http.expectOne(`${url}/22/seguimiento`);
+            expect(fecha.request.body).toEqual({ fecha_postulacion: '2026-03-04' });
+            expect(nota.request.body).toEqual({ nota_postulacion: 'Nota del cliente B' });
+            const responderFecha = () => fecha.flush({ exito: true, datos: historica({ fecha_postulacion: '2026-03-04' }) });
+            const responderNota = () => nota.flush({ exito: true, datos: historica({ nota_postulacion: 'Nota del cliente B' }) });
+            if (orden === 'fecha-primero') { responderFecha(); responderNota(); }
+            else { responderNota(); responderFecha(); }
+            renderizar(); otro.detectChanges(); tick(400); otro.detectChanges();
+            expect(dashboard.ofertas()[0]).toEqual(jasmine.objectContaining({
+                fecha_postulacion: '2026-03-04', nota_postulacion: 'Nota del cliente B',
+            }));
+            // El segundo guardado no reenvía el campo intacto de su borrador anterior.
+            guardar(); http.expectNone(r => r.method === 'PATCH');
+            otro.destroy();
+        }));
+    }
+
+    it('conservo omisión si deshago una edición y limpio cada campo con null explícito', fakeAsync(() => {
+        abrir();
+        editar('#nota-postulacion', 'Edición descartada');
+        editar('#nota-postulacion', 'Envié CV; espero respuesta'); guardar();
+        http.expectNone(r => r.method === 'PATCH');
+        editar('#fecha-postulacion', ''); guardar();
+        const fecha = http.expectOne(`${url}/22/seguimiento`);
+        expect(fecha.request.body).toEqual({ fecha_postulacion: null });
+        fecha.flush({ exito: true, datos: historica({ fecha_postulacion: null }) }); renderizar();
+        expect(buscar('#nota-postulacion').value).toBe('Envié CV; espero respuesta');
+        editar('#nota-postulacion', ''); guardar();
+        const nota = http.expectOne(`${url}/22/seguimiento`);
+        expect(nota.request.body).toEqual({ nota_postulacion: null });
+        nota.flush({ exito: true, datos: historica({ fecha_postulacion: null, nota_postulacion: null }) }); renderizar();
+        expect(dashboard.ofertas()[0]).toEqual(jasmine.objectContaining({ fecha_postulacion: null, nota_postulacion: null }));
+        expect(buscar('#fecha-postulacion').value).toBe('');
+        expect(buscar('#nota-postulacion').value).toBe('');
+    }));
+
+    it('P3 cuento puntos Unicode sin maxlength UTF16: 4000 emoji se guardan y 4001 no se envían', fakeAsync(() => {
+        abrir();
+        expect(buscar('#nota-postulacion').hasAttribute('maxlength')).toBeFalse();
+        editar('#nota-postulacion', '😀'.repeat(4000));
+        expect(buscar('#ayuda-nota-postulacion').textContent).toContain('4000 / 4000');
+        expect(buscar('[aria-label="Guardar seguimiento"]').disabled).toBeFalse();
+        guardar();
+        const req = http.expectOne(`${url}/22/seguimiento`);
+        expect(req.request.body).toEqual({ nota_postulacion: '😀'.repeat(4000) });
+        req.flush({ exito: true, datos: historica({ nota_postulacion: '😀'.repeat(4000) }) }); renderizar();
+        editar('#nota-postulacion', '😀'.repeat(4001));
+        expect(buscar('#ayuda-nota-postulacion').textContent).toContain('4001 / 4000');
+        expect(buscar('[aria-label="Guardar seguimiento"]').disabled).toBeTrue();
+        guardar(); http.expectNone(r => r.method === 'PATCH');
+        expect(dashboard.ofertas()[0].nota_postulacion).toBe('😀'.repeat(4000));
+    }));
+
     it('sin fecha conocida queda vacío y el límite de nota impide envío', fakeAsync(() => {
         dashboard.ofertas.set([historica({ fecha_postulacion: null, nota_postulacion: null })]);
         abrir();

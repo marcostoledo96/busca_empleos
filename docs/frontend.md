@@ -3,16 +3,25 @@
 ## Seguimiento de postulaciones — issue #22
 
 En `DetalleOferta` edito «Seguimiento de postulación» por separado de la evaluación IA:
-veo el estado manual actual, la fecha de envío opcional y una nota de hasta 4000 caracteres.
+veo el estado manual actual, la fecha de envío opcional y una nota de hasta 4000 puntos
+Unicode (incluidos 4000 emoji astrales), igual que `char_length` de PostgreSQL UTF8.
+Cuento esos puntos en la ayuda y validación; no uso `maxlength` nativo, que cuenta UTF16.
 Uso un input nativo `date` con el día `YYYY-MM-DD` sin convertirlo a `Date` ni aplicar zona
-horaria. No deduzco fechas históricas; vacío envía `null` para borrar fecha o nota.
+horaria. No deduzco fechas históricas; si vacío un campo editado, envío `null` para borrarlo.
 
 Guardo con `PATCH /api/ofertas/:id/seguimiento`, sin cambiar el estado, la descripción
 ni la evaluación. Muestro procesamiento y bloqueo otro envío para el mismo ID; confirmo
 éxito sólo después del backend. Ante error conservo borrador y diálogo, anuncio el fallo
 y permito reintentar. Si edito mientras espero, la respuesta guarda el valor confirmado
 pero no pisa el borrador posterior ni anuncia que ese nuevo texto ya está guardado.
-Cambiar de oferta separa los mensajes y borradores. Las acciones rápidas de estado
+Comparo cada campo con la base del editor y envío sólo diferencias; si no cambié nada,
+no envío otro PATCH. Omitir conserva el campo confirmado por otro cliente; `null` limpia
+sólo el campo elegido. Aplico de la respuesta completa únicamente las claves enviadas,
+para que una respuesta tardía no restaure un campo ajeno y antiguo. No resuelvo conflictos
+de dos clientes que editan el mismo campo ni incorporo versionado.
+Cambiar de oferta separa los mensajes y borradores. Al volver A→B→A durante un guardado,
+reconcilio por ID los campos intactos del editor reabierto y conservo sus nuevas ediciones.
+Las acciones rápidas de estado
 conservan el comportamiento optimista de #21 y no quedan bloqueadas por editar la nota.
 
 Agrupo sin duplicaciones: `cv_enviado`/`en_proceso` en **Postuladas**, `descartada` en
@@ -40,7 +49,9 @@ En él no simulo HTTP ni servicios/componentes Angular: edito y guardo por DOM u
 oferta histórica, verifico día exacto y nota, sincronizo a IndexedDB y vuelvo a leer con
 servicio, componente e inyector nuevos. Mantengo rechazo IA independiente de Postuladas,
 cambio a `en_proceso` desde el selector real y verifico el upsert real del scraper por
-un control exclusivo del harness. La suite habitual lo informa como **SKIPPED**; para
+un control exclusivo del harness. También alterno una edición DOM con PATCH de otro
+cliente sobre campos distintos y verifico la conservación en PostgreSQL.
+La suite habitual lo informa como **SKIPPED**; para
 probar el puente hace falta ejecutar el comando opt-in, no sólo la suite de componentes.
 No equivale a una navegación de login ni a un scraper externo: únicamente la verificación
 del token Firebase es sintética, y la reaparición ingresa directamente al modelo real.
