@@ -25,12 +25,11 @@ usado, no una nueva lectura de preferencias al consultar estado. Preview muestra
 las preferencias actuales; puede diferir de un ciclo ya ejecutado.
 
 Cada callback cron llama el mismo ciclo y vuelve a leer preferencias actuales,
-sin reutilizar términos de una ejecución anterior. El arranque en `src/index.js`
-no programa cron automáticamente: estado inicial `activo: false`, `expresionCron: null`.
-`programarCron` conserva default `0 20 * * 2`, timezone
-`America/Argentina/Buenos_Aires`; una expresión autorizada sustituye ese default.
-Las pruebas capturan callbacks de node-cron simulado, sin tareas reales, llamadas
-pagas ni BD productiva. Este cambio no habilita cron ni modifica su configuración.
+sin reutilizar términos de una ejecución anterior. En `src/index.js` rehidrato una sola
+vez el historial y la decisión persistida del cron antes de aceptar HTTP. Sin decisión,
+o con decisión inactiva, no programo nada; sólo restauro una activación explícita válida,
+sin ejecutar búsquedas vencidas. `programarCron` conserva default `0 20 * * 2` y zona
+`America/Argentina/Buenos_Aires`. Las pruebas usan node-cron simulado, nunca cron real.
 
 ## Qué es y cómo funciona
 
@@ -88,17 +87,14 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
  1. Para cada plataforma activa (PLATAFORMAS_ACTIVAS):
     ├─ Consulta incompatible → registrar motivo/omisión, NO invocar scraper
     ├─ Buscar SCRAPERS[id] → invocar scraper
-    ├─ Si retorna { deshabilitado: true } → registrar 0, sin error
-    ├─ Éxito → acumular ofertas normalizadas
-    └─ Error → loguear, seguir con siguiente plataforma
+    ├─ Consumir telemetría T1 sin convertir error/timeout en éxito vacío
+    ├─ Filtrar idioma y persistir por fuente con ingreso #19
+    └─ Conservar resultados útiles y seguir con la siguiente plataforma
 
  2. Para cada plataforma inactiva (PLATAFORMAS donde activa=false):
-    └─ Registrar 0 ofertas, marcar paso completado, NO invocar scraper
+    └─ Registrar deshabilitada con motivo, paso omitido y cero intentos
 
- 3. Filtrar ofertas en inglés (detectarIdioma) y guardar en BD
-    ├─ Descartar ofertas con título/descripción en inglés
-    ├─ Por cada oferta: crearOferta() → null si duplicada
-    └─ Contar nuevas vs. duplicadas, descartadas por idioma
+ 3. Sumar resultados exactos de ingreso de cada fuente, sin guardar el lote dos veces
 
  4. Evaluar ofertas pendientes con DeepSeek
     ├─ Éxito → resumen de aprobadas/rechazadas
@@ -114,7 +110,7 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
 
 Distingo la finalización del ciclo de una evaluación exitosa: si el worker resuelve con `estado: 'error'`, `errores > 0` o `estado: 'cancelado'`, marco el paso de evaluación como `error`, agrego un aviso en `resultado.errores` y retorno `exito: false`. También retorno `exito: false` si la evaluación rechaza la promesa. Conservo el resumen completo, sus contadores, las ofertas guardadas, el envío del email y la liberación del lock. Mantengo `activo: false` y `porcentaje: 100` como señales de finalización, no de éxito.
 
-En el email HTML y texto plano, completo el aviso desde `evaluacion.errores`, `evaluacion.estado` y `erroresGuardado` cuando el arreglo general llega vacío; no anuncio «Sin errores» ante fallos o cancelación. No modifico el tratamiento existente del scraping parcial.
+En el email HTML y texto plano, completo el aviso desde `evaluacion.errores`, `evaluacion.estado` y `erroresGuardado` cuando el arreglo general llega vacío; no anuncio «Sin errores» ante fallos o cancelación. El scraping también informa `estadoScraping` general y `fuentes[]`; un fallo total es `error`, una mezcla de fuentes correctas y fallidas es `parcial`. El ciclo termina con `exito: false` ante fallos parciales, sin descartar ofertas útiles.
 
 ### Plataformas actuales (definidas en `config/plataformas.js`)
 
@@ -140,7 +136,7 @@ Para activar/desactivar una plataforma, solo hay que cambiar `activa: true/false
 - Cada plataforma activa se ejecuta en un `try/catch` independiente dentro de un loop.
 - Si una plataforma falla, el ciclo sigue con la siguiente.
 - Las plataformas inactivas se registran con 0 ofertas sin invocar scraper.
-- Adzuna puede retornar `{ deshabilitado: true }` si faltan credenciales → se registra como 0 sin error.
+- Adzuna puede retornar `{ deshabilitado: true }` si faltan credenciales → conservo compatibilidad y registro `sin_credenciales`, nunca `sin_resultados`.
 - Si una plataforma activa no tiene función en `SCRAPERS`, se reporta error de configuración y se continúa.
 - Si la evaluación falla, el scraping ya se guardó.
 - Si el email falla, el ciclo se completa igual (soft-disable).
@@ -200,14 +196,14 @@ Retorna el progreso actual del ciclo en ejecución: pasos por plataforma con est
 
 ### `programarCron(opciones)`
 
-Programa la ejecución periódica:
-1. Valida que la expresión cron sea sintácticamente correcta (`cron.validate()`).
-2. Si ya hay un cron corriendo, lo detiene antes de programar uno nuevo.
-3. Crea la tarea con `cron.schedule()`.
-4. Actualiza el estado interno.
-5. Retorna un controlador con método `detener()`.
-
-Si la expresión es inválida, lanza un error (`"Expresión cron inválida: ..."`) que el controlador convierte en 400.
+Es asincrónica: valido expresión y zona, detengo la tarea anterior, persisto la activación y
+creo una tarea detenida con `cron.createTask()`. Luego hago `start()` y verifico su estado.
+Uso `noOverlap: true`; el callback conserva además la reserva del ciclo existente.
+Retorno un controlador con `detener()` asincrónico. Una configuración inválida devuelve 400;
+un fallo de persistencia o scheduler devuelve 503 con `errorCron`, sin anunciar activación.
+Si falla el scheduler intento persistir inactivo; si también falla esa escritura informo que
+no pude confirmar la decisión durable. Las mutaciones y la rehidratación comparten una cola
+local serializada, sin scheduler adicional.
 
 ### `obtenerEstado()`
 
@@ -224,7 +220,9 @@ Retorna el estado actual para la API y el frontend:
 
 ### `detenerCron()`
 
-Detiene el cron activo desde fuera del controlador de `programarCron()`. Necesaria para que la API pueda detener el cron sin tener la referencia devuelta.
+Detengo y destruyo la tarea antes de persistir `activo: false`, incluso si ya estaba inactiva.
+Una escritura fallida responde 503: la tarea local queda detenida, pero no prometo que la
+decisión durable se haya actualizado. `errorCron` advierte del riesgo al reiniciar.
 
 ## Flujo desde la API
 
@@ -232,7 +230,8 @@ Detiene el cron activo desde fuera del controlador de `programarCron()`. Necesar
 |----------|---------------------|
 | `GET /api/automatizacion/estado` | `obtenerEstado()` |
 | `POST /api/automatizacion/iniciar` | `programarCron({ expresionCron })` |
-| `POST /api/automatizacion/detener` | `detenerCron()` (valida que haya cron activo primero) |
+| `POST /api/automatizacion/detener` | `detenerCron()` (idempotente; persiste inactivo) |
+| `GET /api/automatizacion/historial` | Últimas 20 ejecuciones durables |
 | `POST /api/automatizacion/ejecutar` | `ejecutarCicloCompleto()` disparado en background sin `await` (fire-and-forget) |
 | `GET /api/automatizacion/progreso` | Consulta el progreso del ciclo activo (pasos, porcentaje, estados) |
 
@@ -251,6 +250,25 @@ Esto evita timeouts de infraestructura (Railway, proxies) cuando el ciclo total 
 Cuando el cron dispara `ejecutarCicloCompleto()`:
 - Si hay un error **esperado** (API caída, etc.), queda atrapado dentro del ciclo (diseño resiliente).
 - Si hay un error **fatal** inesperado, se atrapa en el callback del cron con un try/catch que lo loguea sin matar la tarea. El cron sigue programado para la siguiente ejecución.
+
+## Resultado compartido e historial (issue #20)
+
+Uso `servicio-resultados-fuente.js` en individuales, ciclo y cron. Cada fuente informa
+`estado`, `estadoScraping`, consultas efectivamente ejecutadas, errores, peticiones
+(`null` cuando no se conocen), contadores #16 y #19, y duración. `duracionScrapingMs`
+mide extracción; `duracionMs` incluye ingreso. No invento costo ni atribuyo aprobadas IA:
+`evaluacion` sigue siendo global y puede incluir pendientes anteriores.
+`duplicadas` conserva su semántica legacy (incluye actualizadas/reapariciones); no se
+suma a esas categorías. `duplicadasDescartadas` corresponde al filtrado intra-scraping.
+
+Inicio una fila antes del scraping. Si falla ese registro, no consulto proveedores y
+reporto `errorHistorial` en el estado del ciclo y `error` en progreso. Si falla la
+finalización, conservo el resultado con `historial.guardado: false` y aviso explícito.
+Guardo sólo una lista permitida: estados, contadores, consultas acotadas y códigos de
+error; no ofertas, credenciales, snapshots de preferencias ni mensajes del proveedor.
+Retengo 20 ejecuciones finalizadas más las actualmente en curso; la API lista las 20
+más recientes. Al reiniciar marco las pendientes `interrumpida` y vuelvo a acotar.
+Una finalización tardía no puede convertir una interrumpida en completada.
 
 ## Notificación por email post-ciclo
 

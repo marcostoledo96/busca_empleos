@@ -31,14 +31,17 @@ const { Pool } = require('pg');
 const esEntornoTest = process.env.NODE_ENV === 'test';
 const archivoEntorno = esEntornoTest ? '.env.test' : '.env';
 
-if (esEntornoTest) {
-    delete process.env.DATABASE_URL;
+if (process.env.DB_TEST_SINTETICA === 'true') {
+    if (!esEntornoTest || process.env.PGHOST !== '127.0.0.1'
+        || !/^[0-9]+$/.test(process.env.PGPORT || '') || Number(process.env.PGPORT) < 1024 || Number(process.env.PGPORT) > 65535
+        || !(process.env.PGDATABASE || '').endsWith('_test') || !process.env.PGUSER || !process.env.PGPASSWORD
+        || process.env.DATABASE_URL || process.env.PGSERVICE || process.env.PGSERVICEFILE || process.env.PGSSLMODE !== 'disable') {
+        throw new Error('Configuración sintética de BD inválida.');
+    }
+} else {
+    if (esEntornoTest) delete process.env.DATABASE_URL;
+    require('dotenv').config({ path: path.resolve(__dirname, '..', archivoEntorno), override: esEntornoTest });
 }
-
-require('dotenv').config({
-    path: path.resolve(__dirname, '..', archivoEntorno),
-    override: esEntornoTest,
-});
 
 const sqlDir = path.resolve(__dirname, '..', 'sql');
 const modoApply = process.argv.includes('--apply');
@@ -77,12 +80,11 @@ async function migrar() {
         const aplicadas = new Set(aplicadasResult.rows.map(r => r.id));
 
         // 3. Leer archivos .sql de la carpeta sql/.
-        const archivos = fs
-            .readdirSync(sqlDir)
-            .filter(f => f.endsWith('.sql'))
-            .sort(); // Orden alfabético = cronológico si se nombran bien.
-
-        const pendientes = archivos.filter(f => !aplicadas.has(f));
+        const directorioNuevas = path.resolve(__dirname, '..', 'migrations');
+        const archivos = [sqlDir, directorioNuevas].flatMap(directorio => fs.readdirSync(directorio)
+            .filter(nombre => nombre.endsWith('.sql'))
+            .sort().map(nombre => ({ nombre, ruta: path.join(directorio, nombre) })));
+        const pendientes = archivos.filter(archivo => !aplicadas.has(archivo.nombre));
 
         if (pendientes.length === 0) {
             console.log('[Migración] No hay migraciones pendientes. La base está al día.');
@@ -92,7 +94,7 @@ async function migrar() {
         console.log(
             `[Migración] ${pendientes.length} migración(es) pendiente(s).`
         );
-        pendientes.forEach(f => console.log(`  - ${f}`));
+        pendientes.forEach(archivo => console.log(`  - ${archivo.nombre}`));
 
         if (!modoApply) {
             console.log(
@@ -105,8 +107,9 @@ async function migrar() {
         }
 
         // 4. Aplicar cada migración dentro de una transacción.
-        for (const archivo of pendientes) {
-            const sql = fs.readFileSync(path.join(sqlDir, archivo), 'utf-8');
+        for (const migracion of pendientes) {
+            const archivo = migracion.nombre;
+            const sql = fs.readFileSync(migracion.ruta, 'utf-8');
             const client = await pool.connect();
 
             try {

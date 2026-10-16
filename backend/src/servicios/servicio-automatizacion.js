@@ -32,9 +32,11 @@ const cron = require('node-cron');
 const servicioScraping = require('./servicio-scraping');
 const servicioEvaluacion = require('./servicio-evaluacion');
 const bloqueo = require('../utils/bloqueo-concurrente');
-const { filtrarOfertasPorIdioma, guardarLoteOfertasAislado } = require('./servicio-ingreso-ofertas');
+const resultadosFuente = require('./servicio-resultados-fuente');
+const modeloCron = require('../modelos/configuracion-cron');
+const historial = require('../modelos/ejecucion-busqueda');
 const { resolverConfiguraciones } = require('./servicio-configuracion-busqueda');
-const modeloOferta = require('../modelos/oferta');
+
 const servicioNotificacionEmail = require('./servicio-notificacion-email');
 const { PLATAFORMAS_ACTIVAS, PLATAFORMAS, esPlataformaActiva } = require('../config/plataformas');
 
@@ -246,7 +248,21 @@ async function prepararCiclo(opciones = {}) {
  *
  * @returns {Object} Resumen completo del ciclo ejecutado.
  */
-async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
+async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas, tipo = 'ciclo_manual') {
+    const configuraciones = configuracionesPreparadas || await prepararCiclo(opciones);
+    try {
+        return await resultadosFuente.conHistorial(tipo, () => ejecutarCicloRegistrado(opciones, configuraciones));
+    } catch (error) {
+        progreso.error = error.statusCode === 503 ? 'No pude registrar el historial; no inicié scraping.' : 'No pude completar el ciclo.';
+        estado.ultimoResultado = { exito: false, estado: 'error', fuentes: [],
+            ...(error.statusCode === 503 ? { errorHistorial: progreso.error } : { error: progreso.error }) };
+        throw error;
+    } finally {
+        progreso.activo = false;
+    }
+}
+
+async function ejecutarCicloRegistrado(opciones = {}, configuracionesPreparadas) {
     console.log('[Automatización] Iniciando ciclo completo...');
     const inicio = new Date();
 
@@ -254,6 +270,7 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
 
     const resultado = {
         exito: true,
+        fuentes: [],
         scraping: inicializarResultadoScraping(),
         configuracion: Object.values(configuraciones).map(configuracion => configuracion.resumen),
         evaluacion: null,
@@ -262,98 +279,38 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
         erroresGuardado: 0,  // Contador de ofertas que fallaron al guardar en BD.
     };
 
-    // ── Paso 1: Scraping de plataformas activas ──
-    // Itero solo las activas. Las inactivas ya están en progreso como pendientes.
-    let todasLasOfertas = [];
-
-    for (const plataforma of PLATAFORMAS_ACTIVAS) {
+    // Persisto cada fuente antes de continuar; un fallo no descarta datos útiles de otra.
+    for (const plataforma of Object.values(PLATAFORMAS)) {
         const { id, label } = plataforma;
-        const motivo = configuraciones[id].resumen.motivoOmision;
-        if (motivo) {
+        const motivo = configuraciones[id]?.resumen.motivoOmision;
+        if (plataforma.activa && motivo) {
             resultado.omisiones.push({ plataforma: id, motivo });
+            resultado.fuentes.push({ plataforma: id, estado: 'omitida', motivoFinalizacion: motivo });
             actualizarPasoPorgreso(id, 'omitida', 0);
             progreso.pasos.find(paso => paso.nombre === id).motivo = motivo;
             continue;
         }
         actualizarPasoPorgreso(id, 'procesando');
-
-        // Busco la función de scraping correspondiente.
-        const scraperFn = servicioScraping[SCRAPERS[id]];
-
-        if (!scraperFn) {
-            // Si no hay scraper para una plataforma activa, reporto el error
-            // y sigo con la siguiente. No debe crashear el ciclo.
-            actualizarPasoPorgreso(id, 'error', 0);
-            resultado.errores.push(`No se encontró scraper para ${label} (id: ${id})`);
-            console.error(`[Automatización] No se encontró scraper para ${label} (id: ${id})`);
-            continue;
-        }
-
-        try {
-            const scraperResultado = await scraperFn(configuraciones[id].opciones);
-
-            // Caso especial: scraper deshabilitado (ej: Adzuna sin credenciales).
-            // Retorna { deshabilitado: true, ... } en vez de un array de ofertas.
-            if (scraperResultado && typeof scraperResultado === 'object' && scraperResultado.deshabilitado === true) {
-                resultado.scraping[id] = 0;
-                actualizarPasoPorgreso(id, 'completada', 0);
-                console.log(`[Automatización] ${label}: ${scraperResultado.advertencia || 'deshabilitado'}, 0 ofertas.`);
-                continue;
-            }
-
-            // Resultado normal: array de ofertas.
-            const ofertas = Array.isArray(scraperResultado) ? scraperResultado : [];
-            resultado.scraping[id] = ofertas.length;
-            todasLasOfertas.push(...ofertas);
-            actualizarPasoPorgreso(id, 'completada', ofertas.length);
-            console.log(`[Automatización] ${label}: ${ofertas.length} ofertas extraídas.`);
-        } catch (error) {
-            actualizarPasoPorgreso(id, 'error', 0);
-            resultado.errores.push(`Error en scraping de ${label}: ${error.message}`);
-            console.error(`[Automatización] Error en ${label}: ${error.message}`);
+        const fuente = await resultadosFuente.ejecutarFuente(id, servicioScraping[SCRAPERS[id]], configuraciones[id]?.opciones);
+        resultado.fuentes.push(fuente);
+        resultado.scraping[id] = fuente.totalExtraidas;
+        resultado.scraping.totalExtraidas += fuente.totalExtraidas;
+        resultado.scraping.guardadas += fuente.nuevas;
+        resultado.scraping.actualizadas += fuente.actualizadas;
+        resultado.scraping.reapariciones += fuente.reapariciones;
+        resultado.scraping.duplicadas += fuente.duplicadas;
+        resultado.scraping.descartadasPorIdioma += fuente.idiomaDescartadas;
+        resultado.erroresGuardado += fuente.erroresGuardado;
+        const fallo = !['completada', 'sin_resultados', 'deshabilitada'].includes(fuente.estado);
+        actualizarPasoPorgreso(id, fallo ? 'error' : fuente.estado === 'deshabilitada' ? 'omitida' : 'completada', fuente.totalExtraidas);
+        for (const error of fuente.errores) {
+            resultado.errores.push(error.tipo === 'persistencia'
+                ? `Error al guardar ofertas de ${label}: ${fuente.erroresGuardado} errores.`
+                : `Error en scraping de ${label}: ${error.mensaje}`);
         }
     }
-
-    // ── Paso 2: Plataformas inactivas ──
-    // Google Jobs, InfoJobs y cualquier otra desactivada: se registran con 0
-    // y se marcan completadas sin invocar el scraper.
-    for (const [id, plataforma] of Object.entries(PLATAFORMAS)) {
-        if (!plataforma.activa) {
-            resultado.scraping[id] = 0;
-            actualizarPasoPorgreso(id, 'completada', 0);
-            console.log(`[Automatización] ${plataforma.label}: desactivado (${plataforma.motivo}), 0 ofertas.`);
-        }
-    }
-
-    resultado.scraping.totalExtraidas = todasLasOfertas.length;
-
-    // Filtro de idioma: descarto ofertas claramente en inglés antes de guardar.
-    // Aplica a todas las plataformas. Jooble en particular trae resultados globales
-    // (USA, UK) que no aplican porque el perfil del usuario no habla inglés.
-    const ofertasFiltradas = filtrarOfertasPorIdioma(todasLasOfertas);
-    const descartadasPorIdioma = todasLasOfertas.length - ofertasFiltradas.length;
-    if (descartadasPorIdioma > 0) {
-        console.log(`[Automatización] ${descartadasPorIdioma} ofertas descartadas por estar en inglés.`);
-    }
-
-    // ── Paso 3: Guardar ofertas en la BD ──
-    actualizarPasoPorgreso('guardado', 'procesando');
-
-    const resPersistencia = await guardarLoteOfertasAislado(ofertasFiltradas, modeloOferta);
-    resultado.scraping.guardadas = resPersistencia.guardadas;
-    resultado.scraping.actualizadas = resPersistencia.actualizadas;
-    resultado.scraping.reapariciones = resPersistencia.reapariciones;
-    resultado.scraping.duplicadas = resPersistencia.duplicadas;
-    resultado.erroresGuardado = resPersistencia.errores;
-
-    if (resPersistencia.detallesErrores && resPersistencia.detallesErrores.length > 0) {
-        for (const detalle of resPersistencia.detallesErrores) {
-            resultado.errores.push(`Error al guardar oferta "${detalle.titulo || detalle.url || 'sin título'}": ${detalle.error}`);
-        }
-    }
-
-    actualizarPasoPorgreso('guardado', 'completada', resultado.scraping.guardadas);
-    console.log(`[Automatización] ${resultado.scraping.guardadas} ofertas nuevas guardadas, ${resultado.scraping.actualizadas} actualizadas, ${resultado.scraping.reapariciones} reapariciones de ${resultado.scraping.totalExtraidas} extraídas.`);
+    resultado.estadoScraping = resultadosFuente.estadoGeneral(resultado.fuentes);
+    actualizarPasoPorgreso('guardado', resultado.erroresGuardado ? 'error' : 'completada', resultado.scraping.guardadas);
 
     // ── Paso 4: Evaluar ofertas pendientes ──
     actualizarPasoPorgreso('evaluacion', 'procesando');
@@ -395,7 +352,11 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
     // Agrego métricas de duración y fecha al resultado para el email de resumen.
     resultado.fechaEjecucion = inicio.toISOString();
     resultado.duracionSegundos = Math.round(duracion);
-    resultado.scraping.descartadasPorIdioma = descartadasPorIdioma;
+    resultado.estadoEvaluacion = resultado.exito ? 'completada' : 'error';
+    resultado.estado = resultado.estadoScraping;
+    if (!resultado.exito && ['completada', 'sin_resultados'].includes(resultado.estado)) resultado.estado = 'parcial';
+    resultado.exito = resultado.exito && ['completada', 'sin_resultados'].includes(resultado.estado);
+    resultado.evaluacionAlcance = 'global_pendientes_sin_atribucion_por_fuente';
 
     progreso.activo = false;
     progreso.porcentaje = 100;
@@ -418,51 +379,78 @@ async function ejecutarCicloCompleto(opciones = {}, configuracionesPreparadas) {
  * @param {string} [opciones.expresionCron='0 * /12 * * *'] - Expresión cron.
  * @returns {Object} Controlador con método detener().
  */
+let colaCron = Promise.resolve();
+let rehidratacion;
+function serializarCron(operacion) {
+    const actual = colaCron.then(operacion);
+    colaCron = actual.catch(() => {});
+    return actual;
+}
+function validarCron(expresion, zona = TIMEZONE_CRON) {
+    if (typeof expresion !== 'string' || !cron.validate(expresion) || zona !== TIMEZONE_CRON) {
+        throw Object.assign(new Error('Expresión cron inválida o zona horaria no permitida.'), { statusCode: 400 });
+    }
+}
+async function detenerTarea() {
+    const tarea = estado.cronActivo;
+    if (tarea) {
+        await tarea.stop();
+        await tarea.destroy();
+    }
+    estado.cronActivo = null;
+    estado.expresionCron = null;
+}
+async function aplicarCron(expresion) {
+    const tarea = cron.createTask(expresion, async () => {
+        if (cicloEnProgreso()) return;
+        try { await ejecutarCicloCompleto({}, undefined, 'cron'); }
+        catch { console.error('[Automatización] No pude completar el ciclo programado.'); }
+    }, { timezone: TIMEZONE_CRON, noOverlap: true });
+    try {
+        await tarea.start();
+        if (!['idle', 'running'].includes(tarea.getStatus())) throw new Error('El scheduler no quedó activo.');
+        estado.cronActivo = tarea;
+        estado.expresionCron = expresion;
+    } catch (error) {
+        await tarea.destroy();
+        throw error;
+    }
+}
 function programarCron(opciones = {}) {
-    const expresion = opciones.expresionCron || EXPRESION_CRON_DEFECTO;
-
-    // Valido que la expresión cron sea sintácticamente correcta.
-    if (!cron.validate(expresion)) {
-        throw new Error(`Expresión cron inválida: "${expresion}"`);
-    }
-
-    // Si ya hay un cron corriendo, lo detengo antes de programar uno nuevo.
-    if (estado.cronActivo) {
-        estado.cronActivo.stop();
-    }
-
-    console.log(`[Automatización] Programando cron: "${expresion}" (timezone: ${TIMEZONE_CRON})`);
-
-    // cron.schedule() acepta la expresión, un callback y opciones.
-    // La opción `timezone` hace que node-cron interprete la hora en ART
-    // en vez de UTC. Sin esto, las 20:00 serían las 17:00 Argentina.
-    const tarea = cron.schedule(expresion, async () => {
-        console.log(`[Automatización] Cron disparado a las ${new Date().toISOString()}`);
-        // Si ya hay un ciclo activo (manual o de un cron anterior), salteo esta ejecución.
-        if (cicloEnProgreso()) {
-            console.log('[Automatización] Ciclo ya en progreso, salteando ejecución del cron.');
-            return;
-        }
+    const expresion = opciones.expresionCron === undefined ? EXPRESION_CRON_DEFECTO : opciones.expresionCron;
+    return serializarCron(async () => {
+        validarCron(expresion);
         try {
-            await ejecutarCicloCompleto();
-        } catch (error) {
-            // Un error inesperado no debe matar el cron.
-            // Lo logeo y el cron sigue programado para la siguiente ejecución.
-            console.error(`[Automatización] Error fatal en ciclo: ${error.message}`);
+            await detenerTarea();
+            await modeloCron.guardar({ activo: true, expresionCron: expresion, zonaHoraria: TIMEZONE_CRON });
+            await aplicarCron(expresion);
+            estado.errorCron = null;
+            return { detener: detenerCron };
+        } catch {
+            estado.errorCron = 'No pude activar el cron; verificá la persistencia antes de reiniciar.';
+            try { await modeloCron.guardar({ activo: false, expresionCron: expresion, zonaHoraria: TIMEZONE_CRON }); }
+            catch { estado.errorCron += ' Tampoco pude confirmar la desactivación persistida.'; }
+            throw Object.assign(new Error(estado.errorCron), { statusCode: 503 });
         }
-    }, { timezone: TIMEZONE_CRON });
-
-    estado.cronActivo = tarea;
-    estado.expresionCron = expresion;
-
-    return {
-        detener: () => {
-            tarea.stop();
-            estado.cronActivo = null;
-            estado.expresionCron = null;
-            console.log('[Automatización] Cron detenido.');
-        },
-    };
+    });
+}
+function rehidratar() {
+    if (!rehidratacion) rehidratacion = serializarCron(async () => {
+        try {
+            await historial.interrumpirPendientes();
+            const configuracion = await modeloCron.obtener();
+            if (!configuracion || configuracion.activo === false) return obtenerEstado();
+            if (configuracion.activo !== true) throw new Error('Configuración no verificable.');
+            validarCron(configuracion.expresion_cron, configuracion.zona_horaria);
+            await aplicarCron(configuracion.expresion_cron);
+            estado.errorCron = null;
+        } catch {
+            estado.errorCron = 'No pude verificar la configuración o el historial al iniciar; el cron permanece inactivo.';
+            console.error(`[Automatización] ${estado.errorCron}`);
+        }
+        return obtenerEstado();
+    });
+    return rehidratacion;
 }
 
 /**
@@ -475,8 +463,10 @@ function programarCron(opciones = {}) {
  */
 function obtenerEstado() {
     return {
-        activo: estado.cronActivo !== null,
+        activo: estado.cronActivo !== null && ['idle', 'running'].includes(estado.cronActivo.getStatus()),
         expresionCron: estado.expresionCron,
+        zonaHoraria: TIMEZONE_CRON,
+        errorCron: estado.errorCron || null,
         ultimaEjecucion: estado.ultimaEjecucion,
         ultimoResultado: estado.ultimoResultado,
     };
@@ -488,12 +478,18 @@ function obtenerEstado() {
  * devuelta por programarCron().
  */
 function detenerCron() {
-    if (estado.cronActivo) {
-        estado.cronActivo.stop();
-        estado.cronActivo = null;
-        estado.expresionCron = null;
-        console.log('[Automatización] Cron detenido.');
-    }
+    return serializarCron(async () => {
+        const expresion = estado.expresionCron || EXPRESION_CRON_DEFECTO;
+        try {
+            await detenerTarea();
+            await modeloCron.guardar({ activo: false, expresionCron: expresion, zonaHoraria: TIMEZONE_CRON });
+            estado.errorCron = null;
+            return obtenerEstado();
+        } catch {
+            estado.errorCron = 'No pude confirmar la desactivación persistida del cron.';
+            throw Object.assign(new Error(estado.errorCron), { statusCode: 503 });
+        }
+    });
 }
 
 /**
@@ -504,7 +500,10 @@ function detenerCron() {
 function _resetearEstado() {
     if (estado.cronActivo) {
         estado.cronActivo.stop();
+        estado.cronActivo.destroy();
     }
+    colaCron = Promise.resolve();
+    rehidratacion = undefined;
     estado = {
         cronActivo: null,
         expresionCron: null,
@@ -532,6 +531,8 @@ function cicloEnProgreso() {
 module.exports = {
     ejecutarCicloCompleto,
     prepararCiclo,
+    rehidratar,
+    obtenerHistorial: historial.listar,
     programarCron,
     detenerCron,
     obtenerEstado,
