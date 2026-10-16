@@ -3,6 +3,8 @@ import { ActivatedRoute } from '@angular/router';
 import { TabsModule } from 'primeng/tabs';
 import { SelectModule } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
+import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
 import { PanelControl } from '../../componentes/panel-control/panel-control';
 import { TablaOfertas } from '../../componentes/tabla-ofertas/tabla-ofertas';
 import { DetalleOferta } from '../../componentes/detalle-oferta/detalle-oferta';
@@ -24,13 +26,21 @@ import { firstValueFrom, Subject, takeUntil } from 'rxjs';
         TabsModule,
         SelectModule,
         FormsModule,
+        ToastModule,
     ],
+    providers: [MessageService],
     templateUrl: './dashboard.html',
     styleUrl: './dashboard.css'
 })
 export class Dashboard implements OnInit, OnDestroy {
 
     private readonly ofertasService = inject(OfertasService);
+    private readonly mensajes = inject(MessageService);
+    readonly pestanaActiva = signal<string | number>(0);
+    readonly accionMasivaEnCurso = signal(false);
+    readonly accionMasivaConfirmada = signal(0);
+    readonly conciliacionMasiva = signal<{ idsReintentables: number[] } | null>(null);
+    readonly alcanceSeleccion = computed(() => `${this.modoReevaluacion() ? 'reevaluacion' : this.pestanaActiva()}:${this.filtroPlataforma() ?? 'todas'}`);
     private readonly ruta = inject(ActivatedRoute, { optional: true });
     readonly modoReevaluacion = signal(false);
     readonly ofertasReevaluables = computed(() => this.ordenarOfertas(this.ofertasFiltradas().filter(oferta => {
@@ -437,15 +447,80 @@ export class Dashboard implements OnInit, OnDestroy {
 
     // Cuando la tabla dispara una acción masiva de postulación.
     onAccionMasiva(evento: { ids: number[]; estadoPostulacion: string }): void {
-        this.ofertasService.actualizarPostulacionMasiva(evento.ids, evento.estadoPostulacion).pipe(takeUntil(this.destruccion)).subscribe({
+        if (this.modoDemo() || this.accionMasivaEnCurso() || this.postulacionesPendientes().size) return;
+        const estados = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
+        const categoria = this.modoReevaluacion() ? this.ofertasReevaluables()
+            : [this.ofertasAprobadas(), this.ofertasPostuladas(), this.ofertasRechazadas(), this.ofertasPendientes()][Number(this.pestanaActiva())] ?? [];
+        const permitidas = new Set(categoria.map(o => o.id));
+        const ids = [...new Set(evento.ids)];
+        if (!estados.includes(evento.estadoPostulacion) || !ids.length
+            || !ids.every(id => Number.isSafeInteger(id) && id > 0 && permitidas.has(id))) return;
+        const estado = evento.estadoPostulacion as Oferta['estado_postulacion'];
+        this.accionMasivaEnCurso.set(true);
+        ids.forEach(id => this.onPostulacionPendiente({ id, pendiente: true }));
+        const finalizar = () => {
+            ids.forEach(id => this.onPostulacionPendiente({ id, pendiente: false }));
+            this.accionMasivaEnCurso.set(false);
+        };
+        const fallar = () => {
+            finalizar();
+            this.mensajes.add({ severity: 'error', summary: 'Acción masiva no guardada',
+                detail: 'El cambio masivo no se guardó. Conservé la selección válida para volver a intentar.' });
+        };
+        this.ofertasService.actualizarPostulacionMasiva(ids, estado).pipe(takeUntil(this.destruccion)).subscribe({
             next: (resp) => {
-                if (resp.exito) {
-                    this.cargarDatos();
+                const cantidad = resp.datos?.actualizadas;
+                if (!resp.exito || !Number.isInteger(cantidad) || cantidad < 0 || cantidad > ids.length) {
+                    fallar();
+                    return;
                 }
+                if (cantidad === ids.length) {
+                    this.ofertas().filter(o => ids.includes(o.id)).forEach(o => o.estado_postulacion = estado);
+                    this.onAccionCompletada();
+                    this.accionMasivaConfirmada.update(valor => valor + 1);
+                    this.mensajes.add({ severity: 'success', summary: 'Acción masiva guardada',
+                        detail: `${cantidad} ofertas actualizadas.` });
+                } else {
+                    // El contador no identifica éxitos: mantengo guardas hasta una lectura fresca.
+                    this.mensajes.add({ severity: 'warn', summary: 'Actualización parcial',
+                        detail: `${cantidad} de ${ids.length} ofertas actualizadas. Voy a verificar los estados antes de habilitar el reintento.` });
+                    this.conciliarAccionMasiva(ids, estado, finalizar);
+                    return;
+                }
+                finalizar();
+                this.cargarDatos();
             },
-            error: (error) => {
-                console.error('Error al aplicar acción masiva:', error);
-            }
+            error: fallar,
+        });
+    }
+
+    private conciliarAccionMasiva(ids: number[], destino: Oferta['estado_postulacion'], finalizar: () => void): void {
+        const fallar = () => {
+            this.conciliacionMasiva.set({ idsReintentables: [] });
+            finalizar();
+            this.mensajes.add({ severity: 'warn', summary: 'Conciliación no confirmada',
+                detail: 'No pude confirmar los estados. Limpié la selección para evitar un reintento inseguro. Seleccioná nuevamente las ofertas y el estado destino.' });
+        };
+        // No uso sincronización/caché: pueden corresponder a un snapshot anterior al PATCH.
+        this.ofertasService.obtenerOfertas().pipe(takeUntil(this.destruccion)).subscribe({
+            next: respuesta => {
+                const datos = respuesta?.datos;
+                const estados = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
+                if (!respuesta?.exito || !Array.isArray(datos)
+                    || datos.some(o => !o || !Number.isSafeInteger(o.id) || o.id <= 0 || !estados.includes(o.estado_postulacion))
+                    || new Set(datos.map(o => o.id)).size !== datos.length
+                    || !ids.every(id => datos.some(o => o.id === id))) {
+                    fallar();
+                    return;
+                }
+                // Avanzo versiones al cerrar las guardas; lecturas anteriores siguen sin poder pisarlas.
+                finalizar();
+                this.aplicarOfertas(datos, this.capturarPostulaciones());
+                this.conciliacionMasiva.set({ idsReintentables: datos
+                    .filter(o => ids.includes(o.id) && o.estado_postulacion !== destino).map(o => o.id) });
+                this.guardarCacheActual();
+            },
+            error: fallar,
         });
     }
 

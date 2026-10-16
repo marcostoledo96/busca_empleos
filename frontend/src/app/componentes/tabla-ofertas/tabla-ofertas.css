@@ -2,6 +2,10 @@
    Tabla de ofertas — Estilo terminal editorial
    ============================================ */
 
+:host {
+    display: block;
+}
+
 .reevaluacion-seleccion {
     flex-wrap: wrap;
     margin-block: 1rem;

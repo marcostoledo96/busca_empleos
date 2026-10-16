@@ -320,6 +320,7 @@
                     [options]="opcionesPostulacion"
                     [ngModel]="o.estado_postulacion"
                     (ngModelChange)="cambiarPostulacion($event)"
+                    [disabled]="postulacionBloqueada()"
                     optionLabel="label"
                     optionValue="value"
                     [style]="{ width: '220px' }"

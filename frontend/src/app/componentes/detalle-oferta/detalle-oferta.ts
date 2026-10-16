@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { Oferta } from '../../modelos/oferta.model';
 import { OfertasService } from '../../servicios/ofertas.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
+import { MessageService } from 'primeng/api';
 
 @Component({
     selector: 'app-detalle-oferta',
@@ -16,6 +17,16 @@ import { EvaluacionService } from '../../servicios/evaluacion.service';
 export class DetalleOferta implements OnDestroy {
 
     private readonly ofertasService = inject(OfertasService);
+    private readonly mensajes = inject(MessageService, { optional: true });
+    readonly idsPostulacionPendiente = input<ReadonlySet<number>>(new Set());
+    readonly accionMasivaEnCurso = input(false);
+    private readonly guardandoIds = signal<ReadonlySet<number>>(new Set());
+
+    postulacionBloqueada(): boolean {
+        const id = this.oferta()?.id;
+        return this.modoDemo() || this.accionMasivaEnCurso()
+            || (id !== undefined && (this.guardandoIds().has(id) || this.idsPostulacionPendiente().has(id)));
+    }
     private readonly evaluacionService = inject(EvaluacionService);
 
     // La oferta a mostrar. null = diálogo cerrado.
@@ -163,8 +174,16 @@ export class DetalleOferta implements OnDestroy {
 
     cambiarPostulacion(nuevoEstado: string): void {
         const o = this.oferta();
-        if (!o) return;
-        if (this.modoDemo()) return;
+        if (!o || this.postulacionBloqueada() || !this.opcionesPostulacion.some(opcion => opcion.value === nuevoEstado)) return;
+        this.guardandoIds.update(ids => new Set([...ids, o.id]));
+        const finalizar = () => {
+            this.guardandoIds.update(ids => new Set([...ids].filter(id => id !== o.id)));
+            this.postulacionPendiente.emit({ id: o.id, pendiente: false });
+        };
+        const notificarError = () => this.mensajes?.add({
+            severity: 'error', summary: 'Postulación no guardada',
+            detail: 'El cambio de postulación no se guardó. Intentá nuevamente.',
+        });
 
         const estadoAnterior = o.estado_postulacion;
         const estado = nuevoEstado as Oferta['estado_postulacion'];
@@ -178,24 +197,27 @@ export class DetalleOferta implements OnDestroy {
         // 2. Persistir en el backend.
         this.ofertasService.actualizarPostulacion(o.id, nuevoEstado).subscribe({
             next: (respuesta) => {
-                this.postulacionPendiente.emit({ id: o.id, pendiente: false });
                 if (respuesta.exito) {
                     // Confirmar con los datos reales del backend.
                     o.estado_postulacion = respuesta.datos.estado_postulacion;
                     this.postulacionActualizada.emit();
+                    const etiqueta = this.opcionesPostulacion.find(opcion => opcion.value === o.estado_postulacion)?.label;
+                    this.mensajes?.add({ severity: 'success', summary: 'Postulación guardada',
+                        detail: `Postulación actualizada: ${etiqueta}` });
                 } else {
                     // Revertir si el backend respondió con error lógico.
                     o.estado_postulacion = estadoAnterior;
                     this.postulacionActualizada.emit();
-                    console.error('Error al actualizar postulación:', respuesta.error);
+                    notificarError();
                 }
+                finalizar();
             },
-            error: (error) => {
-                this.postulacionPendiente.emit({ id: o.id, pendiente: false });
+            error: () => {
                 // Revertir si falló la red o el servidor.
                 o.estado_postulacion = estadoAnterior;
                 this.postulacionActualizada.emit();
-                console.error('Error al actualizar postulación:', error);
+                notificarError();
+                finalizar();
             }
         });
     }

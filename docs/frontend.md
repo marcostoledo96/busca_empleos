@@ -1,5 +1,55 @@
 # Frontend — Busca Empleos
 
+## Filtros, selección y postulación — issue #21
+
+Selecciono únicamente los IDs de la página visible, después de filtrar en PrimeNG;
+la cabecera anuncia «Seleccionar ofertas de esta página» y refleja selección completa,
+parcial o vacía. En cards uso la página filtrada equivalente. Limpio selección al
+cambiar búsqueda, página, orden manual, plataforma o pestaña. En un refresco con el
+mismo filtro conservo sólo los IDs que siguen visibles. Ajusto la página mobile si
+queda fuera de rango, sin reiniciar una página todavía válida.
+
+Comparto `MessageService` entre dashboard, tabla y detalle. Mantengo el `p-toast`
+fuera del diálogo para anunciar el resultado aunque cierre al cambiar postulación.
+Conservo el cambio optimista individual y su reversión: confirmo, por ejemplo,
+«Postulación actualizada: CV enviado» únicamente después de `exito: true`; ante
+`exito: false`, HTTP 500 o error de red informo que el cambio no se guardó.
+Los IDs pendientes compartidos impiden editar la misma oferta simultáneamente desde
+tabla y detalle; mantengo las versiones que protegen cambios frente a GET tardíos.
+
+Antes del bulk valido IDs positivos enteros, estado destino y pertenencia a la
+categoría/plataforma actual. Bloqueo duplicados y operaciones cruzadas mientras hay
+postulaciones pendientes; muestro cantidad seleccionada y procesamiento. Uso el
+contrato existente `PATCH /ofertas/bulk/postulacion` con `{ ids, estado_postulacion }`:
+
+- **Confirmación completa:** actualizo esos IDs, anuncio `datos.actualizadas`, limpio
+  selección y refresco sin perder filtros ni cambios manuales protegidos.
+- **Confirmación parcial (incluido cero):** anuncio la cantidad real sin atribuir éxitos
+  por ID. Mantengo procesamiento, bloqueo de duplicados y guardas compartidas hasta
+  completar un `GET /ofertas` fresco, separado del caché y la sincronización previa.
+  Conservo para reintentar únicamente IDs originalmente enviados que sigan seleccionados
+  y visibles, con estado confirmado distinto del destino original del PATCH. No restauro
+  selección al cambiar búsqueda, plataforma, pestaña, página u orden mientras espero.
+  El destino de esa conciliación no cambia aunque se modifique el selector local.
+  Si falla el GET (`exito: false`, HTTP o red), faltan IDs o la respuesta es inválida,
+  advierto que no pude confirmar los estados y limpio la selección insegura: necesito
+  una nueva selección explícita, sin reintentos automáticos. Las versiones impiden que
+  lecturas iniciadas antes o durante la conciliación pisen estados recién confirmados.
+- **Fallo:** no anuncio éxito ni altero estados guardados; conservo selección válida
+  y muestro un error accesible para volver a intentar.
+
+Distingo «No hay ofertas guardadas», «Esta categoría no tiene ofertas disponibles» y
+«No hay ofertas que coincidan con los filtros actuales». «Limpiar filtros» restablece
+el texto real del hijo y la plataforma del padre mediante un output. Los avisos de
+caché/sincronización se mantienen separados; no presento un fallo de red como búsqueda
+vacía. Preservo confirmación explícita, máximo de 200 y bloqueo de reevaluación ocupada.
+
+Las pruebas de `paginas/dashboard/issue-21.spec.ts` integran tabla PrimeNG, diálogo,
+toast y servicio HTTP reales con ofertas/respuestas sintéticas; aíslan únicamente el
+panel de scraping y la persistencia. Cubren filtro/página → selección → bulk fallido
+→ aviso visible → reintento confirmado, concurrencia cruzada, respuesta parcial y
+refresco HTTP. No equivalen a pruebas contra PostgreSQL ni proveedores reales.
+
 ## Resultados por fuente e historial — issue #20
 
 Mantengo el panel existente y agrego detalles HTML desplegables para la última búsqueda

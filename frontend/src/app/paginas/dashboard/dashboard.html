@@ -1,5 +1,6 @@
 <!-- Página principal del dashboard -->
 <section class="dashboard" role="main" aria-label="Dashboard de ofertas de empleo">
+    <p-toast />
     @if (mensajeEstado(); as mensaje) {
         <div class="dashboard__mensaje" [class.dashboard__mensaje--cache]="datosDesdeCache()" role="status" aria-live="polite">
             <strong>Estado de carga:</strong> {{ mensaje }}
@@ -83,6 +84,11 @@
                 <p>Últimos 30 días desde la extracción. Incluyo todos los estados de evaluación, también rechazadas y vigencia desconocida.
                     Seleccioná hasta 200 ofertas; no se ejecuta nada hasta confirmar.</p>
                 <app-tabla-ofertas [modoDemo]="modoDemo()" [ofertas]="ofertasReevaluables()" [cargando]="sincronizando()"
+                    [conciliacionMasiva]="conciliacionMasiva()"
+                    [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                    [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                    [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                    (limpiarFiltros)="filtroPlataforma.set(null)"
                     [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
                     (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                     (ofertaSeleccionada)="mostrarDetalle($event)"
@@ -92,7 +98,7 @@
             </section>
         } @else {
         <!-- Tabs de resultados -->
-        <p-tabs [value]="0" aria-label="Ofertas agrupadas por estado">
+        <p-tabs [(value)]="pestanaActiva" aria-label="Ofertas agrupadas por estado">
             <!-- Tab 1: Aprobadas -->
             <p-tablist>
                 <p-tab [value]="0">
@@ -135,6 +141,11 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasAprobadas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
+                        [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                        [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                        [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                        (limpiarFiltros)="filtroPlataforma.set(null)"
                         [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
                         (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
@@ -151,6 +162,11 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPostuladas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
+                        [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                        [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                        [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                        (limpiarFiltros)="filtroPlataforma.set(null)"
                         [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
                         (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
@@ -167,6 +183,11 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasRechazadas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
+                        [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                        [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                        [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                        (limpiarFiltros)="filtroPlataforma.set(null)"
                         [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
                         (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
@@ -183,6 +204,11 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPendientes()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
+                        [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                        [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                        [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                        (limpiarFiltros)="filtroPlataforma.set(null)"
                         [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
                         (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
                         [cargando]="cargando()"
@@ -208,6 +234,8 @@
     <!-- Diálogo de detalle -->
     <app-detalle-oferta
         [oferta]="ofertaSeleccionada()"
+        [accionMasivaEnCurso]="accionMasivaEnCurso()"
+        [idsPostulacionPendiente]="postulacionesPendientes()"
         [(visible)]="dialogoVisible"
         [modoDemo]="modoDemo()"
         (postulacionActualizada)="onAccionCompletada()"
