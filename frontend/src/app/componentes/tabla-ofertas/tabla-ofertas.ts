@@ -1,6 +1,7 @@
-import { Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
-import { TableModule } from 'primeng/table';
+import { Table, TableModule } from 'primeng/table';
+import { FilterService, MessageService } from 'primeng/api';
 import { TagModule } from 'primeng/tag';
 import { ButtonModule } from 'primeng/button';
 import { SelectModule } from 'primeng/select';
@@ -21,6 +22,20 @@ import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 export class TablaOfertas {
 
     private readonly ofertasService = inject(OfertasService);
+    private readonly mensajes = inject(MessageService, { optional: true });
+    private readonly filtros = inject(FilterService);
+    readonly tabla = viewChild<Table>('tablaOfertas');
+    readonly accionMasivaEnCurso = input(false);
+    readonly accionMasivaConfirmada = input(0);
+    readonly alcanceSeleccion = input('');
+    readonly totalOfertas = input(0);
+    readonly filtroPlataformaActivo = input(false);
+    readonly idsPostulacionPendiente = input<ReadonlySet<number>>(new Set());
+    readonly limpiarFiltros = output<void>();
+    readonly guardandoIds = signal<ReadonlySet<number>>(new Set());
+    readonly bulkEmitida = signal(false);
+    readonly procesandoBulk = computed(() => this.accionMasivaEnCurso() || this.bulkEmitida());
+    readonly hayPostulacionesPendientes = computed(() => this.guardandoIds().size > 0 || this.idsPostulacionPendiente().size > 0);
 
     // Datos que recibe del componente padre.
     readonly ofertas = input<Oferta[]>([]);
@@ -53,9 +68,38 @@ export class TablaOfertas {
             untracked(() => {
                 this.seleccionadas.update(ids => new Set([...ids].filter(id => idsVisibles.has(id))));
                 this.confirmandoReevaluacion.set(false);
-                this.paginaActualCards.set(0);
+                const pagina = Math.max(0, Math.min(this.paginaActualCards(), this.totalPaginasCards() - 1));
+                if (pagina !== this.paginaActualCards()) this.limpiarSeleccion();
+                this.paginaActualCards.set(pagina);
             });
         });
+        effect(() => {
+            this.alcanceSeleccion();
+            this.accionMasivaConfirmada();
+            untracked(() => {
+                this.limpiarSeleccion();
+                this.bulkEmitida.set(false);
+            });
+        });
+    }
+
+    // Consulto la página efectiva de PrimeNG, no un segundo filtro de escritorio.
+    ofertasVisiblesActuales(): Oferta[] {
+        const actuales = new Set(this.ofertas().map(o => o.id));
+        if (typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches) {
+            return this.ofertasPaginadasCards();
+        }
+        const tabla = this.tabla();
+        const inicio = tabla?.first || 0;
+        return (tabla?.filteredValue ?? this.ofertas()).slice(inicio, inicio + (tabla?.rows || 20))
+            .filter(o => actuales.has(o.id));
+    }
+
+    private revalidarSeleccion(): number[] {
+        const visibles = new Set(this.ofertasVisiblesActuales().map(o => o.id));
+        const ids = [...this.seleccionadas()].filter(id => visibles.has(id));
+        this.seleccionadas.set(new Set(ids));
+        return ids;
     }
 
     esReciente(oferta: Oferta): boolean {
@@ -70,13 +114,17 @@ export class TablaOfertas {
     });
 
     solicitarReevaluacion(): void {
-        if (this.modoDemo() || this.evaluacionOcupada() || !this.seleccionReevaluable()) return;
+        if (!this.seleccionReevaluable()) return;
+        this.revalidarSeleccion();
+        if (this.modoDemo() || this.evaluacionOcupada() || this.procesandoBulk() || this.hayPostulacionesPendientes() || !this.seleccionReevaluable()) return;
         this.confirmandoReevaluacion.set(true);
     }
 
     confirmarReevaluacion(): void {
-        if (!this.confirmandoReevaluacion() || this.modoDemo() || this.evaluacionOcupada() || !this.seleccionReevaluable()) return;
-        this.reevaluarSeleccionadas.emit([...this.seleccionadas()]);
+        if (!this.seleccionReevaluable()) return;
+        const ids = this.revalidarSeleccion();
+        if (!this.confirmandoReevaluacion() || this.modoDemo() || this.evaluacionOcupada() || this.procesandoBulk() || this.hayPostulacionesPendientes() || !this.seleccionReevaluable()) return;
+        this.reevaluarSeleccionadas.emit(ids);
         this.limpiarSeleccion();
     }
 
@@ -120,15 +168,9 @@ export class TablaOfertas {
     readonly filtroTextoCards = signal('');
 
     // Ofertas filtradas por el buscador de la vista cards.
-    readonly ofertasFiltradasCards = computed(() => {
-        const texto = this.filtroTextoCards().toLowerCase().trim();
-        if (!texto) return this.ofertas();
-        return this.ofertas().filter(o =>
-            o.titulo?.toLowerCase().includes(texto) ||
-            o.empresa?.toLowerCase().includes(texto) ||
-            o.ubicacion?.toLowerCase().includes(texto)
-        );
-    });
+    readonly ofertasFiltradasCards = computed<Oferta[]>(() =>
+        this.filtros.filter(this.ofertas(), ['titulo', 'empresa', 'ubicacion'], this.filtroTextoCards(), 'contains')
+    );
 
     // Ofertas de la página actual en la vista cards.
     readonly ofertasPaginadasCards = computed(() => {
@@ -169,6 +211,26 @@ export class TablaOfertas {
         this.limpiarSeleccion();
         this.filtroTextoCards.set(valor);
         this.paginaActualCards.set(0);
+        this.tabla()?.filterGlobal(valor, 'contains');
+    }
+
+    readonly hayFiltrosActivos = computed(() => !!this.filtroTextoCards().trim() || this.filtroPlataformaActivo());
+    readonly mensajeVacio = computed(() => this.hayFiltrosActivos()
+        ? 'No hay ofertas que coincidan con los filtros actuales'
+        : this.totalOfertas() > 0 || this.ofertas().length > 0
+            ? 'Esta categoría no tiene ofertas disponibles'
+            : 'No hay ofertas guardadas');
+
+    restablecerFiltros(): void {
+        this.filtroTextoCards.set('');
+        this.paginaActualCards.set(0);
+        this.limpiarSeleccion();
+        this.tabla()?.filterGlobal('', 'contains');
+        this.limpiarFiltros.emit();
+    }
+
+    postulacionBloqueada(id: number): boolean {
+        return this.modoDemo() || this.procesandoBulk() || this.guardandoIds().has(id) || this.idsPostulacionPendiente().has(id);
     }
 
     // Opciones de estado para la acción masiva (mismo set que el individual).
@@ -288,8 +350,17 @@ export class TablaOfertas {
     // Cambia el estado de postulación con optimistic update.
     // El cambio se ve instantáneo; si el backend falla, se revierte solo.
     cambiarPostulacion(oferta: Oferta, nuevoEstado: string): void {
-        if (this.modoDemo()) return;
+        if (this.postulacionBloqueada(oferta.id) || !this.opcionesPostulacion.some(o => o.value === nuevoEstado)) return;
+        this.guardandoIds.update(ids => new Set([...ids, oferta.id]));
 
+        const finalizar = () => {
+            this.guardandoIds.update(ids => new Set([...ids].filter(id => id !== oferta.id)));
+            this.postulacionPendiente.emit({ id: oferta.id, pendiente: false });
+        };
+        const notificarError = () => this.mensajes?.add({
+            severity: 'error', summary: 'Postulación no guardada',
+            detail: 'El cambio de postulación no se guardó. Intentá nuevamente.',
+        });
         const estadoAnterior = oferta.estado_postulacion;
         const estado = nuevoEstado as Oferta['estado_postulacion'];
 
@@ -301,31 +372,33 @@ export class TablaOfertas {
         // 2. Persistir en el backend.
         this.ofertasService.actualizarPostulacion(oferta.id, nuevoEstado).subscribe({
             next: (respuesta) => {
-                this.postulacionPendiente.emit({ id: oferta.id, pendiente: false });
                 if (respuesta.exito) {
                     // Confirmar con los datos reales del backend.
                     oferta.estado_postulacion = respuesta.datos.estado_postulacion;
                     this.postulacionActualizada.emit();
+                    this.mensajes?.add({ severity: 'success', summary: 'Postulación guardada',
+                        detail: `Postulación actualizada: ${this.textoPostulacion(oferta.estado_postulacion)}` });
                 } else {
                     // Revertir si el backend respondió pero con error lógico.
                     oferta.estado_postulacion = estadoAnterior;
                     this.postulacionActualizada.emit();
-                    console.error('Error al actualizar postulación:', respuesta.error);
+                    notificarError();
                 }
+                finalizar();
             },
-            error: (error) => {
-                this.postulacionPendiente.emit({ id: oferta.id, pendiente: false });
+            error: () => {
                 // Revertir si falló la red o el servidor.
                 oferta.estado_postulacion = estadoAnterior;
                 this.postulacionActualizada.emit();
-                console.error('Error al actualizar postulación:', error);
+                notificarError();
+                finalizar();
             }
         });
     }
 
     // Alterna la selección de una oferta individual.
     toggleSeleccion(id: number): void {
-        if (this.modoDemo() || this.evaluacionOcupada()) return;
+        if (this.modoDemo() || this.evaluacionOcupada() || this.procesandoBulk()) return;
         this.confirmandoReevaluacion.set(false);
         const actual = new Set(this.seleccionadas());
         if (actual.has(id)) {
@@ -338,13 +411,15 @@ export class TablaOfertas {
 
     // Alterna la selección de todas las ofertas visibles.
     toggleSeleccionarTodas(visibles = this.ofertas()): void {
-        if (this.modoDemo() || this.evaluacionOcupada()) return;
+        if (this.modoDemo() || this.evaluacionOcupada() || this.procesandoBulk()) return;
         this.confirmandoReevaluacion.set(false);
-        if (visibles.every(o => this.seleccionadas().has(o.id))) {
-            this.seleccionadas.set(new Set());
-        } else {
-            this.seleccionadas.set(new Set(visibles.map(o => o.id)));
+        const ids = new Set(this.seleccionadas());
+        const desmarcar = visibles.every(o => ids.has(o.id));
+        for (const oferta of visibles) {
+            if (desmarcar) ids.delete(oferta.id);
+            else ids.add(oferta.id);
         }
+        this.seleccionadas.set(ids);
     }
 
     // Limpia la selección actual.
@@ -356,9 +431,13 @@ export class TablaOfertas {
 
     // Aplica la acción masiva y emite el evento al padre para confirmación.
     aplicarAccionMasiva(): void {
-        if (!this.estadoBulkSeleccionado || this.seleccionadas().size === 0) return;
-        const ids = Array.from(this.seleccionadas());
-        this.accionMasiva.emit({ ids, estadoPostulacion: this.estadoBulkSeleccionado });
-        this.limpiarSeleccion();
+        if (this.modoDemo() || this.evaluacionOcupada() || this.procesandoBulk() || this.hayPostulacionesPendientes() ||
+            !this.opcionesAccionMasiva.some(o => o.value === this.estadoBulkSeleccionado)) return;
+        const ids = this.revalidarSeleccion();
+        if (ids.length === 0) return;
+        this.bulkEmitida.set(true);
+        // Cubro el mismo turno hasta que el padre propague su bloqueo, sin trabar un rechazo previo al HTTP.
+        queueMicrotask(() => this.bulkEmitida.set(false));
+        this.accionMasiva.emit({ ids, estadoPostulacion: this.estadoBulkSeleccionado! });
     }
 }

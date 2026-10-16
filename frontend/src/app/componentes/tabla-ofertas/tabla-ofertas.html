@@ -7,13 +7,13 @@
         }
         @if (!confirmandoReevaluacion()) {
             <button type="button" class="btn-bulk-aplicar" data-accion="reevaluar"
-                [disabled]="evaluacionOcupada() || !seleccionReevaluable()" (click)="solicitarReevaluacion()">Volver a evaluar seleccionadas</button>
+                [disabled]="evaluacionOcupada() || procesandoBulk() || hayPostulacionesPendientes() || !seleccionReevaluable()" (click)="solicitarReevaluacion()">Volver a evaluar seleccionadas</button>
         } @else {
             <div role="region" aria-label="Confirmar reevaluación" aria-live="polite">
                 <p>Voy a volver a evaluar {{ seleccionadas().size }} oferta{{ seleccionadas().size === 1 ? '' : 's' }} de los últimos 30 días desde la extracción,
                     usando el perfil guardado. Esta acción fuerza la evaluación y puede generar llamadas pagas a la IA. No realiza scraping.</p>
                 <button type="button" class="btn-bulk-aplicar" data-accion="confirmar-reevaluacion"
-                    [disabled]="evaluacionOcupada() || !seleccionReevaluable()" (click)="confirmarReevaluacion()">Confirmar reevaluación</button>
+                    [disabled]="evaluacionOcupada() || procesandoBulk() || hayPostulacionesPendientes() || !seleccionReevaluable()" (click)="confirmarReevaluacion()">Confirmar reevaluación</button>
                 <button type="button" class="btn-bulk-cancelar" (click)="confirmandoReevaluacion.set(false)">Cancelar</button>
             </div>
         }
@@ -21,58 +21,53 @@
     </div>
 }
 
+<!-- Comparto las acciones entre tabla y tarjetas. -->
+@if (algunaSeleccionada() && !modoDemo()) {
+    <div class="barra-bulk" role="toolbar" aria-label="Acciones masivas sobre ofertas seleccionadas">
+        <span class="barra-bulk__conteo">
+            <span class="material-symbols-outlined" aria-hidden="true">check_box</span>
+            {{ seleccionadas().size }} oferta{{ seleccionadas().size !== 1 ? 's' : '' }} seleccionada{{ seleccionadas().size !== 1 ? 's' : '' }}
+        </span>
+        <div class="barra-bulk__acciones">
+            <p-select
+                [options]="opcionesAccionMasiva"
+                [(ngModel)]="estadoBulkSeleccionado"
+                optionLabel="label"
+                optionValue="value"
+                [disabled]="procesandoBulk() || hayPostulacionesPendientes()"
+                placeholder="Cambiar estado a..."
+                size="small"
+                ariaLabel="Seleccionar estado para acción masiva"
+                [style]="{ minWidth: '170px' }"
+                appendTo="body" />
+            <button
+                class="btn-bulk-aplicar"
+                [disabled]="!estadoBulkSeleccionado || procesandoBulk() || hayPostulacionesPendientes() || evaluacionOcupada()"
+                (click)="aplicarAccionMasiva()"
+                aria-label="Aplicar acción masiva">
+                {{ procesandoBulk() ? 'Procesando…' : 'APLICAR' }}
+            </button>
+            <button
+                class="btn-bulk-cancelar"
+                (click)="limpiarSeleccion()"
+                aria-label="Cancelar selección masiva">
+                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+            </button>
+        </div>
+    </div>
+}
+
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
 <div class="tabla-contenedor vista-desktop" role="region" aria-label="Tabla de ofertas de empleo">
-    <!-- Encabezado externo a PrimeNG -->
     <div class="tabla-encabezado">
         <span class="tabla-label" id="tabla-busqueda-label">OFERTAS_EMPLEO</span>
         <div class="tabla-filtros">
             <label for="filtro-busqueda-input" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
-            <input
-                id="filtro-busqueda-input"
-                type="text"
-                class="filtro-busqueda"
+            <input id="filtro-busqueda-input" type="text" class="filtro-busqueda"
                 placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
-                aria-labelledby="tabla-busqueda-label"
-                (input)="limpiarSeleccion(); tablaOfertas.filterGlobal($any($event.target).value, 'contains')" />
+                [value]="filtroTextoCards()" (input)="filtrarCards($event)" />
         </div>
     </div>
-
-    <!-- Barra de acciones masivas: visible solo cuando hay selección -->
-    @if (algunaSeleccionada() && !modoDemo()) {
-        <div class="barra-bulk" role="toolbar" aria-label="Acciones masivas sobre ofertas seleccionadas">
-            <span class="barra-bulk__conteo">
-                <span class="material-symbols-outlined" aria-hidden="true">check_box</span>
-                {{ seleccionadas().size }} oferta{{ seleccionadas().size !== 1 ? 's' : '' }} seleccionada{{ seleccionadas().size !== 1 ? 's' : '' }}
-            </span>
-            <div class="barra-bulk__acciones">
-                <p-select
-                    [options]="opcionesAccionMasiva"
-                    [(ngModel)]="estadoBulkSeleccionado"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Cambiar estado a..."
-                    size="small"
-                    ariaLabel="Seleccionar estado para acción masiva"
-                    [style]="{ minWidth: '170px' }"
-                    appendTo="body" />
-                <button
-                    class="btn-bulk-aplicar"
-                    [disabled]="!estadoBulkSeleccionado"
-                    (click)="aplicarAccionMasiva()"
-                    aria-label="Aplicar acción masiva">
-                    APLICAR
-                </button>
-                <button
-                    class="btn-bulk-cancelar"
-                    (click)="limpiarSeleccion()"
-                    aria-label="Cancelar selección masiva">
-                    <span class="material-symbols-outlined" aria-hidden="true">close</span>
-                </button>
-            </div>
-        </div>
-    }
-
     <p-table
         [value]="ofertas()"
         [paginator]="true"
@@ -91,7 +86,7 @@
         <!-- Definición de columnas -->
         <ng-template #header>
             <tr>
-                <th class="columna-checkbox" style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar todas">
+                <th class="columna-checkbox" style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar ofertas de esta página">
                     @if (!modoDemo()) {
                         @let ofertasVisibles = (tablaOfertas.filteredValue || ofertas()).slice(tablaOfertas.first || 0, (tablaOfertas.first || 0) + (tablaOfertas.rows || 20));
                         @let todasVisiblesSeleccionadas = todasSeleccionadas(ofertasVisibles);
@@ -100,9 +95,10 @@
                             class="checkbox-tabla"
                             [checked]="todasVisiblesSeleccionadas"
                             [indeterminate]="contarSeleccionadasVisibles(ofertasVisibles) > 0 && !todasVisiblesSeleccionadas"
-                            [disabled]="evaluacionOcupada()"
+                            [disabled]="evaluacionOcupada() || procesandoBulk() || ofertasVisibles.length === 0"
                             (change)="toggleSeleccionarTodas(ofertasVisibles)"
-                            aria-label="Seleccionar todas las ofertas" />
+                            aria-label="Seleccionar ofertas de esta página"
+                            title="Seleccionar esta página" />
                     }
                 </th>
                 <th class="columna-titulo" pSortableColumn="titulo" style="min-width: 250px">
@@ -135,7 +131,7 @@
                             type="checkbox"
                             class="checkbox-tabla"
                             [checked]="seleccionadas().has(oferta.id)"
-                            [disabled]="evaluacionOcupada()"
+                            [disabled]="evaluacionOcupada() || procesandoBulk()"
                             (change)="toggleSeleccion(oferta.id)"
                             [attr.aria-label]="'Seleccionar ' + oferta.titulo" />
                     }
@@ -197,6 +193,7 @@
                         (ngModelChange)="cambiarPostulacion(oferta, $event)"
                         optionLabel="label"
                         optionValue="value"
+                        [disabled]="postulacionBloqueada(oferta.id)"
                         styleClass="select-postulacion"
                         [style]="{ width: '100%', minWidth: '130px' }"
                         size="small"
@@ -237,8 +234,10 @@
             <tr>
                 <td colspan="9" class="tabla-vacia">
                     <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
-                    <p>NO_HAY_OFERTAS</p>
-                    <span>Ejecutá un scraping desde el panel de control.</span>
+                    <p role="status">{{ mensajeVacio() }}</p>
+                    @if (hayFiltrosActivos()) {
+                        <button type="button" class="btn-bulk-cancelar" (click)="restablecerFiltros()">Limpiar filtros</button>
+                    }
                 </td>
             </tr>
         </ng-template>
@@ -258,7 +257,7 @@
             type="text"
             class="filtro-busqueda"
             placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
-            aria-labelledby="cards-busqueda-label"
+            [value]="filtroTextoCards()"
             (input)="filtrarCards($event)" />
     </div>
 
@@ -274,6 +273,17 @@
         }
     </div>
 
+    @if (!modoDemo()) {
+        <label class="card-seleccion">
+            <input type="checkbox" aria-label="Seleccionar ofertas de esta página"
+                [checked]="todasSeleccionadas(ofertasPaginadasCards())"
+                [indeterminate]="contarSeleccionadasVisibles(ofertasPaginadasCards()) > 0 && !todasSeleccionadas(ofertasPaginadasCards())"
+                [disabled]="evaluacionOcupada() || procesandoBulk() || ofertasPaginadasCards().length === 0"
+                (change)="toggleSeleccionarTodas(ofertasPaginadasCards())" />
+            Seleccionar esta página
+        </label>
+    }
+
     <!-- Lista de cards -->
     @if (ofertasPaginadasCards().length > 0) {
         <div class="cards-lista" role="list">
@@ -281,7 +291,7 @@
                 <article class="card-oferta" role="listitem" (click)="verDetalle(oferta)" (keydown)="activarCardConTeclado($event, oferta)" tabindex="0" [attr.aria-label]="'Oferta: ' + oferta.titulo">
                     @if (!modoDemo()) {
                         <label class="card-seleccion" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                            <input type="checkbox" [checked]="seleccionadas().has(oferta.id)" [disabled]="evaluacionOcupada()"
+                            <input type="checkbox" [checked]="seleccionadas().has(oferta.id)" [disabled]="evaluacionOcupada() || procesandoBulk()"
                                 (change)="toggleSeleccion(oferta.id)" [attr.aria-label]="'Seleccionar en tarjeta ' + oferta.titulo" />
                             Seleccionar para acciones
                         </label>
@@ -342,6 +352,8 @@
                                 size="small"
                                 appendTo="body"
                                 (click)="$event.stopPropagation()"
+                                (keydown)="$event.stopPropagation()"
+                                [disabled]="postulacionBloqueada(oferta.id)"
                                 [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
                         } @else {
                             <span class="tag-plataforma">{{ textoPostulacion(oferta.estado_postulacion) | uppercase }}</span>
@@ -353,8 +365,10 @@
     } @else {
         <div class="cards-vacio" role="status">
             <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
-            <p>NO_HAY_OFERTAS</p>
-            <span>Ejecutá un scraping desde el panel de control.</span>
+            <p>{{ mensajeVacio() }}</p>
+            @if (hayFiltrosActivos()) {
+                <button type="button" class="btn-bulk-cancelar" (click)="restablecerFiltros()">Limpiar filtros</button>
+            }
         </div>
     }
 
