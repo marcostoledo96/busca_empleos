@@ -43,6 +43,22 @@ function crearClienteSnapshot({ mutar = false } = {}) {
 }
 
 describe('sincronización de ofertas por cursor', () => {
+    test('usa el mismo universo histórico en máximo, firma y bloque y proyecta el día como texto', async () => {
+        const cliente = crearClienteSnapshot();
+        pool.connect.mockResolvedValue(cliente);
+        await obtenerBloqueSincronizacion({ limite: 500 });
+        const consultas = cliente.query.mock.calls.map(([sql]) => sql).filter(sql => sql.includes('FROM ofertas'));
+        expect(consultas).toHaveLength(3);
+        for (const sql of consultas) {
+            expect(sql).toContain("estado_postulacion IN ('cv_enviado', 'en_proceso')");
+            expect(sql).toContain('OR fecha_postulacion IS NOT NULL');
+            expect(sql).toContain('COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= $1');
+        }
+        const bloque = consultas.find(sql => sql.includes('SELECT id, titulo'));
+        expect(bloque).toContain("to_char(fecha_postulacion, 'YYYY-MM-DD') AS fecha_postulacion");
+        expect(bloque).toContain('nota_postulacion');
+        expect(consultas.find(sql => sql.includes('string_agg'))).toContain('xmin::text');
+    });
     test('incluye la descripción en la proyección sincronizada', async () => {
         const cliente = crearClienteSnapshot();
         pool.connect.mockResolvedValue(cliente);

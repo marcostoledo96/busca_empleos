@@ -64,7 +64,7 @@ beforeEach(() => {
             registros.set(JSON.stringify(valores.slice(0, 3)), JSON.parse(valores[3]));
             return { rows: [] };
         }
-        if (sql.includes('SELECT * FROM ofertas')) {
+        if (/SELECT \*(?:, to_char\(fecha_postulacion, 'YYYY-MM-DD'\) AS fecha_postulacion)? FROM ofertas/.test(sql)) {
             let datos = filas;
             if (sql.includes('30 days')) datos = datos.filter(reciente);
             if (sql.includes('ANY')) datos = datos.filter(fila => valores[0].includes(fila.id));

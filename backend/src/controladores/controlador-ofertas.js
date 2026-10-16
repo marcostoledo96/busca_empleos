@@ -345,7 +345,40 @@ async function actualizarDescripcion(req, res) {
     });
 }
 
+/** PATCH /api/ofertas/:id/seguimiento: omitir conserva; null limpia. */
+async function actualizarSeguimiento(req, res) {
+    const id = validarIdEnteroPositivo(req.params.id);
+    if (id === null) {
+        return res.status(400).json({ exito: false, error: 'El ID debe ser un número entero positivo.' });
+    }
+    const cambios = req.body;
+    const campos = ['fecha_postulacion', 'nota_postulacion'];
+    if (!cambios || Array.isArray(cambios) || typeof cambios !== 'object'
+        || Object.keys(cambios).length === 0 || Object.keys(cambios).some(campo => !campos.includes(campo))) {
+        return res.status(400).json({ exito: false, error: 'Debo recibir fecha_postulacion o nota_postulacion, sin otros campos.' });
+    }
+    if (Object.hasOwn(cambios, 'fecha_postulacion') && cambios.fecha_postulacion !== null) {
+        const fecha = cambios.fecha_postulacion;
+        // Comparo los componentes UTC solo para validar el calendario; no convierto el valor persistido.
+        const valida = typeof fecha === 'string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(fecha)
+            && fecha.slice(0, 4) !== '0000'
+            && Number.isFinite(Date.parse(`${fecha}T00:00:00Z`))
+            && new Date(`${fecha}T00:00:00Z`).toISOString().slice(0, 10) === fecha;
+        if (!valida) {
+            return res.status(400).json({ exito: false, error: 'fecha_postulacion debe ser una fecha real YYYY-MM-DD o null.' });
+        }
+    }
+    if (Object.hasOwn(cambios, 'nota_postulacion') && cambios.nota_postulacion !== null
+        && (typeof cambios.nota_postulacion !== 'string' || cambios.nota_postulacion.length > 4000)) {
+        return res.status(400).json({ exito: false, error: 'nota_postulacion debe ser un texto de hasta 4000 caracteres o null.' });
+    }
+    const oferta = await modeloOferta.actualizarSeguimiento(id, cambios);
+    if (!oferta) return res.status(404).json({ exito: false, error: 'Oferta no encontrada.' });
+    return res.json({ exito: true, datos: oferta, mensaje: 'Seguimiento actualizado correctamente.' });
+}
+
 module.exports = {
+    actualizarSeguimiento,
     listarOfertas,
     sincronizarOfertas,
     obtenerEstadisticas,

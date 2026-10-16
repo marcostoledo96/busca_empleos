@@ -313,10 +313,11 @@
                 </div>
             }
 
-            <!-- Postulación -->
-            <div class="detalle-seccion">
-                <span class="seccion-label">ESTADO_POSTULACIÓN</span>
+            <section class="detalle-seccion" aria-labelledby="seguimiento-titulo">
+                <h2 class="seccion-label" id="seguimiento-titulo">Seguimiento de postulación</h2>
+                <label id="estado-postulacion-label">Estado manual actual</label>
                 <p-select
+                    ariaLabelledBy="estado-postulacion-label"
                     [options]="opcionesPostulacion"
                     [ngModel]="o.estado_postulacion"
                     (ngModelChange)="cambiarPostulacion($event)"
@@ -325,7 +326,29 @@
                     optionValue="value"
                     [style]="{ width: '220px' }"
                     appendTo="body" />
-            </div>
+                <form class="formulario-edicion" (ngSubmit)="guardarSeguimiento()" [attr.aria-busy]="guardandoSeguimiento()">
+                    <label for="fecha-postulacion">Fecha de envío, si se conoce</label>
+                    <input id="fecha-postulacion" name="fechaPostulacion" type="date"
+                        [ngModel]="fechaPostulacion()" (ngModelChange)="editarSeguimiento('fecha', $event)"
+                        [disabled]="modoDemo()" aria-describedby="ayuda-fecha-postulacion" />
+                    <span id="ayuda-fecha-postulacion">Dejo vacío si desconozco la fecha. Puedo corregirla o borrarla.</span>
+                    <label for="nota-postulacion">Nota de seguimiento</label>
+                    <textarea id="nota-postulacion" name="notaPostulacion" class="textarea-edicion" rows="4" maxlength="4000"
+                        [ngModel]="notaPostulacion()" (ngModelChange)="editarSeguimiento('nota', $event)"
+                        [disabled]="modoDemo()" aria-describedby="ayuda-nota-postulacion"></textarea>
+                    <span id="ayuda-nota-postulacion">{{ notaPostulacion().length }} / 4000 caracteres. Vacío elimina la nota.</span>
+                    @if (errorSeguimiento()) {
+                        <p class="alerta-error-edicion" role="alert">{{ errorSeguimiento() }}</p>
+                    }
+                    <p role="status" aria-live="polite">
+                        {{ guardandoSeguimiento() ? 'Guardando seguimiento…' : mensajeSeguimiento() }}
+                    </p>
+                    <button type="submit" class="btn-detalle-primario" aria-label="Guardar seguimiento"
+                        [disabled]="modoDemo() || guardandoSeguimiento() || notaPostulacion().length > 4000">
+                        Guardar seguimiento
+                    </button>
+                </form>
+            </section>
 
             <!-- Sección de Descripción y Completitud -->
             <div class="detalle-seccion seccion-descripcion">

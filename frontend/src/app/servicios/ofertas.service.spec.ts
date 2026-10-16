@@ -169,6 +169,20 @@ describe('OfertasService', () => {
         }
     }
 
+    for (const cambios of [
+        { fecha_postulacion: '2026-01-02', nota_postulacion: 'Envié CV' },
+        { fecha_postulacion: null, nota_postulacion: null },
+        { nota_postulacion: 'a'.repeat(4000) },
+    ]) {
+        it(`envío seguimiento parcial sin agregar estado ni fecha por defecto: ${Object.keys(cambios)}`, () => {
+            servicio.actualizarSeguimiento(22, cambios).subscribe(respuesta => expect(respuesta.exito).toBeTrue());
+            const req = httpMock.expectOne(`${urlBase}/22/seguimiento`);
+            expect(req.request.method).toBe('PATCH');
+            expect(req.request.body).toEqual(cambios);
+            req.flush({ exito: true, datos: { id: 22, ...cambios } });
+        });
+    }
+
     it('debería actualizar descripción manualmente (PATCH)', () => {
         servicio.actualizarDescripcion(42, 'Texto completo de la oferta...').subscribe((resp) => {
             expect(resp.exito).toBeTrue();

@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, input, model, output, effect, signal, OnDestroy } from '@angular/core';
+import { Component, ElementRef, inject, input, model, output, effect, signal, computed, OnDestroy } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
@@ -54,6 +54,74 @@ export class DetalleOferta implements OnDestroy {
     readonly mensajeReevaluacion = signal<string | null>(null);
     readonly ofertaActualizada = output<Oferta>();
 
+    readonly fechaPostulacion = signal('');
+    readonly notaPostulacion = signal('');
+    readonly errorSeguimiento = signal<string | null>(null);
+    readonly mensajeSeguimiento = signal<string | null>(null);
+    private readonly seguimientoGuardandoIds = signal<ReadonlySet<number>>(new Set());
+    readonly guardandoSeguimiento = computed(() => this.seguimientoGuardandoIds().has(this.oferta()?.id ?? -1));
+    readonly seguimientoPendiente = output<{ id: number; pendiente: boolean }>();
+    private idBorrador: number | null = null;
+    private revisionBorrador = 0;
+    private sesionBorrador = 0;
+
+    editarSeguimiento(campo: 'fecha' | 'nota', valor: string): void {
+        if (this.modoDemo()) return;
+        if (campo === 'fecha') this.fechaPostulacion.set(valor);
+        else this.notaPostulacion.set(valor);
+        this.revisionBorrador++;
+        this.mensajeSeguimiento.set(null);
+        this.errorSeguimiento.set(null);
+    }
+
+    guardarSeguimiento(): void {
+        const oferta = this.oferta();
+        if (!oferta || this.modoDemo() || this.guardandoSeguimiento()) return;
+        if (this.notaPostulacion().length > 4000) {
+            this.errorSeguimiento.set('La nota debe tener hasta 4000 caracteres.');
+            return;
+        }
+        const revision = this.revisionBorrador;
+        const sesion = this.sesionBorrador;
+        const cambios = {
+            fecha_postulacion: this.fechaPostulacion() || null,
+            nota_postulacion: this.notaPostulacion() || null,
+        };
+        this.seguimientoGuardandoIds.update(ids => new Set([...ids, oferta.id]));
+        this.errorSeguimiento.set(null);
+        this.mensajeSeguimiento.set(null);
+        this.seguimientoPendiente.emit({ id: oferta.id, pendiente: true });
+        const mismaSesion = () => this.oferta()?.id === oferta.id && this.sesionBorrador === sesion;
+        const vigente = () => mismaSesion() && this.revisionBorrador === revision;
+        const finalizar = () => {
+            this.seguimientoGuardandoIds.update(ids => new Set([...ids].filter(id => id !== oferta.id)));
+            this.seguimientoPendiente.emit({ id: oferta.id, pendiente: false });
+        };
+        const fallar = () => {
+            if (mismaSesion()) this.errorSeguimiento.set('No pude guardar el seguimiento. Conservé el borrador; intentá nuevamente.');
+            finalizar();
+        };
+        this.ofertasService.actualizarSeguimiento(oferta.id, cambios).subscribe({
+            next: respuesta => {
+                if (!respuesta.exito || !respuesta.datos) {
+                    fallar();
+                    return;
+                }
+                // Tomo sólo los campos de esta operación: el estado puede haber cambiado en paralelo.
+                oferta.fecha_postulacion = respuesta.datos.fecha_postulacion ?? null;
+                oferta.nota_postulacion = respuesta.datos.nota_postulacion ?? null;
+                this.ofertaActualizada.emit(oferta);
+                if (vigente()) {
+                    this.fechaPostulacion.set(oferta.fecha_postulacion ?? '');
+                    this.notaPostulacion.set(oferta.nota_postulacion ?? '');
+                    this.mensajeSeguimiento.set('Seguimiento guardado.');
+                }
+                finalizar();
+            },
+            error: fallar,
+        });
+    }
+
     readonly opcionesPostulacion = [
         { label: 'No postulado', value: 'no_postulado' },
         { label: 'CV enviado', value: 'cv_enviado' },
@@ -68,6 +136,17 @@ export class DetalleOferta implements OnDestroy {
     private idTimeoutFoco: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private readonly elemento: ElementRef) {
+        effect(() => {
+            const oferta = this.oferta();
+            if ((oferta?.id ?? null) === this.idBorrador) return;
+            this.idBorrador = oferta?.id ?? null;
+            this.sesionBorrador++;
+            this.revisionBorrador++;
+            this.fechaPostulacion.set(oferta?.fecha_postulacion ?? '');
+            this.notaPostulacion.set(oferta?.nota_postulacion ?? '');
+            this.errorSeguimiento.set(null);
+            this.mensajeSeguimiento.set(null);
+        });
         // Effect: cuando el modal se abre, mover foco al contenido;
         // cuando se cierra, restaurar foco al elemento que lo abrió.
         effect(() => {
@@ -270,7 +349,8 @@ export class DetalleOferta implements OnDestroy {
                 this.guardandoDescripcion.set(false);
                 if (respuesta.exito && respuesta.datos) {
                     // Actualizar la oferta local con los datos actualizados.
-                    Object.assign(o, respuesta.datos);
+                    const { estado_postulacion, fecha_postulacion, nota_postulacion, ...descripcionActualizada } = respuesta.datos;
+                    Object.assign(o, descripcionActualizada);
                     this.ofertaActualizada.emit(o);
                     this.modoEdicionDescripcion.set(false);
                 } else {

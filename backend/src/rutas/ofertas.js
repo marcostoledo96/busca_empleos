@@ -33,6 +33,9 @@ router.patch('/bulk/postulacion', controlador.actualizarPostulacionMasiva);
 // Uso PATCH (no PUT) porque solo modifico UN campo, no la oferta entera.
 router.patch('/:id/postulacion', controlador.actualizarPostulacion);
 
+// Mantengo el seguimiento personal separado del cambio rápido de estado.
+router.patch('/:id/seguimiento', controlador.actualizarSeguimiento);
+
 // PATCH para actualizar la descripción de una oferta manualmente.
 router.patch('/:id/descripcion', controlador.actualizarDescripcion);
 

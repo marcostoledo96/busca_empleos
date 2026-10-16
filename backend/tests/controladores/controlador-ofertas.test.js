@@ -14,6 +14,7 @@
 // Primero mockeo TODOS los módulos que hacen I/O.
 // jest.mock() se "hoistea" (se mueve al principio) automáticamente,
 // así que aunque esté antes del require, funciona.
+jest.mock('../../src/config/firebase-admin', () => ({ verifyIdToken: jest.fn() }));
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/servicios/servicio-scraping');
@@ -35,7 +36,70 @@ const baseDatos = require('../../src/config/base-datos');
 const modeloPreferencia = require('../../src/modelos/preferencia');
 const { crearFirmaCriterios } = require('../../src/servicios/evaluacion/identidad-evaluacion');
 
+describe('autenticación real de seguimiento sin proveedor', () => {
+    test('exige token antes de escribir y rechaza token inválido', async () => {
+        const express = require('express');
+        const { verificarAuth } = jest.requireActual('../../src/utils/middleware-auth');
+        const api = express();
+        api.use(express.json());
+        api.use('/api/ofertas', verificarAuth, require('../../src/rutas/ofertas'));
+        const sinToken = await request(api).patch('/api/ofertas/1/seguimiento').send({ nota_postulacion: 'CV' });
+        expect(sinToken.status).toBe(401);
+        expect(sinToken.body).toEqual({ exito: false, error: 'No autorizado. Se requiere un token de autenticación.' });
+        require('../../src/config/firebase-admin').verifyIdToken.mockRejectedValue(new Error('inválido'));
+        const invalido = await request(api).patch('/api/ofertas/1/seguimiento').set('Authorization', 'Bearer sintetico').send({ nota_postulacion: 'CV' });
+        expect(invalido.status).toBe(401);
+        expect(invalido.body).toEqual({ exito: false, error: 'Token de autenticación inválido.' });
+        expect(modeloOferta.actualizarSeguimiento).not.toHaveBeenCalled();
+    });
+});
+
 describe('Controlador de ofertas', () => {
+    describe('PATCH /api/ofertas/:id/seguimiento', () => {
+        test.each([
+            { fecha_postulacion: '2024-02-29', nota_postulacion: 'Envié CV' },
+            { nota_postulacion: '' },
+            { nota_postulacion: 'a'.repeat(4000) },
+            { fecha_postulacion: null },
+            { nota_postulacion: null },
+        ])('guarda parcialmente sin inventar campos: %j', async (cambios) => {
+            modeloOferta.actualizarSeguimiento.mockResolvedValue({ id: 1, ...cambios });
+            const res = await request(app).patch('/api/ofertas/1/seguimiento').send(cambios);
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ exito: true, datos: { id: 1, ...cambios }, mensaje: 'Seguimiento actualizado correctamente.' });
+            expect(modeloOferta.actualizarSeguimiento).toHaveBeenCalledWith(1, cambios);
+        });
+
+        test.each([
+            {}, [], { estado_postulacion: 'cv_enviado' }, { nota_postulacion: 1 },
+            { nota_postulacion: 'a'.repeat(4001) }, { fecha_postulacion: 20260101 },
+            ...['2025-02-29', '2024-04-31', '0000-01-01', '2024-00-01', '2024-13-01', '2024-01-00', '2024-1-01', '2024-01-01T00:00:00Z', ''].map(fecha_postulacion => ({ fecha_postulacion })),
+        ])('rechaza entrada inválida sin escribir: %j', async (cambios) => {
+            const res = await request(app).patch('/api/ofertas/1/seguimiento').send(cambios);
+            expect(res.status).toBe(400);
+            expect(res.body.exito).toBe(false);
+            expect(typeof res.body.error).toBe('string');
+            expect(modeloOferta.actualizarSeguimiento).not.toHaveBeenCalled();
+        });
+
+        test('rechaza ID inválido sin escribir', async () => {
+            const res = await request(app).patch('/api/ofertas/1x/seguimiento').send({ nota_postulacion: null });
+            expect(res.status).toBe(400);
+            expect(res.body).toEqual({ exito: false, error: 'El ID debe ser un número entero positivo.' });
+            expect(modeloOferta.actualizarSeguimiento).not.toHaveBeenCalled();
+        });
+
+        test('informa 404 y propaga 500 sin éxito falso', async () => {
+            modeloOferta.actualizarSeguimiento.mockResolvedValue(null);
+            const ausente = await request(app).patch('/api/ofertas/999/seguimiento').send({ nota_postulacion: null });
+            expect(ausente.status).toBe(404);
+            expect(ausente.body).toEqual({ exito: false, error: 'Oferta no encontrada.' });
+            modeloOferta.actualizarSeguimiento.mockRejectedValue(new Error('fallo sintético'));
+            const fallo = await request(app).patch('/api/ofertas/1/seguimiento').send({ nota_postulacion: null });
+            expect(fallo.status).toBe(500);
+            expect(fallo.body.exito).toBe(false);
+        });
+    });
     // Después de cada test, limpio los mocks para que no se contaminen entre sí.
     afterEach(() => jest.clearAllMocks());
 

@@ -23,6 +23,17 @@ beforeAll(() => {
     contenidoMigrar = fs.readFileSync(rutaMigrar, 'utf-8');
 });
 
+describe('Migración 026 — seguimiento', () => {
+    test('agrega campos nulos sin inventar fechas y limita notas de forma idempotente', () => {
+        const sql = fs.readFileSync(path.join(sqlDir, 'migracion-026-seguimiento-postulacion.sql'), 'utf8');
+        expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS fecha_postulacion DATE/);
+        expect(sql).toMatch(/ADD COLUMN IF NOT EXISTS nota_postulacion TEXT/);
+        expect(sql).toContain('4000');
+        expect(sql).toContain('pg_constraint');
+        expect(sql).not.toMatch(/UPDATE|DEFAULT|DROP|DELETE|TRUNCATE/);
+    });
+});
+
 describe('Runner de migraciones', () => {
     test('el archivo migrar.js existe y es un script auto-ejecutable', () => {
         expect(fs.existsSync(rutaMigrar)).toBe(true);

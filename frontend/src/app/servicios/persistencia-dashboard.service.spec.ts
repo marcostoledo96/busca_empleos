@@ -143,6 +143,32 @@ describe('PersistenciaDashboardService', () => {
         expect(await servicioRecargado.obtenerOfertasSincronizadas()).toEqual([ofertaNueva]);
     });
 
+    it('conservo campos manuales históricos en fallback y al recrear el caché local', async () => {
+        const oferta = {
+            id: 22, estado_postulacion: 'en_proceso',
+            fecha_extraccion: new Date(Date.now() - 90 * 86400000).toISOString(),
+            fecha_postulacion: '2026-01-02', nota_postulacion: 'Nota histórica', datos_crudos: {},
+        } as Oferta;
+        spyOn(servicio as any, 'abrirBaseSincronizacion').and.rejectWith(new Error('Fallo sintético'));
+        const resultado = await servicio.guardarBloqueSincronizacion([oferta]);
+        expect(resultado.fallback).toBeTrue();
+        expect(await servicio.obtenerOfertasSincronizadas()).toEqual([oferta]);
+        servicio.guardarCache({ ofertas: [oferta], estadisticas: null, version: 1, fechaGuardado: new Date().toISOString() });
+        const recargada = new PersistenciaDashboardService().leerCache();
+        expect(recargada?.ofertas[0]).toEqual(jasmine.objectContaining({
+            estado_postulacion: 'en_proceso', fecha_postulacion: '2026-01-02', nota_postulacion: 'Nota histórica',
+        }));
+        expect(recargada?.ofertas[0].datos_crudos).toBeUndefined();
+    });
+
+    it('conservo NULL y limpieza explícita al rehidratar IndexedDB', async () => {
+        const oferta = { id: 22, fecha_postulacion: '2026-01-02', nota_postulacion: 'Nota' } as Oferta;
+        await servicio.guardarBloqueSincronizacion([oferta]);
+        await servicio.guardarBloqueSincronizacion([{ ...oferta, fecha_postulacion: null, nota_postulacion: null }]);
+        const recargadas = await new PersistenciaDashboardService().obtenerOfertasSincronizadas();
+        expect(recargadas).toEqual([{ id: 22, fecha_postulacion: null, nota_postulacion: null } as Oferta]);
+    });
+
     it('conserva el Map si falla la lectura de IndexedDB', async () => {
         const oferta = { id: 9, titulo: 'Oferta en memoria' } as Oferta;
         await servicio.guardarBloqueSincronizacion([oferta]);

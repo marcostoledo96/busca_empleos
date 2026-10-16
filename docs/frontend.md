@@ -1,5 +1,50 @@
 # Frontend — Busca Empleos
 
+## Seguimiento de postulaciones — issue #22
+
+En `DetalleOferta` edito «Seguimiento de postulación» por separado de la evaluación IA:
+veo el estado manual actual, la fecha de envío opcional y una nota de hasta 4000 caracteres.
+Uso un input nativo `date` con el día `YYYY-MM-DD` sin convertirlo a `Date` ni aplicar zona
+horaria. No deduzco fechas históricas; vacío envía `null` para borrar fecha o nota.
+
+Guardo con `PATCH /api/ofertas/:id/seguimiento`, sin cambiar el estado, la descripción
+ni la evaluación. Muestro procesamiento y bloqueo otro envío para el mismo ID; confirmo
+éxito sólo después del backend. Ante error conservo borrador y diálogo, anuncio el fallo
+y permito reintentar. Si edito mientras espero, la respuesta guarda el valor confirmado
+pero no pisa el borrador posterior ni anuncia que ese nuevo texto ya está guardado.
+Cambiar de oferta separa los mensajes y borradores. Las acciones rápidas de estado
+conservan el comportamiento optimista de #21 y no quedan bloqueadas por editar la nota.
+
+Agrupo sin duplicaciones: `cv_enviado`/`en_proceso` en **Postuladas**, `descartada` en
+**Descartadas manualmente**; sólo `no_postulado` se clasifica según evaluación en
+**Rechazadas por IA**, **Pendientes** o **Aprobadas**. Los cinco contadores particionan
+el total filtrado. Los fallos técnicos conservan sus avisos y la evaluación IA sigue
+visible en el detalle aunque haya postulación personal.
+
+Reutilizo la sincronización y persistencia actuales: el backend incluye recientes y
+postulaciones históricas válidas. IndexedDB, fallback de memoria y caché local conservan
+los campos manuales completos, sin filtrar por antigüedad en Angular. Las versiones
+protegen estado, fecha y nota frente a GET/bloques anteriores o iniciados durante un
+guardado, tanto al combinar la vista como al persistir el bloque. Una respuesta de
+edición de descripción tampoco reemplaza esos campos. No reinicio pestaña, plataforma,
+búsqueda ni página al guardar seguimiento.
+
+Las pruebas focales usan HTTP sintético y componentes reales; verifico interacción DOM,
+errores, carreras, categorías, fallback y rehidratación de una histórica desde una nueva
+instancia de IndexedDB. No equivalen a un recorrido contra Express/PostgreSQL ni prueban
+el scraper: esa evidencia se verifica por separado en backend.
+
+Agrego el recorrido continuo opt-in `issue-22-vertical.spec.ts`, lanzado por Jest con
+PostgreSQL real UTF8 y Express local: [comando y guardas](base-datos.md#recorrido-continuo-postgresql--angular-22).
+En él no simulo HTTP ni servicios/componentes Angular: edito y guardo por DOM una misma
+oferta histórica, verifico día exacto y nota, sincronizo a IndexedDB y vuelvo a leer con
+servicio, componente e inyector nuevos. Mantengo rechazo IA independiente de Postuladas,
+cambio a `en_proceso` desde el selector real y verifico el upsert real del scraper por
+un control exclusivo del harness. La suite habitual lo informa como **SKIPPED**; para
+probar el puente hace falta ejecutar el comando opt-in, no sólo la suite de componentes.
+No equivale a una navegación de login ni a un scraper externo: únicamente la verificación
+del token Firebase es sintética, y la reaparición ingresa directamente al modelo real.
+
 ## Filtros, selección y postulación — issue #21
 
 Selecciono únicamente los IDs de la página visible, después de filtrar en PrimeNG;
@@ -264,6 +309,8 @@ interface Oferta {
     moneda: string | null;
     estado_evaluacion: 'pendiente' | 'aprobada' | 'rechazada';
     razon_evaluacion: string | null;
+    fecha_postulacion?: string | null; // Día YYYY-MM-DD; ausente en cachés anteriores.
+    nota_postulacion?: string | null;
     fecha_publicacion: string | null;
     fecha_extraccion: string;
     fecha_ultima_extraccion?: string | null;
@@ -360,8 +407,12 @@ Archivo: `frontend/src/app/servicios/ofertas.service.ts`
 | Método | HTTP | Ruta | Retorna |
 |--------|------|------|---------|
 | `obtenerOfertas(filtros?)` | GET | `/ofertas` | `Observable<RespuestaApi<Oferta[]>>` |
+| `actualizarSeguimiento(id, cambios)` | PATCH | `/ofertas/:id/seguimiento` | `Observable<RespuestaApi<Oferta>>` |
 | `obtenerEstadisticas()` | GET | `/ofertas/estadisticas` | `Observable<RespuestaApi<Estadisticas>>` |
 | `obtenerOfertaPorId(id)` | GET | `/ofertas/:id` | `Observable<RespuestaApi<Oferta>>` |
+
+`cambios` admite sólo `fecha_postulacion?: string | null` y `nota_postulacion?: string | null`.
+Omitir conserva el campo; `null` lo limpia. El editor envía ambos campos explícitamente.
 
 Filtros opcionales vía `HttpParams`: `estado` y `plataforma`.
 

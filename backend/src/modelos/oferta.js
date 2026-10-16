@@ -52,12 +52,20 @@ function leerCursor(cursor) {
     }
 }
 
+// Mantengo el mismo universo en listado, estadísticas y snapshot, sin ampliar la cola de IA.
+function condicionVisibilidad(corte) {
+    return `(COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= ${corte}
+        OR estado_postulacion IN ('cv_enviado', 'en_proceso') OR fecha_postulacion IS NOT NULL)`;
+}
+
+const FECHA_POSTULACION_TEXTO = "to_char(fecha_postulacion, 'YYYY-MM-DD') AS fecha_postulacion";
+
 async function obtenerFirmaSnapshot(cliente, fechaCorte, maxId) {
     const resultado = await cliente.query(
         `SELECT COUNT(*)::integer AS total,
                 COALESCE(md5(string_agg(id::text || ':' || xmin::text, ',' ORDER BY id DESC)), md5('')) AS firma
          FROM ofertas
-         WHERE COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= $1 AND id <= $2`,
+         WHERE ${condicionVisibilidad('$1')} AND id <= $2`,
         [fechaCorte, maxId]
     );
     return resultado.rows[0];
@@ -311,7 +319,7 @@ async function crearOferta(datos) {
                     THEN NULL
                     ELSE ofertas.firma_criterios_evaluacion
                 END
-            RETURNING *, (xmax = 0) AS es_nueva
+            RETURNING *, ${FECHA_POSTULACION_TEXTO}, (xmax = 0) AS es_nueva
         )
         SELECT upsert.*,
                previa.id AS previa_id,
@@ -597,7 +605,7 @@ async function crearOferta(datos) {
                                         ELSE ofertas.firma_criterios_evaluacion
                                     END
                                 WHERE id = $17::integer
-                                RETURNING *, FALSE AS es_nueva
+                                RETURNING *, ${FECHA_POSTULACION_TEXTO}, FALSE AS es_nueva
                             )
                             SELECT actualizar.*,
                                    previa.id AS previa_id,
@@ -719,9 +727,8 @@ async function crearOferta(datos) {
 /**
  * Obtengo ofertas de la base de datos, con filtros y paginación opcionales.
  *
- * Siempre filtro por fecha_extraccion dentro de los últimos 30 días, para no
- * mostrar ofertas antiguas que ya no son relevantes. Este filtro es FIJO (no
- * depende de parámetros del usuario) y se aplica tanto al SELECT como al COUNT.
+ * Incluyo las ofertas recientes y el seguimiento histórico activo o con fecha explícita.
+ * Aplico la misma condición fija al SELECT y al COUNT.
  *
  * ¿Por qué NOW() - INTERVAL '30 days' y no '1 month'?
  * Porque '1 month' es ambiguo en PostgreSQL: resta 1 mes calendario, que puede
@@ -739,8 +746,8 @@ async function crearOferta(datos) {
  * instante NOW(), garantizando consistencia exacta.
  *
  * PAGINACIÓN:
- * - Si NO se pasa limite_pagina: retorna TODAS las ofertas de los últimos
- *   30 días sin LIMIT ni OFFSET. El campo limite_pagina del retorno vale null.
+ * - Si NO se pasa limite_pagina: retorna TODAS las ofertas visibles
+ *   sin LIMIT ni OFFSET. El campo limite_pagina del retorno vale null.
  * - Si se pasa limite_pagina: se aplica paginación con LIMIT/OFFSET.
  *   No hay tope máximo artificial — si el caller pide 5000, obtiene 5000.
  *   Es responsabilidad del caller decidir cuántos registros necesita.
@@ -752,9 +759,8 @@ async function crearOferta(datos) {
  */
 async function obtenerOfertas(filtros = {}) {
     // Construyo la query dinámicamente según los filtros que vengan.
-    // Arranco con el filtro fijo de últimos 30 días y luego agrego los opcionales.
-    // El filtro de fecha SIEMPRE va primero porque es una condición fija.
-    const condiciones = [`COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'`];
+    // Arranco con recientes o seguimiento histórico y luego agrego los filtros opcionales.
+    const condiciones = [condicionVisibilidad("NOW() - INTERVAL '30 days'")];
     const parametros = [];
 
     if (filtros.estado) {
@@ -772,7 +778,7 @@ async function obtenerOfertas(filtros = {}) {
         condiciones.push(`estado_postulacion = $${parametros.length}`);
     }
 
-    // Las condiciones siempre tienen al menos el filtro de fecha,
+    // Las condiciones siempre tienen al menos el filtro de visibilidad,
     // así que siempre hay WHERE.
     const clausulaWhere = `WHERE ${condiciones.join(' AND ')}`;
 
@@ -789,7 +795,7 @@ async function obtenerOfertas(filtros = {}) {
 
     // Determino si hay paginación o no.
     // Si limite_pagina no viene (undefined, null, vacío), NO pagino:
-    // devuelvo todas las ofertas del último mes sin LIMIT/OFFSET.
+    // devuelvo todas las ofertas visibles sin LIMIT/OFFSET.
     // Si viene, valido que sea un entero positivo y lo uso sin tope máximo.
     const limiteRaw = filtros.limite_pagina;
     const hayLimite = limiteRaw !== undefined && limiteRaw !== null && limiteRaw !== '';
@@ -822,13 +828,13 @@ async function obtenerOfertas(filtros = {}) {
         // Caso con paginación: aplico LIMIT y OFFSET.
         const offset = (pagina - 1) * limite;
         resultado = await pool.query(
-            `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST LIMIT $${parametros.length + 1} OFFSET $${parametros.length + 2}`,
+            `SELECT *, ${FECHA_POSTULACION_TEXTO} FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST LIMIT $${parametros.length + 1} OFFSET $${parametros.length + 2}`,
             [...parametros, limite, offset]
         );
     } else {
-        // Sin paginación: traigo todas las ofertas de los últimos 30 días.
+        // Sin paginación: traigo todas las ofertas visibles.
         resultado = await pool.query(
-            `SELECT * FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST`,
+            `SELECT *, ${FECHA_POSTULACION_TEXTO} FROM ofertas ${clausulaWhere} ORDER BY ${columnaOrden} ${direccion} NULLS LAST`,
             parametros
         );
     }
@@ -842,7 +848,7 @@ async function obtenerOfertas(filtros = {}) {
 }
 
 /**
- * Retorno una proyección liviana de ofertas recientes con un cursor firmado.
+ * Retorno una proyección liviana de ofertas visibles con un cursor firmado.
  * El snapshot es lógico: detecto mutaciones del universo fijo y respondo error
  * controlado en vez de afirmar una sincronización completa que ya no existe.
  */
@@ -861,7 +867,7 @@ async function obtenerBloqueSincronizacion({ limite, cursor }) {
             const fechaCorte = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
             const maximo = await cliente.query(
                 `SELECT COALESCE(MAX(id), 0)::integer AS max_id
-                 FROM ofertas WHERE COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= $1`,
+                 FROM ofertas WHERE ${condicionVisibilidad('$1')}`,
                 [fechaCorte]
             );
             const maxId = maximo.rows[0].max_id;
@@ -888,14 +894,15 @@ async function obtenerBloqueSincronizacion({ limite, cursor }) {
             `SELECT id, titulo, empresa, ubicacion, modalidad, descripcion, url, plataforma,
                     nivel_requerido, salario_min, salario_max, moneda,
                     estado_evaluacion, razon_evaluacion, porcentaje_match,
-                    estado_postulacion, fecha_publicacion, fecha_extraccion,
+                    estado_postulacion, ${FECHA_POSTULACION_TEXTO}, nota_postulacion,
+                    fecha_publicacion, fecha_extraccion,
                     fecha_ultima_extraccion, identidad_canonica,
                     prioridad_ia, puntaje_prioridad_ia, evidencias_prioridad_ia,
                     firma_criterios_evaluacion, evaluacion_error_mensaje, fecha_evaluacion,
                     explicacion_evaluacion, origen_descripcion, descripcion_completitud,
                     descripcion_original, descripcion_modificada_en
              FROM ofertas
-             WHERE COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= $1 AND id <= $2 AND id < $3
+             WHERE ${condicionVisibilidad('$1')} AND id <= $2 AND id < $3
              ORDER BY id DESC
              LIMIT $4`,
             [snapshot.fecha_corte, snapshot.max_id, snapshot.ultimo_id, limite]
@@ -933,7 +940,7 @@ async function obtenerBloqueSincronizacion({ limite, cursor }) {
  */
 async function obtenerOfertaPorId(id) {
     const resultado = await pool.query(
-        'SELECT * FROM ofertas WHERE id = $1',
+        `SELECT *, ${FECHA_POSTULACION_TEXTO} FROM ofertas WHERE id = $1`,
         [id]
     );
 
@@ -1038,7 +1045,7 @@ async function actualizarPostulacion(id, estadoPostulacion) {
         `UPDATE ofertas
          SET estado_postulacion = $1
          WHERE id = $2
-         RETURNING *`,
+         RETURNING *, ${FECHA_POSTULACION_TEXTO}`,
         [estadoPostulacion, id]
     );
 
@@ -1049,9 +1056,8 @@ async function actualizarPostulacion(id, estadoPostulacion) {
  * Obtengo estadísticas de las ofertas agrupadas por estado de evaluación.
  * El dashboard necesita estos contadores para mostrar un resumen rápido.
  *
- * Al igual que obtenerOfertas(), filtro por los últimos 30 días para que
- * las estadísticas sean consistentes con lo que el usuario ve en el listado.
- * Una oferta de hace 31 días no debería sumar al total visible.
+ * Al igual que obtenerOfertas(), incluyo recientes y seguimiento histórico
+ * para que los contadores coincidan con el listado.
  *
  * @returns {Object} { total, pendientes, aprobadas, rechazadas }
  */
@@ -1059,7 +1065,7 @@ async function obtenerEstadisticas() {
     const resultado = await pool.query(
         `SELECT estado_evaluacion, COUNT(*)::integer AS cantidad
          FROM ofertas
-         WHERE COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'
+         WHERE ${condicionVisibilidad("NOW() - INTERVAL '30 days'")}
          GROUP BY estado_evaluacion`
     );
 
@@ -1228,14 +1234,29 @@ async function actualizarDescripcionManual(id, nuevaDescripcion) {
              explicacion_evaluacion = NULL,
              firma_criterios_evaluacion = NULL
          WHERE id = $2
-         RETURNING *`,
+         RETURNING *, ${FECHA_POSTULACION_TEXTO}`,
         [descripcionLimpia, idNumerico]
     );
 
     return resultado.rows.length > 0 ? resultado.rows[0] : null;
 }
 
+/** Actualizo únicamente campos manuales explícitos, sin tocar matching ni extracción. */
+async function actualizarSeguimiento(id, cambios) {
+    const campos = ['fecha_postulacion', 'nota_postulacion'].filter(campo => Object.hasOwn(cambios, campo));
+    const parametros = campos.map(campo => cambios[campo]);
+    const asignaciones = campos.map((campo, indice) => `${campo} = $${indice + 1}`);
+    parametros.push(id);
+    const resultado = await pool.query(
+        `UPDATE ofertas SET ${asignaciones.join(', ')} WHERE id = $${parametros.length}
+         RETURNING *, ${FECHA_POSTULACION_TEXTO}`,
+        parametros
+    );
+    return resultado.rows[0] || null;
+}
+
 module.exports = {
+    actualizarSeguimiento,
     registrarErrorEvaluacion,
     obtenerOfertasSeleccionadas,
     crearOferta,
