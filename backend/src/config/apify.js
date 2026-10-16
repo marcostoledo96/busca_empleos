@@ -19,6 +19,9 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 // Este cliente se reutiliza para todas las llamadas a la API.
 const clienteApify = new ApifyClient({
     token: process.env.APIFY_TOKEN,
+    // Acoto cada espera HTTP y no reintento un POST que podría iniciar otro Actor.
+    timeoutSecs: 15,
+    maxRetries: 0,
 });
 
 // IDs de los Actores que vamos a usar.

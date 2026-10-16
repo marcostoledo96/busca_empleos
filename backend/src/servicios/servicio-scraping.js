@@ -27,6 +27,20 @@ const {
     construirUrlsBumeran,
 } = require('../config/apify');
 
+const { crearEjecucionFuente } = require('../utils/ejecucion-fuente');
+
+// Las opciones de control son internas; no forman parte de las preferencias de búsqueda.
+function prepararEjecucion(plataforma, opciones) {
+    if (!opciones || typeof opciones !== 'object' || Array.isArray(opciones)) {
+        resolverConfiguracion(plataforma, opciones);
+    }
+    const { timeoutMs, timeoutPeticionMs, signal, ...busqueda } = opciones;
+    return {
+        opciones: resolverConfiguracion(plataforma, busqueda).opciones,
+        ejecucion: crearEjecucionFuente(plataforma, { timeoutMs, timeoutPeticionMs, signal }),
+    };
+}
+
 const { resolverConfiguracion, palabrasBusqueda } = require('./servicio-configuracion-busqueda');
 const { normalizarLote, detectarIdioma, parsearFechaRelativaComputrabajo } = require('./servicio-normalizacion');
 const cheerio = require('cheerio');
@@ -48,12 +62,14 @@ const {
  * @param {number} limiteVentanaMs - Timestamp mínimo admisible.
  * @returns {{ elegible: boolean, motivoDescarte?: 'idioma' | 'antigua' | 'invalida' }}
  */
-function evaluarElegibilidadOferta(oferta, limiteVentanaMs) {
+function evaluarElegibilidadOferta(oferta, limiteVentanaMs, control) {
     if (!oferta || !oferta.url) {
         return { elegible: false, motivoDescarte: 'invalida' };
     }
     // Idioma: perfil excluye ofertas en inglés
-    if (detectarIdioma(oferta.titulo, oferta.descripcion) === 'en') {
+    const idiomaExcluido = detectarIdioma(oferta.titulo, oferta.descripcion) === 'en';
+    control?.contarIdioma(idiomaExcluido);
+    if (idiomaExcluido) {
         return { elegible: false, motivoDescarte: 'idioma' };
     }
     // Fecha de publicación: si es conocida, debe estar dentro de la ventana
@@ -234,7 +250,10 @@ function adjuntarMetricas(resultado, metricas) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingLinkedin(opciones = {}) {
-    opciones = resolverConfiguracion('linkedin', opciones).opciones;
+    const preparada = prepararEjecucion('linkedin', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
+    if (!process.env.APIFY_TOKEN) return control.sinCredenciales();
     const maxResultados = opciones.maxResultados || 100;
 
     try {
@@ -260,16 +279,11 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
         //   scrapeCompany → si scraped info adicional de la empresa; lo desactivamos
         //                   para reducir costo y tiempo de ejecución.
         console.log('Scraping LinkedIn: ejecutando actor de Apify...');
-        const ejecucion = await clienteApify.actor(ACTORES.LINKEDIN).call({
+        const { items } = await control.ejecutarActor(clienteApify, ACTORES.LINKEDIN, {
             urls,
             count: maxResultados,
             scrapeCompany: false,
-        });
-
-        console.log('Scraping LinkedIn: obteniendo resultados del dataset...');
-        const { items } = await clienteApify
-            .dataset(ejecucion.defaultDatasetId)
-            .listItems();
+        }, urls);
 
         console.log(`Scraping LinkedIn: ${items.length} ofertas crudas obtenidas.`);
 
@@ -292,13 +306,10 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de LinkedIn: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -322,7 +333,9 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingComputrabajo(opciones = {}) {
-    opciones = resolverConfiguracion('computrabajo', opciones).opciones;
+    const preparada = prepararEjecucion('computrabajo', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
     const maxResultados = opciones.maxResultados || 50;
     // Lotes de 5 requests simultáneas al obtener detalles, con pausa entre lotes.
     const CONCURRENCIA_DETALLE = 5;
@@ -363,6 +376,9 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         const maxConsultasUtiles = Math.max(1, Math.floor(MAX_PETICIONES_COMPUTRABAJO / MIN_PETICIONES_POR_CONSULTA_UTIL));
         const urlsPlanificadas = urls.slice(0, maxConsultasUtiles);
         let interrupcionPorPresupuesto = false;
+        control.conservar(() => ({ ofertas: ofertasElegibles.slice(0, maxResultados), metricas: {
+            totalCrudos, duplicadasDescartadas, antiguasDescartadas, sinFechaConocida,
+        } }));
 
         buclePaginas: for (let pagina = 1; pagina <= MAX_PAGINAS_COMPUTRABAJO; pagina++) {
             let tarjetasEncontradasRonda = 0;
@@ -409,7 +425,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                 peticionesListado++;
                 console.log(`Scraping Computrabajo: extrayendo listado de ${urlBusqueda} (página ${pagina})...`);
 
-                const respListado = await fetch(urlBusqueda, { headers: HEADERS_SCRAPING });
+                const respListado = await control.solicitar(urlBusqueda, { headers: HEADERS_SCRAPING }, urlBase, 'text');
 
                 if (!respListado.ok) {
                     if (respListado.status === 429) {
@@ -422,6 +438,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     continue;
                 }
 
+                const controlCrudosPrevios = tarjetasEncontradasRonda;
                 const htmlListado = await respListado.text();
                 const $listado = cheerio.load(htmlListado);
                 const tarjetasTermino = [];
@@ -479,6 +496,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                     tarjetasTermino.push(tarjetaActual);
                 });
 
+                control.recibidas(urlBase, tarjetasEncontradasRonda - controlCrudosPrevios);
+
                 // Cuota de detalles para este término en esta ronda:
                 // En la primera ronda garantizamos primera oportunidad a los demás términos planificados
                 // reservando slots para sus listados iniciales y repartiendo el presupuesto disponible equitativamente (B-07, B-08).
@@ -519,7 +538,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
 
                     const itemsDetalle = await Promise.all(lote.map(async (tarjeta) => {
                         try {
-                            const respDetalle = await fetch(tarjeta.url, { headers: HEADERS_SCRAPING });
+                            const respDetalle = await control.solicitar(tarjeta.url, { headers: HEADERS_SCRAPING }, urlBase, 'text');
 
                             if (!respDetalle.ok) {
                                 console.warn(`Scraping Computrabajo: HTTP ${respDetalle.status} en detalle. Usando datos del listado.`);
@@ -543,7 +562,8 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                             return _construirItemComputrabajo(tarjeta, descripcion, modalidad);
 
                         } catch (errDetalle) {
-                            console.warn(`Scraping Computrabajo: error al obtener detalle: ${errDetalle.message}. Usando datos del listado.`);
+                            if (errDetalle.controlado) throw errDetalle;
+                            console.warn('Scraping Computrabajo: no pude obtener el detalle; uso datos del listado.');
                             return _construirItemComputrabajo(tarjeta, null, null);
                         }
                     }));
@@ -553,7 +573,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         const normalizada = normalizadas[0];
                         if (!normalizada) continue;
 
-                        const evaluacion = evaluarElegibilidadOferta(normalizada, limite30Dias);
+                        const evaluacion = evaluarElegibilidadOferta(normalizada, limite30Dias, control);
                         if (!evaluacion.elegible) {
                             if (evaluacion.motivoDescarte === 'antigua') {
                                 antiguasDescartadas++;
@@ -574,7 +594,7 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
                         peticionesListado + peticionesDetalle < MAX_PETICIONES_COMPUTRABAJO &&
                         detallesTerminoRondaEjecutados < maxDetallesEstaRonda &&
                         (detallesPorTermino.get(urlBase) || 0) < MAX_DETALLES_POR_TERMINO) {
-                        await new Promise(resolve => setTimeout(resolve, PAUSA_ENTRE_LOTES_MS));
+                        await control.esperar(PAUSA_ENTRE_LOTES_MS);
                     }
                 }
 
@@ -625,13 +645,10 @@ async function ejecutarScrapingComputrabajo(opciones = {}) {
         });
 
         console.log(`Scraping Computrabajo: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas (${peticionesListado + peticionesDetalle} peticiones).`);
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Computrabajo: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -673,7 +690,10 @@ function _construirItemComputrabajo(ofertaListado, descripcion, modalidad) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingIndeed(opciones = {}) {
-    opciones = resolverConfiguracion('indeed', opciones).opciones;
+    const preparada = prepararEjecucion('indeed', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
+    if (!process.env.APIFY_TOKEN) return control.sinCredenciales();
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
@@ -682,15 +702,11 @@ async function ejecutarScrapingIndeed(opciones = {}) {
         console.log(`Scraping Indeed: ejecutando 1 run con query: "${queryUnificada}"...`);
 
         // El actor de Indeed recibe keywords y país directamente.
-        const ejecucion = await clienteApify.actor(ACTORES.INDEED).call({
+        const { items: itemsCrudos } = await control.ejecutarActor(clienteApify, ACTORES.INDEED, {
             title: queryUnificada,
             country: 'ar',
             limit: maxResultados,
-        });
-
-        const { items: itemsCrudos } = await clienteApify
-            .dataset(ejecucion.defaultDatasetId)
-            .listItems();
+        }, [queryUnificada]);
 
         console.log(`Scraping Indeed: ${itemsCrudos.length} ofertas crudas obtenidas.`);
 
@@ -713,15 +729,10 @@ async function ejecutarScrapingIndeed(opciones = {}) {
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        // Envuelvo el error con un mensaje descriptivo para facilitar el debugging.
-        // El error original queda en .cause (para no perder información).
-        throw new Error(
-            `Error al ejecutar scraping de Indeed: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -751,7 +762,10 @@ async function ejecutarScrapingIndeed(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingBumeran(opciones = {}) {
-    opciones = resolverConfiguracion('bumeran', opciones).opciones;
+    const preparada = prepararEjecucion('bumeran', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
+    if (!process.env.APIFY_TOKEN) return control.sinCredenciales();
     try {
         console.log('Scraping Bumeran: construyendo URLs de búsqueda...');
         const urls = construirUrlsBumeran({
@@ -823,7 +837,7 @@ async function ejecutarScrapingBumeran(opciones = {}) {
         `;
 
         console.log('Scraping Bumeran: ejecutando puppeteer-scraper de Apify...');
-        const ejecucion = await clienteApify.actor(ACTORES.BUMERAN_WEB).call({
+        const { items } = await control.ejecutarActor(clienteApify, ACTORES.BUMERAN_WEB, {
             startUrls,
             pageFunction,
             // puppeteer-scraper no necesita maxRequestsPerCrawl ni proxyConfiguration
@@ -832,12 +846,7 @@ async function ejecutarScrapingBumeran(opciones = {}) {
             proxyConfiguration: { useApifyProxy: true },
             // Evito que el scraper siga enlaces de la página (no queremos crawling).
             linkSelector: '',
-        });
-
-        console.log('Scraping Bumeran: obteniendo resultados del dataset...');
-        const { items } = await clienteApify
-            .dataset(ejecucion.defaultDatasetId)
-            .listItems();
+        }, urls);
 
         // Logueo el tamaño del dataset crudo antes de aplanar para diagnosticar
         // si el problema está en la extracción (0 items) o en la normalización.
@@ -869,13 +878,10 @@ async function ejecutarScrapingBumeran(opciones = {}) {
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Bumeran: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -895,7 +901,10 @@ async function ejecutarScrapingBumeran(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingGlassdoor(opciones = {}) {
-    opciones = resolverConfiguracion('glassdoor', opciones).opciones;
+    const preparada = prepararEjecucion('glassdoor', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
+    if (!process.env.APIFY_TOKEN) return control.sinCredenciales();
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
 
@@ -904,7 +913,7 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
 
         // El actor recibe keywords como array de strings, location y country directamente.
         // No necesita URLs — similar al actor de Indeed.
-        const ejecucion = await clienteApify.actor(ACTORES.GLASSDOOR).call({
+        const { items } = await control.ejecutarActor(clienteApify, ACTORES.GLASSDOOR, {
             keywords: terminos,
             location: 'Buenos Aires',
             country: 'Argentina',
@@ -912,12 +921,7 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
             saveOnlyUniqueItems: true,
             includeNoSalaryJob: true,
             datePosted: '14',
-        });
-
-        console.log('Scraping Glassdoor: obteniendo resultados del dataset...');
-        const { items } = await clienteApify
-            .dataset(ejecucion.defaultDatasetId)
-            .listItems();
+        }, [JSON.stringify({ keywords: terminos, location: 'Buenos Aires', country: 'Argentina' })]);
 
         console.log(`Scraping Glassdoor: ${items.length} ofertas crudas obtenidas.`);
 
@@ -938,13 +942,10 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Glassdoor: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -1146,7 +1147,10 @@ function normalizarUrlGetonbrd(url) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingJooble(opciones = {}) {
-    opciones = resolverConfiguracion('jooble', opciones).opciones;
+    const preparada = prepararEjecucion('jooble', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
+    if (!JOOBLE_API_KEY) return control.sinCredenciales();
     const maxResultados = opciones.maxResultados || 50;
     const terminosBase = opciones.terminos || TERMINOS_BUSQUEDA_DEFECTO;
     const terminos = opciones.consultasJooble || terminosBase;
@@ -1176,6 +1180,9 @@ async function ejecutarScrapingJooble(opciones = {}) {
             agotado: false,
         }));
 
+        control.conservar(() => ({ ofertas: ofertasElegibles.slice(0, maxResultados), metricas: {
+            totalCrudos, duplicadasDescartadas, antiguasDescartadas, sinFechaConocida,
+        } }));
         const urlApi = `${JOOBLE_API_URL}${JOOBLE_API_KEY}`;
 
         bucleRondas: for (let numeroPagina = 1; numeroPagina <= MAX_PAGINAS_POR_TERMINO; numeroPagina++) {
@@ -1195,7 +1202,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
                     terminosConsultados.add(estado.termino);
                     console.log(`Scraping Jooble: [Ronda ${numeroPagina}] buscando "${estado.termino}" en ${pais}...`);
 
-                    const respuestaPagina = await fetch(urlApi, {
+                    const respuestaPagina = await control.solicitar(urlApi, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1203,7 +1210,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
                             location: pais,
                             page: numeroPagina,
                         }),
-                    });
+                    }, estado.termino, 'json', 'jobs');
 
                     if (!respuestaPagina.ok) {
                         console.warn(`Scraping Jooble: error HTTP ${respuestaPagina.status} en página ${numeroPagina} para "${estado.termino}" en ${pais}. Saltando.`);
@@ -1248,7 +1255,7 @@ async function ejecutarScrapingJooble(opciones = {}) {
                         }
 
                         // Verificación de elegibilidad estricta (idioma y ventana temporal)
-                        const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias);
+                        const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias, control);
                         if (!evaluacion.elegible) {
                             if (evaluacion.motivoDescarte === 'antigua') {
                                 antiguasDescartadas++;
@@ -1304,13 +1311,10 @@ async function ejecutarScrapingJooble(opciones = {}) {
         });
 
         console.log(`Scraping Jooble: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas.`);
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Jooble: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -1369,7 +1373,9 @@ async function ejecutarScrapingGoogleJobs() {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingRemotive(opciones = {}) {
-    opciones = resolverConfiguracion('remotive', opciones).opciones;
+    const preparada = prepararEjecucion('remotive', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
     const maxResultados = opciones.maxResultados || 50;
     const categorias = opciones.categoriasRemotive?.length ? opciones.categoriasRemotive : ['software-dev'];
     const diasVentana = 30;
@@ -1383,6 +1389,9 @@ async function ejecutarScrapingRemotive(opciones = {}) {
         let antiguasDescartadas = 0;
         let sinFechaConocida = 0;
         let consultasEjecutadas = 0;
+        control.conservar(() => ({ ofertas: ofertasElegibles.slice(0, maxResultados), metricas: {
+            totalCrudos, duplicadasDescartadas, antiguasDescartadas, sinFechaConocida,
+        } }));
 
         for (const categoria of categorias) {
             if (ofertasElegibles.length >= maxResultados) break;
@@ -1390,7 +1399,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
             console.log(`Scraping Remotive: buscando ofertas en categoría "${categoria}"...`);
 
             const url = `${REMOTIVE_API_BASE}/remote-jobs?category=${categoria}&limit=${maxResultados}`;
-            const respuesta = await fetch(url);
+            const respuesta = await control.solicitar(url, {}, categoria, 'json', 'jobs');
 
             if (!respuesta.ok) {
                 console.warn(`Scraping Remotive: error HTTP ${respuesta.status} para categoría ${categoria}. Saltando.`);
@@ -1418,7 +1427,7 @@ async function ejecutarScrapingRemotive(opciones = {}) {
                     continue;
                 }
 
-                const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias);
+                const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias, control);
                 if (!evaluacion.elegible) {
                     if (evaluacion.motivoDescarte === 'antigua') {
                         antiguasDescartadas++;
@@ -1454,13 +1463,10 @@ async function ejecutarScrapingRemotive(opciones = {}) {
             motivoFinalizacion,
         });
 
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Remotive: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -1485,7 +1491,9 @@ async function ejecutarScrapingRemotive(opciones = {}) {
  * @returns {Object[]} Array de ofertas normalizadas listas para la BD.
  */
 async function ejecutarScrapingRemoteOK(opciones = {}) {
-    opciones = resolverConfiguracion('remoteok', opciones).opciones;
+    const preparada = prepararEjecucion('remoteok', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
     const maxResultados = opciones.maxResultados || 50;
     const terminos = opciones.tagsRemoteOK?.length ? opciones.tagsRemoteOK : [
         'frontend',
@@ -1510,6 +1518,9 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
         let antiguasDescartadas = 0;
         let sinFechaConocida = 0;
         const tagsConsultados = new Set();
+        control.conservar(() => ({ ofertas: [...ofertasElegibles, ...ofertasSobrantes].slice(0, maxResultados), metricas: {
+            totalCrudos, duplicadasDescartadas, antiguasDescartadas, sinFechaConocida,
+        } }));
 
         for (const termino of terminos) {
             if (ofertasElegibles.length >= maxResultados) break;
@@ -1526,12 +1537,12 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
                 .replace(/\s+/g, '-');
 
             const url = `${REMOTEOK_API_BASE}?tags=${encodeURIComponent(tag)}`;
-            const respuesta = await fetch(url, {
+            const respuesta = await control.solicitar(url, {
                 headers: {
                     // RemoteOK requiere un User-Agent válido para no bloquear la request.
                     'User-Agent': 'Mozilla/5.0 BuscaEmpleos/1.0',
                 },
-            });
+            }, tag);
 
             if (!respuesta.ok) {
                 console.warn(`Scraping RemoteOK: error HTTP ${respuesta.status} para "${termino}". Saltando.`);
@@ -1571,7 +1582,7 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
                 }
 
                 // Elegibilidad estricta: idioma admisible (no inglés) y ventana de publicación
-                const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias);
+                const evaluacion = evaluarElegibilidadOferta(oferta, limite30Dias, control);
                 if (!evaluacion.elegible) {
                     if (evaluacion.motivoDescarte === 'antigua') {
                         antiguasDescartadas++;
@@ -1621,13 +1632,10 @@ async function ejecutarScrapingRemoteOK(opciones = {}) {
         });
 
         console.log(`Scraping RemoteOK: finalizado (${motivoFinalizacion}) con ${resultado.length} ofertas elegibles de ${totalCrudos} crudas.`);
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de RemoteOK: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 
@@ -1786,7 +1794,7 @@ const ADZUNA_API_BASE = 'https://api.adzuna.com/v1/api/jobs';
  * Si AMBAS están ausentes, retorno un objeto con { deshabilitado: true }
  * para que el controlador y la automatización puedan manejarlo con gracia
  * sin lanzar un error que interrumpa el ciclo.
- * Si solo UNA está presente, lanzo un error de configuración.
+ * Si solo UNA está presente, informo sin_credenciales sin emitir requests.
  *
  * La búsqueda cubre solo España (es). Adzuna NO soporta Argentina (ar) —
  * ese country code devuelve 404.
@@ -1808,27 +1816,26 @@ const ADZUNA_API_BASE = 'https://api.adzuna.com/v1/api/jobs';
  * @returns {Object[]|Object} Array de ofertas normalizadas, o { deshabilitado: true, ... }
  */
 async function ejecutarScrapingAdzuna(opciones = {}) {
-    opciones = resolverConfiguracion('adzuna', opciones).opciones;
+    const preparada = prepararEjecucion('adzuna', opciones);
+    opciones = preparada.opciones;
+    const control = preparada.ejecucion;
     const appId = process.env.ADZUNA_APP_ID;
     const appKey = process.env.ADZUNA_APP_KEY;
 
     // Soft-disable: si ambas credenciales faltan, avisamos sin romper el ciclo.
     if (!appId && !appKey) {
+        const ofertas = control.sinCredenciales();
         return {
             deshabilitado: true,
             codigo_resultado: 'adzuna_deshabilitado_sin_credenciales',
             advertencia: 'Adzuna está deshabilitado: faltan ADZUNA_APP_ID y ADZUNA_APP_KEY en el .env.',
-            ofertas: [],
+            ofertas,
+            metricas: ofertas.metricas,
         };
     }
 
-    // Error de configuración parcial: solo una de las dos está presente.
-    if (!appId || !appKey) {
-        throw new Error(
-            'Configuración incompleta de Adzuna: se requieren ADZUNA_APP_ID y ADZUNA_APP_KEY. ' +
-            'Verificar el archivo .env.'
-        );
-    }
+    // También informo credenciales ausentes si la configuración está incompleta.
+    if (!appId || !appKey) return control.sinCredenciales();
 
     // Limito a 50 como máximo porque la API gratuita tiene rate limits estrictos.
     // El cap lo garantizo acá en el servicio — no dependo del controlador.
@@ -1838,6 +1845,15 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     // España tiene buen volumen de ofertas en español para trabajo remoto.
     const paises = ['es'];
     let itemsCrudos = [];
+    let totalRecibidos = 0;
+    control.conservar(() => {
+        const { ofertasDeduplicadas, duplicadasDescartadas } = deduplicarYConsolidarLote(normalizarLote(itemsCrudos, 'adzuna'));
+        const filtradas = filtrarPorVentanaPublicacion(ofertasDeduplicadas, 30);
+        return { ofertas: filtradas.slice(0, maxResultados), metricas: {
+            totalCrudos: totalRecibidos, duplicadasDescartadas,
+            antiguasDescartadas: filtradas.antiguasDescartadas, sinFechaConocida: filtradas.sinFechaConocida,
+        } };
+    });
 
     try {
         for (const pais of paises) {
@@ -1867,23 +1883,18 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
 
                 let respuesta;
                 try {
-                    respuesta = await fetch(url, {
+                    respuesta = await control.solicitar(url, {
                         headers: { 'Accept': 'application/json' },
-                    });
+                    }, terminoRemoto, 'json', 'results');
                 } catch (errorRed) {
-                    console.warn(`Scraping Adzuna: error de red para "${termino}" en ${pais}. ${errorRed.message}`);
+                    if (errorRed.controlado) throw errorRed;
+                    console.warn('Scraping Adzuna: no pude comunicarme con el proveedor.');
                     continue;
                 }
 
                 if (!respuesta.ok) {
-                    // 401 y 429 son errores graves: credenciales inválidas o rate-limit.
-                    // Lanzamos error explícito para que el caller los maneje, no los ignoramos.
-                    if (respuesta.status === 401) {
-                        throw new Error('Credenciales de Adzuna inválidas (401) — verificar ADZUNA_APP_ID y ADZUNA_APP_KEY.');
-                    }
-                    if (respuesta.status === 429) {
-                        throw new Error('Rate limit de Adzuna excedido (429) — reintentar más tarde.');
-                    }
+                    // Conservo el error en telemetría y no gasto más peticiones con acceso rechazado.
+                    if ([401, 403, 429].includes(respuesta.status)) break;
                     // Errores 5xx u otros: logueo y continúo con el siguiente par.
                     console.warn(`Scraping Adzuna: error HTTP ${respuesta.status} para "${termino}" en ${pais}. Saltando.`);
                     continue;
@@ -1895,11 +1906,12 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
                 // inferir la moneda (ar → ARS, es → EUR) sin cambiar la firma de normalizarLote.
                 const resultados = (Array.isArray(json.results) ? json.results : [])
                     .map(r => ({ ...r, _pais: pais }));
+                totalRecibidos += resultados.length;
                 itemsCrudos = itemsCrudos.concat(resultados).slice(0, maxResultados);
                 console.log(`Scraping Adzuna: ${resultados.length} ítem(s) para "${termino}" en ${pais}.`);
 
                 // Pausa para respetar el límite de 25 req/min de la API.
-                await new Promise(resolve => setTimeout(resolve, 2500));
+                await control.esperar(2500);
             }
         }
 
@@ -1920,7 +1932,7 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
             ventanaDias: diasVentana,
             consultasEjecutadas: paises.length * terminos.length,
             consultasOmitidas: 0,
-            totalCrudos: itemsCrudos.length,
+            totalCrudos: totalRecibidos,
             totalElegibles: resultado.length,
             duplicadasDescartadas,
             antiguasDescartadas: ofertasFiltradas.antiguasDescartadas || 0,
@@ -1928,13 +1940,10 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
             motivoFinalizacion,
         });
 
-        return resultado;
+        return control.finalizar(resultado);
 
     } catch (error) {
-        throw new Error(
-            `Error al ejecutar scraping de Adzuna: ${error.message}`,
-            { cause: error }
-        );
+        return control.finalizar(null, error);
     }
 }
 

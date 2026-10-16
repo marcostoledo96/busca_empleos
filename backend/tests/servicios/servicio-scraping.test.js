@@ -15,6 +15,9 @@
 jest.mock('../../src/config/apify', () => {
     // Creo funciones mock que puedo controlar desde los tests.
     const mockCall = jest.fn();
+    // Completo las fixtures legacy con el estado terminal que entrega Apify 2.x.
+    const resolverCall = mockCall.mockResolvedValue.bind(mockCall);
+    mockCall.mockResolvedValue = valor => resolverCall({ status: 'SUCCEEDED', ...valor });
     const mockListItems = jest.fn();
 
     return {
@@ -167,10 +170,16 @@ const itemsBumeranFalsos = [
 ];
 
 describe('Servicio de scraping', () => {
+    const tokenOriginal = process.env.APIFY_TOKEN;
+    afterAll(() => {
+        if (tokenOriginal === undefined) delete process.env.APIFY_TOKEN;
+        else process.env.APIFY_TOKEN = tokenOriginal;
+    });
 
     beforeEach(() => {
         // Limpio los mocks antes de cada test para evitar contaminación.
         jest.clearAllMocks();
+        process.env.APIFY_TOKEN = 'token-sintetico';
     });
 
     test.each([
@@ -237,7 +246,8 @@ describe('Servicio de scraping', () => {
                     urls: expect.any(Array),
                     count: 50,
                     scrapeCompany: false,
-                })
+                }),
+                expect.objectContaining({ timeout: 120, waitSecs: 1 })
             );
 
             const inputLlamada = mockCall.mock.calls[0][0];
@@ -264,9 +274,9 @@ describe('Servicio de scraping', () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockRejectedValue(new Error('API rate limit exceeded'));
 
-            await expect(ejecutarScrapingLinkedin()).rejects.toThrow(
-                'Error al ejecutar scraping de LinkedIn'
-            );
+            const resultado = await ejecutarScrapingLinkedin();
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas.estado).toBe('error');
         });
 
         test('deduplica intra-ejecución dos items con el mismo job ID en formatos distintos', async () => {
@@ -401,9 +411,9 @@ describe('Servicio de scraping', () => {
         test('tira error descriptivo si fetch lanza excepción', async () => {
             global.fetch.mockRejectedValue(new Error('Network error'));
 
-            await expect(ejecutarScrapingComputrabajo()).rejects.toThrow(
-                'Error al ejecutar scraping de Computrabajo'
-            );
+            const resultado = await ejecutarScrapingComputrabajo();
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas.estado).toBe('error');
         });
 
         test('deduplica tempranamente con Set evitando llamadas redundantes de detalle', async () => {
@@ -1321,7 +1331,8 @@ describe('Servicio de scraping', () => {
                     title: '"react developer"',
                     country: 'ar',
                     limit: 20,
-                })
+                }),
+                expect.objectContaining({ timeout: 120, waitSecs: 1 })
             );
         });
 
@@ -1341,7 +1352,8 @@ describe('Servicio de scraping', () => {
             expect(mockCall).toHaveBeenCalledWith(
                 expect.objectContaining({
                     title: '"react developer" OR "angular developer"',
-                })
+                }),
+                expect.objectContaining({ timeout: 120, waitSecs: 1 })
             );
         });
 
@@ -1349,11 +1361,9 @@ describe('Servicio de scraping', () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockRejectedValue(new Error('API rate limit exceeded'));
 
-            await expect(
-                ejecutarScrapingIndeed({ terminos: ['frontend developer junior'] })
-            ).rejects.toThrow(
-                'Error al ejecutar scraping de Indeed'
-            );
+            const resultado = await ejecutarScrapingIndeed({ terminos: ['frontend developer junior'] });
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas.estado).toBe('error');
         });
 
         test('deduplica intra-ejecución dos items con el mismo jk y diferente utm_source, devolviendo 1 sola oferta e incrementando duplicadasDescartadas', async () => {
@@ -1464,7 +1474,8 @@ describe('Servicio de scraping', () => {
                     pageFunction: expect.any(String),
                     linkSelector: '',
                     proxyConfiguration: expect.objectContaining({ useApifyProxy: true }),
-                })
+                }),
+                expect.objectContaining({ timeout: 120, waitSecs: 1 })
             );
         });
 
@@ -1472,9 +1483,9 @@ describe('Servicio de scraping', () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockRejectedValue(new Error('Timeout'));
 
-            await expect(ejecutarScrapingBumeran()).rejects.toThrow(
-                'Error al ejecutar scraping de Bumeran'
-            );
+            const resultado = await ejecutarScrapingBumeran();
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas.estado).toBe('error');
         });
 
         test('retorna array vacío si el dataset viene vacío', async () => {
@@ -1663,7 +1674,8 @@ describe('Servicio de scraping', () => {
                     keywords: ['qa tester'],
                     location: 'Buenos Aires',
                     maxItems: 30,
-                })
+                }),
+                expect.objectContaining({ timeout: 120, waitSecs: 1 })
             );
         });
 
@@ -1671,9 +1683,9 @@ describe('Servicio de scraping', () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockRejectedValue(new Error('Glassdoor blocked'));
 
-            await expect(ejecutarScrapingGlassdoor()).rejects.toThrow(
-                'Error al ejecutar scraping de Glassdoor'
-            );
+            const resultado = await ejecutarScrapingGlassdoor();
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas.estado).toBe('error');
         });
     });
 
@@ -1894,9 +1906,9 @@ describe('Servicio de scraping', () => {
         test('tira error descriptivo si fetch lanza excepción', async () => {
             global.fetch.mockRejectedValue(new Error('Network error'));
 
-            await expect(ejecutarScrapingJooble()).rejects.toThrow(
-                'Error al ejecutar scraping de Jooble'
-            );
+            const resultado = await ejecutarScrapingJooble();
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas.estado).toBe('error');
         });
 
         test('caso sintético 60/50: respeta el hard cap de maxResultados=50 aunque la API devuelva 60', async () => {
@@ -2459,7 +2471,8 @@ describe('Servicio de scraping', () => {
                     urls: expect.any(Array),
                     count: 50,
                     scrapeCompany: false,
-                })
+                }),
+                expect.objectContaining({ timeout: 120, waitSecs: 1 })
             );
 
             const inputLlamada = clienteApify.actor().call.mock.calls[0][0];
@@ -2535,9 +2548,12 @@ describe('Servicio de scraping', () => {
                 json: jest.fn().mockResolvedValue(respuestaAdzunaFalsa),
             });
 
-            // Salteo el setTimeout de 2500ms para que los tests no sean lentos.
-            // La pausa es para el rate-limit real de la API — en tests no aplica.
-            jest.spyOn(global, 'setTimeout').mockImplementation((fn) => { fn(); return 0; });
+            // Acelero sólo la pausa del proveedor; conservo los temporizadores de aborto.
+            const temporizar = global.setTimeout;
+            jest.spyOn(global, 'setTimeout').mockImplementation((fn, ms) => {
+                if (ms === 2500) { queueMicrotask(fn); return 0; }
+                return temporizar(fn, ms);
+            });
         });
 
         afterEach(() => {
@@ -2568,14 +2584,14 @@ describe('Servicio de scraping', () => {
             delete process.env.ADZUNA_APP_KEY;
 
             await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
-                .rejects.toThrow('Configuración incompleta de Adzuna');
+                .resolves.toMatchObject({ metricas: expect.objectContaining({ estado: 'sin_credenciales' }) });
         });
 
         test('tira error de configuración si solo falta ADZUNA_APP_ID', async () => {
             delete process.env.ADZUNA_APP_ID;
 
             await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
-                .rejects.toThrow('Configuración incompleta de Adzuna');
+                .resolves.toMatchObject({ metricas: expect.objectContaining({ estado: 'sin_credenciales' }) });
         });
 
         // --- ADZUNA-002: Normalización ---
@@ -2613,7 +2629,7 @@ describe('Servicio de scraping', () => {
             global.fetch.mockResolvedValue({ ok: false, status: 401 });
 
             await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
-                .rejects.toThrow('Credenciales de Adzuna inválidas (401)');
+                .resolves.toMatchObject({ metricas: expect.objectContaining({ estado: 'error', errores: [expect.objectContaining({ codigoHttp: 401 })] }) });
         });
 
         test('lanza error si la API devuelve HTTP 429 (rate limit)', async () => {
@@ -2623,7 +2639,7 @@ describe('Servicio de scraping', () => {
             global.fetch.mockResolvedValue({ ok: false, status: 429 });
 
             await expect(ejecutarScrapingAdzuna({ terminos: ['frontend'] }))
-                .rejects.toThrow('Rate limit de Adzuna excedido (429)');
+                .resolves.toMatchObject({ metricas: expect.objectContaining({ estado: 'error', errores: [expect.objectContaining({ codigoHttp: 429, tipo: 'limite_solicitudes' })] }) });
         });
 
         // --- ADZUNA-004: Filtrado por fecha ---
