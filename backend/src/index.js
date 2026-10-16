@@ -7,6 +7,7 @@
 const app = require('./app');
 const baseDatos = require('./config/base-datos');
 const servicioEvaluacion = require('./servicios/servicio-evaluacion');
+const servicioAutomatizacion = require('./servicios/servicio-automatizacion');
 const logger = require('./utils/logger');
 
 // Railway (y la mayoría de PaaS) inyectan PORT automáticamente.
@@ -66,6 +67,7 @@ async function iniciarServidor() {
 
         // Rehidrato el progreso antes de aceptar conexiones HTTP para evitar condiciones de carrera.
         await servicioEvaluacion.rehidratarProgreso();
+        await servicioAutomatizacion.rehidratar();
 
         app.listen(PUERTO, () => {
             logger.info(`Servidor escuchando en http://localhost:${PUERTO}`);

@@ -3,6 +3,9 @@ function crearAdaptadorBusqueda({ vertical = false } = {}) {
     let preferencias = { id: 1, terminos_busqueda: ['anterior'], zonas_preferidas: [] };
     const ofertas = [];
     const lotes = [];
+    const ejecuciones = [];
+    let siguienteEjecucion = 1;
+    let configuracionCron = null;
     const cache = new Map();
     const consultasNoContempladas = [];
     const adaptador = {
@@ -15,11 +18,47 @@ function crearAdaptadorBusqueda({ vertical = false } = {}) {
             preferencias = { id: 1, terminos_busqueda: ['anterior'], zonas_preferidas: [] };
             ofertas.length = 0;
             lotes.length = 0;
+            ejecuciones.length = 0;
+            siguienteEjecucion = 1;
+            configuracionCron = null;
             cache.clear();
             consultasNoContempladas.length = 0;
             adaptador.query.mockClear();
         },
         query: jest.fn(async (sql, valores = []) => {
+            if (/INSERT INTO ejecuciones_busqueda/.test(sql)) {
+                const fila = { id: siguienteEjecucion++, tipo: valores[0], inicio: new Date(), fin: null, estado: 'ejecutando', resumen: {} };
+                ejecuciones.push(fila);
+                return { rows: [{ ...fila }], rowCount: 1 };
+            }
+            if (/UPDATE ejecuciones_busqueda/.test(sql)) {
+                if (/estado = 'interrumpida'/.test(sql)) {
+                    for (const fila of ejecuciones.filter(fila => fila.estado === 'ejecutando')) {
+                        Object.assign(fila, { estado: 'interrumpida', fin: new Date(), resumen: { estado: 'interrumpida', motivoFinalizacion: 'reinicio', fuentes: [] } });
+                    }
+                    return { rows: [] };
+                }
+                const fila = ejecuciones.find(fila => fila.id === valores[0] && fila.estado === 'ejecutando');
+                if (!fila) return { rows: [], rowCount: 0 };
+                Object.assign(fila, { fin: new Date(), estado: valores[1], resumen: JSON.parse(valores[2]) });
+                return { rows: [], rowCount: 1 };
+            }
+            if (/DELETE FROM ejecuciones_busqueda/.test(sql)) {
+                const retenidas = new Set(ejecuciones.filter(fila => fila.estado !== 'ejecutando').slice(-20));
+                const vigentes = ejecuciones.filter(fila => fila.estado === 'ejecutando' || retenidas.has(fila));
+                ejecuciones.splice(0, ejecuciones.length, ...vigentes);
+                return { rows: [] };
+            }
+            if (/FROM ejecuciones_busqueda ORDER BY id DESC LIMIT 20/.test(sql)) {
+                return { rows: ejecuciones.slice(-20).reverse().map(fila => ({ ...structuredClone(fila), duracion_ms: (fila.fin || new Date()) - fila.inicio })) };
+            }
+            if (/SELECT activo, expresion_cron, zona_horaria FROM configuracion_cron/.test(sql)) {
+                return { rows: configuracionCron ? [{ ...configuracionCron }] : [] };
+            }
+            if (/INSERT INTO configuracion_cron/.test(sql)) {
+                configuracionCron = { activo: valores[0], expresion_cron: valores[1], zona_horaria: valores[2] };
+                return { rows: [], rowCount: 1 };
+            }
             if (vertical) {
                 if (/^(BEGIN|COMMIT|ROLLBACK)/.test(sql)) return { rows: [] };
                 if (/pg_try_advisory_lock/.test(sql)) return { rows: [{ ok: true }] };

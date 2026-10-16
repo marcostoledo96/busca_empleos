@@ -7,6 +7,11 @@ beforeEach(() => jest.clearAllMocks());
 // y el modelo de ofertas (no quiero tocar la BD en tests de controlador).
 
 jest.mock('../../src/modelos/oferta');
+jest.mock('../../src/modelos/ejecucion-busqueda', () => ({
+    iniciar: jest.fn(async () => ({ id: 1 })), finalizar: jest.fn(async () => {}), listar: jest.fn(),
+}));
+jest.mock('../../src/modelos/configuracion-cron');
+jest.mock('node-cron');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/utils/middleware-auth', () => ({
@@ -17,6 +22,33 @@ const request = require('supertest');
 const app = require('../../src/app');
 const servicioScraping = require('../../src/servicios/servicio-scraping');
 const modeloOferta = require('../../src/modelos/oferta');
+
+describe('Contrato compartido #20', () => {
+    test.each([
+        ['sin_resultados', 200, undefined], ['error', 502, 503], ['error', 502, 429],
+        ['error', 502, 401], ['error', 502, 403], ['error', 502, 500], ['error', 502, 502], ['timeout', 504, undefined],
+    ])('expongo %s HTTP %s sin esconder el fallo del proveedor %s', async (estado, status, codigoHttp) => {
+        const ofertas = [];
+        const errores = codigoHttp ? [{ tipo: codigoHttp === 429 ? 'limite_solicitudes' : 'http', codigoHttp, mensaje: 'Fallo sintético.' }] : [];
+        Object.defineProperty(ofertas, 'metricas', { value: { estado, peticionesRealizadas: 1, consultasEjecutadas: 1, errores, resultadosConsultas: [] } });
+        servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue(ofertas);
+        const respuesta = await request(app).post('/api/scraping/linkedin').send({});
+        expect(respuesta.status).toBe(status);
+        expect(respuesta.body.exito).toBe(status === 200);
+        expect(respuesta.body.datos.fuente).toMatchObject({ estado, nuevas: 0, peticionesRealizadas: 1, consultasEjecutadas: 1, errores });
+        expect(respuesta.body.datos.historial).toEqual({ id: 1, guardado: true });
+        expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
+    });
+    test('preservo ausencia explícita de límite configurable, no invento 50', async () => {
+        const ofertas = [];
+        Object.defineProperty(ofertas, 'metricas', { value: { estado: 'sin_resultados', maxResultados: null, peticionesRealizadas: null } });
+        servicioScraping.ejecutarScrapingBumeran.mockResolvedValue(ofertas);
+        const respuesta = await request(app).post('/api/scraping/bumeran').send({});
+        expect(respuesta.status).toBe(200);
+        expect(respuesta.body.datos.maxResultados).toBeNull();
+        expect(respuesta.body.datos.fuente.peticionesRealizadas).toBeNull();
+    });
+});
 
 describe('Controlador de scraping', () => {
     afterEach(() => jest.clearAllMocks());

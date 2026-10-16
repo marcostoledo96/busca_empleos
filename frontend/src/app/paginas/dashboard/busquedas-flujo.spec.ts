@@ -41,9 +41,10 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
         flushMicrotasks();
         fixture.detectChanges();
     }
-    function iniciar(): void {
+    function iniciar(historial: unknown[] = []): void {
         fixture.detectChanges();
         http.expectOne(`${base}/preferencias`).flush({ exito: true, datos: {} });
+        http.expectOne(`${base}/automatizacion/historial`).flush({ exito: true, datos: historial });
         http.expectOne(`${base}/automatizacion/estado`).flush({ exito: true, datos: {
             activo: false, ultimaEjecucion: null, ultimoResultado: null,
         } });
@@ -72,6 +73,90 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
         fixture = TestBed.createComponent(Dashboard);
     });
     afterEach(() => { fixture.destroy(); http.verify(); });
+
+    const fuenteParcial = {
+        plataforma: 'linkedin', nombre: 'LinkedIn', estado: 'parcial', estadoScraping: 'parcial',
+        nuevas: 1, actualizadas: 0, reapariciones: 0, duplicadas: 0,
+        duplicadasDescartadas: 2, idiomaDescartadas: 0, antiguasDescartadas: 1,
+        totalCrudos: 4, totalElegibles: 1, consultasEjecutadas: 2, peticionesRealizadas: null,
+        duracionMs: 42, motivoFinalizacion: 'http', errores: [{ tipo: 'http', codigoHttp: 503 }],
+        resultadosConsultas: [
+            { consulta: 'soporte IT', estado: 'completada', peticionesRealizadas: null, totalCrudos: null, errores: [] },
+            { consulta: 'mesa de ayuda', estado: 'error', peticionesRealizadas: null, totalCrudos: null, errores: [{ tipo: 'http', codigoHttp: 503 }] },
+        ],
+    };
+    const fila = (fuentes: unknown[], estado = 'parcial') => ({
+        id: '101', tipo: 'ciclo_manual', inicio: '2026-06-01T10:00:00Z', fin: '2026-06-01T10:00:01Z',
+        estado, duracion_ms: '1000', resumen: { estado, fuentes, evaluacionGlobal: true },
+    });
+
+    it('A: fuente parcial conserva oferta útil, consultas efectivas y métricas; error visual no invalida scraping', fakeAsync(() => {
+        iniciar();
+        fixture.nativeElement.querySelector('button[aria-label="Scrapear LinkedIn"]').click();
+        http.expectOne(`${base}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: [resumen] } });
+        http.expectOne(`${base}/scraping/linkedin`).flush({ exito: true, datos: {
+            fuente: fuenteParcial, configuracion: resumen, ofertas_nuevas: 1, total_extraidas: 1,
+        } });
+        http.expectOne(`${base}/automatizacion/historial`).flush({ exito: true, datos: [fila([fuenteParcial])] });
+        flushMicrotasks();
+        bloque([oferta(1)]);
+        const texto = fixture.nativeElement.textContent;
+        for (const valor of ['Soporte nuevo 1', 'Parcial', '503', 'Nuevas: 1', 'Intra-ejecución: 2', 'Peticiones: No medido']) expect(texto).toContain(valor);
+        fixture.componentInstance.cargarDatos();
+        flushMicrotasks();
+        http.expectOne(r => r.url === `${base}/ofertas/sincronizacion`).flush({}, { status: 500, statusText: 'Error' });
+        flushMicrotasks();
+        http.expectOne(`${base}/ofertas`).flush({}, { status: 500, statusText: 'Error' });
+        flushMicrotasks();
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('No pude actualizar');
+        expect(fixture.nativeElement.textContent).toContain('Soporte nuevo 1');
+        expect(fixture.nativeElement.textContent).toContain('Parcial');
+        tick(6000);
+    }));
+
+    it('B: timeout de primera fuente y éxito siguiente aparecen en historial y dashboard sin consultar historial por tick', fakeAsync(() => {
+        iniciar();
+        const fuentes = [
+            { ...fuenteParcial, estado: 'timeout', estadoScraping: 'timeout', nuevas: 0, motivoFinalizacion: 'timeout' },
+            { ...fuenteParcial, plataforma: 'remotive', nombre: 'Remotive', estado: 'completada', estadoScraping: 'completada', errores: [], resultadosConsultas: [] },
+        ];
+        fixture.nativeElement.querySelector('button[aria-label="Ejecutar ciclo completo de scraping y evaluación"]').click();
+        http.expectOne(`${base}/scraping/previsualizacion`).flush({ exito: true, datos: { plataformas: [resumen] } });
+        http.expectOne(`${base}/automatizacion/ejecutar`).flush({ exito: true, datos: { configuracion: [resumen] } }, { status: 202, statusText: 'Accepted' });
+        tick(2500);
+        http.expectOne(`${base}/automatizacion/progreso`).flush({ exito: true, datos: { activo: true, porcentaje: 50, pasos: [] } });
+        http.expectNone(`${base}/automatizacion/historial`);
+        tick(2000);
+        http.expectOne(`${base}/automatizacion/progreso`).flush({ exito: true, datos: {
+            activo: false, porcentaje: 100, pasos: [{ nombre: 'linkedin', label: 'LinkedIn', estado: 'error', extraidas: 0 },
+                { nombre: 'remotive', label: 'Remotive', estado: 'completada', extraidas: 1 }],
+        } });
+        http.expectOne(`${base}/automatizacion/estado`).flush({ exito: true, datos: {
+            activo: false, ultimoResultado: { estado: 'parcial', estadoScraping: 'parcial', estadoEvaluacion: 'completada', fuentes },
+        } });
+        // El backend durable no conserva nombre ni mensajes textuales.
+        http.expectOne(`${base}/automatizacion/historial`).flush({ exito: true, datos: [fila(fuentes.map(f => ({ ...f, nombre: undefined })))] });
+        tick(1200);
+        flushMicrotasks();
+        bloque([{ ...oferta(1), plataforma: 'remotive' }]);
+        expect(fixture.nativeElement.textContent).toContain('Timeout');
+        expect(fixture.nativeElement.textContent).toContain('Remotive');
+        expect(fixture.nativeElement.textContent).toContain('Soporte nuevo 1');
+        expect(fixture.nativeElement.querySelector('[aria-labelledby="stat-label-total"]').textContent.trim()).toBe('1');
+        tick(6000);
+    }));
+
+    it('C: al remontar con cron inactivo recupero historial sin iniciar scraping', fakeAsync(() => {
+        const historial = [fila([], 'interrumpida')];
+        iniciar(historial);
+        fixture.destroy();
+        fixture = TestBed.createComponent(Dashboard);
+        iniciar(historial);
+        expect(fixture.nativeElement.textContent).toContain('Inactivo');
+        expect(fixture.nativeElement.textContent).toContain('Interrumpida');
+        http.expectNone(r => r.method === 'POST');
+    }));
 
     it('guardo preferencias, extraigo con botón real y veo ofertas nuevas y conteos', fakeAsync(() => {
         iniciar();
@@ -219,6 +304,8 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
         expect(omitida.textContent).toContain('Omitida');
         expect(omitida.textContent).toContain(motivo);
         expect(omitida.textContent).not.toContain('check_circle');
+        http.expectOne(`${base}/automatizacion/estado`).flush({ exito: true, datos: { activo: false } });
+        http.expectOne(`${base}/automatizacion/historial`).flush({ exito: true, datos: [] });
         tick(1200);
         flushMicrotasks();
         bloque([oferta(1)]);
@@ -243,6 +330,8 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
             activo: false, porcentaje: 100, configuracion: [resumen],
             pasos: [{ nombre: 'linkedin', label: 'LinkedIn', estado: 'completada', extraidas: 2 }],
         } });
+        http.expectOne(`${base}/automatizacion/estado`).flush({ exito: true, datos: { activo: false } });
+        http.expectOne(`${base}/automatizacion/historial`).flush({ exito: true, datos: [] });
         tick(1200);
         flushMicrotasks();
         bloque([oferta(1), oferta(2)]);

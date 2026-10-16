@@ -10,6 +10,10 @@
 // para verificar que /progreso y /estado NO dan 429 aunque se llamen muchas veces,
 // y que /iniciar y /ejecutar SÍ quedan protegidos.
 
+jest.mock('../../src/config/base-datos', () => ({ query: jest.fn() }));
+jest.mock('node-cron');
+jest.mock('../../src/modelos/ejecucion-busqueda');
+jest.mock('../../src/modelos/configuracion-cron');
 jest.mock('../../src/servicios/servicio-automatizacion');
 jest.mock('../../src/utils/middleware-auth', () => ({
     verificarAuth: (req, res, next) => next(),
@@ -123,11 +127,7 @@ describe('Controlador de automatización', () => {
 
     describe('POST /api/automatizacion/detener', () => {
         test('detiene el cron activo', async () => {
-            // Primera llamada: verificar que está activo.
-            // Segunda llamada: retornar estado después de detener.
-            servicioAutomatizacion.obtenerEstado
-                .mockReturnValueOnce({ activo: true, expresionCron: '0 */12 * * *' })
-                .mockReturnValueOnce({ activo: false, expresionCron: null });
+            servicioAutomatizacion.obtenerEstado.mockReturnValue({ activo: false, expresionCron: null });
             servicioAutomatizacion.detenerCron.mockReturnValue(undefined);
 
             const respuesta = await request(app)
@@ -139,7 +139,7 @@ describe('Controlador de automatización', () => {
             expect(servicioAutomatizacion.detenerCron).toHaveBeenCalledTimes(1);
         });
 
-        test('retorna 400 si no hay cron activo', async () => {
+        test('confirma desactivación persistida aunque no haya cron activo', async () => {
             servicioAutomatizacion.obtenerEstado.mockReturnValue({
                 activo: false,
                 expresionCron: null,
@@ -147,10 +147,10 @@ describe('Controlador de automatización', () => {
 
             const respuesta = await request(app)
                 .post('/api/automatizacion/detener')
-                .expect(400);
+                .expect(200);
 
-            expect(respuesta.body.exito).toBe(false);
-            expect(respuesta.body.error).toContain('No hay ningún cron activo');
+            expect(respuesta.body.exito).toBe(true);
+            expect(servicioAutomatizacion.detenerCron).toHaveBeenCalled();
         });
     });
 

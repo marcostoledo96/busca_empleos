@@ -1,5 +1,6 @@
 import { Component, computed, DestroyRef, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
-import { tap } from 'rxjs';
+import { tap, MonoTypeOperatorFunction } from 'rxjs';
+import { ResultadoFuenteVista, etiquetaEstado } from './resultado-fuente';
 import { JsonPipe } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
@@ -13,12 +14,12 @@ import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
-import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping, InicioEvaluacion } from '../../modelos/respuesta-api.model';
+import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping, InicioEvaluacion, ResultadoFuente, ResultadoBusqueda, EjecucionBusqueda, EstadoAutomatizacion } from '../../modelos/respuesta-api.model';
 import { obtenerOpcionesScrapingPlataforma, PLATAFORMAS_ACTIVAS, PLATAFORMAS } from '../../config/plataformas';
 
 @Component({
     selector: 'app-panel-control',
-    imports: [JsonPipe, ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule, SelectModule],
+    imports: [ResultadoFuenteVista, JsonPipe, ButtonModule, ToastModule, ToggleSwitchModule, ProgressBarModule, FormsModule, TooltipModule, SelectModule],
     providers: [MessageService],
     templateUrl: './panel-control.html',
     styleUrl: './panel-control.css'
@@ -31,6 +32,59 @@ export class PanelControl implements OnInit, OnDestroy {
     private readonly mensajes = inject(MessageService);
     private readonly destroyRef = inject(DestroyRef);
     private destruido = false;
+    readonly resultadoIndividual = signal<ResultadoFuente | null>(null);
+    readonly resultadoCiclo = signal<ResultadoBusqueda | null>(null);
+    readonly historial = signal<EjecucionBusqueda[]>([]);
+    readonly cargandoHistorial = signal(false);
+    readonly errorHistorial = signal<string | null>(null);
+    readonly errorCron = signal<string | null>(null);
+    readonly cambiandoCron = signal(false);
+    readonly zonaHoraria = signal<string | null>(null);
+    readonly expresionCron = signal<string | null>(null);
+    readonly etiquetaEstado = etiquetaEstado;
+
+    actualizarHistorial(): void {
+        if (this.modoDemo() || this.destruido || this.cargandoHistorial()) return;
+        this.cargandoHistorial.set(true);
+        this.errorHistorial.set(null);
+        this.automatizacionService.obtenerHistorial().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: respuesta => {
+                this.cargandoHistorial.set(false);
+                if (respuesta.exito) this.historial.set(respuesta.datos.slice(0, 20));
+                else this.errorHistorial.set(respuesta.error || 'No pude actualizar el historial. Conservo la lista anterior.');
+            },
+            error: () => {
+                this.cargandoHistorial.set(false);
+                this.errorHistorial.set('No pude actualizar el historial. Conservo la lista anterior.');
+            },
+        });
+    }
+
+    private seguirResultado(): MonoTypeOperatorFunction<RespuestaApi<RespuestaScraping>> {
+        return tap({
+            next: respuesta => this.observarResultado(respuesta),
+            error: error => {
+                const fuente = error?.error?.datos?.fuente;
+                if (fuente) {
+                    this.resultadoIndividual.set(fuente);
+                    this.actualizarHistorial();
+                }
+            },
+        });
+    }
+
+    private aplicarEstado(estado: EstadoAutomatizacion): void {
+        this.cronActivo.set(estado.activo);
+        this.expresionCron.set(estado.expresionCron);
+        this.zonaHoraria.set(estado.zonaHoraria ?? null);
+        this.errorCron.set(estado.errorCron ?? null);
+        this.ultimaEjecucion.set(estado.ultimaEjecucion);
+        if (estado.ultimoResultado) {
+            this.resultadoCiclo.set(estado.ultimoResultado);
+            if (estado.ultimoResultado.configuracion) this.configuracionCiclo.set(estado.ultimoResultado.configuracion);
+        }
+    }
+
     readonly previsualizacion = signal<ResumenBusqueda[]>([]);
     readonly configuracionIndividual = signal<ResumenBusqueda | null>(null);
     readonly configuracionCiclo = signal<ResumenBusqueda[]>([]);
@@ -78,8 +132,13 @@ export class PanelControl implements OnInit, OnDestroy {
     }
 
     private observarResultado(respuesta: RespuestaApi<RespuestaScraping>): void {
-        if (!respuesta.exito) throw new Error(respuesta.error || 'No se completó la búsqueda.');
         const datos = respuesta.datos;
+        if (datos?.fuente) {
+            this.resultadoIndividual.set(datos.fuente);
+            this.actualizarHistorial();
+            if (datos.historial?.guardado === false) this.errorHistorial.set(datos.historial.error || 'No pude guardar el historial.');
+        }
+        if (!respuesta.exito) throw new Error(respuesta.error || 'No se completó la búsqueda.');
         const configBase = datos.configuracion ?? null;
         const configCompleta: ResumenBusqueda | null = configBase ? {
             ...configBase,
@@ -215,6 +274,7 @@ export class PanelControl implements OnInit, OnDestroy {
     ngOnInit(): void {
         if (this.modoDemo()) return;
         this.actualizarPrevisualizacion();
+        this.actualizarHistorial();
         this.consultarEstadoCron();
         this.rehidratarEvaluacion();
         this.rehidratarCiclo();
@@ -231,14 +291,10 @@ export class PanelControl implements OnInit, OnDestroy {
         this.automatizacionService.obtenerEstado().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito) {
-                    this.cronActivo.set(respuesta.datos.activo);
-                    this.ultimaEjecucion.set(respuesta.datos.ultimaEjecucion);
-                    if (!this.ejecutandoCiclo() && respuesta.datos.ultimoResultado?.configuracion) {
-                        this.configuracionCiclo.set(respuesta.datos.ultimoResultado.configuracion);
-                    }
+                    this.aplicarEstado(respuesta.datos);
                 }
             },
-            error: () => {} // Silencioso — no es crítico si falla al iniciar.
+            error: () => this.errorCron.set('No pude verificar el estado de automatización. Volvé a consultar.'),
         });
     }
 
@@ -308,12 +364,14 @@ export class PanelControl implements OnInit, OnDestroy {
                         this.progresoCiclo.set(respuesta.datos);
                         if (respuesta.datos.configuracion) this.configuracionCiclo.set(respuesta.datos.configuracion);
                         // Si el backend terminó, detengo el polling y cierro el overlay.
-                        if (!respuesta.datos.activo && respuesta.datos.porcentaje >= 100) {
+                        if (!respuesta.datos.activo && (respuesta.datos.porcentaje >= 100 || respuesta.datos.error)) {
                             this.detenerPolling();
+                            this.consultarEstadoCron();
+                            this.actualizarHistorial();
                             this.ejecutandoCiclo.set(false);
                             // Aseguro que el overlay muestre 100% antes de cerrar.
                             this.progresoCiclo.set({ ...respuesta.datos, porcentaje: 100, activo: false });
-                            const fallo = respuesta.datos.pasos.some(paso => paso.estado === 'error');
+                            const fallo = !!respuesta.datos.error || respuesta.datos.pasos.some(paso => paso.estado === 'error');
                             const omitidas = respuesta.datos.pasos.filter(paso => paso.estado === 'omitida');
                             const detalleOmisiones = omitidas.map(paso => `${paso.label}: ${paso.motivo || 'Consulta incompatible con la fuente.'}`).join(' ');
                             setTimeout(() => {
@@ -521,51 +579,25 @@ export class PanelControl implements OnInit, OnDestroy {
         });
     }
 
-    // Cuando el usuario toglea el switch del cron.
+    // Mantengo el estado confirmado; un fallo de persistencia no invierte el switch.
     toggleCron(activar: boolean): void {
-        if (activar) {
-            this.automatizacionService.iniciarCron().subscribe({
-                next: (respuesta) => {
-                    this.cronActivo.set(true);
-                    this.mensajes.add({
-                        severity: 'success',
-                        summary: 'Cron activado',
-                        detail: 'Scraping automático semanal: martes 20:00.',
-                        life: 4000
-                    });
-                },
-                error: () => {
-                    this.cronActivo.set(false);
-                    this.mensajes.add({
-                        severity: 'error',
-                        summary: 'Error al activar cron',
-                        detail: 'No se pudo programar la automatización.',
-                        life: 5000
-                    });
-                }
-            });
-        } else {
-            this.automatizacionService.detenerCron().subscribe({
-                next: () => {
-                    this.cronActivo.set(false);
-                    this.mensajes.add({
-                        severity: 'info',
-                        summary: 'Cron desactivado',
-                        detail: 'La automatización fue detenida.',
-                        life: 4000
-                    });
-                },
-                error: () => {
-                    this.cronActivo.set(true);
-                    this.mensajes.add({
-                        severity: 'error',
-                        summary: 'Error al detener cron',
-                        detail: 'No se pudo detener la automatización.',
-                        life: 5000
-                    });
-                }
-            });
-        }
+        if (this.modoDemo() || this.cambiandoCron()) return;
+        this.cambiandoCron.set(true);
+        const peticion = activar ? this.automatizacionService.iniciarCron() : this.automatizacionService.detenerCron();
+        peticion.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: respuesta => {
+                this.cambiandoCron.set(false);
+                if (respuesta.datos) this.aplicarEstado(respuesta.datos);
+                else this.consultarEstadoCron();
+                if (!respuesta.exito) this.errorCron.set(respuesta.error || 'No pude confirmar la automatización.');
+            },
+            error: error => {
+                this.cambiandoCron.set(false);
+                if (error?.error?.datos) this.aplicarEstado(error.error.datos);
+                else this.consultarEstadoCron();
+                this.errorCron.set(error?.error?.error || 'No pude confirmar la automatización.');
+            },
+        });
     }
 
     // Ejecuta el scraping de la plataforma seleccionada en el selector mobile.
@@ -591,7 +623,16 @@ export class PanelControl implements OnInit, OnDestroy {
         this.prepararBusqueda('linkedin', () => this.extraerLinkedin());
     }
 
+    private severidadFuente(datos: RespuestaScraping): 'success' | 'warn' {
+        return !datos.fuente || ['completada', 'sin_resultados'].includes(datos.fuente.estado) ? 'success' : 'warn';
+    }
+
+    private tituloFuente(datos: RespuestaScraping, nombre: string): string {
+        return datos.fuente ? `${nombre}: ${etiquetaEstado(datos.fuente.estado)}` : `${nombre} completado`;
+    }
+
     private formatearDetalleScraping(datos: RespuestaScraping, conDuplicadas: boolean = true): string {
+        if (datos.fuente) return `${datos.fuente.nuevas ?? 'No medido'} nuevas, ${datos.fuente.actualizadas ?? 'No medido'} actualizadas, ${datos.fuente.reapariciones ?? 'No medido'} reapariciones. ${datos.fuente.motivoFinalizacion || ''}`;
         const base = conDuplicadas && datos.ofertas_duplicadas !== undefined
             ? `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`
             : `${datos.ofertas_nuevas} ofertas nuevas de ${datos.total_extraidas} extraídas`;
@@ -606,14 +647,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoLinkedin.set(true);
         this.plataformaEnProceso.set('LinkedIn');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearLinkedin().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearLinkedin().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoLinkedin.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'LinkedIn completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'LinkedIn'),
                     detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
@@ -640,14 +681,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoComputrabajo.set(true);
         this.plataformaEnProceso.set('Computrabajo');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearComputrabajo().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearComputrabajo().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoComputrabajo.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Computrabajo completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Computrabajo'),
                     detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
@@ -674,14 +715,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoIndeed.set(true);
         this.plataformaEnProceso.set('Indeed');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearIndeed().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearIndeed().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoIndeed.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Indeed completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Indeed'),
                     detail: this.formatearDetalleScraping(datos, false),
                     life: 5000
                 });
@@ -708,14 +749,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoBumeran.set(true);
         this.plataformaEnProceso.set('Bumeran');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearBumeran().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearBumeran().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoBumeran.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Bumeran completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Bumeran'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
@@ -742,14 +783,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoGlassdoor.set(true);
         this.plataformaEnProceso.set('Glassdoor');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearGlassdoor().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearGlassdoor().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoGlassdoor.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Glassdoor completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Glassdoor'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
@@ -776,14 +817,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoJooble.set(true);
         this.plataformaEnProceso.set('Jooble');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearJooble().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearJooble().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoJooble.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Jooble completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Jooble'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
@@ -810,14 +851,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoGoogleJobs.set(true);
         this.plataformaEnProceso.set('Google Jobs');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearGoogleJobs().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearGoogleJobs().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoGoogleJobs.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Google Jobs completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Google Jobs'),
                     detail: `${datos.ofertas_nuevas} nuevas, ${datos.ofertas_duplicadas} ya en BD (${datos.total_extraidas} extraídas)`,
                     life: 5000
                 });
@@ -844,14 +885,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoRemotive.set(true);
         this.plataformaEnProceso.set('Remotive');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearRemotive().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearRemotive().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoRemotive.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Remotive completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Remotive'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
@@ -878,14 +919,14 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoRemoteOK.set(true);
         this.plataformaEnProceso.set('RemoteOK');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearRemoteOK().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearRemoteOK().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoRemoteOK.set(false);
                 this.mostrarOverlayIndividual.set(false);
                 const datos = respuesta.datos;
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'RemoteOK completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'RemoteOK'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
@@ -912,7 +953,7 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoInfojobs.set(true);
         this.plataformaEnProceso.set('InfoJobs');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearInfojobs().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearInfojobs().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoInfojobs.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -932,8 +973,8 @@ export class PanelControl implements OnInit, OnDestroy {
                 }
 
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'InfoJobs completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'InfoJobs'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });
@@ -960,7 +1001,7 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoAdzuna.set(true);
         this.plataformaEnProceso.set('Adzuna');
         this.mostrarOverlayIndividual.set(true);
-        this.scrapingService.scrapearAdzuna().pipe(tap(respuesta => this.observarResultado(respuesta)), takeUntilDestroyed(this.destroyRef)).subscribe({
+        this.scrapingService.scrapearAdzuna().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 this.scrapeandoAdzuna.set(false);
                 this.mostrarOverlayIndividual.set(false);
@@ -979,8 +1020,8 @@ export class PanelControl implements OnInit, OnDestroy {
                 }
 
                 this.mensajes.add({
-                    severity: 'success',
-                    summary: 'Adzuna completado',
+                    severity: this.severidadFuente(datos),
+                    summary: this.tituloFuente(datos, 'Adzuna'),
                     detail: this.formatearDetalleScraping(datos),
                     life: 5000
                 });

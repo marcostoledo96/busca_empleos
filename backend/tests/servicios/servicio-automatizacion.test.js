@@ -22,6 +22,10 @@ jest.mock('../../src/config/base-datos', () => ({ query: jest.fn(async () => {
 // Mockeo los módulos ANTES de importar el servicio.
 // Jest reemplaza el módulo real con el mock para que nunca se llame a la API real.
 jest.mock('node-cron');
+jest.mock('../../src/modelos/ejecucion-busqueda', () => ({
+    iniciar: jest.fn(async () => ({ id: 1 })), finalizar: jest.fn(async () => {}), listar: jest.fn(), interrumpirPendientes: jest.fn(),
+}));
+jest.mock('../../src/modelos/configuracion-cron', () => ({ obtener: jest.fn(), guardar: jest.fn(async () => {}) }));
 jest.mock('../../src/utils/bloqueo-concurrente', () => ({
     CLAVES: { EVALUACION_OFERTAS: 10001 },
     intentarAdquirirLock: jest.fn().mockResolvedValue({ ok: true, client: {} }),
@@ -118,9 +122,8 @@ describe('Servicio de automatización', () => {
         modeloOferta.crearOferta.mockResolvedValue({ id: 1 });
 
         // Configuro el mock de cron.schedule para simular la programación.
-        cron.schedule.mockReturnValue({
-            start: jest.fn(),
-            stop: jest.fn(),
+        cron.createTask.mockReturnValue({
+            start: jest.fn(), stop: jest.fn(), destroy: jest.fn(), getStatus: jest.fn(() => 'idle'),
         });
 
         // Valido expresiones cron como válidas por defecto.
@@ -137,6 +140,48 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
+        test('mantengo la reserva hasta finalizar el historial, sin aceptar otro ciclo', async () => {
+            const historial = require('../../src/modelos/ejecucion-busqueda');
+            let liberar;
+            let avisar;
+            const finalizando = new Promise(resolve => { avisar = resolve; });
+            historial.finalizar.mockImplementationOnce(() => {
+                avisar();
+                return new Promise(resolve => { liberar = resolve; });
+            });
+            const ciclo = servicioAutomatizacion.ejecutarCicloCompleto();
+            await finalizando;
+            const activo = servicioAutomatizacion.cicloEnProgreso();
+            let rechazo;
+            try { await servicioAutomatizacion.prepararCiclo(); } catch (error) { rechazo = error; }
+            liberar();
+            await ciclo;
+            expect(activo).toBe(true);
+            expect(rechazo).toMatchObject({ statusCode: 409, message: 'Ya hay un ciclo de automatización en curso.' });
+            expect(historial.iniciar).toHaveBeenCalledTimes(1);
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(1);
+            expect(servicioEvaluacion.evaluarOfertasPendientes).toHaveBeenCalledTimes(1);
+            expect(servicioAutomatizacion.cicloEnProgreso()).toBe(false);
+            let terminarScraper;
+            let avisarScraper;
+            const scrapeando = new Promise(resolve => { avisarScraper = resolve; });
+            servicioScraping.ejecutarScrapingLinkedin.mockImplementationOnce(() => {
+                avisarScraper();
+                return new Promise(resolve => { terminarScraper = resolve; });
+            });
+            const siguiente = servicioAutomatizacion.ejecutarCicloCompleto();
+            await scrapeando;
+            const segundoActivo = servicioAutomatizacion.cicloEnProgreso();
+            let tercerRechazo;
+            try { await servicioAutomatizacion.prepararCiclo(); } catch (error) { tercerRechazo = error; }
+            terminarScraper([]);
+            await siguiente;
+            expect(segundoActivo).toBe(true);
+            expect(tercerRechazo).toMatchObject({ statusCode: 409 });
+            expect(historial.iniciar).toHaveBeenCalledTimes(2);
+            expect(servicioScraping.ejecutarScrapingLinkedin).toHaveBeenCalledTimes(2);
+            expect(servicioAutomatizacion.cicloEnProgreso()).toBe(false);
+        });
         test('ejecuta scraping de las plataformas activas → guarda ofertas → evalúa', async () => {
             // Preparo datos simulados para las plataformas activas.
             servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue([
@@ -282,7 +327,8 @@ describe('Servicio de automatización', () => {
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            expect(resultado.exito).toBe(true);
+            expect(resultado.exito).toBe(false);
+            expect(resultado.estado).toBe('parcial');
             expect(resultado.scraping.linkedin).toBe(0);
             expect(resultado.scraping.computrabajo).toBe(1);
             expect(resultado.errores).toHaveLength(1);
@@ -302,8 +348,9 @@ describe('Servicio de automatización', () => {
 
             const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
 
-            // El ciclo no se abortó.
-            expect(resultado.exito).toBe(true);
+            // El ciclo no se abortó, pero no oculto sus fallos parciales.
+            expect(resultado.exito).toBe(false);
+            expect(resultado.estado).toBe('parcial');
             // Los que fallaron tienen 0.
             expect(resultado.scraping.linkedin).toBe(0);
             expect(resultado.scraping.glassdoor).toBe(0);
@@ -537,7 +584,7 @@ describe('Servicio de automatización', () => {
 
             expect(resultado.erroresGuardado).toBe(3);
             expect(resultado.scraping.guardadas).toBe(0);
-            expect(resultado.errores.length).toBeGreaterThanOrEqual(3);
+            expect(resultado.errores).toEqual(['Error al guardar ofertas de LinkedIn: 3 errores.']);
         });
 
         test('erroresGuardado se pasa al servicio de email en el resumen', async () => {
@@ -604,31 +651,28 @@ describe('Servicio de automatización', () => {
     });
 
     describe('programarCron()', () => {
-        test('programa un cron job con la expresión por defecto (todos los martes a las 20:00 ART)', () => {
-            servicioAutomatizacion.programarCron();
+        test('programa un cron job con la expresión por defecto (todos los martes a las 20:00 ART)', async () => {
+            await servicioAutomatizacion.programarCron();
 
-            expect(cron.schedule).toHaveBeenCalledTimes(1);
-            const expresionCron = cron.schedule.mock.calls[0][0];
+            expect(cron.createTask).toHaveBeenCalledTimes(1);
+            const expresionCron = cron.createTask.mock.calls[0][0];
             expect(expresionCron).toBe('0 20 * * 2');
         });
 
-        test('acepta una expresión cron personalizada', () => {
-            servicioAutomatizacion.programarCron({ expresionCron: '0 8 * * *' });
+        test('acepta una expresión cron personalizada', async () => {
+            await servicioAutomatizacion.programarCron({ expresionCron: '0 8 * * *' });
 
-            const expresionUsada = cron.schedule.mock.calls[0][0];
+            const expresionUsada = cron.createTask.mock.calls[0][0];
             expect(expresionUsada).toBe('0 8 * * *');
         });
 
-        test('rechaza una expresión cron inválida', () => {
+        test('rechaza una expresión cron inválida', async () => {
             cron.validate.mockReturnValue(false);
-
-            expect(() => {
-                servicioAutomatizacion.programarCron({ expresionCron: 'invalida' });
-            }).toThrow('Expresión cron inválida');
+            await expect(servicioAutomatizacion.programarCron({ expresionCron: 'invalida' })).rejects.toThrow('Expresión cron inválida');
         });
 
-        test('retorna métodos para controlar el cron', () => {
-            const control = servicioAutomatizacion.programarCron();
+        test('retorna métodos para controlar el cron', async () => {
+            const control = await servicioAutomatizacion.programarCron();
 
             expect(control).toHaveProperty('detener');
             expect(typeof control.detener).toBe('function');
@@ -636,15 +680,14 @@ describe('Servicio de automatización', () => {
     });
 
     describe('detener()', () => {
-        test('detiene el cron programado', () => {
+        test('detiene el cron programado', async () => {
             const mockStop = jest.fn();
-            cron.schedule.mockReturnValue({
-                start: jest.fn(),
-                stop: mockStop,
+            cron.createTask.mockReturnValue({
+                start: jest.fn(), stop: mockStop, destroy: jest.fn(), getStatus: jest.fn(() => 'idle'),
             });
 
-            const control = servicioAutomatizacion.programarCron();
-            control.detener();
+            const control = await servicioAutomatizacion.programarCron();
+            await control.detener();
 
             expect(mockStop).toHaveBeenCalledTimes(1);
         });
@@ -674,15 +717,13 @@ describe('Servicio de automatización', () => {
             const estado = servicioAutomatizacion.obtenerEstado();
 
             expect(estado).toEqual({
-                activo: false,
-                expresionCron: null,
-                ultimaEjecucion: null,
-                ultimoResultado: null,
+                activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null,
+                zonaHoraria: 'America/Argentina/Buenos_Aires', errorCron: null,
             });
         });
 
-        test('retorna estado activo después de programar el cron', () => {
-            servicioAutomatizacion.programarCron();
+        test('retorna estado activo después de programar el cron', async () => {
+            await servicioAutomatizacion.programarCron();
             const estado = servicioAutomatizacion.obtenerEstado();
 
             expect(estado.activo).toBe(true);
@@ -861,13 +902,51 @@ describe('Servicio de automatización', () => {
         });
     });
 
+    describe('Resultados compartidos e historial #20', () => {
+        test('A: conservo ofertas parciales y consulta fallida, guardo por fuente y no atribuyo aprobadas previas', async () => {
+            const lote = [{ titulo: 'Desarrollador junior', url: 'https://example.test/parcial' }];
+            Object.defineProperty(lote, 'metricas', { value: { estado: 'parcial', consultasEjecutadas: 2, peticionesRealizadas: null,
+                totalCrudos: 1, totalElegibles: 1, duracionMs: 20, motivoFinalizacion: 'http',
+                errores: [{ tipo: 'http', codigoHttp: 503, mensaje: 'El proveedor rechazó la petición.' }],
+                resultadosConsultas: [{ consulta: 'junior', estado: 'completada' }, { consulta: 'soporte', estado: 'error' }] } });
+            servicioScraping.ejecutarScrapingLinkedin.mockResolvedValue(lote);
+            servicioEvaluacion.evaluarOfertasPendientes.mockResolvedValue({ total: 9, aprobadas: 9, rechazadas: 0, errores: 0 });
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+            expect(resultado).toMatchObject({ estado: 'parcial', exito: false, scraping: { guardadas: 1 }, historial: { guardado: true } });
+            expect(resultado.fuentes.find(f => f.plataforma === 'linkedin')).toMatchObject({ estado: 'parcial', nuevas: 1, consultasEjecutadas: 2 });
+            expect(resultado.fuentes.some(f => 'aprobadas' in f)).toBe(false);
+            expect(resultado.evaluacionAlcance).toBe('global_pendientes_sin_atribucion_por_fuente');
+            expect(require('../../src/modelos/ejecucion-busqueda').finalizar).toHaveBeenCalledWith(1, resultado);
+        });
+        test('B: espero timeout controlado y sigo con la segunda fuente sin perder sus ofertas', async () => {
+            servicioScraping.ejecutarScrapingLinkedin.mockImplementation(async () => {
+                const datos = [];
+                Object.defineProperty(datos, 'metricas', { value: { estado: 'timeout', duracionMs: 50,
+                    consultasEjecutadas: 1, peticionesRealizadas: 1, motivoFinalizacion: 'timeout', errores: [{ tipo: 'timeout', mensaje: 'Tiempo agotado.' }] } });
+                return datos;
+            });
+            servicioScraping.ejecutarScrapingComputrabajo.mockResolvedValue([{ titulo: 'Soporte junior', url: 'https://example.test/siguiente' }]);
+            const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+            expect(resultado).toMatchObject({ estado: 'parcial', scraping: { guardadas: 1 } });
+            expect(resultado.fuentes[0]).toMatchObject({ estado: 'timeout', nuevas: 0, duracionScrapingMs: 50 });
+            expect(resultado.fuentes[1]).toMatchObject({ estado: 'completada', nuevas: 1 });
+        });
+        test('fallo inicial del historial libera reserva e informa BD sin invocar proveedores', async () => {
+            require('../../src/modelos/ejecucion-busqueda').iniciar.mockRejectedValueOnce(new Error('BD sintética'));
+            await expect(servicioAutomatizacion.ejecutarCicloCompleto()).rejects.toThrow('historial');
+            expect(servicioScraping.ejecutarScrapingLinkedin).not.toHaveBeenCalled();
+            expect(servicioAutomatizacion.obtenerProgreso()).toMatchObject({ activo: false, error: expect.any(String) });
+            expect(servicioAutomatizacion.obtenerEstado().ultimoResultado).toMatchObject({ exito: false, errorHistorial: expect.any(String) });
+        });
+    });
+
     // === Cron default martes 20:00 ART ===
 
     describe('Cron default — martes 20:00 ART', () => {
-        test('la expresión cron por defecto es martes 20:00 (0 20 * * 2)', () => {
-            servicioAutomatizacion.programarCron();
+        test('la expresión cron por defecto es martes 20:00 (0 20 * * 2)', async () => {
+            await servicioAutomatizacion.programarCron();
 
-            const expresionUsada = cron.schedule.mock.calls[0][0];
+            const expresionUsada = cron.createTask.mock.calls[0][0];
             expect(expresionUsada).toBe('0 20 * * 2');
         });
     });

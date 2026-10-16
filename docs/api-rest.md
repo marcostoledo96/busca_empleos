@@ -1,5 +1,59 @@
 # API REST — Busca Empleos
 
+## Resultados por fuente e historial (issue #20)
+
+Los individuales conservan los campos anteriores y agregan `datos.fuente`, el mismo
+objeto que integra `ultimoResultado.fuentes[]` en ciclo/cron. Leo su `estado`, no deduzco
+éxito por estar activa en el registry. Estados: `completada`, `sin_resultados`, `parcial`,
+`error`, `timeout`, `sin_credenciales`, `deshabilitada`; el ciclo agrega `omitida` para
+consultas incompatibles. GetOnBrd conserva `datos.estado: "bloqueado"` por compatibilidad;
+su `datos.fuente.estado` es `deshabilitada`, con motivo del registry y cero peticiones.
+
+Ejemplo **sintético ilustrativo**, no resultado de un proveedor real:
+
+```json
+{
+    "plataforma": "linkedin", "estado": "parcial", "estadoScraping": "parcial",
+    "nuevas": 1, "actualizadas": 0, "reapariciones": 0, "duplicadas": 0,
+    "erroresGuardado": 0, "totalExtraidas": 1, "totalCrudos": 1, "totalElegibles": 1,
+    "consultasEjecutadas": 2, "peticionesRealizadas": null, "idiomaDescartadas": 0,
+    "duracionMs": 42, "duracionScrapingMs": 40, "motivoFinalizacion": "http",
+    "errores": [{ "tipo": "http", "codigoHttp": 503, "mensaje": "El proveedor rechazó la petición." }],
+    "resultadosConsultas": [
+        { "consulta": "junior", "estado": "completada", "peticionesRealizadas": null, "totalCrudos": null, "errores": [] },
+        { "consulta": "soporte", "estado": "error", "peticionesRealizadas": null, "totalCrudos": null, "errores": [{ "tipo": "http", "codigoHttp": 503 }] }
+    ]
+}
+```
+
+No atribuyo persistencia ni IA por consulta. `duplicadas` es el contador legacy de
+existentes (puede incluir actualizadas/reapariciones), no una categoría adicional para
+sumar. `duplicadasDescartadas` informa deduplicación previa de #16. `null` significa
+no medible, nunca cero ni costo exacto. `estadoScraping` permanece separado de errores
+al guardar; `estado` incluye el resultado del ingreso.
+
+Individual: 200 para éxito, vacío válido, parcial o fuente no ejecutable; 502 para
+fallo del proveedor, 504 para timeout y 500 para fallo total del ingreso. El cuerpo
+conserva `datos.fuente` en esos errores. Fallo al iniciar historial: 503 sin scraping.
+`datos.historial` informa `{ id, guardado }`, con `error` si no pude finalizarlo;
+el resultado de scraping no se descarta por ese fallo. El ciclo conserva su 202;
+si falla el registro posterior, expone `ultimoResultado.errorHistorial` y `progreso.error`.
+La evaluación global no es atribuible a las fuentes de esta búsqueda.
+
+`GET /api/automatizacion/historial` requiere autenticación existente y responde
+`{ exito: true, datos: [{ id, tipo, inicio, fin, estado, duracion_ms, resumen }] }`.
+`tipo` es `individual`, `ciclo_manual` o `cron`; `id` y `duracion_ms` pueden ser strings
+numéricos de PostgreSQL. `resumen` contiene `estado`, `fuentes[]` sanitizadas y
+`evaluacionGlobal: true` (indicador de alcance, no resultado de evaluación).
+Las filas en curso usan `estado: "ejecutando"` y `fin: null`; tras reinicio,
+`estado: "interrumpida"` nunca equivale a éxito. Lista hasta 20, más recientes primero.
+Lectura fallida: 503, nunca lista vacía fingida. Esta ruta hereda el límite de 5/min
+del router de automatización; consulto al abrir/terminar una ejecución, no en cada tick de progreso.
+
+El estado del cron agrega `zonaHoraria` y `errorCron`. Los POST iniciar/detener esperan
+persistencia y aplicación real: 400 para configuración inválida, 503 para fallo operativo,
+con estado local en `datos`. Detener es idempotente y persiste inactivo aunque no haya tarea.
+
 ## Configuración efectiva de búsquedas (issue #13)
 
 Consulto `GET /api/scraping/previsualizacion` con autenticación Firebase. Devuelve
@@ -358,6 +412,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |
 | POST | `/api/evaluacion/reintentar-errores` | Reintentar evaluación de ofertas con fallo técnico reciente | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
+| GET | `/api/automatizacion/historial` | Hasta 20 ejecuciones durables sanitizadas | **Sí** | **Sí** (5/min) |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
 | POST | `/api/automatizacion/detener` | Detener el cron | **Sí** | No |
 | GET | `/api/automatizacion/progreso` | Progreso del ciclo de automatización activo | **Sí** | No |
@@ -985,7 +1040,7 @@ Programa el cron. Si ya hay uno activo, lo reemplaza.
 
 **Error — expresión inválida (400):**
 ```json
-{ "exito": false, "error": "Expresión cron inválida: \"invalida\"" }
+{ "exito": false, "error": "Expresión cron inválida o zona horaria no permitida." }
 ```
 
 ### POST /api/automatizacion/detener
@@ -1003,10 +1058,8 @@ Detiene el cron activo.
 }
 ```
 
-**Error — no hay cron activo (400):**
-```json
-{ "exito": false, "error": "No hay ningún cron activo para detener." }
-```
+Sin tarea activa también respondo 200 después de persistir inactivo. Si la escritura
+falla devuelvo 503 y `datos.errorCron`; no confirmo una desactivación durable inexistente.
 
 ### GET /api/automatizacion/progreso
 

@@ -38,6 +38,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
     let mockEvaluacionServiceMutable: jasmine.SpyObj<EvaluacionService>;
 
     const mockAutomatizacionService = {
+        obtenerHistorial: () => of({ exito: true, datos: [] }),
         obtenerEstado:  () => of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } }),
         iniciarCron:    () => of({ exito: true, datos: { activo: true,  expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } }),
         detenerCron:    () => of({ exito: true }),
@@ -364,6 +365,7 @@ describe('PanelControl — Polling defensivo', () => {
         autoSpy = jasmine.createSpyObj('AutomatizacionService', [
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
+        autoSpy.obtenerHistorial = jasmine.createSpy().and.returnValue(of({ exito: true, datos: [] }));
 
         // Por defecto: sin evaluación activa en el ngOnInit para no activar rehidratación.
         // Cada test que necesite polling activo configura su propio retorno.
@@ -682,6 +684,7 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         autoSpy = jasmine.createSpyObj('AutomatizacionService', [
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
+        autoSpy.obtenerHistorial = jasmine.createSpy().and.returnValue(of({ exito: true, datos: [] }));
 
         autoSpy.obtenerEstado.and.returnValue(
             of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
@@ -906,6 +909,7 @@ describe('PanelControl — Ciclo completo: 202 Accepted y 409 Conflict', () => {
         autoSpy = jasmine.createSpyObj('AutomatizacionService', [
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
+        autoSpy.obtenerHistorial = jasmine.createSpy().and.returnValue(of({ exito: true, datos: [] }));
 
         autoSpy.obtenerEstado.and.returnValue(
             of({ exito: true, datos: { activo: false, expresionCron: null, ultimaEjecucion: null, ultimoResultado: null } })
@@ -1150,6 +1154,7 @@ describe('PanelControl — Visualización de consultas efectivas y equivalencias
             reintentarErrores: () => of({ exito: true, en_curso: true, total: 1, mensaje: 'Reintentando...' }),
         };
         const mockAuto = {
+            obtenerHistorial: () => of({ exito: true, datos: [] }),
             obtenerEstado: () => of({ exito: true, datos: { activo: false } }),
             obtenerProgreso: () => of({ exito: true, datos: { activo: false, porcentaje: 0, pasos: [] } as ProgresoAutomatizacion }),
         };
@@ -1196,6 +1201,7 @@ describe('PanelControl — Reintento de errores técnicos e interrupción por re
         autoSpy = jasmine.createSpyObj('AutomatizacionService', [
             'obtenerEstado', 'obtenerProgreso', 'iniciarCron', 'detenerCron', 'ejecutarCiclo'
         ]);
+        autoSpy.obtenerHistorial = jasmine.createSpy().and.returnValue(of({ exito: true, datos: [] }));
 
         evalSpy.obtenerProgreso.and.returnValue(
             of({ exito: true, datos: { activo: false, evaluadas: 0, total: 0, aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 0 } })

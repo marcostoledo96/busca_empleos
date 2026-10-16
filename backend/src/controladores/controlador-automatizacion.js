@@ -35,7 +35,7 @@ async function iniciarCron(req, res) {
     const { expresionCron } = req.body || {};
 
     try {
-        servicioAutomatizacion.programarCron({ expresionCron });
+        await servicioAutomatizacion.programarCron({ expresionCron });
         const estado = servicioAutomatizacion.obtenerEstado();
         res.json({
             exito: true,
@@ -43,9 +43,10 @@ async function iniciarCron(req, res) {
             datos: estado,
         });
     } catch (error) {
-        res.status(400).json({
+        res.status(error.statusCode || 400).json({
             exito: false,
             error: error.message,
+            datos: servicioAutomatizacion.obtenerEstado(),
         });
     }
 }
@@ -54,25 +55,12 @@ async function iniciarCron(req, res) {
  * Detengo el cron activo.
  */
 async function detenerCron(req, res) {
-    const estado = servicioAutomatizacion.obtenerEstado();
-
-    if (!estado.activo) {
-        return res.status(400).json({
-            exito: false,
-            error: 'No hay ningún cron activo para detener.',
-        });
+    try {
+        await servicioAutomatizacion.detenerCron();
+        res.json({ exito: true, mensaje: 'Cron detenido exitosamente.', datos: servicioAutomatizacion.obtenerEstado() });
+    } catch (error) {
+        res.status(error.statusCode || 503).json({ exito: false, error: error.message, datos: servicioAutomatizacion.obtenerEstado() });
     }
-
-    // Necesito reprogramar para obtener el controlador y poder detener.
-    // Alternativa: expongo detener directamente en el servicio.
-    // Voy a agregar una función detenerCron() al servicio.
-    servicioAutomatizacion.detenerCron();
-
-    res.json({
-        exito: true,
-        mensaje: 'Cron detenido exitosamente.',
-        datos: servicioAutomatizacion.obtenerEstado(),
-    });
 }
 
 /**
@@ -125,7 +113,16 @@ async function ejecutarCiclo(req, res) {
     });
 }
 
+async function obtenerHistorial(req, res) {
+    try {
+        res.json({ exito: true, datos: await servicioAutomatizacion.obtenerHistorial() });
+    } catch {
+        res.status(503).json({ exito: false, error: 'No pude consultar el historial de ejecuciones.' });
+    }
+}
+
 module.exports = {
+    obtenerHistorial,
     obtenerEstado,
     iniciarCron,
     detenerCron,

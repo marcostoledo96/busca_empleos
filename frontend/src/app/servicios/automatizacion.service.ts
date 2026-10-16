@@ -2,13 +2,17 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RespuestaApi, EstadoAutomatizacion, ProgresoAutomatizacion, InicioAutomatizacion } from '../modelos/respuesta-api.model';
+import { RespuestaApi, EstadoAutomatizacion, ProgresoAutomatizacion, InicioAutomatizacion, EjecucionBusqueda } from '../modelos/respuesta-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class AutomatizacionService {
 
     private readonly http = inject(HttpClient);
     private readonly urlBase = `${environment.urlApi}/automatizacion`;
+
+    obtenerHistorial(): Observable<RespuestaApi<EjecucionBusqueda[]>> {
+        return this.http.get<RespuestaApi<EjecucionBusqueda[]>>(`${this.urlBase}/historial`);
+    }
 
     // Consulta si el cron está activo, cuándo fue la última ejecución, etc.
     obtenerEstado(): Observable<RespuestaApi<EstadoAutomatizacion>> {

@@ -1,5 +1,43 @@
 # Frontend — Busca Empleos
 
+## Resultados por fuente e historial — issue #20
+
+Mantengo el panel existente y agrego detalles HTML desplegables para la última búsqueda
+individual (`datos.fuente`), el último ciclo (`datos.ultimoResultado.fuentes`) y hasta
+20 ejecuciones recientes (`GET /api/automatizacion/historial`). Conservo resultados
+individuales incluso cuando HTTP devuelve 502/504. Muestro el estado efectivo, errores
+HTTP, consultas ejecutadas, motivo y duración del backend; una fuente parcial no se
+anuncia como completada. El registry habilitado permite intentar, no garantiza que
+el proveedor esté disponible. GetOnBrd sigue deshabilitado por falta de autorización
+escrita verificable; Google Jobs por costo/baja utilidad e InfoJobs mientras siga vigente
+su deshabilitación. No agrego botones ni reactivo esas integraciones.
+
+Distingo nuevas, actualizadas, reapariciones y duplicadas intra-ejecución
+(`duplicadasDescartadas`). `duplicadas` es el contador legacy de existentes, no sumable:
+puede incluir actualizadas/reapariciones. Un valor ausente o `null` aparece como
+«No medido», nunca cero. Por consulta muestro exclusivamente consulta efectiva,
+estado, peticiones, brutas y errores; la persistencia se informa solamente por fuente.
+No calculo costos ni atribuyo aprobadas globales de IA a una búsqueda/fuente nueva.
+El historial sanitizado puede omitir nombres y mensajes; resuelvo nombres desde el
+registry existente y conservo los tipos/códigos de error informados.
+
+Cargo historial al abrir y después de terminar individual/ciclo, nunca por tick del
+polling (la ruta hereda 5 consultas/minuto). El botón «Actualizar historial» sirve para
+refrescar o reintentar; durante la carga no duplico solicitudes. Un fallo conserva la
+lista previa y muestra un error propio, separado del resultado del scraping y de un
+fallo de actualización del dashboard. El cron muestra expresión y zona retornadas;
+ante HTTP503 aplico `datos.activo`/`errorCron` en lugar de invertir el switch por suposición.
+Si no recibo estado, lo vuelvo a consultar sin afirmar éxito.
+
+Las pruebas A/B/C con `HttpTestingController` integran panel, servicios y dashboard:
+A conserva una oferta con fuente parcial y segunda consulta HTTP503; B presenta timeout
+de la primera fuente y éxito de la siguiente, historial y oferta válida; C remonta la
+vista, recupera historial e inactividad y comprueba ausencia de POST. Estas pruebas
+consumen respuestas sintéticas con forma backend: **no ejecutan Express, cancelación
+de proveedores, PostgreSQL ni un reinicio del proceso backend**. Esa evidencia corresponde
+a la verificación backend separada, no a estas pruebas Angular. No uso cron real ni
+credenciales reales, y no presento capturas como evidencia.
+
 ## Búsquedas efectivas y actualización — issue #13
 
 Consulto `GET /api/scraping/previsualizacion` al montar el panel, al pedir actualizar

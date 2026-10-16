@@ -1,5 +1,100 @@
 # Scraping — Busca Empleos
 
+## Resultado efectivo y presupuestos por fuente (issue #20, T1)
+
+Conservo el array de ofertas y su propiedad **no enumerable** `metricas` en las
+nueve fuentes activas. Un fallo del proveedor devuelve un array (posiblemente
+vacío) con estado explícito, no un éxito vacío. Los errores de validación local
+siguen rechazando antes del primer request. El consumidor debe leer `metricas`,
+no inferir éxito a partir de `Array.isArray()` ni de que la promesa se resuelva.
+Adzuna conserva además su objeto legacy cuando faltan ambas credenciales:
+`{ deshabilitado, codigo_resultado, advertencia, ofertas, metricas }`; su estado
+real es `sin_credenciales`, no una desactivación del registry.
+
+### Contrato para ingestión y orquestación
+
+- `plataforma`: id del registry.
+- `estado`: `completada`, `sin_resultados`, `parcial`, `error`, `timeout` o
+  `sin_credenciales`. Hay `parcial` cuando conservo ofertas útiles y hubo errores
+  o un límite de peticiones/páginas que impidió completar la búsqueda.
+- `errores`: array de `{ tipo, mensaje, codigoHttp?, consulta? }`. Los tipos son
+  `http`, `limite_solicitudes`, `red`, `respuesta_invalida`, `timeout`, `cancelacion`,
+  `actor` y `cancelacion_no_confirmada`. No guardo mensajes crudos, cuerpos de error
+  ni URLs autenticadas. HTTP 429 nunca significa «sin resultados».
+- `duracionMs`: tiempo de la operación de scraping, incluidas pausas; no incluye BD
+  ni evaluación IA. `motivoFinalizacion` conserva los motivos de #16 cuando termina
+  por cupos y agrega el tipo de fallo o `sin_credenciales` cuando corresponde.
+- `consultasEjecutadas`: número de consultas distintas realmente enviadas, no las
+  planificadas. `resultadosConsultas`: array de `{ consulta, estado,
+  peticionesRealizadas, totalCrudos, totalElegibles, errores }`. Incluyo URLs públicas de búsqueda
+  en LinkedIn/Bumeran/Computrabajo; query OR en Indeed; keywords y ubicación del
+  lote en Glassdoor; término en Jooble; categoría en Remotive; tag efectivo en
+  RemoteOK; `remote <término>` en Adzuna. Las páginas y detalles se agrupan bajo
+  su búsqueda; los fallos de detalle quedan asociados a esa búsqueda.
+- `peticionesRealizadas`: HTTP directo realmente intentado (incluidos fallos y
+  detalles). Para Apify es `null`: el SDK y el Actor hacen peticiones internas que
+  no puedo medir exactamente. Tampoco invento crudos por consulta del dataset
+  agregado: `totalCrudos: null` por consulta Apify, contador agregado en la fuente.
+  Decido `sin_resultados` por ofertas elegibles, no por crudos recibidos. En
+  Computrabajo, Jooble, Remotive y RemoteOK atribuyo cada URL elegible a su primera
+  consulta y cuento sólo las ofertas del array final, después de idioma, antigüedad,
+  deduplicación y cupo. Si esa consulta conserva ofertas y tiene fallos, informo
+  `parcial`, no `error`. En datasets agregados Apify y Adzuna no invento atribución:
+  `totalElegibles: null` y `estado: null` cuando no puedo determinar el resultado
+  elegible de esa consulta; los errores/timeout y vacíos verificables siguen explícitos.
+  El resultado compartido por fuente recalcula elegibles y éxito vacío después del
+  filtro de idioma de ingreso, sin borrar estados `error`, `timeout` o `parcial`.
+  Si ese filtro invalida una atribución previa, la marco como no disponible (`null`).
+- Conservo `maxResultados`, `ventanaDias`, `consultasOmitidas` y los contadores de
+  #16/#19 cuando están disponibles: `totalCrudos`, `totalElegibles`,
+  `duplicadasDescartadas`, `antiguasDescartadas`, `sinFechaConocida`.
+  `idiomaDescartadas` cuenta el filtro que ya ejecutan las fuentes directas con
+  elegibilidad; es `null` cuando el filtrado depende de la ingestión posterior.
+  No invento insertadas, actualizadas, reapariciones, costos ni aprobadas de IA:
+  ingestión debe agregar sus propios contadores verificables a nivel fuente.
+
+T2 debe construir `deshabilitada` con el motivo del registry **antes** de invocar
+adaptadores inactivos, compartir este resultado entre individual/ciclo/cron y
+continuar las fuentes siguientes. GetOnBrd sigue bloqueado hasta autorización
+escrita verificable; Google Jobs sigue desactivado por costo y baja utilidad;
+InfoJobs sigue deshabilitado. Activa sólo significa que se puede intentar
+consultar, no que la integración esté operativa ni que haya respondido bien.
+
+### Límites y cancelación
+
+Uso 180 s por fuente y 15 s por HTTP directo, incluyendo `json()`/`text()`.
+Los controles internos opcionales `timeoutMs`, `timeoutPeticionMs` y `signal`
+permiten reducir (nunca ampliar) esos máximos y probar con reloj simulado; no son
+preferencias persistidas ni nuevos campos HTTP. Aborto el fetch real, descarto
+respuestas tardías y verifico el plazo antes de nuevas peticiones. Incluyo pausas
+(300 ms por lote de Computrabajo y 2500 ms en Adzuna), sin cambiar cupos ni actores.
+Una promesa simulada que ignora AbortSignal puede seguir pendiente, pero su lectura
+no incorpora ofertas ni modifica telemetría después de terminar la fuente.
+
+Verifiqué tipos y código instalado de **apify-client 2.22.3**:
+`ActorClient.call(input, { timeout, waitSecs })` aplica `timeout` al run remoto y
+`waitSecs` sólo a la espera local; no rechaza por `FAILED`/`ABORTED`/`TIMED-OUT`.
+Mantengo los mismos actores e inputs; agrego únicamente opciones de tiempo:
+run remoto hasta 120 s (menor si falta margen), espera inicial 1 s y polling de
+`run(id).get()` con pausas de 1 s. Reservo 45 s para operaciones HTTP finales y
+abort. En el cliente compartido autorizado fijo `timeoutSecs: 15, maxRetries: 0`:
+acoto el HTTP del SDK y evito repetir un POST de arranque con resultado incierto.
+No uso carreras de promesas alrededor del SDK ni tareas desacopladas de persistencia.
+
+`RunClient.abort()` está soportado; uso su modo inmediato, no `gracefully`, para
+no agregar el período de gracia de un Actor que podría seguir trabajando.
+Sólo un estado terminal confirma finalización; `ABORTING` o un fallo del abort
+produce `cancelacion_no_confirmada`. Si el arranque falla sin devolver run id,
+no puedo confirmar abort remoto: no reintento y el timeout remoto solicitado es
+la protección restante (no una cancelación confirmada). El SDK no expone
+AbortSignal para estas operaciones: una cancelación local espera a que termine
+la operación HTTP en curso, acotada por el SDK, y luego detiene/consulta el run.
+El resultado no acredita escrituras externas o cancelación que no pude verificar.
+
+Pruebo exclusivamente proveedores simulados y reloj controlado. La persistencia,
+el historial, el cron y la presentación Angular se verifican en las unidades de
+integración posteriores, no desde este adaptador.
+
 ## Preferencias comunes por ejecución (issue #13)
 
 Resuelvo opciones explícitas válidas > términos guardados > defaults solo ante
@@ -30,11 +125,9 @@ queda vacío después de quitar signos, devuelvo 400 antes del primer request.
 No genero `/trabajo-de-` ni sustituyo ese término por defaults. Conservo la
 transformación actual y las guardas de palabras utilizables de las demás fuentes.
 
-En Jooble/RemoteOK maxResultados es un umbral para dejar de pedir páginas/tags,
-no un recorte estricto de lo ya recibido: incorporar una página/lote completo
-puede superarlo. Conservo ese comportamiento y lo informo explícitamente en
-`advertencias` de preview y ejecución. Las pruebas comparan la configuración
-con el payload real simulado y conservan un overflow de 51 frente al umbral 50.
+En Jooble/RemoteOK `maxResultados` es un cupo de ofertas elegibles con recorte
+estricto del array final desde #16. Los crudos recibidos pueden superar ese cupo;
+no los confundo con la cantidad de ofertas retornadas.
 
 Antes de persistir comparto `filtrarOfertasPorIdioma` en individuales y ciclo,
 que reutiliza sin modificaciones `detectarIdioma`: descarto solo lo detectado
@@ -114,9 +207,9 @@ Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) e
 | Plataforma | Actor | ID | Costo | Rating |
 |-----------|-------|-----|-------|--------|
 | LinkedIn | curious_coder/linkedin-jobs-scraper | `hKByXkMQaC5Qt9UMN` | ~$0.001/resultado | 4.9 (38K usuarios) |
-| Computrabajo | shahidirfan/Computrabajo-Jobs-Scraper | `270QqNecZlrnDMveb` | GRATIS | — |
+| Computrabajo | HTTP directo + Cheerio (no ejecuto el Actor legado) | — | Sin costo Apify | — |
 | Indeed | valig/indeed-jobs-scraper | `TrtlecxAsNRbKl1na` | ~$0.08/1000 resultados | 5.0 (3.1K usuarios) |
-| Bumeran | apify/web-scraper (genérico + Puppeteer) | `apify/web-scraper` | GRATIS (actor genérico) | — |
+| Bumeran | apify/puppeteer-scraper | `apify/puppeteer-scraper` | Compute del Actor; sin consumo exacto medido | — |
 | Glassdoor | cheap_scraper/glassdoor-jobs-scraper-remove-duplicate-jobs | `bYSAbQqxwImLaf2nb` | ~$0.001/resultado + $0.05 fijo | 5.0 (187 usuarios) |
 
 ## GetOnBrd — piloto API-only bloqueado
