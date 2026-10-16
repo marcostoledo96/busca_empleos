@@ -84,6 +84,7 @@
                 <p>Últimos 30 días desde la extracción. Incluyo todos los estados de evaluación, también rechazadas y vigencia desconocida.
                     Seleccioná hasta 200 ofertas; no se ejecuta nada hasta confirmar.</p>
                 <app-tabla-ofertas [modoDemo]="modoDemo()" [ofertas]="ofertasReevaluables()" [cargando]="sincronizando()"
+                    [conciliacionMasiva]="conciliacionMasiva()"
                     [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
                     [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
                     [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
@@ -140,6 +141,7 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasAprobadas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
                         [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
                         [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
                         [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
@@ -160,6 +162,7 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPostuladas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
                         [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
                         [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
                         [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
@@ -180,6 +183,7 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasRechazadas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
                         [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
                         [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
                         [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
@@ -200,6 +204,7 @@
                     <app-tabla-ofertas
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPendientes()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
                         [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
                         [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
                         [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"

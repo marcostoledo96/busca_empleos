@@ -24,8 +24,17 @@ contrato existente `PATCH /ofertas/bulk/postulacion` con `{ ids, estado_postulac
 
 - **Confirmación completa:** actualizo esos IDs, anuncio `datos.actualizadas`, limpio
   selección y refresco sin perder filtros ni cambios manuales protegidos.
-- **Confirmación parcial:** anuncio la cantidad real y refresco, sin atribuir estados
-  a IDs que el backend no identifica; conservo selección todavía válida para reintentar.
+- **Confirmación parcial (incluido cero):** anuncio la cantidad real sin atribuir éxitos
+  por ID. Mantengo procesamiento, bloqueo de duplicados y guardas compartidas hasta
+  completar un `GET /ofertas` fresco, separado del caché y la sincronización previa.
+  Conservo para reintentar únicamente IDs originalmente enviados que sigan seleccionados
+  y visibles, con estado confirmado distinto del destino original del PATCH. No restauro
+  selección al cambiar búsqueda, plataforma, pestaña, página u orden mientras espero.
+  El destino de esa conciliación no cambia aunque se modifique el selector local.
+  Si falla el GET (`exito: false`, HTTP o red), faltan IDs o la respuesta es inválida,
+  advierto que no pude confirmar los estados y limpio la selección insegura: necesito
+  una nueva selección explícita, sin reintentos automáticos. Las versiones impiden que
+  lecturas iniciadas antes o durante la conciliación pisen estados recién confirmados.
 - **Fallo:** no anuncio éxito ni altero estados guardados; conservo selección válida
   y muestro un error accesible para volver a intentar.
 

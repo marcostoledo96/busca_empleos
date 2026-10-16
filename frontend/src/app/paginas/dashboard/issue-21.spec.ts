@@ -38,9 +38,12 @@ describe('Issue 21 — integración dashboard, tabla y detalle', () => {
     let http: HttpTestingController;
     let sincronizadas: Oferta[];
     const url = 'http://localhost:3000/api/ofertas';
-    const buscar = (selector: string): any => fixture.nativeElement.querySelector(selector);
+    const buscar = (selector: string): any => selector === 'p-toast' || selector.startsWith('p-tabpanel')
+        ? fixture.nativeElement.querySelector(selector)
+        : (fixture.nativeElement.querySelector('p-tabpanel:not([hidden])') ?? fixture.nativeElement).querySelector(selector);
     const renderizar = () => { fixture.detectChanges(); tick(400); fixture.detectChanges(); };
-    const tabla = (): TablaOfertas => fixture.debugElement.query(By.directive(TablaOfertas)).componentInstance;
+    const tabla = (): TablaOfertas => fixture.debugElement.queryAll(By.directive(TablaOfertas))
+        .find(elemento => !elemento.nativeElement.closest('p-tabpanel')?.hidden)!.componentInstance;
     const detalle = (): DetalleOferta => fixture.debugElement.query(By.directive(DetalleOferta)).componentInstance;
     const filtrar = (texto: string) => {
         const campo = buscar('#filtro-busqueda-input');
@@ -59,6 +62,25 @@ describe('Issue 21 — integración dashboard, tabla y detalle', () => {
         const toast = buscar('p-toast');
         expect(toast?.textContent).toContain(texto);
         expect(toast?.querySelector('[role="alert"]')).not.toBeNull();
+    };
+
+    const iniciarParcialPostuladas = (cantidad = 2) => {
+        dashboard.ofertas.set(crearOfertas(3).map(o => ({ ...o, estado_postulacion: 'cv_enviado' })));
+        renderizar();
+        fixture.nativeElement.querySelectorAll('p-tab')[1].click(); renderizar();
+        seleccionar(); aplicar();
+        const escritura = http.expectOne(`${url}/bulk/postulacion`);
+        expect(escritura.request.body).toEqual({ ids: [1, 2, 3], estado_postulacion: 'en_proceso' });
+        escritura.flush({ exito: true, datos: { actualizadas: cantidad } }); renderizar();
+        return crearOfertas(3).map(o => ({ ...o,
+            estado_postulacion: o.id <= cantidad ? 'en_proceso' : 'cv_enviado' } as Oferta));
+    };
+    const responderConciliacion = (datos: Oferta[]) => {
+        const lectura = http.expectOne(r => r.method === 'GET' && r.url.startsWith(url));
+        expect(lectura.request.url).toBe(url);
+        lectura.flush({ exito: true, datos, total_inicial: datos.length, max_id: 45,
+            completada: true, cursor_siguiente: null, fecha_corte: '2026-10-01' });
+        renderizar();
     };
 
     beforeEach(async () => {
@@ -193,14 +215,15 @@ describe('Issue 21 — integración dashboard, tabla y detalle', () => {
         expect(oferta.estado_postulacion).toBe('cv_enviado');
     }));
 
-    it('parcial: muestro conteo real, no atribuyo IDs, conservo selección para reintentar y refresco', fakeAsync(() => {
-        const refrescar = spyOn(dashboard, 'cargarDatos');
+    it('parcial: muestro conteo real sin atribuir IDs y mantengo bloqueo hasta verificar', fakeAsync(() => {
         renderizar(); seleccionar(); aplicar();
         http.expectOne(`${url}/bulk/postulacion`).flush({ exito: true, datos: { actualizadas: 2 } }); renderizar();
         aviso('2 de 20');
         expect(dashboard.ofertas().every(o => o.estado_postulacion === 'no_postulado')).toBeTrue();
         expect(tabla().seleccionadas().size).toBe(20);
-        expect(refrescar).toHaveBeenCalledTimes(1);
+        expect(dashboard.postulacionesPendientes().size).toBe(20);
+        expect(buscar('[aria-label="Aplicar acción masiva"]').disabled).toBeTrue();
+        responderConciliacion(crearOfertas());
         expect(dashboard.postulacionesPendientes().size).toBe(0);
     }));
 
@@ -208,13 +231,141 @@ describe('Issue 21 — integración dashboard, tabla y detalle', () => {
         renderizar(); filtrar('Angular'); seleccionar(); aplicar();
         http.expectOne(`${url}/bulk/postulacion`).flush({ exito: true, datos: { actualizadas: 2 } }); renderizar();
         const datos = crearOfertas().map(o => ({ ...o, estado_postulacion: o.id <= 2 ? 'en_proceso' : o.estado_postulacion } as Oferta));
-        http.expectOne(`${url}/sincronizacion?limite=500`).flush({ exito: true, datos,
-            total_inicial: datos.length, max_id: 45, completada: true, cursor_siguiente: null, fecha_corte: '2026-10-01' });
-        renderizar();
+        responderConciliacion(datos);
         expect(buscar('#filtro-busqueda-input').value).toBe('Angular');
         expect([...tabla().seleccionadas()]).toEqual([3, 4, 5, 6, 7]);
         expect(dashboard.ofertas().filter(o => o.estado_postulacion === 'en_proceso').map(o => o.id)).toEqual([1, 2]);
         expect(dashboard.sincronizando()).toBeFalse();
+    }));
+
+    it('B-01: Postuladas parcial 2/3 bloquea hasta GET y reintenta únicamente el ID no actualizado', fakeAsync(() => {
+        const refrescar = spyOn(dashboard, 'cargarDatos').and.callThrough();
+        const datos = iniciarParcialPostuladas();
+        aviso('2 de 3');
+        expect(buscar('[aria-label="Aplicar acción masiva"]').disabled).toBeTrue();
+        expect(buscar('[aria-label="Aplicar acción masiva"]').textContent).toContain('Procesando');
+        expect(dashboard.postulacionesPendientes().size).toBe(3);
+        expect(dashboard.ofertas().every(o => o.estado_postulacion === 'cv_enviado')).toBeTrue();
+        aplicar();
+        tabla().cambiarPostulacion(dashboard.ofertas()[0], 'descartada');
+        dashboard.mostrarDetalle(dashboard.ofertas()[0]); renderizar();
+        detalle().cambiarPostulacion('descartada');
+        http.expectNone(r => r.method === 'PATCH');
+        responderConciliacion(datos);
+        expect([...tabla().seleccionadas()]).toEqual([3]);
+        expect(dashboard.accionMasivaConfirmada()).toBe(0);
+        expect(dashboard.postulacionesPendientes().size).toBe(0);
+        aplicar();
+        const reintento = http.expectOne(`${url}/bulk/postulacion`);
+        expect(reintento.request.body).toEqual({ ids: [3], estado_postulacion: 'en_proceso' });
+        refrescar.and.stub();
+        reintento.flush({ exito: true, datos: { actualizadas: 1 } }); renderizar();
+        aviso('1 ofertas actualizadas.');
+        expect(tabla().seleccionadas().size).toBe(0);
+        expect(dashboard.ofertas().every(o => o.estado_postulacion === 'en_proceso')).toBeTrue();
+    }));
+
+    it('B-01 reproducción exacta: GET conserva tres Postuladas pero el segundo PATCH debe excluir los dos éxitos', fakeAsync(() => {
+        const refrescar = spyOn(dashboard, 'cargarDatos').and.callThrough();
+        const datos = iniciarParcialPostuladas();
+        responderConciliacion(datos);
+        expect([...tabla().seleccionadas()]).toEqual([3]);
+        aplicar();
+        const reintento = http.expectOne(`${url}/bulk/postulacion`);
+        expect(reintento.request.body).toEqual({ ids: [3], estado_postulacion: 'en_proceso' });
+        refrescar.and.stub();
+        reintento.flush({ exito: true, datos: { actualizadas: 1 } }); renderizar();
+        aviso('1 ofertas actualizadas.');
+    }));
+
+    it('cero confirmado también espera GET sin inventar éxitos por ID', fakeAsync(() => {
+        const datos = iniciarParcialPostuladas(0);
+        expect(dashboard.accionMasivaEnCurso()).toBeTrue();
+        aviso('0 de 3');
+        responderConciliacion(datos);
+        expect([...tabla().seleccionadas()]).toEqual([1, 2, 3]);
+        expect(dashboard.ofertas().every(o => o.estado_postulacion === 'cv_enviado')).toBeTrue();
+        expect(dashboard.accionMasivaEnCurso()).toBeFalse();
+    }));
+
+    for (const fallo of ['false', '500', 'red', 'invalida', 'ausente', 'duplicada', 'estado', 'null', '204']) {
+        it(`conciliación ${fallo}: advierto, no invento estados y exijo nueva selección explícita`, fakeAsync(() => {
+            iniciarParcialPostuladas();
+            const lectura = http.expectOne(r => r.method === 'GET' && r.url.startsWith(url));
+            if (fallo === '500') lectura.flush({}, { status: 500, statusText: 'Fallo sintético' });
+            else if (fallo === 'red') lectura.error(new ProgressEvent('error'));
+            else if (fallo === 'null' || fallo === '204') lectura.flush(null, {
+                status: fallo === '204' ? 204 : 200, statusText: fallo === '204' ? 'No Content' : 'OK',
+            });
+            else lectura.flush({ exito: fallo !== 'false', datos: fallo === 'invalida' ? null
+                : fallo === 'duplicada' ? [...crearOfertas(3), crearOfertas(1)[0]]
+                    : fallo === 'estado' ? crearOfertas(3).map(o => ({ ...o, estado_postulacion: 'inventado' })) : [] });
+            renderizar();
+            aviso('No pude confirmar los estados');
+            aviso('Seleccioná nuevamente');
+            expect(tabla().seleccionadas().size).toBe(0);
+            expect(dashboard.ofertas().every(o => o.estado_postulacion === 'cv_enviado')).toBeTrue();
+            expect(dashboard.postulacionesPendientes().size).toBe(0);
+            expect(dashboard.accionMasivaEnCurso()).toBeFalse();
+            tabla().aplicarAccionMasiva();
+            http.expectNone(r => r.method === 'PATCH');
+        }));
+    }
+
+    for (const cambio of ['busqueda', 'plataforma', 'pestaña', 'pagina', 'orden', 'cancelar']) {
+        it(`conciliación no restaura selección después de cambiar ${cambio}`, fakeAsync(() => {
+            const datos = iniciarParcialPostuladas();
+            const original = tabla();
+            if (cambio === 'busqueda') filtrar('React');
+            if (cambio === 'plataforma') dashboard.filtroPlataforma.set('indeed');
+            if (cambio === 'pestaña') fixture.nativeElement.querySelectorAll('p-tab')[0].click();
+            if (cambio === 'pagina') original.tabla()!.onPageChange({ first: 20, rows: 20 });
+            if (cambio === 'orden') buscar('th[pSortableColumn="titulo"]').click();
+            if (cambio === 'cancelar') buscar('[aria-label="Cancelar selección masiva"]').click();
+            renderizar(); responderConciliacion(datos);
+            expect(original.seleccionadas().size).toBe(0);
+            expect(dashboard.ofertas().filter(o => o.estado_postulacion === 'en_proceso').map(o => o.id)).toEqual([1, 2]);
+            original.aplicarAccionMasiva();
+            http.expectNone(r => r.method === 'PATCH');
+        }));
+    }
+
+    it('conciliación usa destino original aunque cambie el modelo y conserva filtros válidos', fakeAsync(() => {
+        const datos = iniciarParcialPostuladas();
+        tabla().estadoBulkSeleccionado = 'cv_enviado';
+        responderConciliacion(datos);
+        expect([...tabla().seleccionadas()]).toEqual([3]);
+        expect(dashboard.pestanaActiva()).toBe(1);
+    }));
+
+    for (const completarAntes of [true, false]) {
+        it(`GET anterior al PATCH termina ${completarAntes ? 'durante' : 'después de'} conciliación sin reintroducir éxitos`, fakeAsync(() => {
+            dashboard.ofertas.set(crearOfertas(3).map(o => ({ ...o, estado_postulacion: 'cv_enviado' })));
+            renderizar(); fixture.nativeElement.querySelectorAll('p-tab')[1].click(); renderizar();
+            dashboard.onProgresoEvaluacion();
+            const antigua = http.expectOne(url);
+            seleccionar(); aplicar();
+            http.expectOne(`${url}/bulk/postulacion`).flush({ exito: true, datos: { actualizadas: 2 } }); renderizar();
+            const viejas = crearOfertas(3).map(o => ({ ...o, estado_postulacion: 'cv_enviado' } as Oferta));
+            if (completarAntes) { antigua.flush({ exito: true, datos: viejas }); renderizar(); }
+            responderConciliacion(viejas.map(o => ({ ...o, estado_postulacion: o.id <= 2 ? 'en_proceso' : 'cv_enviado' })));
+            if (!completarAntes) { antigua.flush({ exito: true, datos: viejas }); renderizar(); }
+            expect([...tabla().seleccionadas()]).toEqual([3]);
+            expect(dashboard.ofertas().map(o => o.estado_postulacion)).toEqual(['en_proceso', 'en_proceso', 'cv_enviado']);
+        }));
+    }
+
+    it('polling iniciado durante la conciliación no pisa estados confirmados ni reintroduce selección', fakeAsync(() => {
+        const datos = iniciarParcialPostuladas();
+        const conciliacion = http.expectOne(url);
+        dashboard.onProgresoEvaluacion();
+        const polling = http.expectOne(url);
+        conciliacion.flush({ exito: true, datos }); renderizar();
+        polling.flush({ exito: true, datos: crearOfertas(3).map(o => ({ ...o, estado_postulacion: 'cv_enviado' })) });
+        renderizar();
+        expect([...tabla().seleccionadas()]).toEqual([3]);
+        expect(dashboard.ofertas().map(o => o.estado_postulacion)).toEqual(['en_proceso', 'en_proceso', 'cv_enviado']);
+        expect(dashboard.postulacionesPendientes().size).toBe(0);
     }));
 
     it('los contenedores activos no superponen su caja inline sobre los controles de ofertas', fakeAsync(() => {

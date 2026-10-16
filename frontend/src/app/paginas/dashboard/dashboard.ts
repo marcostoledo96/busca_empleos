@@ -39,6 +39,7 @@ export class Dashboard implements OnInit, OnDestroy {
     readonly pestanaActiva = signal<string | number>(0);
     readonly accionMasivaEnCurso = signal(false);
     readonly accionMasivaConfirmada = signal(0);
+    readonly conciliacionMasiva = signal<{ idsReintentables: number[] } | null>(null);
     readonly alcanceSeleccion = computed(() => `${this.modoReevaluacion() ? 'reevaluacion' : this.pestanaActiva()}:${this.filtroPlataforma() ?? 'todas'}`);
     private readonly ruta = inject(ActivatedRoute, { optional: true });
     readonly modoReevaluacion = signal(false);
@@ -480,12 +481,44 @@ export class Dashboard implements OnInit, OnDestroy {
                     this.mensajes.add({ severity: 'success', summary: 'Acción masiva guardada',
                         detail: `${cantidad} ofertas actualizadas.` });
                 } else {
-                    // El backend sólo confirma una cantidad, no cuáles IDs guardó.
+                    // El contador no identifica éxitos: mantengo guardas hasta una lectura fresca.
                     this.mensajes.add({ severity: 'warn', summary: 'Actualización parcial',
-                        detail: `${cantidad} de ${ids.length} ofertas actualizadas. Voy a verificar los estados; conservé la selección válida para reintentar.` });
+                        detail: `${cantidad} de ${ids.length} ofertas actualizadas. Voy a verificar los estados antes de habilitar el reintento.` });
+                    this.conciliarAccionMasiva(ids, estado, finalizar);
+                    return;
                 }
                 finalizar();
                 this.cargarDatos();
+            },
+            error: fallar,
+        });
+    }
+
+    private conciliarAccionMasiva(ids: number[], destino: Oferta['estado_postulacion'], finalizar: () => void): void {
+        const fallar = () => {
+            this.conciliacionMasiva.set({ idsReintentables: [] });
+            finalizar();
+            this.mensajes.add({ severity: 'warn', summary: 'Conciliación no confirmada',
+                detail: 'No pude confirmar los estados. Limpié la selección para evitar un reintento inseguro. Seleccioná nuevamente las ofertas y el estado destino.' });
+        };
+        // No uso sincronización/caché: pueden corresponder a un snapshot anterior al PATCH.
+        this.ofertasService.obtenerOfertas().pipe(takeUntil(this.destruccion)).subscribe({
+            next: respuesta => {
+                const datos = respuesta?.datos;
+                const estados = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
+                if (!respuesta?.exito || !Array.isArray(datos)
+                    || datos.some(o => !o || !Number.isSafeInteger(o.id) || o.id <= 0 || !estados.includes(o.estado_postulacion))
+                    || new Set(datos.map(o => o.id)).size !== datos.length
+                    || !ids.every(id => datos.some(o => o.id === id))) {
+                    fallar();
+                    return;
+                }
+                // Avanzo versiones al cerrar las guardas; lecturas anteriores siguen sin poder pisarlas.
+                finalizar();
+                this.aplicarOfertas(datos, this.capturarPostulaciones());
+                this.conciliacionMasiva.set({ idsReintentables: datos
+                    .filter(o => ids.includes(o.id) && o.estado_postulacion !== destino).map(o => o.id) });
+                this.guardarCacheActual();
             },
             error: fallar,
         });

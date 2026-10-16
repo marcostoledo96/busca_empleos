@@ -27,6 +27,7 @@ export class TablaOfertas {
     readonly tabla = viewChild<Table>('tablaOfertas');
     readonly accionMasivaEnCurso = input(false);
     readonly accionMasivaConfirmada = input(0);
+    readonly conciliacionMasiva = input<{ idsReintentables: number[] } | null>(null);
     readonly alcanceSeleccion = input('');
     readonly totalOfertas = input(0);
     readonly filtroPlataformaActivo = input(false);
@@ -80,6 +81,16 @@ export class TablaOfertas {
                 const pagina = Math.max(0, Math.min(this.paginaActualCards(), this.totalPaginasCards() - 1));
                 if (pagina !== this.paginaActualCards()) this.limpiarSeleccion();
                 this.paginaActualCards.set(pagina);
+            });
+        });
+        effect(() => {
+            const resultado = this.conciliacionMasiva();
+            if (!resultado) return;
+            untracked(() => {
+                const permitidas = new Set(resultado.idsReintentables);
+                this.seleccionadas.update(ids => new Set([...ids].filter(id => permitidas.has(id))));
+                this.revalidarSeleccion();
+                this.confirmandoReevaluacion.set(false);
             });
         });
         effect(() => {
