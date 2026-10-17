@@ -61,12 +61,36 @@ y bloques breves; los textos largos pueden fragmentarse con control de líneas
 huérfanas y viudas, sin altura fija ni recorte. No fuerzo una única página. En el
 diálogo puedo desactivar los encabezados y pies agregados por el navegador.
 
+La comprobación con Chromium 155, App y Cv reales y CSS global detectó una primera
+página vacía (CV sintético corto: 2 páginas; largo: 6). El ensayo del orquestador con
+`page: cv` también en `body:has(app-cv)` produjo un CV corto A4 de una página, con
+el nombre en la primera. Aplico esa misma corrección al contexto de impresión del
+`body`, sólo cuando contiene `app-cv`, y compruebo la regresión mediante CSSOM.
+Revisé visualmente las seis páginas renderizadas de los PDF finales con Chromium 155:
+CV corto de **1 página A4** y largo de **5 páginas A4**, con tema oscuro activado.
+Ambos conservan fondo blanco, texto legible, enlaces y contenido sin shell ni controles;
+no observé superposiciones, página inicial vacía ni títulos recortados. El bloque
+extenso se divide entre páginas y los breves permanecen juntos. La comprobación
+independiente con `pdfinfo`/`pdftotext` confirma 6/6 páginas con texto, nombre en la
+primera, marcadores finales, 34/34 registros largos en orden y coordenadas dentro
+de los márgenes (tolerancia de 1 punto). Usé HTML inerte serializado desde App + Cv
+reales con HTTP sintético y el CSS global del build final; no una sesión de Firebase
+ni datos reales. No probé otros navegadores ni el diálogo interactivo del sistema:
+la salida PDF usa el motor de impresión de Chromium mediante Playwright.
+
 `paginas/cv/cv.spec.ts` usa HTTP y datos sintéticos para comprobar selección, edición,
 privacidad, enlaces seguros, recargas, preview e impresión explícita. Compruebo el
 contrato CSS de impresión y el tema oscuro, pero esas aserciones no sustituyen una
 inspección visual de PDF corto y largo. `app.routes.spec.ts` verifica la reutilización
 del guard de autenticación y la protección de salida del borrador; las regresiones
 de Preferencias, revisión de perfil, editor e importación siguen en sus suites.
+Incorporé 17 probes independientes en `paginas/cv/verificacion-independiente.spec.ts`:
+autenticación del HTTP, fallos de fuentes, ausencia de escrituras, recargas, selección,
+texto hostil y preservación del contenido. La verificación final ejecutó 46 focales,
+506 tests Angular aprobados y 4 omitidos, más build y `git diff --check` correctos.
+La regresión de Preferencias/servicio/rutas pasó 101 tests antes de la corrección CSS;
+el verificador observó 130 incluyendo los 29 focales originales y 96 en la base.
+La corrección de una línea tuvo RED 45 aprobados/1 fallo y GREEN 46 aprobados.
 
 ## Importación de documentos con texto revisable — issue #23
 

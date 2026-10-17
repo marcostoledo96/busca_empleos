@@ -779,6 +779,7 @@ html.dark .p-inputchips input {
     }
 
     body:has(app-cv) {
+        page: cv;
         background: #fff !important;
         color: #171717 !important;
         margin: 0 !important;

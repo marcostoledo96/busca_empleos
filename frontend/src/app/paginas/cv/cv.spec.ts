@@ -247,7 +247,11 @@ describe('CV imprimible — fuentes confirmadas y borrador local', () => {
     it('S10: reglas de impresión A4 aíslan shell y controles, sin bloquear fragmentación larga', async () => {
         await abrir(); await responder(); await previsualizar();
         const reglas = Array.from(document.styleSheets).flatMap(hoja => Array.from(hoja.cssRules));
-        const impresion = reglas.filter(r => r instanceof CSSMediaRule && r.conditionText === 'print').map(r => r.cssText).join('\n');
+        const reglasImpresion = reglas.filter((r): r is CSSMediaRule => r instanceof CSSMediaRule && r.conditionText === 'print');
+        const estilosImpresion = reglasImpresion.flatMap(r => Array.from(r.cssRules))
+            .filter((r): r is CSSStyleRule => r instanceof CSSStyleRule);
+        expect(estilosImpresion.some(r => r.selectorText === 'body:has(app-cv)' && r.style.getPropertyValue('page') === 'cv')).toBeTrue();
+        const impresion = reglasImpresion.map(r => r.cssText).join('\n');
         expect(impresion).toContain('body:has(app-cv) .sidebar');
         expect(impresion).toContain('body:has(app-cv) .topbar');
         expect(impresion).toContain('body:has(app-cv) .footer');
