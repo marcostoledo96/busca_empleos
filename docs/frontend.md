@@ -1,5 +1,57 @@
 # Frontend — Busca Empleos
 
+## Importación de documentos con texto revisable — issue #23
+
+En `/preferencias`, pestaña **Importar CV**, mantengo tres datos independientes:
+el documento seleccionado, el borrador temporal de texto y el CV base editable.
+Seleccionar `.pdf` o `.md` no ejecuta HTTP ni IA. **Extraer texto sin IA** envía el
+archivo completo (hasta 5 MiB) mediante `FormData`, campo `cv`, al endpoint autenticado
+`POST /api/preferencias/importar-cv/extraer-texto`. Reutilizo HttpClient y la protección
+Firebase existente; no agrego un parser PDF al navegador.
+
+Muestro el texto completo devuelto por `{ exito: true, datos: { texto, formato } }`
+en un editor de texto simple, sin convertirlo en HTML. Puedo corregirlo o reemplazarlo
+pegando texto, incluso sin archivo. El borrador admite hasta 1048576 bytes UTF-8;
+rechazo texto vacío, NUL, codificación inválida o exceso, sin recortarlo. Ante PDF
+escaneado, documento dañado, extracción inválida o error de red, conservo el borrador
+y permito pegar texto manualmente. Los errores de extracción, texto y análisis tienen
+avisos separados; el editor permanece disponible durante las solicitudes y sus fallos.
+
+**Analizar este texto con IA** es una confirmación explícita con posible consumo de
+saldo. Envío exclusivamente la cadena actual como `File('cv-revisado.md')`, tipo
+`text/markdown`, mediante `analizarCvMarkdown` y el endpoint anterior `/analizar`;
+nunca envío el PDF a IA. Preservo BOM y CRLF recibidos mientras no edite. El textarea
+nativo representa los saltos CRLF como LF; después de editar envío exactamente el
+valor revisado del editor. El backend también puede rechazar el texto por su presupuesto
+de prompt: muestro ese error y conservo todo el borrador, sin truncarlo.
+
+Reutilizo propuestas, preguntas, notas, rechazos y confirmaciones de preferencias
+protegidas existentes. Muestro **Texto extraído**, **Texto revisado**, **Análisis
+completado**, perfil pendiente de revisión y, al aplicar explícitamente, **Perfil
+revisado → Cambios aplicados al formulario, sin guardar**. Aplicar no persiste:
+todavía debo elegir **Guardar preferencias**. Seleccionar otro archivo, repetir la
+extracción o editar el texto con una revisión pendiente requiere confirmar su descarte;
+rechazar conserva decisiones y texto. También confirmo antes de reemplazar un borrador
+de texto al seleccionar o extraer nuevamente. Cancelar el selector no altera nada;
+puedo reseleccionar el mismo archivo. Cancelar la importación descarta únicamente
+sus temporales, nunca el CV base ni el formulario.
+
+Incremento la generación de solicitudes al seleccionar, cancelar, editar o iniciar
+una operación nueva. Una extracción o análisis tardíos, incluidos sus errores, no
+pueden restaurar textos/propuestas anteriores ni terminar el indicador de una solicitud
+más nueva. Copiar el texto al CV base es síncrono: ya no existe una lectura tardía
+del archivo. **Usar este archivo como mi CV base** copia el texto extraído/corregido
+o pegado, no los bytes originales. Confirmo reemplazo de la fuente con cambios sin
+guardar y sigo exigiendo **Guardar CV base** por separado.
+
+`issue-23.spec.ts` integra DOM, componente y servicio HTTP reales con documentos y
+respuestas sintéticos. Pruebo extracción, corrección, multipart exacto, IA simulada,
+revisión, aplicación y guardado explícitos, fallback manual, rechazos y carreras.
+Estas pruebas no ejecutan el parser Express, Firebase real, DeepSeek ni PostgreSQL:
+no equivalen a un puente continuo contra el backend. No toco endpoints de ofertas,
+estados o notas de #22; su regresión permanece en la suite Angular completa.
+No implemento OCR, WYSIWYG, historial, almacenamiento documental ni generación #24.
+
 ## Seguimiento de postulaciones — issue #22
 
 En `DetalleOferta` edito «Seguimiento de postulación» por separado de la evaluación IA:
@@ -225,11 +277,10 @@ perfil confirmado y del borrador de revisión. No leo ningún `cv.md` del reposi
   `Error al guardar`; la fecha proviene únicamente de una respuesta exitosa de la BD.
   Ante fallas conservo el texto local y permito reintentar. No modifico preferencias,
   borradores, evaluaciones ni cachés al guardar la fuente.
-- **Usar este archivo como mi CV base**: cargo explícitamente el archivo seleccionado
-  en el editor, sin guardar. Confirmo antes de reemplazar cambios pendientes.
-  Valido UTF-8 estricto, hasta 1 MiB inclusive (1048576 bytes) y ausencia de NUL;
-  preservo BOM, espacios y saltos de línea. Descarto lecturas tardías de otro archivo
-  o de un editor que cambió mientras esperaba.
+- **Usar este archivo como mi CV base**: desde #23 copio explícitamente el borrador
+  temporal ya extraído/corregido o pegado, no vuelvo a leer el archivo. No guardo y
+  confirmo antes de reemplazar cambios pendientes. Valido UTF-8, hasta 1 MiB inclusive
+  (1048576 bytes) y ausencia de NUL; preservo exactamente la cadena revisada.
 - **Analizar texto del editor con IA**: envío una copia exacta como `File('cv-base.md')`
   de tipo `text/markdown` por el servicio existente `analizarCvMarkdown`. Uso el
   endpoint y la configuración de importación existentes, sin llamadas automáticas.

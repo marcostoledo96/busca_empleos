@@ -231,27 +231,13 @@ export class Preferencias implements OnInit {
         });
     }
 
-    async usarArchivoComoCvBase(): Promise<void> {
-        const archivo = this.archivoCvSeleccionado;
-        if (!archivo || !this.cvBaseCargado || this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.cargandoCvBase()) return;
-        if (this.cambiosCvPendientes && !window.confirm('¿Reemplazar los cambios pendientes del CV base con este archivo?')) return;
-        const textoInicial = this.cvBaseTexto;
-        this.leyendoCvBase.set(true);
-        try {
-            if (archivo.size > 1048576) throw new Error('El CV no puede superar 1 MiB.');
-            const contenido = await archivo.arrayBuffer();
-            const texto = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(contenido);
-            const error = this.validarTextoCv(texto);
-            if (error) throw new Error(error);
-            if (archivo !== this.archivoCvSeleccionado || textoInicial !== this.cvBaseTexto || this.guardandoCvBase()) return;
-            this.editarCvBase(texto);
-        } catch {
-            if (archivo === this.archivoCvSeleccionado) {
-                this.mensajes.add({ severity: 'error', summary: 'Archivo inválido', detail: 'Necesito UTF-8 válido, sin NUL y de hasta 1 MiB. Conservé el editor.' });
-            }
-        } finally {
-            this.leyendoCvBase.set(false);
-        }
+    usarArchivoComoCvBase(): void {
+        if (!this.cvBaseCargado || this.modoDemo() || this.guardandoCvBase() || this.cargandoCvBase()) return;
+        const texto = this.textoCvImportacion;
+        this.errorTextoCv = this.validarTextoCv(texto);
+        if (this.errorTextoCv || !texto.trim()) return;
+        if (this.cambiosCvPendientes && !window.confirm('¿Reemplazar los cambios pendientes del CV base con el texto revisado?')) return;
+        this.editarCvBase(texto);
     }
 
     analizarFuenteCv(): void {
@@ -266,8 +252,28 @@ export class Preferencias implements OnInit {
         this.ejecutarAnalisisCv(new File([texto], 'cv-base.md', { type: 'text/markdown' }));
     }
 
-    // Importación de CV Markdown.
+    // Mantengo el documento y el texto temporal separados de la fuente persistida.
     archivoCvSeleccionado: File | null = null;
+    textoCvImportacion = '';
+    extrayendoCv = signal(false);
+    errorExtraccionCv = '';
+    errorAnalisisCv = '';
+    errorTextoCv = '';
+    textoExtraidoCv = false;
+    textoRevisadoCv = false;
+    importacionAplicada = false;
+
+    get estadoImportacion(): string {
+        if (this.importacionAplicada) return this.cambiosSinGuardar
+            ? 'Perfil revisado → Cambios aplicados al formulario, sin guardar. Elegí Guardar preferencias.'
+            : 'Perfil revisado → Cambios aplicados. Preferencias guardadas.';
+        if (this.analizandoCv()) return 'Texto revisado → Analizando con IA…';
+        if (this.resultadoImportacion) return 'Análisis completado → Perfil pendiente de revisión. Revisá antes de aplicar.';
+        if (this.extrayendoCv()) return 'Extrayendo texto, sin IA…';
+        if (this.textoRevisadoCv) return 'Texto revisado. El análisis requiere confirmación explícita.';
+        if (this.textoExtraidoCv) return 'Texto extraído. Revisá el borrador completo antes de analizar.';
+        return 'Borrador temporal. Seleccioná un documento o pegá texto manualmente.';
+    }
     analizandoCv = signal(false);
     private solicitudCv = 0;
     resultadoImportacion: Partial<ResultadoImportacionCv> | null = null;
@@ -729,37 +735,101 @@ export class Preferencias implements OnInit {
             .filter(Boolean);
     }
 
-    // --- Importación de CV Markdown ---
+    // --- Importación con extracción y revisión explícitas ---
 
-    onArchivoCvSeleccionado(evento: Event): void {
-        if (this.guardandoCvBase() || this.leyendoCvBase() || this.guardando()) return;
-        const input = evento.target as HTMLInputElement;
-        if (this.resultadoImportacion && !window.confirm('¿Descartar la revisión actual para seleccionar otro archivo?')) {
-            input.value = '';
-            return;
-        }
-        this.archivoCvSeleccionado = input.files?.[0] ?? null;
+    private limpiarRevisionCv(): void {
         this.solicitudCv++;
         this.analizandoCv.set(false);
+        this.extrayendoCv.set(false);
         this.resultadoImportacion = null;
         this.preguntasImportacion = [];
         this.preferenciasRevisadas.clear();
+        this.importacionAplicada = false;
+        this.errorAnalisisCv = '';
+    }
+
+    private confirmarDescarteCv(incluirTexto = false): boolean {
+        return !(this.resultadoImportacion || (incluirTexto && this.textoCvImportacion)) ||
+            window.confirm('¿Descartar el borrador y las decisiones de la revisión actual?');
+    }
+
+    onArchivoCvSeleccionado(evento: Event): void {
+        if (this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.guardando()) return;
+        const input = evento.target as HTMLInputElement;
+        const archivo = input.files?.[0];
+        // Reinicio el control nativo para permitir elegir el mismo archivo otra vez.
+        input.value = '';
+        if (!archivo) return;
+        this.errorExtraccionCv = !/\.(pdf|md)$/i.test(archivo.name) ? 'Seleccioná un archivo PDF o Markdown (.md).' :
+            archivo.size === 0 ? 'El documento está vacío.' :
+            archivo.size > 5 * 1048576 ? 'El documento no puede superar 5 MiB.' : '';
+        if (this.errorExtraccionCv || !this.confirmarDescarteCv(true)) return;
+        this.limpiarRevisionCv();
+        this.archivoCvSeleccionado = archivo;
+        this.textoCvImportacion = '';
+        this.textoExtraidoCv = false;
+        this.textoRevisadoCv = false;
+        this.errorTextoCv = '';
         this.mensajes.clear();
     }
 
+    editarTextoImportacion(evento: Event): void {
+        const editor = evento.target as HTMLTextAreaElement;
+        if (!this.confirmarDescarteCv()) {
+            editor.value = this.textoCvImportacion;
+            return;
+        }
+        this.limpiarRevisionCv();
+        this.textoCvImportacion = editor.value;
+        this.textoRevisadoCv = true;
+        this.errorTextoCv = '';
+    }
+
+    extraerTextoCv(): void {
+        const archivo = this.archivoCvSeleccionado;
+        if (!archivo || this.modoDemo() || this.extrayendoCv() || this.guardando() || this.guardandoCvBase() ||
+            !this.confirmarDescarteCv(true)) return;
+        this.limpiarRevisionCv();
+        const solicitud = this.solicitudCv;
+        this.errorExtraccionCv = '';
+        this.extrayendoCv.set(true);
+        this.servicio.extraerTextoCv(archivo).subscribe({
+            next: respuesta => {
+                if (solicitud !== this.solicitudCv) return;
+                this.extrayendoCv.set(false);
+                const datos = respuesta.datos;
+                if (!respuesta.exito || !datos || typeof datos.texto !== 'string' ||
+                    !['pdf', 'md'].includes(datos.formato) || !datos.texto.trim() || this.validarTextoCv(datos.texto)) {
+                    this.errorExtraccionCv = 'No pude validar la extracción completa. Conservé el borrador; podés pegar texto manualmente.';
+                    return;
+                }
+                this.textoCvImportacion = datos.texto;
+                this.textoExtraidoCv = true;
+                this.textoRevisadoCv = false;
+                this.errorTextoCv = '';
+            },
+            error: error => {
+                if (solicitud !== this.solicitudCv) return;
+                this.extrayendoCv.set(false);
+                this.errorExtraccionCv = typeof error.error?.error === 'string' ? error.error.error :
+                    'No pude extraer el texto por un error de red. Conservé el borrador; podés pegar texto manualmente.';
+            },
+        });
+    }
+
     analizarCv(): void {
-        if (this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.guardando() || this.analizandoCv()) return;
-        if (this.archivoCvSeleccionado) this.ejecutarAnalisisCv(this.archivoCvSeleccionado);
+        if (this.modoDemo() || this.guardandoCvBase() || this.leyendoCvBase() || this.guardando() || this.analizandoCv() || this.extrayendoCv()) return;
+        const texto = this.textoCvImportacion;
+        this.errorAnalisisCv = this.validarTextoCv(texto) || (!texto.trim() ? 'Pegá o extraé texto antes de analizar.' : '');
+        if (this.errorAnalisisCv) return;
+        this.ejecutarAnalisisCv(new File([texto], 'cv-revisado.md', { type: 'text/markdown' }));
     }
 
     private ejecutarAnalisisCv(archivo: File): void {
         if (this.resultadoImportacion && !window.confirm('¿Descartar las correcciones y notas de la revisión actual para analizar nuevamente?')) return;
-        const solicitud = ++this.solicitudCv;
-        this.analizandoCv.set(false);
-        // Descarto sugerencias anteriores antes de validar o iniciar otro análisis.
-        this.resultadoImportacion = null;
-        this.preguntasImportacion = [];
-        this.preferenciasRevisadas.clear();
+        this.limpiarRevisionCv();
+        const solicitud = this.solicitudCv;
+        this.textoRevisadoCv = true;
         if (archivo.size > 1024 * 1024) {
             this.mensajes.add({ severity: 'warn', summary: 'Archivo grande', detail: 'El CV no puede superar 1 MB.' });
             return;
@@ -776,7 +846,8 @@ export class Preferencias implements OnInit {
                     if (['preguntas', 'preguntas_perfil_pendientes'].some(campo =>
                         Object.hasOwn(datos, campo) && (!Array.isArray((datos as any)[campo]) ||
                             (datos as any)[campo].some((p: any) => !p || typeof p.campo !== 'string' || typeof p.pregunta !== 'string')))) {
-                        this.mensajes.add({ severity: 'error', summary: 'Error', detail: 'La extracción contiene preguntas inválidas.' });
+                        this.errorAnalisisCv = 'El análisis contiene preguntas inválidas. Conservé el texto para corregir o reintentar.';
+                        this.mensajes.add({ severity: 'error', summary: 'Error', detail: this.errorAnalisisCv });
                         return;
                     }
                     // Trabajo sobre una copia: la respuesta del proveedor no recibe ediciones.
@@ -810,14 +881,15 @@ export class Preferencias implements OnInit {
                     }
                     this.mensajes.add({ severity: 'success', summary: 'CV analizado', detail: 'Revisá los datos extraídos antes de aplicar.' });
                 } else {
-                    this.mensajes.add({ severity: 'error', summary: 'Error', detail: resp.error || 'No se pudo analizar el CV.' });
+                    this.errorAnalisisCv = resp.error || 'No se pudo analizar el CV.';
+                    this.mensajes.add({ severity: 'error', summary: 'Error', detail: this.errorAnalisisCv });
                 }
             },
             error: (error) => {
                 if (solicitud !== this.solicitudCv) return;
                 this.analizandoCv.set(false);
-                const detalle = typeof error.error?.error === 'string' ? error.error.error : 'No se pudo analizar el CV.';
-                this.mensajes.add({ severity: 'error', summary: 'Error', detail: detalle });
+                this.errorAnalisisCv = typeof error.error?.error === 'string' ? error.error.error : 'No se pudo analizar el CV.';
+                this.mensajes.add({ severity: 'error', summary: 'Error', detail: this.errorAnalisisCv });
             },
         });
     }
@@ -872,18 +944,20 @@ export class Preferencias implements OnInit {
         }
         this.fechaImportacionCv = new Date().toISOString();
 
-        this.cancelarImportacion();
+        this.limpiarRevisionCv();
+        this.importacionAplicada = true;
 
         this.mensajes.add({ severity: 'success', summary: 'Preferencias cargadas', detail: 'Revisá y guardá para confirmar los cambios.' });
     }
 
     cancelarImportacion(): void {
-        this.solicitudCv++;
-        this.analizandoCv.set(false);
-        this.preferenciasRevisadas.clear();
-        this.resultadoImportacion = null;
-        this.preguntasImportacion = [];
+        this.limpiarRevisionCv();
         this.archivoCvSeleccionado = null;
+        this.textoCvImportacion = '';
+        this.textoExtraidoCv = false;
+        this.textoRevisadoCv = false;
+        this.errorExtraccionCv = '';
+        this.errorTextoCv = '';
     }
 
     /**

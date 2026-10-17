@@ -143,6 +143,31 @@ describe('PreferenciasService', () => {
         peticion.flush({ exito: true, datos: { ...datos, perfil_efectivo: perfil } });
     });
 
+    it('extrae PDF o Markdown por separado de IA sin fijar Content-Type multipart', () => {
+        for (const formato of ['pdf', 'md'] as const) {
+            const archivo = new File(['Documento sintético'], `cv.${formato}`);
+            servicio.extraerTextoCv(archivo).subscribe(resp => {
+                expect(resp.datos).toEqual({ texto: 'Texto completo', formato });
+            });
+            const peticion = httpMock.expectOne(`${urlBase}/importar-cv/extraer-texto`);
+            expect(peticion.request.method).toBe('POST');
+            expect((peticion.request.body as FormData).get('cv')).toBe(archivo);
+            expect(peticion.request.headers.has('Content-Type')).toBeFalse();
+            peticion.flush({ exito: true, datos: { texto: 'Texto completo', formato } });
+            httpMock.expectNone(`${urlBase}/importar-cv/analizar`);
+        }
+    });
+
+    it('propaga código y mensaje de extracción sin fabricar texto', () => {
+        servicio.extraerTextoCv(new File(['PDF sintético'], 'cv.pdf')).subscribe({
+            next: () => fail('No debo recibir texto'),
+            error: (error: any) => expect(error.error).toEqual({ exito: false, codigo: 'CV_SIN_TEXTO', error: 'Pegá texto manualmente.' }),
+        });
+        httpMock.expectOne(`${urlBase}/importar-cv/extraer-texto`).flush(
+            { exito: false, codigo: 'CV_SIN_TEXTO', error: 'Pegá texto manualmente.' },
+            { status: 422, statusText: 'Error' });
+    });
+
     it('debería analizar CV Markdown (POST) con FormData', () => {
         const archivoMock = new File(['contenido cv'], 'cv.md', { type: 'text/markdown' });
 
