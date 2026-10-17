@@ -19,8 +19,15 @@ no envío otro PATCH. Omitir conserva el campo confirmado por otro cliente; `nul
 sólo el campo elegido. Aplico de la respuesta completa únicamente las claves enviadas,
 para que una respuesta tardía no restaure un campo ajeno y antiguo. No resuelvo conflictos
 de dos clientes que editan el mismo campo ni incorporo versionado.
-Cambiar de oferta separa los mensajes y borradores. Al volver A→B→A durante un guardado,
-reconcilio por ID los campos intactos del editor reabierto y conservo sus nuevas ediciones.
+Mantengo los borradores pendientes o modificados y sus errores por ID dentro del componente.
+Al volver A→B→A durante un guardado recupero el borrador, incluso con otra referencia de A.
+Si falla mientras veo B, no muestro allí el error de A: lo anuncio al volver a A y permito
+reintentar los campos pendientes sin perder ediciones posteriores. Comparo revisiones de
+cada campo capturadas al enviar, no su contenido, para aplicar la confirmación: editar B,
+luego C y volver al valor inicial A conserva A aunque el backend confirme B. Actualizo la
+base confirmada igualmente; el siguiente guardado envía A. Editar nota no impide confirmar
+la fecha intacta, ni viceversa. Libero borradores confirmados e intactos al dejar su oferta
+o al terminar una solicitud fuera de pantalla; los demás viven sólo en este componente.
 Las acciones rápidas de estado
 conservan el comportamiento optimista de #21 y no quedan bloqueadas por editar la nota.
 

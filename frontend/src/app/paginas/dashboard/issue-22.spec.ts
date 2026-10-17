@@ -269,6 +269,129 @@ describe('Issue 22 — seguimiento visible, persistencia y concurrencia', () => 
         expect(dashboard.accionMasivaEnCurso()).toBeFalse();
     }));
 
+    for (const fallo of ['500', 'red']) {
+        for (const momento of ['reabierta', 'otra-oferta']) {
+            for (const nuevaEdicion of [false, true]) {
+                it(`H03 conservo borrador por ID, fallo ${fallo} en ${momento}, edición posterior=${nuevaEdicion} y reintento`, fakeAsync(() => {
+                    abrir();
+                    const original = structuredClone(dashboard.ofertas()[0]);
+                    editar('#fecha-postulacion', '2026-02-03');
+                    editar('#nota-postulacion', 'Nota enviada de A'); guardar();
+                    const pendiente = http.expectOne(`${url}/22/seguimiento`);
+                    const enviado = { fecha_postulacion: '2026-02-03', nota_postulacion: 'Nota enviada de A' };
+                    expect(pendiente.request.body).toEqual(enviado);
+                    dashboard.mostrarDetalle(historica({ id: 23, nota_postulacion: 'Nota de B' })); renderizar();
+                    const reabrir = () => {
+                        const reabierta = structuredClone(original);
+                        expect(reabierta).not.toBe(dashboard.ofertas()[0]);
+                        dashboard.ofertas.set([reabierta]);
+                        dashboard.mostrarDetalle(reabierta); renderizar();
+                    };
+                    if (momento === 'reabierta') {
+                        reabrir();
+                        expect(buscar('#nota-postulacion').value).toBe('Nota enviada de A');
+                        expect(buscar('#fecha-postulacion').value).toBe('2026-02-03');
+                        expect(buscar('[aria-label="Guardar seguimiento"]').disabled).toBeTrue();
+                        guardar(); http.expectNone(r => r.method === 'PATCH');
+                        if (nuevaEdicion) editar('#nota-postulacion', 'Edición posterior de A');
+                    }
+                    if (fallo === '500') pendiente.flush({}, { status: 500, statusText: 'Fallo sintético' });
+                    else pendiente.error(new ProgressEvent('error'));
+                    renderizar();
+                    if (momento === 'otra-oferta') {
+                        expect(buscar('#nota-postulacion').value).toBe('Nota de B');
+                        expect(buscar('[role="alert"]')).toBeNull();
+                        reabrir();
+                    }
+                    expect(buscar('[role="alert"]')?.textContent).toContain('No pude guardar el seguimiento. Conservé el borrador; intentá nuevamente.');
+                    expect(buscar('#nota-postulacion').value).toBe(momento === 'reabierta' && nuevaEdicion ? 'Edición posterior de A' : 'Nota enviada de A');
+                    expect(buscar('#fecha-postulacion').value).toBe('2026-02-03');
+                    expect(dashboard.ofertas()[0]).toEqual(original);
+                    expect(dashboard.dialogoVisible()).toBeTrue();
+                    expect(buscar('[aria-label="Guardar seguimiento"]').disabled).toBeFalse();
+                    expect(fixture.nativeElement.textContent).not.toContain('Seguimiento guardado');
+                    if (momento === 'otra-oferta' && nuevaEdicion) editar('#nota-postulacion', 'Edición posterior de A');
+                    guardar();
+                    const reintento = http.expectOne(`${url}/22/seguimiento`);
+                    const esperado = { ...enviado, nota_postulacion: nuevaEdicion ? 'Edición posterior de A' : enviado.nota_postulacion };
+                    expect(reintento.request.body).toEqual(esperado);
+                    reintento.flush({ exito: true, datos: historica(esperado) }); renderizar();
+                    expect(buscar('[role="alert"]')).toBeNull();
+                    expect(buscar('#nota-postulacion').value).toBe(esperado.nota_postulacion);
+                    expect(buscar('#fecha-postulacion').value).toBe(esperado.fecha_postulacion);
+                    expect(persistencia.leerCache()?.ofertas[0]).toEqual(jasmine.objectContaining(esperado));
+                    expect(fixture.nativeElement.textContent).toContain('Seguimiento guardado');
+                    guardar(); http.expectNone(r => r.method === 'PATCH');
+                }));
+            }
+        }
+    }
+
+    for (const campo of ['nota', 'fecha']) {
+        it(`H04 preservo ${campo} B→C→A posterior al envío y guardo A contra la base confirmada B`, fakeAsync(() => {
+            abrir();
+            const selector = campo === 'nota' ? '#nota-postulacion' : '#fecha-postulacion';
+            const clave = campo === 'nota' ? 'nota_postulacion' : 'fecha_postulacion';
+            const base = buscar(selector).value;
+            const valorB = campo === 'nota' ? 'Nota B' : '2026-02-03';
+            const valorC = campo === 'nota' ? 'Nota C' : '2026-03-04';
+            editar(selector, valorB); guardar();
+            const pendiente = http.expectOne(`${url}/22/seguimiento`);
+            expect(pendiente.request.body).toEqual({ [clave]: valorB });
+            editar(selector, valorC); editar(selector, base);
+            pendiente.flush({ exito: true, datos: historica({ [clave]: valorB }) }); renderizar();
+            expect(buscar(selector).value).toBe(base);
+            expect(dashboard.ofertas()[0][clave]).toBe(valorB);
+            expect(persistencia.leerCache()?.ofertas[0][clave]).toBe(valorB);
+            expect(fixture.nativeElement.textContent).not.toContain('Seguimiento guardado');
+            guardar();
+            const reintento = http.expectOne(`${url}/22/seguimiento`);
+            expect(reintento.request.body).toEqual({ [clave]: base });
+            reintento.flush({ exito: true, datos: historica({ [clave]: base }) }); renderizar();
+            expect(buscar(selector).value).toBe(base);
+            expect(fixture.nativeElement.textContent).toContain('Seguimiento guardado');
+        }));
+
+        it(`confirmo ${campo} intacta por generación aunque edite el otro campo y reabra A`, fakeAsync(() => {
+            abrir();
+            const selector = campo === 'nota' ? '#nota-postulacion' : '#fecha-postulacion';
+            const otroSelector = campo === 'nota' ? '#fecha-postulacion' : '#nota-postulacion';
+            const clave = campo === 'nota' ? 'nota_postulacion' : 'fecha_postulacion';
+            const otraClave = campo === 'nota' ? 'fecha_postulacion' : 'nota_postulacion';
+            const enviado = campo === 'nota' ? 'Nota enviada' : '2026-02-03';
+            const confirmado = campo === 'nota' ? 'Nota confirmada por backend' : '2026-02-04';
+            const otroValor = campo === 'nota' ? '2026-04-05' : 'Borrador de nota';
+            editar(selector, enviado); guardar();
+            const pendiente = http.expectOne(`${url}/22/seguimiento`);
+            editar(otroSelector, otroValor);
+            dashboard.mostrarDetalle(historica({ id: 23 })); renderizar();
+            dashboard.mostrarDetalle(structuredClone(dashboard.ofertas()[0])); renderizar();
+            pendiente.flush({ exito: true, datos: historica({ [clave]: confirmado }) }); renderizar();
+            expect(buscar(selector).value).toBe(confirmado);
+            expect(buscar(otroSelector).value).toBe(otroValor);
+            expect(fixture.nativeElement.textContent).not.toContain('Seguimiento guardado');
+            guardar();
+            const siguiente = http.expectOne(`${url}/22/seguimiento`);
+            expect(siguiente.request.body).toEqual({ [otraClave]: otroValor });
+            siguiente.flush({ exito: true, datos: historica({ [clave]: confirmado, [otraClave]: otroValor }) }); renderizar();
+            expect(buscar(selector).value).toBe(confirmado);
+            expect(buscar(otroSelector).value).toBe(otroValor);
+        }));
+    }
+
+    it('al dejar un borrador confirmado e intacto vuelvo a leer los campos frescos de otra referencia', fakeAsync(() => {
+        abrir(); editar('#nota-postulacion', 'Nota confirmada'); guardar();
+        http.expectOne(`${url}/22/seguimiento`).flush({ exito: true, datos: historica({ nota_postulacion: 'Nota confirmada' }) }); renderizar();
+        dashboard.mostrarDetalle(historica({ id: 23 })); renderizar();
+        const fresca = historica({ nota_postulacion: 'Nota confirmada más reciente', fecha_postulacion: '2026-05-06' });
+        dashboard.ofertas.set([fresca]); dashboard.mostrarDetalle(fresca); renderizar();
+        expect(buscar('#nota-postulacion').value).toBe('Nota confirmada más reciente');
+        expect(buscar('#fecha-postulacion').value).toBe('2026-05-06');
+        expect(buscar('[role="alert"]')).toBeNull();
+        expect(fixture.nativeElement.textContent).not.toContain('Seguimiento guardado');
+        guardar(); http.expectNone(r => r.method === 'PATCH');
+    }));
+
     for (const nuevaEdicion of [false, true]) {
         it(`H01 reconcilio A→B→A pendiente y preservo edición posterior=${nuevaEdicion}`, fakeAsync(() => {
             abrir(); editar('#nota-postulacion', 'Nota confirmada de A'); guardar();

@@ -63,18 +63,37 @@ export class DetalleOferta implements OnDestroy {
     readonly guardandoSeguimiento = computed(() => this.seguimientoGuardandoIds().has(this.oferta()?.id ?? -1));
     readonly seguimientoPendiente = output<{ id: number; pendiente: boolean }>();
     private idBorrador: number | null = null;
-    private revisionBorrador = 0;
-    private sesionBorrador = 0;
-    private fechaBase = '';
-    private notaBase = '';
+    private readonly borradoresSeguimiento = new Map<number, {
+        fecha: { valor: string; base: string; revision: number; pendiente: boolean };
+        nota: { valor: string; base: string; revision: number; pendiente: boolean };
+        error: string | null;
+    }>();
+
+    private mostrarBorradorSeguimiento(): void {
+        const borrador = this.borradoresSeguimiento.get(this.idBorrador ?? -1);
+        this.fechaPostulacion.set(borrador?.fecha.valor ?? '');
+        this.notaPostulacion.set(borrador?.nota.valor ?? '');
+        this.errorSeguimiento.set(borrador?.error ?? null);
+    }
+
+    private liberarBorradorSeguimiento(id: number | null): void {
+        if (id === null || id === this.idBorrador) return;
+        const borrador = this.borradoresSeguimiento.get(id);
+        if (borrador && !borrador.error && !borrador.fecha.pendiente && !borrador.nota.pendiente
+            && borrador.fecha.valor === borrador.fecha.base && borrador.nota.valor === borrador.nota.base) {
+            this.borradoresSeguimiento.delete(id);
+        }
+    }
 
     editarSeguimiento(campo: 'fecha' | 'nota', valor: string): void {
         if (this.modoDemo()) return;
-        if (campo === 'fecha') this.fechaPostulacion.set(valor);
-        else this.notaPostulacion.set(valor);
-        this.revisionBorrador++;
+        const borrador = this.borradoresSeguimiento.get(this.idBorrador ?? -1);
+        if (!borrador) return;
+        borrador[campo].valor = valor;
+        borrador[campo].revision++;
+        borrador.error = null;
+        this.mostrarBorradorSeguimiento();
         this.mensajeSeguimiento.set(null);
-        this.errorSeguimiento.set(null);
     }
 
     guardarSeguimiento(): void {
@@ -84,24 +103,30 @@ export class DetalleOferta implements OnDestroy {
             this.errorSeguimiento.set('La nota debe tener hasta 4000 caracteres.');
             return;
         }
-        const revision = this.revisionBorrador;
-        const sesion = this.sesionBorrador;
+        const borrador = this.borradoresSeguimiento.get(oferta.id);
+        if (!borrador) return;
+        const revisiones = { fecha: borrador.fecha.revision, nota: borrador.nota.revision };
         const cambios: Partial<Pick<Oferta, 'fecha_postulacion' | 'nota_postulacion'>> = {};
-        if (this.fechaPostulacion() !== this.fechaBase) cambios.fecha_postulacion = this.fechaPostulacion() || null;
-        if (this.notaPostulacion() !== this.notaBase) cambios.nota_postulacion = this.notaPostulacion() || null;
+        if (borrador.fecha.valor !== borrador.fecha.base) cambios.fecha_postulacion = borrador.fecha.valor || null;
+        if (borrador.nota.valor !== borrador.nota.base) cambios.nota_postulacion = borrador.nota.valor || null;
         if (Object.keys(cambios).length === 0) return;
+        borrador.fecha.pendiente = Object.hasOwn(cambios, 'fecha_postulacion');
+        borrador.nota.pendiente = Object.hasOwn(cambios, 'nota_postulacion');
+        borrador.error = null;
         this.seguimientoGuardandoIds.update(ids => new Set([...ids, oferta.id]));
         this.errorSeguimiento.set(null);
         this.mensajeSeguimiento.set(null);
         this.seguimientoPendiente.emit({ id: oferta.id, pendiente: true });
-        const mismaSesion = () => this.oferta()?.id === oferta.id && this.sesionBorrador === sesion;
-        const vigente = () => mismaSesion() && this.revisionBorrador === revision;
         const finalizar = () => {
+            borrador.fecha.pendiente = false;
+            borrador.nota.pendiente = false;
             this.seguimientoGuardandoIds.update(ids => new Set([...ids].filter(id => id !== oferta.id)));
             this.seguimientoPendiente.emit({ id: oferta.id, pendiente: false });
+            this.liberarBorradorSeguimiento(oferta.id);
         };
         const fallar = () => {
-            if (mismaSesion()) this.errorSeguimiento.set('No pude guardar el seguimiento. Conservé el borrador; intentá nuevamente.');
+            borrador.error = 'No pude guardar el seguimiento. Conservé el borrador; intentá nuevamente.';
+            if (this.oferta()?.id === oferta.id) this.mostrarBorradorSeguimiento();
             finalizar();
         };
         this.ofertasService.actualizarSeguimiento(oferta.id, cambios).subscribe({
@@ -112,35 +137,21 @@ export class DetalleOferta implements OnDestroy {
                 }
                 const editor = this.oferta();
                 const mismoId = editor?.id === oferta.id;
-                const confirmar = mismoId && (vigente() || (
-                    this.fechaPostulacion() === this.fechaBase && this.notaPostulacion() === this.notaBase));
-                // Ignoro campos ajenos al PATCH: la respuesta completa puede ser anterior a otra confirmación.
-                if (Object.hasOwn(cambios, 'fecha_postulacion')) {
-                    const fecha = respuesta.datos.fecha_postulacion ?? null;
-                    oferta.fecha_postulacion = fecha;
-                    if (mismoId) {
-                        editor.fecha_postulacion = fecha;
-                        if (this.fechaPostulacion() === this.fechaBase
-                            || (mismaSesion() && this.fechaPostulacion() === (cambios.fecha_postulacion ?? ''))) {
-                            this.fechaPostulacion.set(fecha ?? '');
-                        }
-                        this.fechaBase = fecha ?? '';
-                    }
+                // Ignoro campos ajenos al PATCH y preservo por revisión, incluso si volví al valor base.
+                for (const campo of ['fecha', 'nota'] as const) {
+                    const clave = campo === 'fecha' ? 'fecha_postulacion' : 'nota_postulacion';
+                    if (!Object.hasOwn(cambios, clave)) continue;
+                    const valor = respuesta.datos[clave] ?? null;
+                    oferta[clave] = valor;
+                    if (mismoId) editor[clave] = valor;
+                    if (borrador[campo].revision === revisiones[campo]) borrador[campo].valor = valor ?? '';
+                    borrador[campo].base = valor ?? '';
                 }
-                if (Object.hasOwn(cambios, 'nota_postulacion')) {
-                    const nota = respuesta.datos.nota_postulacion ?? null;
-                    oferta.nota_postulacion = nota;
-                    if (mismoId) {
-                        editor.nota_postulacion = nota;
-                        if (this.notaPostulacion() === this.notaBase
-                            || (mismaSesion() && this.notaPostulacion() === (cambios.nota_postulacion ?? ''))) {
-                            this.notaPostulacion.set(nota ?? '');
-                        }
-                        this.notaBase = nota ?? '';
-                    }
-                }
+                if (mismoId) this.mostrarBorradorSeguimiento();
                 this.ofertaActualizada.emit(mismoId ? editor : oferta);
-                if (confirmar) this.mensajeSeguimiento.set('Seguimiento guardado.');
+                if (mismoId && borrador.fecha.revision === revisiones.fecha && borrador.nota.revision === revisiones.nota) {
+                    this.mensajeSeguimiento.set('Seguimiento guardado.');
+                }
                 finalizar();
             },
             error: fallar,
@@ -164,14 +175,28 @@ export class DetalleOferta implements OnDestroy {
         effect(() => {
             const oferta = this.oferta();
             if ((oferta?.id ?? null) === this.idBorrador) return;
+            const anterior = this.idBorrador;
             this.idBorrador = oferta?.id ?? null;
-            this.sesionBorrador++;
-            this.revisionBorrador++;
-            this.fechaBase = oferta?.fecha_postulacion ?? '';
-            this.notaBase = oferta?.nota_postulacion ?? '';
-            this.fechaPostulacion.set(this.fechaBase);
-            this.notaPostulacion.set(this.notaBase);
-            this.errorSeguimiento.set(null);
+            this.liberarBorradorSeguimiento(anterior);
+            if (oferta) {
+                let borrador = this.borradoresSeguimiento.get(oferta.id);
+                if (!borrador) {
+                    borrador = {
+                        fecha: { valor: oferta.fecha_postulacion ?? '', base: oferta.fecha_postulacion ?? '', revision: 0, pendiente: false },
+                        nota: { valor: oferta.nota_postulacion ?? '', base: oferta.nota_postulacion ?? '', revision: 0, pendiente: false },
+                        error: null,
+                    };
+                    this.borradoresSeguimiento.set(oferta.id, borrador);
+                } else {
+                    for (const campo of ['fecha', 'nota'] as const) {
+                        const clave = campo === 'fecha' ? 'fecha_postulacion' : 'nota_postulacion';
+                        if (!borrador[campo].pendiente && borrador[campo].valor === borrador[campo].base) {
+                            borrador[campo].valor = borrador[campo].base = oferta[clave] ?? '';
+                        }
+                    }
+                }
+            }
+            this.mostrarBorradorSeguimiento();
             this.mensajeSeguimiento.set(null);
         });
         // Effect: cuando el modal se abre, mover foco al contenido;
