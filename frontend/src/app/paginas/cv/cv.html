@@ -44,7 +44,7 @@
                     </select>
                     <p>El enfoque sólo ordena bloques existentes: no cambia cargos, fechas, formación ni la selección actual.</p>
                     @if (evidenciaLimitada) {
-                        <p class="cv-aviso" role="status">Evidencia limitada para este enfoque. Las coincidencias de texto no acreditan experiencia. Puedo completar hechos manualmente y revisarlos.</p>
+                        <p class="cv-aviso" role="status">Evidencia limitada en los bloques seleccionados para este enfoque. Las coincidencias de texto no acreditan experiencia. Puedo completar hechos manualmente y revisarlos.</p>
                     }
                     <label for="resumen">Perfil profesional (propuesto desde el perfil confirmado)</label>
                     <textarea id="resumen" name="resumen" [ngModel]="resumen" (ngModelChange)="editarResumen($event)" rows="5"></textarea>
@@ -110,7 +110,7 @@
         } @else {
             <div class="cv-controles cv-acciones cv-barra-previa">
                 <button id="volver-editar" type="button" (click)="vistaPrevia = false">Volver a editar</button>
-                <button id="imprimir-cv" type="button" (click)="imprimir()">Imprimir / Guardar como PDF</button>
+                <button id="imprimir-cv" type="button" (click)="imprimir()" [disabled]="cargando()">Imprimir / Guardar como PDF</button>
                 <p>Una plantilla A4. En el diálogo del navegador puedo elegir Guardar como PDF y desactivar sus encabezados y pies de página.</p>
             </div>
             <article class="cv-documento" aria-label="Vista previa del CV">

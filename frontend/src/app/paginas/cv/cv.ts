@@ -165,7 +165,7 @@ export class Cv implements OnInit {
 
     get evidenciaLimitada(): boolean {
         const patron = this.enfoques.find(e => e.valor === this.enfoque)!.patron;
-        return this.bloques.filter(b => b.texto.trim() && patron.test(`${b.titulo} ${b.texto}`)).length < 2;
+        return this.bloques.filter(b => b.incluir && b.texto.trim() && patron.test(`${b.titulo} ${b.texto}`)).length < 2;
     }
 
     agregarBloque(): void {
@@ -215,7 +215,7 @@ export class Cv implements OnInit {
     }
 
     imprimir(): void {
-        if (this.vistaPrevia && this.revisionConfirmada) window.print();
+        if (this.vistaPrevia && this.revisionConfirmada && !this.cargando()) window.print();
     }
 
     confirmarSalida(): boolean {

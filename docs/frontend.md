@@ -35,7 +35,9 @@ experiencia, proyectos, educación o idiomas faltantes. Los cuatro enfoques
 **Desarrollo de software**, **QA / Testing**, **Soporte IT** y **Salud / Administración
 sanitaria** sólo priorizan bloques por coincidencias de texto: no reescriben cargos,
 fechas o hechos, ni cambian qué bloques elegí. Una advertencia de evidencia limitada
-recuerda que esas coincidencias no acreditan experiencia.
+recuerda que esas coincidencias no acreditan experiencia. El aviso cuenta sólo bloques
+seleccionados, con texto y relacionados con el enfoque; las notas no seleccionadas
+no lo ocultan.
 
 Todo vive sólo en memoria: no guardo fuentes, preferencias ni versiones del CV,
 no envío postulaciones y no cambio estados de ofertas. Salir con cambios requiere
@@ -45,6 +47,10 @@ vuelve a consultar ambos GET y pide confirmar el descarte si edité el borrador.
 Comparo generaciones de solicitud y revisiones de edición: una respuesta vieja o
 una carga durante la que seguí editando no reemplaza el borrador. Ante error conservo
 la versión anterior y permito reintentar; no aplico una sola fuente de una carga fallida.
+Durante la recarga deshabilito Imprimir y bloqueo también su método, incluso si sólo
+respondió uno de los GET. El éxito vuelve al editor y exige revisar nuevamente los
+hechos actualizados; el error conserva la vista previa anterior con aviso, sin imprimir
+automáticamente. Cancelar el descarte no consulta fuentes ni invalida la revisión.
 
 Antes de la vista previa confirmo explícitamente que revisé hechos, selección y
 cambios manuales y excluí información privada. Toda edición posterior invalida esa
@@ -91,6 +97,23 @@ texto hostil y preservación del contenido. La verificación final ejecutó 46 f
 La regresión de Preferencias/servicio/rutas pasó 101 tests antes de la corrección CSS;
 el verificador observó 130 incluyendo los 29 focales originales y 96 en la base.
 La corrección de una línea tuvo RED 45 aprobados/1 fallo y GREEN 46 aprobados.
+
+### Ajustes tras auditoría de la PR #44
+
+B-01 tiene regresiones de DOM/HTTP que retienen ambos GET y una respuesta parcial:
+no se imprime durante la carga, el éxito exige nueva revisión, el error conserva
+la previa con aviso y cancelar no consulta ni imprime. P3 cuenta sólo los bloques
+seleccionados. El lote correctivo pasó de **4 FAIL/47 PASS** a **51 PASS** focales;
+el build fue correcto. La suite local completa quedó **incompleta** (8/515 tests)
+por caída de Chromium con errores de escritura del perfil temporal, no se declara
+aprobada ni se reintentó. La ejecución completa del SHA publicado corresponde a CI.
+
+Los [PDF sintéticos originales y el montaje de las seis páginas](evidencias/issue-24/README.md)
+ahora son accesibles desde el repositorio, con hashes y procedencia exacta. Son los
+artefactos de la versión auditada, no una nueva generación del lote correctivo;
+el artículo y el CSS imprimibles no cambiaron. No atribuyo al auditor una inspección
+visual que no realizó. El comentario de entrega de la PR vincula el nuevo SHA,
+resultados reales y CI, sin sustituir la revisión externa.
 
 ## Importación de documentos con texto revisable — issue #23
 
