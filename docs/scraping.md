@@ -225,6 +225,11 @@ vencimientos: el fundamento es la documentación pública, con el alcance explic
 
 Solo consulto `GET https://www.getonbrd.com/api/v0/search/jobs` con `query`, `page` y `per_page`.
 Rechazo otros destinos, puertos, credenciales en URL y redirecciones (`redirect: 'error'`).
+Valido también `links.public_url`: solo acepto URL absoluta HTTPS con host exacto
+`www.getonbrd.com`, sin credenciales ni puerto distinto del estándar HTTPS. Rechazo esquemas,
+hosts ajenos (incluidos subdominios, regionales, documentación y sandbox) antes del cupo,
+deduplicación e ingreso; conservo la identidad canónica sin hash ni barra final. Los enlaces
+de fixtures usan ese host documentado con HTTP simulado, sin solicitudes reales.
 No uso HTML, navegadores ni Apify. El dominio reservado `sandbox.getonbrd.test` es exclusivo
 para fixtures con cliente inyectado; **no** es el sandbox oficial `sandbox.getonbrd.dev`.
 

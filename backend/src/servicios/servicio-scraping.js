@@ -1149,6 +1149,10 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
 function normalizarUrlGetonbrd(url) {
     try {
         const canonica = new URL(url);
+        if (canonica.protocol !== 'https:' || canonica.hostname !== 'www.getonbrd.com'
+            || canonica.username || canonica.password || canonica.port) {
+            return null;
+        }
         canonica.hash = '';
         canonica.pathname = canonica.pathname.replace(/\/$/, '');
         return canonica.toString();
