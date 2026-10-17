@@ -35,8 +35,13 @@ beforeEach(() => {
             Object.assign(require('../../src/controladores/controlador-automatizacion'), {
                 obtenerProgreso: lectura, obtenerEstado: lectura,
             });
-            Object.assign(require('../../src/controladores/controlador-preferencias'), { analizarCvMarkdown: lectura });
-            require('../../src/rutas/preferencias').recibirCv = (req, res, next) => next();
+            Object.assign(require('../../src/controladores/controlador-preferencias'), {
+                analizarCvMarkdown: lectura, extraerTextoCv: lectura,
+            });
+            Object.assign(require('../../src/rutas/preferencias'), {
+                recibirCv: (req, res, next) => next(),
+                recibirDocumentoCv: (req, res, next) => next(),
+            });
             app = require('../../src/app');
         });
     } finally {

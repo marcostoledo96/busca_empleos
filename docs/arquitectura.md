@@ -35,6 +35,7 @@ Sistema automatizado de uso personal que extrae ofertas de empleo de múltiples 
 | Backend / API | Node.js + Express | Express 5.2.1 |
 | Scraping externo | API de Apify (`apify-client`) | 2.22.3 |
 | Evaluación IA | API de DeepSeek (fetch nativo) | — |
+| Extracción de CV PDF seleccionable | `pdf-parse` (PDF.js, sin OCR) | 2.4.5 |
 | Scoring previo | Reglas determinísticas + bonus IA/Next.js | — |
 | Base de datos | PostgreSQL (`pg` driver directo) | pg 8.20.0 |
 | Automatización | `node-cron` | 4.2.1 |
@@ -98,6 +99,40 @@ Request HTTP → Rutas → Controlador → Servicio → Modelo → PostgreSQL
 | **Servicios** | Lógica de negocio: scraping, normalización, evaluación, automatización, notificación email. | `servicio-scraping.js` |
 | **Modelos** | Queries SQL parametrizadas. CRUD contra PostgreSQL. | `oferta.js` |
 | **Config** | Conexiones y clientes externos (pool de PG, cliente Apify, función DeepSeek). | `base-datos.js` |
+
+### Extracción temporal de documentos CV (issue #23)
+
+En `POST /api/preferencias/importar-cv/extraer-texto` uso este recorrido sin modelo de datos:
+
+```text
+Firebase → limitador existente (5/min, compartido) → Multer en memoria
+→ controlador-preferencias → servicio-extraccion-documento-cv → texto revisable
+```
+
+Valido extensión/MIME y hasta 5 MiB de archivo; en `validacion-documento-cv.js`
+reutilizo el máximo vigente `MAX_BYTES_CV_BASE` de 1048576 bytes UTF-8 para el texto.
+Decodifico Markdown con UTF-8 fatal, conservo sus bytes textuales y rechazo caracteres
+inválidos. Para PDF compruebo encabezado/cierre y uso `new PDFParse({ data: buffer })`,
+`getText()` de todas las páginas y `destroy()` en `finally`. Exijo que la cantidad y
+numeración de páginas coincidan; ante error de parseo o resultado parcial no devuelvo
+texto exitoso. Uno el texto de las páginas, no los marcadores decorativos, para
+rechazar correctamente PDFs vacíos. No hago OCR ni extracción en navegador.
+
+Mantengo bytes y resultado solo en memoria durante la solicitud, sin almacenar
+originales ni cambiar CV base, perfil confirmado, ofertas, postulaciones o notas.
+No llamo a DeepSeek ni registro el contenido o los errores privados del lector;
+respondo errores sanitizados con la alternativa de pegar texto manualmente. El
+análisis Markdown existente es una operación posterior separada, conserva modelo
+y presupuesto propio más pequeño y no recibe binarios. El límite de extracción
+no garantiza que un texto entre en el presupuesto del análisis IA.
+
+La biblioteca `pdf-parse` 2.4.5 declara Node `>=20.16.0 <21` o `>=22.3.0`, compatible
+por declaración con Node22.20 del proyecto. Verifiqué el lector real en Node24.18.0;
+**no ejecuté Node22**. En Jest cargo el mismo worker real mediante el `createRequire`
+nativo de Node y `globalThis.pdfjsWorker`, para evitar el `import()` dentro de la VM
+de Jest sin agregar flags experimentales ni simular PDFs válidos, vacíos o corruptos.
+Las pruebas sintéticas posicionan texto dentro de páginas reales, incluida la prueba
+que excede el límite textual; no incorporo un generador PDF como dependencia de producción.
 
 ### Patrón container-presentational (frontend)
 

@@ -450,6 +450,18 @@ async function actualizarPreferencias(req, res) {
  * preferencias estructuradas (tecnologías, roles, idioma, zonas, etc.).
  * No guarda nada — solo devuelve la sugerencia para que el usuario confirme.
  */
+async function extraerTextoCv(req, res) {
+    const { extraerTextoDocumento } = require('../servicios/servicio-extraccion-documento-cv');
+    const { responderErrorDocumento } = require('../utils/validacion-documento-cv');
+    try {
+        const datos = await extraerTextoDocumento(req.file);
+        return res.json({ exito: true, datos });
+    } catch (error) {
+        // No registro el error original: puede contener bytes o texto privados del CV.
+        return responderErrorDocumento(res, error.codigo || 'DOCUMENTO_INVALIDO');
+    }
+}
+
 async function analizarCvMarkdown(req, res) {
     // Multer ya validó que el archivo existe y es .md. Si no, no llega acá.
     const archivo = req.file;
@@ -636,6 +648,7 @@ module.exports = {
     obtenerPreferencias,
     actualizarPreferencias,
     analizarCvMarkdown,
+    extraerTextoCv,
     NIVELES_VALIDOS,
     MODALIDADES_VALIDAS,
     ZONAS_VALIDAS,
