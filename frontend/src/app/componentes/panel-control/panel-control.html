@@ -197,6 +197,10 @@
                     <i class="pi pi-search" aria-hidden="true"></i>
                     {{ scrapeandoJooble() ? '...' : 'Jooble' }}
                 </button>
+                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || !getonbrdDisponible()" (click)="scrapearGetonbrd()" aria-label="Scrapear GetOnBrd" aria-describedby="disponibilidad-getonbrd">
+                    <i class="pi pi-briefcase" aria-hidden="true"></i>
+                    {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
+                </button>
                 <!-- Google Jobs desactivado — alto costo sin resultados útiles.
                      Para reactivar: descomentar el botón y restaurar la signal en panel-control.ts.
                 <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
@@ -225,6 +229,10 @@
                     {{ scrapeandoAdzuna() ? '...' : 'Adzuna' }}
                 </button>
 
+                <p id="disponibilidad-getonbrd" role="status">
+                    {{ getonbrdDisponible() && !modoDemo() ? 'GetOnBrd: disponible según la configuración del backend.' : motivoGetonbrd() }}
+                </p>
+
                 <!-- ── Selector mobile: sólo visible en ≤768px ── -->
                 <div class="scraping-selector-mobile" role="group" aria-label="Seleccionar plataforma de scraping">
                     <label class="scraping-selector-mobile__label" for="selector-plataforma-mobile">Plataforma</label>
@@ -243,7 +251,7 @@
                         <button
                             class="btn-accion scraping-selector-mobile__btn-extraer"
                             [class.btn-cargando]="scrapeandoAlguno()"
-                            [disabled]="busquedaOcupada() || cargandoPrevisualizacion()"
+                            [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || (plataformaSeleccionada() === 'getonbrd' && !getonbrdDisponible())"
                             (click)="scrapearPlataformaSeleccionada()"
                             [attr.aria-label]="'Extraer ofertas de ' + (etiquetasPorPlataforma[plataformaSeleccionada()] || plataformaSeleccionada())">
                             <span class="material-symbols-outlined" aria-hidden="true">download</span>

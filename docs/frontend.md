@@ -288,9 +288,9 @@ individual (`datos.fuente`), el último ciclo (`datos.ultimoResultado.fuentes`) 
 individuales incluso cuando HTTP devuelve 502/504. Muestro el estado efectivo, errores
 HTTP, consultas ejecutadas, motivo y duración del backend; una fuente parcial no se
 anuncia como completada. El registry habilitado permite intentar, no garantiza que
-el proveedor esté disponible. GetOnBrd sigue deshabilitado por falta de autorización
-escrita verificable; Google Jobs por costo/baja utilidad e InfoJobs mientras siga vigente
-su deshabilitación. No agrego botones ni reactivo esas integraciones.
+el proveedor esté disponible. GetOnBrd depende de la previsualización efectiva del backend;
+Google Jobs permanece deshabilitado por costo/baja utilidad e InfoJobs conserva su
+deshabilitación. No reactivo estas dos fuentes.
 
 Distingo nuevas, actualizadas, reapariciones y duplicadas intra-ejecución
 (`duplicadasDescartadas`). `duplicadas` es el contador legacy de existentes, no sumable:
@@ -318,6 +318,29 @@ de proveedores, PostgreSQL ni un reinicio del proceso backend**. Esa evidencia c
 a la verificación backend separada, no a estas pruebas Angular. No uso cron real ni
 credenciales reales, y no presento capturas como evidencia.
 
+## GetOnBrd con habilitación efectiva — issue #5
+
+Reutilizo el panel desktop, el selector mobile y `app-resultado-fuente`. Sólo ofrezco
+GetOnBrd cuando `GET /api/scraping/previsualizacion` devuelve `habilitada: true` y
+`ejecutable: true`. Mientras cargo, si falta la fuente o si falla la consulta, deniego
+su selección y muestro el motivo disponible. Actualizar invalida el permiso anterior;
+consulto nuevamente antes de ejecutar para respetar una deshabilitación posterior.
+
+La acción individual envía `POST /api/scraping/getonbrd` con `{}`: el backend resuelve
+las preferencias guardadas, sin filtros inventados ni overrides del navegador. Muestro
+el overlay de carga y bloqueo acciones concurrentes. Al terminar uso `datos.fuente`:
+completada, sin resultados, parcial, error, timeout, cancelada o deshabilitada. Una
+parcial HTTP200 conserva métricas, errores y resultados; no la anuncio como éxito
+completo. HTTP502/504 conserva el detalle común recibido. Muestro tipo y código HTTP
+(incluido 429), `run_id` y checkpoint cuando existen, sin reintentos automáticos.
+Una deshabilitación no emite éxito ni se presenta como una búsqueda vacía exitosa.
+
+No modifico los filtros del dashboard: GetOnBrd sigue disponible para filtrar ofertas
+históricas aunque esté deshabilitado. El ciclo utiliza el endpoint y los resultados
+por fuente existentes, sin disparar una segunda extracción individual. La evaluación
+continúa por el mecanismo normal; habilitar la fuente no inicia IA ni activa cron.
+La activación y el rollback se describen en [Deploy](deploy.md#getonbrd-activación-controlada-y-rollback).
+
 ## Búsquedas efectivas y actualización — issue #13
 
 Consulto `GET /api/scraping/previsualizacion` al montar el panel, al pedir actualizar
@@ -329,7 +352,8 @@ para `filtrar_nivel_linkedin` (por defecto `true`), permitiendo omitir el filtro
 nivel `f_E=1,2` en LinkedIn sin alterar el seniority real del candidato. No deduzco
 capacidades por fuente ni envío overrides. Una advertencia de umbral no estricto se
 muestra literalmente; `null` indica ausencia del parámetro configurable. Conservo
-fuentes deshabilitadas como informativas, sin habilitar GetOnBrd. Si falla el preview,
+fuentes deshabilitadas como informativas. GetOnBrd sólo es seleccionable con `habilitada`
+y `ejecutable` verdaderos en la previsualización. Si falla el preview,
 comunico el problema sin iniciar extracción ni simular filtros aplicados. En demo no consulto HTTP.
 
 Distingo configuración guardada actual, última búsqueda individual
@@ -525,7 +549,7 @@ Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. D
 - El `id` (snake_case) se usa como valor interno en filtros, preferencias, DTOs y BD. Ejemplo: `google_jobs`.
 - El `slugHttp` (kebab-case) se usa solo en URLs de la API (`/api/scraping/:slug`). Ejemplo: `google-jobs`.
 - Para la mayoría de las plataformas, `id` y `slugHttp` coinciden. Google Jobs es la excepción.
-- Plataformas con `activa: false` (GetOnBrd, Google Jobs, InfoJobs) NO aparecen en selectores de scraping ni en preferencias como opción seleccionable.
+- Google Jobs e InfoJobs permanecen fuera de los selectores activos. GetOnBrd conserva un valor estático restrictivo: el selector de scraping lo incorpora sólo cuando la previsualización confirma disponibilidad efectiva. No infiero disponibilidad desde el bundle ni cambio las opciones históricas de preferencias.
 - Los filtros de ofertas incluyen todas las plataformas (activas e inactivas) para permitir filtrar datos históricos.
 
 **Funciones principales:**
@@ -548,7 +572,7 @@ Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. D
 | Indeed | `indeed` | `indeed` | ✅ | — |
 | Bumeran | `bumeran` | `bumeran` | ✅ | — |
 | Glassdoor | `glassdoor` | `glassdoor` | ✅ | — |
-| GetOnBrd | `getonbrd` | `getonbrd` | ❌ | Piloto API-only deshabilitado hasta contar con autorización escrita verificable |
+| GetOnBrd | `getonbrd` | `getonbrd` | Dinámica | Previsualización: habilitación explícita, evidencia válida y consulta ejecutable |
 | Jooble | `jooble` | `jooble` | ✅ | — |
 | Google Jobs | `google_jobs` | `google-jobs` | ❌ | Desactivado por costo y baja utilidad |
 | Remotive | `remotive` | `remotive` | ✅ | — |

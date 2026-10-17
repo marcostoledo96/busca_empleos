@@ -166,6 +166,39 @@ El contenido del JSON descargado va COMPLETO en la variable `FIREBASE_SERVICE_AC
 
 ## 6. Configurar el servicio de backend
 
+### GetOnBrd: activación controlada y rollback
+
+Mantengo GetOnBrd bloqueado por defecto. Para permitir la fuente, configuro
+`GETONBRD_ENABLED=true` (valor exacto) y conservo la evidencia empaquetada en
+`backend/src/config/evidencias/getonbrd`: `evidencia.json` registra las URL oficiales,
+fecha consultada, host y alcance `GET /api/v0/search/jobs`, junto con el SHA-256 de
+cada extracto conservado. El backend verifica esos bytes; no alcanza con declarar un
+hash ni con activar el flag si falta evidencia válida. No invento permisos privados
+ni vencimientos que la documentación pública no define.
+
+Compruebo el estado efectivo en `GET /api/scraping/previsualizacion`: GetOnBrd debe
+informar `habilitada: true` y `ejecutable: true`. Si no se cumple, consulto sus
+`advertencias`; el frontend no sustituye esa decisión por una marca estática.
+El único destino productivo admitido es `https://www.getonbrd.com/api/v0` para la
+búsqueda autorizada; no utilizo HTML, navegadores ni Apify para esta fuente.
+
+| Control | Comportamiento |
+|---------|----------------|
+| Límites iniciales | 40 ofertas, 2 peticiones globales por ejecución, 20 ítems por página y 5 segundos por solicitud |
+| Techos defensivos conservados | 1200 ítems, 10 páginas, 120 ítems por página; no equivalen a una cuota autorizada por el proveedor |
+| Individual | `POST /api/scraping/getonbrd`, preferencias e ingreso/persistencia comunes |
+| Ciclo manual y cron existente | Registry común, una sola ejecución por fuente; si está deshabilitada, omisión sin consultar la API |
+| Parcial | Conservo ofertas válidas, errores, métricas, `run_id` y checkpoint disponibles; HTTP200 no implica éxito completo |
+| Error / timeout | Sin ofertas válidas: HTTP502 / HTTP504; no lo convierto en búsqueda vacía |
+| HTTP429 | Informo `limite_solicitudes` y código 429, sin reintento automático |
+| Deshabilitada | Estado común `deshabilitada`; alias legacy `datos.estado: bloqueado`, sin falso éxito con cero resultados |
+| Rollback | `GETONBRD_ENABLED=false` bloquea nuevas consultas; conserva ofertas, historial y datos manuales existentes |
+
+**El flag no activa cron.** Conservo la configuración persistida y la activación
+explícita de la automatización existente; no creo programaciones nuevas. Habilitar la
+fuente tampoco dispara una evaluación IA. Estos pasos documentan la operación: no
+implican que haya modificado variables o desplegado servicios de producción.
+
 ### 6.1 Configurar variables de entorno
 
 En el servicio del backend → pestaña **Variables** → agregar con **New Variable**:
@@ -220,9 +253,9 @@ Railway no expone el servicio automáticamente. Hay que generar la URL pública:
 1. En el servicio del backend → pestaña **Settings**
 2. Bajar hasta la sección **Networking** → **Public Networking**
 3. Hacer clic en **Generate Domain**
-4. Railway genera una URL del tipo:
+4. Para el servicio `busca_empleos`, entorno `production`, verifiqué mediante MCP de Railway el dominio efectivo:
    ```
-   https://busca-empleos-production.up.railway.app
+   https://buscaempleos-production.up.railway.app
    ```
 5. Copiar y guardar esta URL — la vas a necesitar en los pasos 7 y 8.
 
@@ -237,7 +270,7 @@ Railway no expone el servicio automáticamente. Hay que generar la URL pública:
 Una vez que los logs muestren `Servidor escuchando en el puerto 3000`, abrir en el navegador:
 
 ```
-https://busca-empleos-production.up.railway.app/api/salud
+https://buscaempleos-production.up.railway.app/api/salud
 ```
 
 Debería responder:
@@ -264,7 +297,7 @@ Antes de conectar el repositorio, definir las variables de entorno que va a leer
 
 | Variable de Vercel | Valor |
 |-------------------|-------|
-| `API_URL` | `https://busca-empleos-production.up.railway.app/api` |
+| `API_URL` | `https://buscaempleos-production.up.railway.app/api` |
 | `FIREBASE_API_KEY` | La API key del proyecto Firebase |
 | `FIREBASE_AUTH_DOMAIN` | `busca-empleo-a4fbe.firebaseapp.com` |
 | `FIREBASE_PROJECT_ID` | `busca-empleo-a4fbe` |
@@ -325,7 +358,7 @@ Firebase Authentication rechaza logins desde dominios no autorizados.
 
 ### 8.3 Checklist de verificación final
 
-- [ ] `GET https://busca-empleos-production.up.railway.app/api/salud` responde `{ "estado": "ok" }`
+- [ ] `GET https://buscaempleos-production.up.railway.app/api/salud` responde `{ "estado": "ok" }`
 - [ ] Login en el frontend funciona (Firebase auth)
 - [ ] El dashboard carga y muestra las ofertas (token JWT se envía correctamente)
 - [ ] Ejecutar un scraping manual (consume Apify, verificar que no hay error 500)

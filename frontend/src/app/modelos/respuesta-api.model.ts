@@ -71,7 +71,7 @@ export interface ResumenBusqueda {
     };
 }
 
-export type EstadoFuente = 'completada' | 'sin_resultados' | 'parcial' | 'error' | 'timeout' | 'sin_credenciales' | 'deshabilitada' | 'omitida' | 'interrumpida' | 'ejecutando';
+export type EstadoFuente = 'completada' | 'sin_resultados' | 'parcial' | 'error' | 'timeout' | 'cancelada' | 'sin_credenciales' | 'deshabilitada' | 'omitida' | 'interrumpida' | 'ejecutando';
 
 export interface ErrorFuente {
     tipo: string;
@@ -99,6 +99,14 @@ export interface ResultadoFuente {
     errores?: ErrorFuente[];
     motivoFinalizacion?: string;
     duracionMs?: number | null;
+    run_id?: string | null;
+    checkpoint?: {
+        termino_indice: number;
+        termino: string | null;
+        pagina_confirmada: number;
+        pagina_siguiente: number;
+        item_offset?: number;
+    };
     resultadosConsultas?: {
         consulta: string | null;
         estado: EstadoFuente;

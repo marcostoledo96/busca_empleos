@@ -1,11 +1,12 @@
 import { ComponentFixture, TestBed, fakeAsync, tick, discardPeriodicTasks } from '@angular/core/testing';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { PanelControl } from './panel-control';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
 import { MessageService } from 'primeng/api';
-import { of, throwError, Observable } from 'rxjs';
-import { ProgresoAutomatizacion } from '../../modelos/respuesta-api.model';
+import { of, throwError, Observable, Subject } from 'rxjs';
+import { ProgresoAutomatizacion, ResumenBusqueda, ResultadoFuente, RespuestaApi, RespuestaScraping } from '../../modelos/respuesta-api.model';
 
 describe('PanelControl — Selector mobile de scraping', () => {
 
@@ -14,6 +15,10 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     const mockScrapingService = {
         obtenerPrevisualizacion: () => of({ exito: true, datos: { plataformas: [] } }),
+        scrapearGetonbrd: (): Observable<RespuestaApi<RespuestaScraping>> => of({ exito: true, datos: {
+            mensaje: '', plataforma: 'getonbrd', total_extraidas: 2, ofertas_nuevas: 2, ofertas_duplicadas: 0,
+            fuente: { plataforma: 'getonbrd', estado: 'completada', nuevas: 2 },
+        } }),
         scrapearLinkedin:     () => of({ exito: true, datos: { total_extraidas: 5, ofertas_nuevas: 3 } }),
         scrapearComputrabajo: () => of({ exito: true, datos: { total_extraidas: 2, ofertas_nuevas: 1 } }),
         scrapearIndeed:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0 } }),
@@ -53,6 +58,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
                 { provide: ScrapingService,       useValue: mockScrapingService },
                 { provide: EvaluacionService,     useValue: mockEvaluacionService },
                 { provide: AutomatizacionService, useValue: mockAutomatizacionService },
+                provideNoopAnimations(),
                 MessageService,
             ],
         }).compileComponents();
@@ -61,6 +67,194 @@ describe('PanelControl — Selector mobile de scraping', () => {
         component = fixture.componentInstance;
         fixture.detectChanges();
     });
+
+    const resumenGetonbrd: ResumenBusqueda = {
+        plataforma: 'getonbrd', nombre: 'GetOnBrd', habilitada: true, ejecutable: true,
+        terminos: ['junior'], ubicacion: [], ventanaDias: 30, maxResultados: 40,
+        filtros: {}, advertencias: [], origen: { terminos: 'preferencias', ubicacion: 'defecto' },
+    };
+
+    function habilitarGetonbrd(): void {
+        spyOn(mockScrapingService, 'obtenerPrevisualizacion').and.returnValue(of({
+            exito: true, datos: { plataformas: [resumenGetonbrd] },
+        }) as any);
+        component.actualizarPrevisualizacion();
+        fixture.detectChanges();
+    }
+
+    it('deniego GetOnBrd inicialmente y explico la ausencia de previsualización', () => {
+        expect(component.opcionesPlataforma.some(o => o.value === 'getonbrd')).toBeFalse();
+        const boton = fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]');
+        expect(boton).not.toBeNull();
+        expect(boton.disabled).toBeTrue();
+        expect(fixture.nativeElement.textContent).toContain('No pude confirmar la disponibilidad de GetOnBrd');
+    });
+
+    for (const cambios of [
+        { habilitada: false, ejecutable: false },
+        { habilitada: true, ejecutable: false },
+        { habilitada: false, ejecutable: true },
+    ]) {
+        it(`deniego GetOnBrd con disponibilidad ${JSON.stringify(cambios)} y muestro el motivo`, () => {
+            spyOn(mockScrapingService, 'obtenerPrevisualizacion').and.returnValue(of({
+                exito: true, datos: { plataformas: [{ ...resumenGetonbrd, ...cambios, advertencias: ['Evidencia no válida'] }] },
+            }) as any);
+            const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.callThrough();
+            const evento = spyOn(component.accionCompletada, 'emit');
+            component.actualizarPrevisualizacion();
+            component.plataformaSeleccionadaModel = 'getonbrd';
+            component.scrapearGetonbrd();
+            fixture.detectChanges();
+            expect(component.plataformaSeleccionada()).toBe('linkedin');
+            expect(component.opcionesPlataforma.some(o => o.value === 'getonbrd')).toBeFalse();
+            expect(extraer).not.toHaveBeenCalled();
+            expect(evento).not.toHaveBeenCalled();
+            expect(component.scrapeandoAlguno()).toBeFalse();
+            expect(fixture.nativeElement.textContent).toContain('Evidencia no válida');
+        });
+    }
+
+    it('habilito desktop y mobile sólo con ambos permisos efectivos, sin iniciar cron ni IA', () => {
+        const cron = spyOn(mockAutomatizacionService, 'iniciarCron').and.callThrough();
+        const evaluar = spyOn(mockEvaluacionService, 'ejecutarEvaluacion').and.callThrough();
+        habilitarGetonbrd();
+        expect(component.opcionesPlataforma.find(o => o.value === 'getonbrd')?.label).toBe('GetOnBrd');
+        expect(fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]').disabled).toBeFalse();
+        expect(cron).not.toHaveBeenCalled();
+        expect(evaluar).not.toHaveBeenCalled();
+    });
+
+    for (const accion of ['desktop', 'mobile']) {
+        it(`ejecuto GetOnBrd desde ${accion}, mantengo carga y publico el resultado común`, () => {
+            habilitarGetonbrd();
+            const pendiente = new Subject<RespuestaApi<RespuestaScraping>>();
+            const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.returnValue(pendiente);
+            const evento = spyOn(component.accionCompletada, 'emit');
+            if (accion === 'desktop') fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]').click();
+            else {
+                component.plataformaSeleccionadaModel = 'getonbrd';
+                fixture.detectChanges();
+                fixture.nativeElement.querySelector('.scraping-selector-mobile__btn-extraer').click();
+            }
+            fixture.detectChanges();
+            expect(extraer).toHaveBeenCalledTimes(1);
+            expect(component.scrapeandoGetonbrd()).toBeTrue();
+            expect(component.scrapeandoAlguno()).toBeTrue();
+            expect(component.mostrarOverlayIndividual()).toBeTrue();
+            expect(component.plataformaEnProceso()).toBe('GetOnBrd');
+            expect(fixture.nativeElement.querySelector('.scraping-selector-mobile__btn-extraer').disabled).toBeTrue();
+            const fuente: ResultadoFuente = { plataforma: 'getonbrd', estado: 'completada', nuevas: 2 };
+            pendiente.next({ exito: true, datos: { mensaje: '', plataforma: 'getonbrd', total_extraidas: 2, ofertas_nuevas: 2, ofertas_duplicadas: 0, fuente } });
+            pendiente.complete();
+            fixture.detectChanges();
+            expect(component.resultadoIndividual()).toEqual(fuente);
+            expect(component.scrapeandoGetonbrd()).toBeFalse();
+            expect(component.mostrarOverlayIndividual()).toBeFalse();
+            expect(evento).toHaveBeenCalledTimes(1);
+            expect(fixture.nativeElement.querySelector('app-resultado-fuente').textContent).toContain('GetOnBrd — Completada');
+        });
+    }
+
+    it('retiro GetOnBrd si falla la actualización y no conservo un permiso anterior', () => {
+        habilitarGetonbrd();
+        component.plataformaSeleccionadaModel = 'getonbrd';
+        (mockScrapingService.obtenerPrevisualizacion as jasmine.Spy).and.returnValue(throwError(() => new Error('Sin conexión')));
+        const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.callThrough();
+        component.actualizarPrevisualizacion();
+        component.scrapearPlataformaSeleccionada();
+        fixture.detectChanges();
+        expect(component.opcionesPlataforma.some(o => o.value === 'getonbrd')).toBeFalse();
+        expect(extraer).not.toHaveBeenCalled();
+        expect(component.errorPrevisualizacion()).toContain('No pude consultar');
+        expect(fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]').disabled).toBeTrue();
+    });
+
+    it('retiro el permiso mientras consulto y no inicio GetOnBrd si el preview no confirma la fuente', () => {
+        habilitarGetonbrd();
+        const pendiente = new Subject<any>();
+        (mockScrapingService.obtenerPrevisualizacion as jasmine.Spy).and.returnValue(pendiente);
+        const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.callThrough();
+        component.actualizarPrevisualizacion();
+        fixture.detectChanges();
+        expect(component.getonbrdDisponible()).toBeFalse();
+        expect(component.opcionesPlataforma.some(o => o.value === 'getonbrd')).toBeFalse();
+        expect(fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]').disabled).toBeTrue();
+        pendiente.next({ exito: false, error: 'No pude resolver la configuración', datos: { plataformas: [] } });
+        pendiente.complete();
+        expect(component.errorPrevisualizacion()).toBe('No pude resolver la configuración');
+        (mockScrapingService.obtenerPrevisualizacion as jasmine.Spy).and.returnValue(of({ exito: true, datos: { plataformas: [] } }));
+        component.scrapearGetonbrd();
+        expect(extraer).not.toHaveBeenCalled();
+        expect(component.errorPrevisualizacion()).toContain('No pude confirmar');
+    });
+
+    it('consulto otra vez antes de ejecutar y respeto una revocación del backend', () => {
+        habilitarGetonbrd();
+        (mockScrapingService.obtenerPrevisualizacion as jasmine.Spy).and.returnValue(of({
+            exito: true, datos: { plataformas: [{ ...resumenGetonbrd, habilitada: false, ejecutable: false, advertencias: ['Fuente deshabilitada'] }] },
+        }));
+        const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.callThrough();
+        component.scrapearGetonbrd();
+        expect(extraer).not.toHaveBeenCalled();
+        expect(component.errorPrevisualizacion()).toBe('GetOnBrd no está disponible. Fuente deshabilitada');
+        expect(component.resultadoIndividual()).toBeNull();
+    });
+
+    it('uso el ciclo común una sola vez sin disparar un scraping individual adicional', fakeAsync(() => {
+        habilitarGetonbrd();
+        const ciclo = spyOn(mockAutomatizacionService, 'ejecutarCiclo').and.returnValue(of({
+            exito: true, datos: { configuracion: [resumenGetonbrd] },
+        }) as any);
+        const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.callThrough();
+        const evaluar = spyOn(mockEvaluacionService, 'ejecutarEvaluacion').and.callThrough();
+        component.ejecutarCicloCompleto();
+        expect(ciclo).toHaveBeenCalledTimes(1);
+        expect(component.configuracionCiclo()).toEqual([resumenGetonbrd]);
+        expect(extraer).not.toHaveBeenCalled();
+        expect(evaluar).not.toHaveBeenCalled();
+        component.resultadoCiclo.set({ estado: 'parcial', fuentes: [{ plataforma: 'getonbrd', estado: 'parcial', nuevas: 2 }] });
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('app-resultado-fuente').textContent).toContain('GetOnBrd — Parcial');
+        fixture.destroy();
+        tick(500);
+    }));
+
+    for (const estado of ['parcial', 'cancelada', 'deshabilitada', 'error', 'timeout'] as const) {
+        it(`muestro ${estado} con métricas y checkpoint, sin inventar una búsqueda vacía`, () => {
+            habilitarGetonbrd();
+            const fuente: ResultadoFuente = {
+                plataforma: 'getonbrd', estado, nuevas: estado === 'parcial' ? 2 : 0,
+                actualizadas: 1, reapariciones: 1, peticionesRealizadas: 2,
+                run_id: 'run-sintetico', checkpoint: { termino_indice: 0, termino: 'junior', pagina_confirmada: 1, pagina_siguiente: 2, item_offset: 3 },
+                errores: [{ tipo: 'limite_solicitudes', codigoHttp: 429, mensaje: 'Sin reintentos' }],
+                motivoFinalizacion: 'limite_solicitudes',
+            };
+            const datos: RespuestaScraping = { mensaje: '', plataforma: 'getonbrd', total_extraidas: 2, ofertas_nuevas: 2, ofertas_duplicadas: 0, fuente };
+            spyOn(mockScrapingService, 'scrapearGetonbrd').and.returnValue(
+                ['error', 'timeout'].includes(estado)
+                    ? throwError(() => ({ status: estado === 'error' ? 502 : 504, error: { error: 'No pude completar la consulta al proveedor.', datos } }))
+                    : of({ exito: true, datos })
+            );
+            const mensajes = spyOn((component as any).mensajes, 'add');
+            const evento = spyOn(component.accionCompletada, 'emit');
+            component.scrapearGetonbrd();
+            fixture.detectChanges();
+            const texto = fixture.nativeElement.querySelector('app-resultado-fuente').textContent;
+            expect(texto).toContain('429');
+            expect(texto).toContain('run-sintetico');
+            expect(texto).toContain('Checkpoint');
+            expect(texto).toContain('Página siguiente: 2');
+            expect(texto).toContain('Posición: 3');
+            expect(texto).toContain('Peticiones: 2');
+            if (estado === 'cancelada') expect(texto).toContain('Cancelada');
+            expect(component.resultadoIndividual()).toEqual(fuente);
+            expect(component.scrapeandoAlguno()).toBeFalse();
+            expect(component.mostrarOverlayIndividual()).toBeFalse();
+            expect(mensajes).toHaveBeenCalledWith(jasmine.objectContaining({ severity: ['error', 'timeout'].includes(estado) ? 'error' : 'warn' }));
+            if (estado === 'parcial') expect(evento).toHaveBeenCalledTimes(1);
+            if (estado === 'deshabilitada') expect(evento).not.toHaveBeenCalled();
+        });
+    }
 
     for (const estado of ['error', 'completada'] as const) {
         it(`notifico el ciclo terminal con paso ${estado} sin confundir 100% con éxito`, fakeAsync(() => {
@@ -306,7 +500,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     it('los botones .scraping-solo-desktop deberían existir en el template', () => {
         const botones = fixture.nativeElement.querySelectorAll('.scraping-solo-desktop');
-        expect(botones.length).toBe(9);
+        expect(botones.length).toBe(10);
     });
 
     it('el p-select del selector mobile debería existir en el template', () => {

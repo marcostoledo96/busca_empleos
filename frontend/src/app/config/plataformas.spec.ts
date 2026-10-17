@@ -175,6 +175,18 @@ describe('Registry de plataformas (frontend)', () => {
         expect(opciones.length).toBe(PLATAFORMAS_ACTIVAS.length);
     });
 
+    it('ofrezco GetOnBrd solamente con previsualización habilitada y ejecutable sin alterar filtros históricos', () => {
+        const filtros = obtenerOpcionesFiltroPlataforma();
+        expect(filtros).toContain({ label: 'GetOnBrd', value: 'getonbrd' });
+        const previa = { plataforma: 'getonbrd', habilitada: true, ejecutable: true };
+        expect(obtenerOpcionesScrapingPlataforma([previa])).toContain({ label: 'GetOnBrd', value: 'getonbrd' });
+        expect(obtenerOpcionesScrapingPlataforma([{ ...previa, ejecutable: false }]).some(o => o.value === 'getonbrd')).toBeFalse();
+        expect(obtenerOpcionesScrapingPlataforma([{ ...previa, habilitada: false }]).some(o => o.value === 'getonbrd')).toBeFalse();
+        expect(obtenerOpcionesScrapingPlataforma([]).some(o => o.value === 'getonbrd')).toBeFalse();
+        expect(obtenerOpcionesFiltroPlataforma()).toEqual(filtros);
+        expect(obtenerOpcionesScrapingPlataforma([previa]).filter(o => o.value !== 'getonbrd')).toEqual(obtenerOpcionesScrapingPlataforma());
+    });
+
     // === Contrato con backend ===
     // Este test verifica que los ids/slugs/activa coinciden con el backend.
     // Si el backend agrega una plataforma, este test va a fallar para recordarnos

@@ -90,6 +90,17 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly configuracionCiclo = signal<ResumenBusqueda[]>([]);
     readonly cargandoPrevisualizacion = signal(false);
     readonly errorPrevisualizacion = signal<string | null>(null);
+    readonly getonbrdDisponible = computed(() => this.previsualizacion().some(
+        resumen => resumen.plataforma === 'getonbrd' && resumen.habilitada && resumen.ejecutable
+    ));
+    readonly motivoGetonbrd = computed(() => {
+        if (this.modoDemo()) return 'Modo demo: no ejecuto búsquedas reales.';
+        if (this.cargandoPrevisualizacion()) return 'Estoy verificando la disponibilidad de GetOnBrd.';
+        if (this.errorPrevisualizacion()) return this.errorPrevisualizacion();
+        const resumen = this.previsualizacion().find(item => item.plataforma === 'getonbrd');
+        if (!resumen) return 'No pude confirmar la disponibilidad de GetOnBrd. Actualizá la configuración guardada.';
+        return resumen.advertencias.join(' ') || 'GetOnBrd no está disponible según la configuración del backend.';
+    });
     readonly gruposResumen = computed(() => [
         { titulo: 'Configuración guardada actual', resumenes: this.previsualizacion() },
         { titulo: 'Configuración de la última búsqueda individual', resumenes: this.configuracionIndividual() ? [this.configuracionIndividual()!] : [] },
@@ -166,6 +177,10 @@ export class PanelControl implements OnInit, OnDestroy {
         if (this.busquedaOcupada()) return;
         this.actualizarPrevisualizacion(() => {
             const resumen = this.previsualizacion().find(item => item.plataforma === plataforma);
+            if (plataforma === 'getonbrd' && !resumen) {
+                this.errorPrevisualizacion.set('No pude confirmar la disponibilidad de GetOnBrd. No inicié la extracción.');
+                return;
+            }
             if (resumen && (!resumen.habilitada || !resumen.ejecutable)) {
                 this.errorPrevisualizacion.set(`${resumen.nombre} no está disponible. ${resumen.advertencias.join(' ')}`);
                 return;
@@ -180,6 +195,7 @@ export class PanelControl implements OnInit, OnDestroy {
     readonly scrapeandoIndeed = signal(false);
     readonly scrapeandoBumeran = signal(false);
     readonly scrapeandoGlassdoor = signal(false);
+    readonly scrapeandoGetonbrd = signal(false);
     readonly scrapeandoJooble = signal(false);
     readonly scrapeandoGoogleJobs = signal(false);
     readonly scrapeandoRemotive = signal(false);
@@ -198,6 +214,7 @@ export class PanelControl implements OnInit, OnDestroy {
         this.scrapeandoIndeed() ||
         this.scrapeandoBumeran() ||
         this.scrapeandoGlassdoor() ||
+        this.scrapeandoGetonbrd() ||
         this.scrapeandoJooble() ||
         this.scrapeandoRemotive() ||
         this.scrapeandoRemoteOK() ||
@@ -247,13 +264,16 @@ export class PanelControl implements OnInit, OnDestroy {
         return this.plataformaSeleccionada();
     }
     set plataformaSeleccionadaModel(valor: string) {
+        if (valor === 'getonbrd' && !this.getonbrdDisponible()) return;
         this.plataformaSeleccionada.set(valor);
     }
 
     // Opciones para el p-select mobile de plataformas de scraping.
     // Solo plataformas activas (no ofrece inactivas como ejecutables).
     // Sale del registry, usa el id interno como valor.
-    readonly opcionesPlataforma = obtenerOpcionesScrapingPlataforma();
+    get opcionesPlataforma(): Array<{ value: string; label: string }> {
+        return obtenerOpcionesScrapingPlataforma(this.previsualizacion());
+    }
 
     // Mapeo de valores del selector a etiquetas para mostrar en el overlay.
     // Derivado del registry para evitar hardcodear.
@@ -609,6 +629,7 @@ export class PanelControl implements OnInit, OnDestroy {
             case 'indeed':        this.scrapearIndeed();        break;
             case 'bumeran':       this.scrapearBumeran();       break;
             case 'glassdoor':     this.scrapearGlassdoor();     break;
+            case 'getonbrd':      this.scrapearGetonbrd();      break;
             case 'jooble':        this.scrapearJooble();        break;
             // googlejobs eliminado del selector — plataforma desactivada.
             case 'remotive':      this.scrapearRemotive();      break;
@@ -806,6 +827,38 @@ export class PanelControl implements OnInit, OnDestroy {
                     life: 5000
                 });
             }
+        });
+    }
+
+    scrapearGetonbrd(): void {
+        this.prepararBusqueda('getonbrd', () => {
+            this.scrapeandoGetonbrd.set(true);
+            this.plataformaEnProceso.set('GetOnBrd');
+            this.mostrarOverlayIndividual.set(true);
+            this.scrapingService.scrapearGetonbrd().pipe(this.seguirResultado(), takeUntilDestroyed(this.destroyRef)).subscribe({
+                next: respuesta => {
+                    this.scrapeandoGetonbrd.set(false);
+                    this.mostrarOverlayIndividual.set(false);
+                    const datos = respuesta.datos;
+                    this.mensajes.add({
+                        severity: this.severidadFuente(datos),
+                        summary: this.tituloFuente(datos, 'GetOnBrd'),
+                        detail: this.formatearDetalleScraping(datos),
+                        life: 5000,
+                    });
+                    if (datos.fuente?.estado !== 'deshabilitada') this.accionCompletada.emit();
+                },
+                error: error => {
+                    this.scrapeandoGetonbrd.set(false);
+                    this.mostrarOverlayIndividual.set(false);
+                    this.mensajes.add({
+                        severity: 'error',
+                        summary: 'Error en GetOnBrd',
+                        detail: error.error?.error || error.message || 'Error al conectar con el servidor',
+                        life: 5000,
+                    });
+                },
+            });
         });
     }
 
