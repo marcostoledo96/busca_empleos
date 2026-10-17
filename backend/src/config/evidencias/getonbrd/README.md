@@ -12,6 +12,7 @@ UTF-8 y SHA-256 de los **bytes conservados**. Los `.extracto.txt` son fragmentos
 HTML/YAML/índice separados por saltos de línea; **no son páginas completas**, y sus hashes
 no se presentan como hashes de las páginas originales. No guardo HTML masivo ni datos de ofertas.
 Las fechas proceden del reloj UTC del entorno de recuperación, no de una fecha editorial.
+Normalicé el espacio final de `openapi.extracto.txt` quitando una línea vacía excedente y conservando un LF terminal; su digest corresponde a los bytes finales conservados, no a la página completa.
 
 | Extracto | Qué respalda |
 | --- | --- |
