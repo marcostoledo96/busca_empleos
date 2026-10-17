@@ -1,0 +1,153 @@
+<div class="cv-controles cv-cabecera">
+    <a routerLink="/preferencias">← Volver a Preferencias</a>
+    <p class="cv-etiqueta">DOCUMENTOS / BORRADOR LOCAL</p>
+    <h1>Preparar mi CV</h1>
+    <p>Una plantilla, sólo mis hechos. Selecciono, corrijo y reviso antes de imprimir.</p>
+</div>
+
+@if (modoDemo()) {
+    <p class="cv-controles cv-aviso" role="status">En modo demo no consulto fuentes reales ni genero un CV ficticio.</p>
+} @else {
+    <div class="cv-controles cv-estado" aria-live="polite">
+        @if (cargando()) { <p role="status">Consultando el CV base y el perfil confirmado… Puedo seguir editando; no perderé esas ediciones.</p> }
+        @if (error) { <p role="alert">{{ error }}</p> }
+        @if (mensaje) { <p role="status">{{ mensaje }}</p> }
+        <button id="recargar-fuentes" type="button" (click)="cargarFuentes()" [disabled]="cargando()">Recargar datos guardados</button>
+    </div>
+    @if (cargado) {
+        <aside class="cv-controles cv-aviso" aria-label="Revisión de datos">
+            <p>Preparo un documento para revisar, no una certificación automática de mis datos. El borrador vive sólo en memoria: no guarda el CV base ni las preferencias y se pierde al salir.</p>
+            @if (ambasFuentes) {
+                <p><strong>Hay dos fuentes y posibles discrepancias.</strong> No resuelvo diferencias automáticamente. Comparo los originales y decido qué incluir, sin duplicar hechos.</p>
+            }
+            @if (faltanDatos) { <p>Faltan datos de nombre o contacto. Puedo completarlos manualmente antes de imprimir.</p> }
+            @if (hayEnlacesInvalidos) { <p>Enlaces no admitidos: sólo incluyo http(s) y mailto válidos, sin credenciales ni espacios.</p> }
+        </aside>
+        @if (!vistaPrevia) {
+            <div class="cv-controles cv-editor">
+                <section class="cv-panel" aria-labelledby="datos-personales">
+                    <h2 id="datos-personales">01 / Datos personales</h2>
+                    <label for="nombre">Nombre</label>
+                    <input id="nombre" name="nombre" [(ngModel)]="nombre" (ngModelChange)="editar()">
+                    <label for="contacto">Contacto y ubicación (texto libre)</label>
+                    <textarea id="contacto" name="contacto" [(ngModel)]="contacto" (ngModelChange)="editar()" rows="3"></textarea>
+                    <label for="enlaces">Contacto y portfolio: un enlace por línea</label>
+                    <textarea id="enlaces" name="enlaces" [(ngModel)]="enlaces" (ngModelChange)="editar()" rows="3" placeholder="https://portfolio.example / mailto:persona@example"></textarea>
+                </section>
+                <section class="cv-panel" aria-labelledby="seleccion-contenido">
+                    <h2 id="seleccion-contenido">02 / Contenido y enfoque</h2>
+                    <label for="enfoque">Enfoque laboral</label>
+                    <select id="enfoque" name="enfoque" [ngModel]="enfoque" (ngModelChange)="cambiarEnfoque($event)">
+                        @for (opcion of enfoques; track opcion.valor) {
+                            <option [value]="opcion.valor">{{ opcion.etiqueta }}</option>
+                        }
+                    </select>
+                    <p>El enfoque sólo ordena bloques existentes: no cambia cargos, fechas, formación ni la selección actual.</p>
+                    @if (evidenciaLimitada) {
+                        <p class="cv-aviso" role="status">Evidencia limitada en los bloques seleccionados para este enfoque. Las coincidencias de texto no acreditan experiencia. Puedo completar hechos manualmente y revisarlos.</p>
+                    }
+                    <label for="resumen">Perfil profesional (propuesto desde el perfil confirmado)</label>
+                    <textarea id="resumen" name="resumen" [ngModel]="resumen" (ngModelChange)="editarResumen($event)" rows="5"></textarea>
+                    <label class="cv-check"><input id="incluir-resumen" name="incluirResumen" type="checkbox" [(ngModel)]="incluirResumen" (ngModelChange)="editar()"> Incluir resumen revisado</label>
+                    <p>El resumen puede contener instrucciones privadas: no lo incluyo hasta seleccionarlo o editarlo explícitamente.</p>
+                    <label for="habilidades">Habilidades y tecnologías que quiero mostrar</label>
+                    <textarea id="habilidades" name="habilidades" [(ngModel)]="habilidades" (ngModelChange)="editar()" rows="3"></textarea>
+                    <p>Propongo sólo tecnologías confirmadas con nivel positivo y no penalizables. Borro las que no quiero mostrar o agrego habilidades manualmente, bajo mi responsabilidad.</p>
+                    <label class="cv-check"><input id="incluir-habilidades" name="incluirHabilidades" type="checkbox" [(ngModel)]="incluirHabilidades" (ngModelChange)="editar()"> Incluir habilidades revisadas</label>
+                </section>
+                <section class="cv-panel cv-ancho" aria-labelledby="bloques-fuente">
+                    <h2 id="bloques-fuente">03 / Seleccionar y editar bloques</h2>
+                    <p>Ningún bloque del Markdown se incluye automáticamente. Reviso experiencia, proyectos, educación e idiomas; excluyo prompts, políticas de matching, notas privadas y tecnologías no dominadas. El texto conserva su formato Markdown como texto plano, sin interpretarlo.</p>
+                    @for (bloque of bloques; track bloque.id; let i = $index) {
+                        <fieldset class="cv-bloque">
+                            <legend>Bloque {{ i + 1 }}</legend>
+                            <label class="cv-check"><input class="bloque-incluir" [name]="'incluir-' + bloque.id" type="checkbox" [(ngModel)]="bloque.incluir" (ngModelChange)="editar()"> Incluir este bloque revisado</label>
+                            <label [for]="'titulo-' + bloque.id">Título (opcional)</label>
+                            <input class="bloque-titulo" [id]="'titulo-' + bloque.id" [name]="'titulo-' + bloque.id" [(ngModel)]="bloque.titulo" (ngModelChange)="editar()">
+                            <label [for]="'texto-' + bloque.id">Texto del bloque</label>
+                            <textarea class="bloque-texto" [id]="'texto-' + bloque.id" [name]="'texto-' + bloque.id" [(ngModel)]="bloque.texto" (ngModelChange)="editar()" rows="6"></textarea>
+                            <div class="cv-acciones">
+                                <button class="bloque-subir" type="button" (click)="moverBloque(i, -1)" [disabled]="i === 0" [attr.aria-label]="'Subir bloque ' + (i + 1)">↑ Subir</button>
+                                <button class="bloque-bajar" type="button" (click)="moverBloque(i, 1)" [disabled]="i === bloques.length - 1" [attr.aria-label]="'Bajar bloque ' + (i + 1)">↓ Bajar</button>
+                            </div>
+                        </fieldset>
+                    } @empty {
+                        <p>No hay bloques guardados. No invento experiencia, formación ni idiomas; puedo agregarlos manualmente.</p>
+                    }
+                    <button id="agregar-bloque" type="button" (click)="agregarBloque()">Agregar bloque manual</button>
+                </section>
+                <section class="cv-panel" aria-labelledby="orden-secciones">
+                    <h2 id="orden-secciones">04 / Orden de las secciones</h2>
+                    @for (seccion of secciones; track seccion; let i = $index) {
+                        <div class="cv-orden">
+                            <span>{{ etiquetas[seccion] }}</span>
+                            <button type="button" (click)="moverSeccion(i, -1)" [disabled]="i === 0" [attr.aria-label]="'Subir ' + etiquetas[seccion]">↑</button>
+                            <button type="button" (click)="moverSeccion(i, 1)" [disabled]="i === secciones.length - 1" [attr.aria-label]="'Bajar ' + etiquetas[seccion]">↓</button>
+                        </div>
+                    }
+                </section>
+                <section class="cv-panel" aria-labelledby="originales">
+                    <h2 id="originales">Fuentes para comparar</h2>
+                    <details>
+                        <summary>CV base guardado, original completo</summary>
+                        <pre id="fuente-cv">{{ fuenteCv }}</pre>
+                    </details>
+                    <details>
+                        <summary>Datos del candidato confirmados usados como propuesta</summary>
+                        <p>No muestro las políticas internas, restricciones ni roles objetivo del perfil efectivo. No infiero idiomas ni experiencia desde ellos.</p>
+                        <pre id="fuente-perfil">{{ fuentePerfil }}</pre>
+                    </details>
+                </section>
+                <section class="cv-panel cv-ancho" aria-labelledby="revisar-documento">
+                    <h2 id="revisar-documento">05 / Mi revisión</h2>
+                    <label class="cv-check">
+                        <input id="confirmar-revision" name="revisionConfirmada" type="checkbox" [(ngModel)]="revisionConfirmada">
+                        Revisé los hechos, la selección y mis cambios manuales. Excluí información privada y asumo la responsabilidad por el contenido final.
+                    </label>
+                    <button id="ver-previa" type="button" (click)="previsualizar()" [disabled]="!revisionConfirmada || cargando()">Revisar vista previa</button>
+                </section>
+            </div>
+        } @else {
+            <div class="cv-controles cv-acciones cv-barra-previa">
+                <button id="volver-editar" type="button" (click)="vistaPrevia = false">Volver a editar</button>
+                <button id="imprimir-cv" type="button" (click)="imprimir()" [disabled]="cargando()">Imprimir / Guardar como PDF</button>
+                <p>Una plantilla A4. En el diálogo del navegador puedo elegir Guardar como PDF y desactivar sus encabezados y pies de página.</p>
+            </div>
+            <article class="cv-documento" aria-label="Vista previa del CV">
+                @if (nombre.trim() || contacto.trim() || enlacesSeguros.length) {
+                    <header class="cv-identidad">
+                        @if (nombre.trim()) { <h1>{{ nombre }}</h1> }
+                        @if (contacto.trim()) { <p class="cv-texto">{{ contacto }}</p> }
+                        @for (enlace of enlacesSeguros; track $index) {
+                            <p><a [href]="enlace" rel="noopener noreferrer">{{ enlace }}</a></p>
+                        }
+                    </header>
+                }
+                @for (seccion of secciones; track seccion) {
+                    @switch (seccion) {
+                        @case ('perfil') {
+                            @if (incluirResumen && resumen.trim()) {
+                                <section class="cv-seccion" [class.cv-bloque-breve]="resumen.length < 900"><h2>Perfil profesional</h2><p class="cv-texto">{{ resumen }}</p></section>
+                            }
+                        }
+                        @case ('contenido') {
+                            @for (bloque of bloques; track bloque.id) {
+                                @if (bloque.incluir && bloque.texto.trim()) {
+                                    <section class="cv-seccion" [class.cv-bloque-breve]="bloque.texto.length + bloque.titulo.length < 900">
+                                        @if (bloque.titulo.trim()) { <h2>{{ bloque.titulo }}</h2> }
+                                        <p class="cv-texto">{{ bloque.texto }}</p>
+                                    </section>
+                                }
+                            }
+                        }
+                        @case ('habilidades') {
+                            @if (incluirHabilidades && habilidades.trim()) {
+                                <section class="cv-seccion" [class.cv-bloque-breve]="habilidades.length < 900"><h2>Habilidades y tecnologías</h2><p class="cv-texto">{{ habilidades }}</p></section>
+                            }
+                        }
+                    }
+                }
+            </article>
+        }
+    }
+}
