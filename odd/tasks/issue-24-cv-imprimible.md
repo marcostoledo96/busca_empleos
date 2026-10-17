@@ -46,8 +46,8 @@ S16. «Devolveme:» «1. URL de la PR. 2. BASE y HEAD exactos. 3. Archivos modif
 
 ## Tasks
 T1 | S2-S12,S14 | gentle-ai-worker | done | Commit30009121bdaa2c2dd522993d94fa76c4ab94eba4; RED23FAIL y print1FAIL, GREEN29focal/101regresión/489suitePASS4SKIP/build/diffPASS. Inspección visual enT2.
-T2 | S1-S14 | gentle-ai-verify y orquestador | in_progress | Independiente130PASS+17probesPASS, BASE96PASS; PDF real detecta primera página vacía (corto2/largo6). Probe page:cv en body elimina salto (corto1). Corrección durable y recheck focal/visual pendientes.
-T3 | S1,S13,S15-S16 | orquestador | pending | Evaluación RDD, commits convencionales, única PR master, observar CI y entregar evidencia.
+T2 | S1-S14 | gentle-ai-verify y orquestador | done | Commit6a6799009465e5ffc976a5bcd04b623a3b34f681. RED45PASS1FAIL→GREEN46PASS; suite506PASS4SKIP/buildPASS; independiente46PASS+PDF1/5A4/34registros íntegros/márgenes; padre6páginasvisual/46spotcheckPASS; docs/evidencia actualizadas.
+T3 | S1,S13,S15-S16 | orquestador | in_progress | Evaluación RDD final, cierre documental, única PR master, observar CI y entregar evidencia; sin publicación todavía.
 
 ## Log
 L1. Pedido original: «Actuá como desarrollador responsable de Busca Empleos. Implementá completamente la **issue #24**, usando **Gentle Shell de Pi y la metodología Gentle AI instalada**.» El pedido completo de 13 secciones está en la conversación Pi iniciadora; sus reglas y 24 pruebas se transcriben literalmente en S1-S16. Issue completa leída: https://github.com/marcostoledo96/busca_empleos/issues/24, status:approved/type:feature, OPEN. «Priorizá una solución sencilla que funcione. No agregues sobreingeniería, ceremonias ni componentes innecesarios.» «No te detengas después de planificar: implementá, verificá y publicá una PR.»
