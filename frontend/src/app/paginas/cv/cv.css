@@ -1,0 +1,210 @@
+:host {
+    display: block;
+    max-width: 1120px;
+    margin: 0 auto;
+}
+
+.cv-cabecera {
+    padding-block: 1rem 2rem;
+    border-bottom: 2px solid var(--on-surface);
+}
+
+.cv-cabecera h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: clamp(2rem, 5vw, 3rem);
+    font-weight: 500;
+}
+
+.cv-etiqueta {
+    margin-top: 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+}
+
+.cv-estado, .cv-barra-previa {
+    margin-block: 1.5rem;
+}
+
+.cv-aviso {
+    padding: 1rem;
+    margin-block: 1rem;
+    border-left: 3px solid var(--on-surface);
+    background: var(--surface-container-low);
+}
+
+.cv-editor {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+}
+
+.cv-panel {
+    padding: 1.5rem;
+    border: 1px solid var(--outline);
+    min-width: 0;
+}
+
+.cv-panel h2 {
+    font-size: 1.1rem;
+    margin-bottom: 1rem;
+}
+
+.cv-ancho {
+    grid-column: 1 / -1;
+}
+
+label, input:not([type='checkbox']), textarea, select {
+    display: block;
+    width: 100%;
+}
+
+label {
+    margin-top: 1rem;
+    font-weight: 600;
+}
+
+input:not([type='checkbox']), textarea, select {
+    margin-block: 0.4rem 0.7rem;
+    padding: 0.7rem;
+    border: 1px solid var(--outline);
+    background: var(--surface);
+    color: var(--on-surface);
+    font: inherit;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 5rem;
+}
+
+.cv-check {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    padding-block: 0.5rem;
+}
+
+input[type='checkbox'] {
+    flex: 0 0 auto;
+    width: 1.2rem;
+    height: 1.2rem;
+    margin-top: 0.25rem;
+    accent-color: var(--primary);
+}
+
+.cv-panel p {
+    margin-block: 0.6rem;
+}
+
+button {
+    min-height: 44px;
+    padding: 0.5rem 0.9rem;
+    font: inherit;
+    color: var(--on-surface);
+    background: var(--surface-container-low);
+    border: 1px solid var(--outline);
+    cursor: pointer;
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#ver-previa, #imprimir-cv {
+    color: var(--on-primary);
+    background: var(--primary);
+    margin-top: 1rem;
+}
+
+a {
+    color: inherit;
+    text-underline-offset: 0.2em;
+}
+
+.cv-bloque {
+    padding: 1rem;
+    margin-block: 1.5rem;
+    border: 1px solid var(--outline);
+    min-width: 0;
+}
+
+.cv-acciones, .cv-orden {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.cv-orden {
+    margin-block: 0.7rem;
+}
+
+.cv-orden span {
+    flex: 1 1 12rem;
+}
+
+summary {
+    cursor: pointer;
+    padding-block: 0.7rem;
+}
+
+pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: inherit;
+    border-top: 1px solid var(--outline);
+    padding-block: 1rem;
+}
+
+.cv-documento {
+    margin: 2rem auto;
+    padding: 16mm 17mm;
+    max-width: 210mm;
+    background: #fff;
+    color: #171717;
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 11pt;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    border: 1px solid #ddd;
+}
+
+.cv-identidad {
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #444;
+}
+
+.cv-identidad h1 {
+    font-size: 24pt;
+    line-height: 1.2;
+    margin-bottom: 0.5rem;
+}
+
+.cv-seccion {
+    margin-top: 1.2rem;
+}
+
+.cv-seccion h2 {
+    font-size: 13pt;
+    margin-bottom: 0.4rem;
+}
+
+.cv-texto {
+    white-space: pre-wrap;
+}
+
+@media (max-width: 760px) {
+    .cv-editor {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .cv-panel {
+        padding: 1rem;
+    }
+
+    .cv-documento {
+        padding: 1.2rem;
+    }
+}

@@ -29,6 +29,16 @@ describe('Preferencias — CV base persistido', () => {
         return { fixture, componente: fixture.componentInstance, http };
     }
 
+    it('enlaza al CV imprimible sin guardar ni alterar el editor o las preferencias', async () => {
+        const { fixture, componente, http } = await abrir('Fuente guardada');
+        const enlace = fixture.nativeElement.querySelector('#abrir-cv-imprimible') as HTMLAnchorElement;
+        expect(enlace.getAttribute('href')).toBe('/cv');
+        expect(componente.cvBaseTexto).toBe('Fuente guardada');
+        expect(componente.cambiosCvPendientes).toBeFalse();
+        http.expectNone(r => r.method !== 'GET');
+        http.verify();
+    });
+
     it('termina la carga demo sin consultar ni simular un CV persistido', async () => {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
@@ -178,7 +188,7 @@ describe('Preferencias — CV base persistido', () => {
     it('carga la fuente independiente y deshabilita el editor hasta recibirla', async () => {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
-            providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+            providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
                 { provide: DemoService, useValue: { esModoDemo: () => false } }],
         }).compileComponents();
         const fixture = TestBed.createComponent(Preferencias);
@@ -248,6 +258,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
             providers: [
+                provideRouter([]),
                 provideNoopAnimations(),
                 { provide: PreferenciasService, useValue: mockPrefService },
                 { provide: EvaluacionService, useValue: mockEvaluacionService },
@@ -1055,6 +1066,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
             providers: [
+                provideRouter([]),
                 { provide: PreferenciasService, useValue: mockPrefServiceError },
                 { provide: EvaluacionService, useValue: mockEvaluacionService },
                 { provide: DemoService, useValue: mockDemoService },

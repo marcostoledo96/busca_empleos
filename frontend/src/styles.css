@@ -770,3 +770,85 @@ html.dark .p-inputchips input {
     background: transparent !important;
     color: var(--on-surface) !important;
 }
+
+/* Aíslo la impresión del CV sin modificar otras rutas ni el tema de pantalla. */
+@media print {
+    @page cv {
+        size: A4;
+        margin: 16mm 17mm;
+    }
+
+    body:has(app-cv) {
+        background: #fff !important;
+        color: #171717 !important;
+        margin: 0 !important;
+    }
+
+    body:has(app-cv) .sidebar,
+    body:has(app-cv) .sidebar-overlay,
+    body:has(app-cv) .topbar,
+    body:has(app-cv) .footer,
+    body:has(app-cv) .banner-demo,
+    body:has(app-cv) .cv-controles {
+        display: none !important;
+    }
+
+    body:has(app-cv) app-root,
+    body:has(app-cv) .contenido-principal,
+    body:has(app-cv) app-cv {
+        display: block !important;
+        position: static !important;
+        width: auto !important;
+        max-width: none !important;
+        min-height: 0 !important;
+        height: auto !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+    }
+
+    body:has(app-cv) .cv-documento {
+        page: cv;
+        display: block !important;
+        width: auto !important;
+        max-width: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        background: #fff !important;
+        color: #171717 !important;
+        font-size: 11pt !important;
+        line-height: 1.5 !important;
+        overflow: visible !important;
+        overflow-wrap: anywhere;
+        box-shadow: none !important;
+    }
+
+    body:has(app-cv) .cv-documento h1,
+    body:has(app-cv) .cv-documento h2 {
+        break-after: avoid;
+        break-inside: avoid;
+    }
+
+    body:has(app-cv) .cv-identidad {
+        break-after: avoid;
+        break-inside: auto;
+    }
+
+    body:has(app-cv) .cv-seccion,
+    body:has(app-cv) .cv-texto {
+        break-inside: auto;
+        orphans: 3;
+        widows: 3;
+    }
+
+    body:has(app-cv) .cv-bloque-breve {
+        break-inside: avoid-page;
+    }
+
+    body:has(app-cv) .cv-documento a {
+        color: #171717 !important;
+        text-decoration: underline;
+    }
+}

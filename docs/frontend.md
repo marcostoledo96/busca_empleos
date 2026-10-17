@@ -1,5 +1,73 @@
 # Frontend — Busca Empleos
 
+## CV imprimible con datos confirmados — issue #24
+
+Abro **Preparar CV imprimible con los datos guardados** desde Preferencias y llego
+al generador autenticado `/cv`. Uso una sola plantilla editorial A4 y la impresión
+nativa del navegador, sin backend PDF, nuevas dependencias ni llamadas a IA.
+Consulto únicamente `GET /api/preferencias/cv-base` y `GET /api/preferencias` mediante
+el servicio y el interceptor de autenticación existentes. No tomo datos sin guardar
+del formulario ni leo un CV del repositorio. En modo demo no consulto las fuentes
+reales ni genero un CV ficticio.
+
+Del `perfil_efectivo.candidato` propongo nombre, resumen y tecnologías con nivel
+`basico`, `medio` o `avanzado`, excluyendo las de importancia `penalizable`. No uso
+el stack plano como alternativa: podría afirmar conocimientos ausentes. Nunca copio
+el texto completo del perfil efectivo, sus políticas, restricciones, roles objetivo,
+prompts ni notas privadas al documento. El resumen queda sin incluir hasta que lo
+seleccione o edite explícitamente, porque también podría contener instrucciones.
+No infiero experiencia, formación ni idiomas: provienen de bloques de la fuente o
+de mi entrada manual.
+
+Separo el Markdown por encabezados ATX (`#` a `######`) fuera de cercas de código.
+Es una selección de texto, no un parser de experiencia estructurada. Conservo los
+fragmentos desconocidos, sin inventar títulos ni resumirlos; el original completo
+permanece disponible para comparar. Ningún bloque se incluye automáticamente.
+Los formatos no reconocidos, como encabezados subrayados, quedan como texto editable.
+Al comparar ambas fuentes advierto posibles discrepancias sin adjudicar cuál es
+correcta. Muestro por separado los campos originales del candidato usados como
+propuesta, sin exponer sus políticas internas en esa vista.
+
+En el borrador corrijo nombre, contacto, resumen, habilidades y bloques; selecciono,
+oculto y reordeno contenido. Para quitar una tecnología borro su nombre del campo
+editable; puedo ocultar también la sección completa. Agrego bloques manuales para
+experiencia, proyectos, educación o idiomas faltantes. Los cuatro enfoques
+**Desarrollo de software**, **QA / Testing**, **Soporte IT** y **Salud / Administración
+sanitaria** sólo priorizan bloques por coincidencias de texto: no reescriben cargos,
+fechas o hechos, ni cambian qué bloques elegí. Una advertencia de evidencia limitada
+recuerda que esas coincidencias no acreditan experiencia.
+
+Todo vive sólo en memoria: no guardo fuentes, preferencias ni versiones del CV,
+no envío postulaciones y no cambio estados de ofertas. Salir con cambios requiere
+confirmación mediante `CanDeactivate`; al cerrar o recargar la pestaña uso
+`beforeunload`, sujeto a las restricciones del navegador. **Recargar datos guardados**
+vuelve a consultar ambos GET y pide confirmar el descarte si edité el borrador.
+Comparo generaciones de solicitud y revisiones de edición: una respuesta vieja o
+una carga durante la que seguí editando no reemplaza el borrador. Ante error conservo
+la versión anterior y permito reintentar; no aplico una sola fuente de una carga fallida.
+
+Antes de la vista previa confirmo explícitamente que revisé hechos, selección y
+cambios manuales y excluí información privada. Toda edición posterior invalida esa
+confirmación. **Volver a editar** conserva el borrador; **Imprimir / Guardar como PDF**
+es la única acción que llama a `window.print()`. Los campos se interpolan como texto
+seguro, sin HTML ejecutable. Sólo convierto enlaces manuales `http(s)` o `mailto`
+válidos en vínculos, sin credenciales, espacios ni protocolos ejecutables.
+
+Las reglas globales de impresión se limitan a `body:has(app-cv)` (Chromium actual).
+Oculto shell, controles y originales; neutralizo márgenes y posiciones del layout.
+La página nombrada `cv` usa A4 con márgenes de 16 mm verticales y 17 mm horizontales,
+fondo blanco y cuerpo de 11 pt incluso en tema oscuro. Evito separar encabezados
+y bloques breves; los textos largos pueden fragmentarse con control de líneas
+huérfanas y viudas, sin altura fija ni recorte. No fuerzo una única página. En el
+diálogo puedo desactivar los encabezados y pies agregados por el navegador.
+
+`paginas/cv/cv.spec.ts` usa HTTP y datos sintéticos para comprobar selección, edición,
+privacidad, enlaces seguros, recargas, preview e impresión explícita. Compruebo el
+contrato CSS de impresión y el tema oscuro, pero esas aserciones no sustituyen una
+inspección visual de PDF corto y largo. `app.routes.spec.ts` verifica la reutilización
+del guard de autenticación y la protección de salida del borrador; las regresiones
+de Preferencias, revisión de perfil, editor e importación siguen en sus suites.
+
 ## Importación de documentos con texto revisable — issue #23
 
 En `/preferencias`, pestaña **Importar CV**, mantengo tres datos independientes:
