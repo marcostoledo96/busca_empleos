@@ -36,6 +36,23 @@ test('uso categorías #19 sin contar actualizaciones como nuevas', async () => {
     const resultado = await servicio.ejecutarFuente('linkedin', async () => lote('completada', [oferta, { ...oferta, url: 'https://example.test/2' }]));
     expect(resultado).toMatchObject({ nuevas: 0, actualizadas: 1, reapariciones: 1, duplicadas: 2 });
 });
+test('GetOnBrd usa las categorías comunes de ingreso y conserva una falla aislada', async () => {
+    const { PLATAFORMAS } = require('../../src/config/plataformas');
+    const activa = jest.spyOn(PLATAFORMAS.getonbrd, 'activa', 'get').mockReturnValue(true);
+    try {
+        modelo.crearOferta.mockReset();
+        modelo.crearOferta.mockResolvedValueOnce({ resultado_persistencia: 'insertada' })
+            .mockResolvedValueOnce({ resultado_persistencia: 'actualizada' })
+            .mockResolvedValueOnce({ resultado_persistencia: 'reaparicion' })
+            .mockResolvedValueOnce(null).mockRejectedValueOnce(new Error('Fallo sintético'));
+        const ofertas = Array.from({ length: 5 }, (_, i) => ({ ...oferta, plataforma: 'getonbrd', url: `https://www.getonbrd.com/jobs/${i}` }));
+        const resultado = await servicio.ejecutarFuente('getonbrd', async () => lote('completada', ofertas));
+        expect(resultado).toMatchObject({ estado: 'parcial', estadoScraping: 'completada', nuevas: 1, actualizadas: 1,
+            reapariciones: 1, duplicadas: 3, erroresGuardado: 1, totalExtraidas: 5 });
+        expect(modelo.crearOferta).toHaveBeenCalledTimes(5);
+        expect(ofertas).toEqual(Array.from({ length: 5 }, (_, i) => ({ ...oferta, plataforma: 'getonbrd', url: `https://www.getonbrd.com/jobs/${i}` })));
+    } finally { activa.mockRestore(); }
+});
 test('no invoco fuentes deshabilitadas y mantengo motivo del registry', async () => {
     const scraper = jest.fn();
     const resultado = await servicio.ejecutarFuente('getonbrd', scraper);
@@ -69,6 +86,9 @@ test('fallo al finalizar no pierde resultado ni se oculta', async () => {
     historial.finalizar.mockRejectedValue(new Error('BD sintética'));
     const resultado = await servicio.conHistorial('individual', async () => ({ estado: 'completada', fuentes: [] }));
     expect(resultado).toMatchObject({ estado: 'completada', historial: { id: 1, guardado: false, error: expect.any(String) } });
+});
+test('todas las fuentes deshabilitadas representan omisión, no éxito vacío', () => {
+    expect(servicio.estadoGeneral([{ estado: 'deshabilitada' }])).toBe('omitida');
 });
 test('distingo fallo total y parcial sin mezclar evaluación anterior', () => {
     expect(servicio.estadoGeneral([{ estado: 'error' }, { estado: 'timeout' }])).toBe('error');

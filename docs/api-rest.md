@@ -5,9 +5,10 @@
 Los individuales conservan los campos anteriores y agregan `datos.fuente`, el mismo
 objeto que integra `ultimoResultado.fuentes[]` en ciclo/cron. Leo su `estado`, no deduzco
 éxito por estar activa en el registry. Estados: `completada`, `sin_resultados`, `parcial`,
-`error`, `timeout`, `sin_credenciales`, `deshabilitada`; el ciclo agrega `omitida` para
-consultas incompatibles. GetOnBrd conserva `datos.estado: "bloqueado"` por compatibilidad;
-su `datos.fuente.estado` es `deshabilitada`, con motivo del registry y cero peticiones.
+`error`, `timeout`, `sin_credenciales`, `deshabilitada`, `cancelada`; el ciclo agrega `omitida` para
+consultas incompatibles. Solo si GetOnBrd está deshabilitado conservo `datos.estado: "bloqueado"`
+por compatibilidad; `datos.fuente.estado` es `deshabilitada`, con motivo del registry y cero peticiones.
+Si está habilitado, `datos.estado` refleja el resultado real, nunca un bloqueo fijo.
 
 Ejemplo **sintético ilustrativo**, no resultado de un proveedor real:
 
@@ -154,8 +155,29 @@ Ejemplo parcial de preview, cuando hay credenciales configuradas:
 
 La lista real incluye todas las plataformas del registry. Muestro los filtros y
 advertencias del backend sin deducir capacidades por nombre desde el frontend.
-GetOnBrd conserva su respuesta bloqueada; Google Jobs e InfoJobs conservan su
-respuesta inactiva y cero requests. No activo cron al consultar ni al ejecutar manualmente.
+GetOnBrd usa `habilitada`/`ejecutable` de esta misma preview: dependen de
+`GETONBRD_ENABLED=true` y de verificar la evidencia pública conservada. `advertencias` explica
+el bloqueo y las preferencias incompatibles; no deduzco habilitación solo del flag en frontend.
+Su `consultasEfectivas` conserva los términos guardados o explícitos y `filtros` informa
+`maxPeticiones` (2 por defecto, máximo 10), `porPagina` (20) y `timeoutMs` (5000).
+Google Jobs e InfoJobs conservan su respuesta inactiva y cero requests.
+No activo cron al consultar ni al ejecutar manualmente.
+
+### GetOnBrd individual
+
+`POST /api/scraping/getonbrd` acepta las opciones comunes `terminos`/`terminos_busqueda`,
+`maxResultados` (40 por defecto) y `maxPeticiones`. No acepta `destino`, evidencia ni banderas
+de habilitación desde HTTP. Usa la persistencia común y devuelve nuevas, actualizadas,
+reapariciones, duplicadas y errores de guardado en `datos.fuente`, más historial.
+La ventana local es de 30 días; no envío ubicación ni otros filtros incompatibles al proveedor.
+
+Una respuesta parcial mantiene HTTP 200 y `fuente.estado: 'parcial'`, ofertas ingresadas,
+`errores` y `checkpoint`. Un fallo externo sin ofertas devuelve 502 (`error`), o 504 (`timeout`),
+con `exito: false`; una cancelación conserva `cancelada`. HTTP 429 aparece como
+`errores: [{ tipo: 'limite_solicitudes', codigoHttp: 429 }]`, sin reintentos.
+Los campos `checkpoint` y `run_id` están en la fuente cuando el scraper se ejecutó;
+el historial conserva un checkpoint saneado. No expongo una ruta nueva de reanudación.
+Ver [evidencia y rollback](scraping.md#getonbrd--api-pública-con-habilitación-controlada).
 
 ## CV base editable — documento fuente (issue #12)
 
@@ -464,7 +486,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/glassdoor` | Ejecutar scraping de Glassdoor | **Sí** | **Sí** (5/min) |
-| POST | `/api/scraping/getonbrd` | Consultar estado bloqueado del piloto GetOnBrd | **Sí** | **Inactivo** |
+| POST | `/api/scraping/getonbrd` | Ejecutar GetOnBrd con habilitación efectiva o informar bloqueo | **Sí** | **Sí** (5/min, límite común de scraping) |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |

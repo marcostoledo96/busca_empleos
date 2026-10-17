@@ -6,6 +6,7 @@ const { filtrarOfertasPorIdioma, guardarLoteOfertasAislado } = require('./servic
 
 function estadoGeneral(fuentes) {
     const activas = fuentes.filter(f => !['deshabilitada', 'omitida'].includes(f.estado));
+    if (!activas.length) return 'omitida';
     const correctas = activas.filter(f => ['completada', 'sin_resultados'].includes(f.estado));
     if (activas.some(f => f.estado === 'parcial')) return 'parcial';
     if (correctas.length < activas.length) return correctas.length ? 'parcial' : 'error';

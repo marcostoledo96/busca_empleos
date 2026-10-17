@@ -46,6 +46,15 @@ test('al reiniciar también acoto las ejecuciones interrumpidas', async () => {
     expect(pool.query).toHaveBeenCalledTimes(2);
     expect(pool.query.mock.calls[1][0]).toContain('LIMIT 20');
 });
+test('conservo cancelación y checkpoint GetOnBrd saneado sin metadatos arbitrarios', () => {
+    const resumen = modelo.sanitizarResumen({ estado: 'cancelada', fuentes: [{ plataforma: 'getonbrd', estado: 'cancelada',
+        motivoFinalizacion: 'cancelacion', checkpoint: { termino_indice: 2, termino: 'qa', pagina_confirmada: 1,
+            pagina_siguiente: 2, item_offset: 3, secreto: 'NO_GUARDAR' }, errores: [{ tipo: 'cancelacion' }] }] });
+    expect(resumen).toMatchObject({ estado: 'cancelada', fuentes: [{ estado: 'cancelada', motivoFinalizacion: 'cancelacion',
+        checkpoint: { termino_indice: 2, termino: 'qa', pagina_confirmada: 1, pagina_siguiente: 2, item_offset: 3 } }] });
+    expect(JSON.stringify(resumen)).not.toContain('NO_GUARDAR');
+});
+
 test('un fallo de lectura se propaga, no devuelvo lista vacía', async () => {
     pool.query.mockRejectedValue(new Error('BD sintética'));
     await expect(modelo.listar()).rejects.toThrow('BD sintética');

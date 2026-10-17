@@ -45,7 +45,7 @@ const { resolverConfiguracion, palabrasBusqueda } = require('./servicio-configur
 const { normalizarLote, detectarIdioma, parsearFechaRelativaComputrabajo } = require('./servicio-normalizacion');
 const cheerio = require('cheerio');
 const { randomUUID } = require('crypto');
-const { DESTINO_SANDBOX, LIMITES_GETONBRD, validarDestinoGetonbrd } = require('../config/getonbrd');
+const { DESTINO_SANDBOX, DESTINO_PRODUCCION, LIMITES_GETONBRD, DEFAULTS_GETONBRD, validarDestinoGetonbrd } = require('../config/getonbrd');
 const {
     obtenerIdentidadCanonica,
     canonizarUrlPlataforma,
@@ -957,7 +957,7 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
 async function ejecutarScrapingGetonbrd(opciones = {}) {
     const ahora = opciones.ahora instanceof Date ? opciones.ahora : new Date();
     const guardia = validarDestinoGetonbrd({
-        destino: opciones.destino || DESTINO_SANDBOX,
+        destino: opciones.destino || DESTINO_PRODUCCION,
         evidencia: opciones.evidencia,
         habilitado: opciones.habilitado,
         ahora,
@@ -975,11 +975,11 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
         destino: guardia.destino, ofertas: [], checkpoint,
         metricas: { requests: 0, paginas: 0, recibidas: 0, normalizadas: 0, dentro_ventana: 0, fuera_ventana: 0, duplicadas_intra_run: 0, invalidas: 0, latencia_ms: 0 },
     };
-    if (!guardia.permitido) return resultado;
-
-    const destino = opciones.destino || DESTINO_SANDBOX;
-    const limitePaginas = Math.max(1, Math.min(opciones.limitePaginas || LIMITES_GETONBRD.paginas, LIMITES_GETONBRD.paginas));
-    const limiteItems = Math.max(1, Math.min(opciones.maxResultados || opciones.limiteItems || LIMITES_GETONBRD.items, LIMITES_GETONBRD.items));
+    const destino = opciones.destino || DESTINO_PRODUCCION;
+    const acotar = (valor, defecto, techo) => Number.isInteger(valor) && valor > 0 ? Math.min(valor, techo) : defecto;
+    const limitePaginas = acotar(opciones.limitePaginas ?? opciones.maxPeticiones, DEFAULTS_GETONBRD.paginas, LIMITES_GETONBRD.paginas);
+    const limiteItems = acotar(opciones.maxResultados ?? opciones.limiteItems, DEFAULTS_GETONBRD.items, LIMITES_GETONBRD.items);
+    const porPagina = acotar(opciones.porPagina, DEFAULTS_GETONBRD.porPagina, LIMITES_GETONBRD.porPagina);
     const timeoutMs = Math.max(1, Math.min(opciones.timeoutMs || LIMITES_GETONBRD.timeoutMs, LIMITES_GETONBRD.timeoutMs));
     const terminos = Array.isArray(opciones.terminos) && opciones.terminos.length ? opciones.terminos : TERMINOS_BUSQUEDA_DEFECTO;
     const cliente = opciones.cliente || fetch;
@@ -991,12 +991,38 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
         resultado.estado = estado;
         resultado.motivo_terminacion = motivo;
         resultado.metricas.latencia_ms = Date.now() - inicio;
-        return resultado;
+        const fallida = ['error_http', 'timeout', 'red', 'respuesta_invalida', 'limite_solicitudes'].includes(motivo);
+        const estadoComun = estado === 'bloqueado' ? 'deshabilitada' : estado === 'cancelado' ? 'cancelada'
+            : fallida ? (resultado.ofertas.length ? 'parcial' : motivo === 'timeout' ? 'timeout' : 'error')
+                : estado === 'completado' ? (resultado.ofertas.length ? 'completada' : 'sin_resultados') : estado;
+        Object.assign(resultado.metricas, {
+            estado: estadoComun, motivoFinalizacion: estado === 'bloqueado' ? guardia.motivo : motivo,
+            maxResultados: limiteItems, ventanaDias: 30, peticionesRealizadas: resultado.metricas.requests,
+            consultasEjecutadas: consultas.size, totalCrudos: resultado.metricas.recibidas,
+            totalElegibles: resultado.ofertas.length, duplicadasDescartadas: resultado.metricas.duplicadas_intra_run,
+            antiguasDescartadas: resultado.metricas.fuera_ventana, checkpoint: { ...checkpoint }, run_id: resultado.run_id,
+            errores: motivo === 'cancelacion' ? [{ tipo: 'cancelacion' }] : fallida
+                ? [{ tipo: motivo === 'error_http' ? 'http' : motivo, ...(resultado.codigoHttp ? { codigoHttp: resultado.codigoHttp } : {}) }] : [],
+        });
+        // Conservo metadatos del piloto sin romper el array que consume el ingreso común.
+        const ofertas = resultado.ofertas;
+        for (const [clave, valor] of Object.entries(resultado)) {
+            Object.defineProperty(ofertas, clave, { value: valor, enumerable: false });
+        }
+        return ofertas;
     };
+    const consultas = new Set();
+    if (!guardia.permitido || destino === DESTINO_SANDBOX && typeof opciones.cliente !== 'function') {
+        return terminar('bloqueado', 'politica_destino');
+    }
 
     terminosPendientes: for (let indice = checkpoint.termino_indice; indice < terminos.length; indice++) {
         const termino = terminos[indice];
-        let pagina = indice === checkpoint.termino_indice ? checkpoint.pagina_siguiente : 1;
+        if (indice !== checkpoint.termino_indice) {
+            Object.assign(checkpoint, { termino_indice: indice, termino, pagina_confirmada: 0, pagina_siguiente: 1, item_offset: 0 });
+        }
+        checkpoint.termino = termino;
+        let pagina = checkpoint.pagina_siguiente;
         let techoTotalPaginas = Infinity;
 
         while (pagina <= techoTotalPaginas && paginasProcesadas < limitePaginas) {
@@ -1009,11 +1035,12 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
             let respuesta;
             try {
                 resultado.metricas.requests++;
-                respuesta = await cliente(`${destino}/search/jobs?query=${encodeURIComponent(termino)}&page=${pagina}&per_page=${LIMITES_GETONBRD.porPagina}`, { signal: abortador.signal });
+                consultas.add(indice);
+                respuesta = await cliente(`${destino}/search/jobs?query=${encodeURIComponent(termino)}&page=${pagina}&per_page=${porPagina}`, { signal: abortador.signal, redirect: 'error' });
             } catch (error) {
                 clearTimeout(temporizador);
                 opciones.signal?.removeEventListener('abort', cancelarExterno);
-                return terminar(opciones.signal?.aborted ? 'cancelado' : 'parcial', opciones.signal?.aborted ? 'cancelacion' : 'timeout');
+                return terminar(opciones.signal?.aborted ? 'cancelado' : 'parcial', opciones.signal?.aborted ? 'cancelacion' : abortador.signal.aborted ? 'timeout' : 'red');
             }
             if (opciones.signal?.aborted) {
                 clearTimeout(temporizador);
@@ -1023,7 +1050,8 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
             if (!respuesta?.ok) {
                 clearTimeout(temporizador);
                 opciones.signal?.removeEventListener('abort', cancelarExterno);
-                return terminar('parcial', 'error_http');
+                resultado.codigoHttp = respuesta?.status;
+                return terminar('parcial', respuesta?.status === 429 ? 'limite_solicitudes' : 'error_http');
             }
             let cuerpo;
             try {
@@ -1071,6 +1099,10 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
                 }
                 if (new Date(oferta.fecha_publicacion).getTime() < limiteFecha) {
                     resultado.metricas.fuera_ventana++;
+                    continue;
+                }
+                if (detectarIdioma(oferta.titulo, oferta.descripcion) === 'en') {
+                    resultado.metricas.idiomaDescartadas = (resultado.metricas.idiomaDescartadas || 0) + 1;
                     continue;
                 }
                 const identidad = obtenerIdentidadCanonica(oferta);

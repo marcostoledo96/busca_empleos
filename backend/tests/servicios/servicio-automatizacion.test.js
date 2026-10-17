@@ -140,6 +140,23 @@ describe('Servicio de automatización', () => {
     });
 
     describe('ejecutarCicloCompleto()', () => {
+        test('incluyo GetOnBrd una sola vez en ciclo manual sin crear cron ni otro ingreso', async () => {
+            PLATAFORMAS.getonbrd.activa = true;
+            PLATAFORMAS_ACTIVAS.push(PLATAFORMAS.getonbrd);
+            try {
+                const ofertas = [{ titulo: 'Desarrollador junior', plataforma: 'getonbrd', url: 'https://www.getonbrd.com/jobs/1' }];
+                Object.defineProperty(ofertas, 'metricas', { value: { estado: 'parcial', peticionesRealizadas: 2, checkpoint: { pagina_siguiente: 2 } } });
+                servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue(ofertas);
+                modeloPreferencia.obtenerPreferencias.mockResolvedValue({ terminos_busqueda: ['qa junior'] });
+                modeloOferta.crearOferta.mockResolvedValue({ resultado_persistencia: 'reaparicion' });
+                const resultado = await servicioAutomatizacion.ejecutarCicloCompleto();
+                expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledTimes(1);
+                expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(expect.objectContaining({ terminos: ['qa junior'] }));
+                expect(resultado.fuentes.find(f => f.plataforma === 'getonbrd')).toMatchObject({ estado: 'parcial', reapariciones: 1, checkpoint: { pagina_siguiente: 2 } });
+                expect(modeloOferta.crearOferta).toHaveBeenCalledWith(ofertas[0]);
+                expect(cron.createTask).not.toHaveBeenCalled();
+            } finally { PLATAFORMAS.getonbrd.activa = false; PLATAFORMAS_ACTIVAS.pop(); }
+        });
         test('mantengo la reserva hasta finalizar el historial, sin aceptar otro ciclo', async () => {
             const historial = require('../../src/modelos/ejecucion-busqueda');
             let liberar;

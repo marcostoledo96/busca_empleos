@@ -16,7 +16,8 @@ const {
     SIGLAS_VALIDAS,
 } = require('./servicio-traductor-consultas');
 
-const FUENTES_TERMINOS = new Set(['linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'jooble', 'adzuna', 'remotive', 'remoteok']);
+const FUENTES_TERMINOS = new Set(['getonbrd', 'linkedin', 'computrabajo', 'indeed', 'bumeran', 'glassdoor', 'jooble', 'adzuna', 'remotive', 'remoteok']);
+const { DEFAULTS_GETONBRD, LIMITES_GETONBRD } = require('../config/getonbrd');
 const TAGS_REMOTEOK_DEFECTO = ['frontend', 'react', 'angular', 'node', 'fullstack', 'javascript', 'qa'];
 
 function errorConfiguracion(mensaje, status = 400) {
@@ -97,7 +98,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     }
     const usaTerminos = FUENTES_TERMINOS.has(id);
     const advertencias = [];
-    const defectoMax = ['linkedin', 'indeed'].includes(id) ? 100 : 50;
+    const defectoMax = id === 'getonbrd' ? 40 : ['linkedin', 'indeed'].includes(id) ? 100 : 50;
     const maxResultados = Math.min(entrada.maxResultados ?? defectoMax, id === 'adzuna' ? 50 : 500);
     const filtros = {};
     let ubicacion = [];
@@ -110,6 +111,18 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         ...(entrada.maxDetallesPorTermino !== undefined ? { maxDetallesPorTermino: entrada.maxDetallesPorTermino } : {}),
         ...(entrada.maxPaginasPorTermino !== undefined ? { maxPaginasPorTermino: entrada.maxPaginasPorTermino } : {}),
     };
+
+    if (id === 'getonbrd') {
+        opcionesResueltas.maxPeticiones = Math.min(entrada.maxPeticiones ?? DEFAULTS_GETONBRD.paginas, LIMITES_GETONBRD.paginas);
+        Object.assign(filtros, { maxPeticiones: opcionesResueltas.maxPeticiones,
+            porPagina: DEFAULTS_GETONBRD.porPagina, timeoutMs: LIMITES_GETONBRD.timeoutMs });
+        if (entrada.maxDetallesPorTermino !== undefined || entrada.maxPaginasPorTermino !== undefined) {
+            advertencias.push('GetOnBrd no consulta detalles ni aplica maxPaginasPorTermino; uso el presupuesto global maxPeticiones.');
+            delete opcionesResueltas.maxDetallesPorTermino;
+            delete opcionesResueltas.maxPaginasPorTermino;
+        }
+        if (entrada.maxPeticiones > LIMITES_GETONBRD.paginas) advertencias.push('Limito GetOnBrd a 10 peticiones por ejecución.');
+    }
 
     if (!plataforma.activa) advertencias.push(plataforma.motivo || 'Plataforma inactiva.');
     if (id === 'linkedin') {
@@ -217,7 +230,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         if (!tr.compatible) {
             terminosUtiles = false;
         }
-    } else if (id === 'glassdoor') {
+    } else if (id === 'glassdoor' || id === 'getonbrd') {
         consultasEfectivas = terminos;
         terminosUtiles = terminos.length > 0;
     }

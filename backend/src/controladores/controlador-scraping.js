@@ -34,8 +34,8 @@ function respuestaCompatible(fuente, resumen) {
         datos.codigo_resultado = 'PLATAFORMA_INACTIVA';
         datos.advertencia = fuente.motivoFinalizacion;
     }
-    // Conservo los campos del piloto bloqueado sin habilitarlo; fuente.estado es el contrato compartido.
-    if (fuente.plataforma === 'getonbrd') Object.assign(datos, {
+    // Conservo los alias del piloto solamente cuando no se ejecutó la fuente.
+    if (fuente.plataforma === 'getonbrd' && fuente.estado === 'deshabilitada') Object.assign(datos, {
         run_id: null, estado: 'bloqueado', motivo_terminacion: 'politica_destino', destino: 'bloqueado', ofertas: [],
         checkpoint: { termino_indice: 0, termino: null, pagina_confirmada: 0, pagina_siguiente: 1 },
         metricas: { requests: 0, paginas: 0, recibidas: 0, normalizadas: 0, dentro_ventana: 0,

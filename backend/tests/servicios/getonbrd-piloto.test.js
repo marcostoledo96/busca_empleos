@@ -44,7 +44,8 @@ describe('Piloto seguro de GetOnBrd', () => {
 
         expect(cliente).toHaveBeenCalledTimes(2);
         expect(resultado.ofertas).toHaveLength(1);
-        expect(resultado).toMatchObject({
+        expect({ estado: resultado.estado, motivo_terminacion: resultado.motivo_terminacion,
+            metricas: resultado.metricas, checkpoint: resultado.checkpoint }).toMatchObject({
             estado: 'completado',
             motivo_terminacion: 'paginas_agotadas',
             metricas: { requests: 2, paginas: 2, recibidas: 1, normalizadas: 1, dentro_ventana: 1 },

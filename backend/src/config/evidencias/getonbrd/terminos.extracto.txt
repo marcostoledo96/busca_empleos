@@ -1,0 +1,30 @@
+<p>
+Subject to Customer's compliance with the terms of this Agreement, GoB grants Customer a
+limited, non-exclusive, revocable, non-transferable license to (a) install, use, and reproduce
+the GoB software, APIs, and related documentation provided by GoB (collectively, "<strong>GoB
+Software</strong>") solely in connection with the creation, operation and maintenance of
+Customer's Account on the Platform; and (b) access and use the Platform and GoB Software to
+publish Account Content to Professionals through the Platform. The Customer's use of any GoB
+Software is subject to any additional terms and conditions or limitations set forth in any
+documentation GoB makes available to the Customer. Such limitations may include a limitation or
+throttling on the number of API calls the Customer may make or similar usage restrictions. GoB
+may use technical measures to prevent excessive use or stop the Customer's use of the API if the
+usage limitations are exceeded. Customer shall be prohibited from doing the following: (i)
+adapting, modifying, translating, or making a derivative work of the Platform, the GoB Software,
+or any other content, material, documentation, or other intellectual property of GoB or its
+licensors (collectively the "<strong>GoB IP</strong>"); (ii) copying or permitting automatic
+downloading of all or part of the GoB IP, except for limited copying as permitted by applicable
+U.S. copyright law; (iii) reproducing, transferring, copying or otherwise making derivative
+works of the Platform, the GoB Software or any other content, material, documentation or other
+intellectual property of GoB or its licensors (collectively the "GoB IP"); (iv) copying or
+permitting automatic downloading of all or part of the GoB IP, except for limited copying as
+permitted by applicable U.S. copyright law. (iii) reproduce, transfer, publish, distribute,
+commercially use or display, broadcast, telecommunicate, sell or provide access to a third party
+to all or part of the GoB IP, except to provide Professionals with access to Customer's Account
+in accordance with the terms of this Agreement; (iv) use all or any part of the GoB Platform to
+train models, develop semantic or neural network software, or for any purpose other than as
+expressly contemplated in this Agreement; (v) register title to the GoB Platform and GoB
+Software, from any country in the world. Failure to comply with these prohibitions shall entitle
+GoB to resolve and terminate the Customer's Subscription, without any payment in favor of the
+Customer and to require the corresponding compensation for the damages incurred.
+</p>
