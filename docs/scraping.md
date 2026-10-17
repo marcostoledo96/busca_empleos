@@ -250,8 +250,21 @@ para fixtures con cliente inyectado; **no** es el sandbox oficial `sandbox.geton
 ### Rollout y rollback
 
 Verifico primero fixtures offline y habilitación efectiva en `GET /api/scraping/previsualizacion`.
-Esta implementación no ejecutó consultas reales de ofertas ni DeepSeek. Una prueba real de una
-consulta/una página queda reservada al coordinador, después de verificar la guarda.
+El `2026-10-17T19:13:01.915Z`, después de las pruebas offline y de validar la guarda y
+los cinco hashes conservados, ejecuté la única consulta real autorizada:
+`GET https://www.getonbrd.com/api/v0/search/jobs?query=junior&page=1&per_page=3`.
+Observé HTTP200 en 591 ms, 3 ofertas recibidas y 3 normalizadas en memoria, sin errores
+de normalización. El contador registró **una petición total**, sin reintentos; limité a
+una página y tres ítems, timeout de 5000 ms y `redirect: 'error'`.
+
+Usé `fetch` directo con guarda y habilitación como argumento local, no el piloto: su
+import carga `.env` mediante Apify. Por eso `run_id` y checkpoint no aplican a esta
+prueba; no afirmo haber verificado el executor real ni la ventana/elegibilidad remota.
+El proceso terminó con exit0 y metadatos JSON agregados, sin guardar ni imprimir datos
+de ofertas. No inicié Express, PostgreSQL, persistencia, listado, dashboard, ciclo,
+cron ni DeepSeek. El recorrido común sigue respaldado por las pruebas sintéticas,
+no por esta consulta. Conservo fecha final y detalle en el
+[registro de la consulta real](../backend/src/config/evidencias/getonbrd/README.md#única-consulta-real-acotada--issue-5).
 Para rollback configuro `GETONBRD_ENABLED=false` y reinicio; conservo ofertas e historial.
 Habilitar la fuente **no crea ni activa cron**: una programación existente sigue gobernada por
 su configuración persistida y activación explícita.

@@ -42,7 +42,8 @@ como validada por el proveedor.
 Consulté únicamente las URLs documentales del manifiesto mediante GET. El cliente inicial
 `urllib` recibió 403; `curl` con User-Agent de navegador pudo recuperar los documentos.
 Hubo consultas documentales exploratorias y una extracción interrumpida antes de conservar
-el manifiesto final; ninguna fue una consulta al endpoint de ofertas. No ejecuté smoke real.
+el manifiesto final; ninguna fue una consulta al endpoint de ofertas. En esa recopilación
+inicial no ejecuté smoke real; la única consulta posterior autorizada se registra abajo.
 La fuente sigue apagada salvo `GETONBRD_ENABLED=true`, independientemente de tener estos archivos.
 
 Prueba offline de integridad y habilitación efectiva:
@@ -63,3 +64,35 @@ node -e "const { validarDestinoGetonbrd } = require('./src/config/getonbrd'); co
 ```
 
 Esta comprobación local no hace solicitudes HTTP ni modifica la habilitación del proceso productivo.
+
+## Única consulta real acotada — issue #5
+
+Después de las pruebas offline y de verificar nuevamente tamaños y SHA-256 de los cinco
+extractos, comprobé la guarda: `habilitado: true` permitió producción y `habilitado: false`
+la bloqueó. No modifiqué archivos de entorno ni variables de servicios productivos.
+
+| Dato observado | Valor |
+| --- | --- |
+| Inicio UTC | `2026-10-17T19:13:01.915Z` |
+| Fin UTC | `2026-10-17T19:13:02.506Z` |
+| Método y URL exacta | `GET https://www.getonbrd.com/api/v0/search/jobs?query=junior&page=1&per_page=3` |
+| Presupuesto | Una petición total, una consulta textual, página 1, `per_page=3`, hasta 3 normalizaciones |
+| Protección de transporte | `AbortSignal.timeout(5000)`, `redirect: 'error'`; contador rechaza cualquier segundo intento antes de red |
+| Peticiones efectivas | **1**, sin reintentos ni seguimiento de redirecciones |
+| Resultado | HTTP **200**, estado de la prueba `pagina_recibida` |
+| Duración observada | **591 ms**, incluida lectura y normalización |
+| Conteos | 3 recibidas, 3 normalizadas en memoria, 0 errores de normalización |
+| Salida del proceso | Exit **0**; stdout JSON con estos metadatos; sin stderr |
+| `run_id` / checkpoint | No aplican (`null`): no ejecuté el piloto/executor |
+
+Utilicé `fetch` directo protegido por `validarDestinoGetonbrd` con `habilitado: true`
+sólo como argumento del proceso local, y `normalizarOfertaGetonbrd` en memoria.
+Evité importar el piloto porque su módulo carga `.env` mediante la configuración de
+Apify. No guardé ni imprimí datos de ofertas: conservé solamente estos metadatos agregados.
+
+Esta prueba acredita una respuesta real de la búsqueda pública y la normalización de
+esa página; **no acredita el recorrido productivo completo**. No inicié Express, conexión
+PostgreSQL, ingreso/persistencia, listado, dashboard, ciclo, cron ni DeepSeek. No medí
+ventana temporal ni elegibilidad en esta consulta directa. El recorrido común y sus
+checkpoints se verifican por separado con respuestas HTTP y PostgreSQL sintéticos,
+no con estos tres resultados reales.
