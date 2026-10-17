@@ -106,7 +106,7 @@ export class Dashboard implements OnInit, OnDestroy {
     // durante la lectura, aunque ya no estén pendientes al recibir la respuesta.
     private capturarPostulaciones(): Map<number, number> {
         const versiones = new Map(this.versionesPostulacion);
-        for (const id of this.postulacionesPendientes()) versiones.set(id, -1);
+        for (const id of [...this.postulacionesPendientes(), ...this.seguimientosPendientes]) versiones.set(id, -1);
         return versiones;
     }
 
@@ -115,11 +115,7 @@ export class Dashboard implements OnInit, OnDestroy {
         const combinadas = ofertasApi.map(api => {
             const local = actuales.get(api.id);
             if (!local) return api;
-            const proteger = this.postulacionesPendientes().has(api.id)
-                || (versiones.get(api.id) ?? 0) !== (this.versionesPostulacion.get(api.id) ?? 0);
-            const estado = local.estado_postulacion;
-            Object.assign(local, api);
-            if (proteger) local.estado_postulacion = estado;
+            Object.assign(local, this.protegerCamposManuales(api, local, versiones));
             return local;
         });
         if (conservarAusentes) {
@@ -129,9 +125,28 @@ export class Dashboard implements OnInit, OnDestroy {
         this.ofertas.set(this.ordenarOfertas(combinadas));
     }
 
+    private protegerCamposManuales(api: Oferta, local: Oferta | undefined, versiones: Map<number, number>): Oferta {
+        const proteger = this.postulacionesPendientes().has(api.id) || this.seguimientosPendientes.has(api.id)
+            || (versiones.get(api.id) ?? 0) !== (this.versionesPostulacion.get(api.id) ?? 0);
+        if (!local || !proteger) return api;
+        return {
+            ...api,
+            estado_postulacion: local.estado_postulacion,
+            fecha_postulacion: local.fecha_postulacion,
+            nota_postulacion: local.nota_postulacion,
+        };
+    }
+
     // Trackea IDs con optimistic update de postulación en curso.
     // Solo estos IDs preservan su estado local durante el merge del polling.
     readonly postulacionesPendientes = signal<Set<number>>(new Set());
+    private readonly seguimientosPendientes = new Set<number>();
+
+    onSeguimientoPendiente(evento: { id: number; pendiente: boolean }): void {
+        this.versionesPostulacion.set(evento.id, (this.versionesPostulacion.get(evento.id) ?? 0) + 1);
+        if (evento.pendiente) this.seguimientosPendientes.add(evento.id);
+        else this.seguimientosPendientes.delete(evento.id);
+    }
 
     // Filtro global de plataforma.
     readonly filtroPlataforma = signal<string | null>(null);
@@ -167,13 +182,17 @@ export class Dashboard implements OnInit, OnDestroy {
             ))
     );
 
-    // Tab 3: rechazadas por la IA o descartadas manualmente.
+    // Separo el rechazo de IA del descarte personal, sin duplicar postuladas.
     readonly ofertasRechazadas = computed(() =>
         this.ordenarOfertas(this.ofertasFiltradas()
             .filter(o =>
-                o.estado_evaluacion === 'rechazada' ||
-                o.estado_postulacion === 'descartada'
+                o.estado_evaluacion === 'rechazada' &&
+                o.estado_postulacion === 'no_postulado'
             ))
+    );
+
+    readonly ofertasDescartadas = computed(() =>
+        this.ordenarOfertas(this.ofertasFiltradas().filter(o => o.estado_postulacion === 'descartada'))
     );
 
     // Tab 4: pendientes de evaluación (no postuladas ni descartadas).
@@ -194,6 +213,7 @@ export class Dashboard implements OnInit, OnDestroy {
     readonly statAprobadas = computed(() => this.ofertasAprobadas().length);
     readonly statPostuladas = computed(() => this.ofertasPostuladas().length);
     readonly statRechazadas = computed(() => this.ofertasRechazadas().length);
+    readonly statDescartadas = computed(() => this.ofertasDescartadas().length);
 
     ngOnInit(): void {
         this.modoReevaluacion.set(this.ruta?.snapshot.queryParamMap.get('reevaluar') === '1');
@@ -265,7 +285,10 @@ export class Dashboard implements OnInit, OnDestroy {
                     + respuesta.datos.filter(oferta => this.idsSincronizacion.has(oferta.id)).length;
                 respuesta.datos.forEach(oferta => this.idsSincronizacion.add(oferta.id));
                 if (this.destruido) return;
-                const persistencia = await this.persistenciaDashboard.guardarBloqueSincronizacion(respuesta.datos);
+                // Protejo también el bloque persistido, no sólo la vista posterior.
+                const actuales = new Map(this.ofertas().map(oferta => [oferta.id, oferta]));
+                const bloque = respuesta.datos.map(api => this.protegerCamposManuales(api, actuales.get(api.id), versiones));
+                const persistencia = await this.persistenciaDashboard.guardarBloqueSincronizacion(bloque);
                 if (this.destruido) return;
                 this.fallbackSincronizacion.set(persistencia.fallback);
                 const ofertasSincronizadas = await this.persistenciaDashboard.obtenerOfertasSincronizadas();
@@ -450,7 +473,7 @@ export class Dashboard implements OnInit, OnDestroy {
         if (this.modoDemo() || this.accionMasivaEnCurso() || this.postulacionesPendientes().size) return;
         const estados = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
         const categoria = this.modoReevaluacion() ? this.ofertasReevaluables()
-            : [this.ofertasAprobadas(), this.ofertasPostuladas(), this.ofertasRechazadas(), this.ofertasPendientes()][Number(this.pestanaActiva())] ?? [];
+            : [this.ofertasAprobadas(), this.ofertasPostuladas(), this.ofertasRechazadas(), this.ofertasPendientes(), this.ofertasDescartadas()][Number(this.pestanaActiva())] ?? [];
         const permitidas = new Set(categoria.map(o => o.id));
         const ids = [...new Set(evento.ids)];
         if (!estados.includes(evento.estadoPostulacion) || !ids.length
@@ -502,6 +525,7 @@ export class Dashboard implements OnInit, OnDestroy {
                 detail: 'No pude confirmar los estados. Limpié la selección para evitar un reintento inseguro. Seleccioná nuevamente las ofertas y el estado destino.' });
         };
         // No uso sincronización/caché: pueden corresponder a un snapshot anterior al PATCH.
+        const versiones = this.capturarPostulaciones();
         this.ofertasService.obtenerOfertas().pipe(takeUntil(this.destruccion)).subscribe({
             next: respuesta => {
                 const datos = respuesta?.datos;
@@ -513,9 +537,15 @@ export class Dashboard implements OnInit, OnDestroy {
                     fallar();
                     return;
                 }
+                const actuales = new Map(this.ofertas().map(oferta => [oferta.id, oferta]));
+                const conciliadas = datos.map(api => ({
+                    ...this.protegerCamposManuales(api, actuales.get(api.id), versiones),
+                    // Acepto el estado fresco del bulk, pero no una nota anterior al guardado paralelo.
+                    estado_postulacion: api.estado_postulacion,
+                }));
                 // Avanzo versiones al cerrar las guardas; lecturas anteriores siguen sin poder pisarlas.
                 finalizar();
-                this.aplicarOfertas(datos, this.capturarPostulaciones());
+                this.aplicarOfertas(conciliadas, this.capturarPostulaciones());
                 this.conciliacionMasiva.set({ idsReintentables: datos
                     .filter(o => ids.includes(o.id) && o.estado_postulacion !== destino).map(o => o.id) });
                 this.guardarCacheActual();

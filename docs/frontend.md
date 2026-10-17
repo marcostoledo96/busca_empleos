@@ -1,5 +1,68 @@
 # Frontend — Busca Empleos
 
+## Seguimiento de postulaciones — issue #22
+
+En `DetalleOferta` edito «Seguimiento de postulación» por separado de la evaluación IA:
+veo el estado manual actual, la fecha de envío opcional y una nota de hasta 4000 puntos
+Unicode (incluidos 4000 emoji astrales), igual que `char_length` de PostgreSQL UTF8.
+Cuento esos puntos en la ayuda y validación; no uso `maxlength` nativo, que cuenta UTF16.
+Uso un input nativo `date` con el día `YYYY-MM-DD` sin convertirlo a `Date` ni aplicar zona
+horaria. No deduzco fechas históricas; si vacío un campo editado, envío `null` para borrarlo.
+
+Guardo con `PATCH /api/ofertas/:id/seguimiento`, sin cambiar el estado, la descripción
+ni la evaluación. Muestro procesamiento y bloqueo otro envío para el mismo ID; confirmo
+éxito sólo después del backend. Ante error conservo borrador y diálogo, anuncio el fallo
+y permito reintentar. Si edito mientras espero, la respuesta guarda el valor confirmado
+pero no pisa el borrador posterior ni anuncia que ese nuevo texto ya está guardado.
+Comparo cada campo con la base del editor y envío sólo diferencias; si no cambié nada,
+no envío otro PATCH. Omitir conserva el campo confirmado por otro cliente; `null` limpia
+sólo el campo elegido. Aplico de la respuesta completa únicamente las claves enviadas,
+para que una respuesta tardía no restaure un campo ajeno y antiguo. No resuelvo conflictos
+de dos clientes que editan el mismo campo ni incorporo versionado.
+Mantengo los borradores pendientes o modificados y sus errores por ID dentro del componente.
+Al volver A→B→A durante un guardado recupero el borrador, incluso con otra referencia de A.
+Si falla mientras veo B, no muestro allí el error de A: lo anuncio al volver a A y permito
+reintentar los campos pendientes sin perder ediciones posteriores. Comparo revisiones de
+cada campo capturadas al enviar, no su contenido, para aplicar la confirmación: editar B,
+luego C y volver al valor inicial A conserva A aunque el backend confirme B. Actualizo la
+base confirmada igualmente; el siguiente guardado envía A. Editar nota no impide confirmar
+la fecha intacta, ni viceversa. Libero borradores confirmados e intactos al dejar su oferta
+o al terminar una solicitud fuera de pantalla; los demás viven sólo en este componente.
+Las acciones rápidas de estado
+conservan el comportamiento optimista de #21 y no quedan bloqueadas por editar la nota.
+
+Agrupo sin duplicaciones: `cv_enviado`/`en_proceso` en **Postuladas**, `descartada` en
+**Descartadas manualmente**; sólo `no_postulado` se clasifica según evaluación en
+**Rechazadas por IA**, **Pendientes** o **Aprobadas**. Los cinco contadores particionan
+el total filtrado. Los fallos técnicos conservan sus avisos y la evaluación IA sigue
+visible en el detalle aunque haya postulación personal.
+
+Reutilizo la sincronización y persistencia actuales: el backend incluye recientes y
+postulaciones históricas válidas. IndexedDB, fallback de memoria y caché local conservan
+los campos manuales completos, sin filtrar por antigüedad en Angular. Las versiones
+protegen estado, fecha y nota frente a GET/bloques anteriores o iniciados durante un
+guardado, tanto al combinar la vista como al persistir el bloque. Una respuesta de
+edición de descripción tampoco reemplaza esos campos. No reinicio pestaña, plataforma,
+búsqueda ni página al guardar seguimiento.
+
+Las pruebas focales usan HTTP sintético y componentes reales; verifico interacción DOM,
+errores, carreras, categorías, fallback y rehidratación de una histórica desde una nueva
+instancia de IndexedDB. No equivalen a un recorrido contra Express/PostgreSQL ni prueban
+el scraper: esa evidencia se verifica por separado en backend.
+
+Agrego el recorrido continuo opt-in `issue-22-vertical.spec.ts`, lanzado por Jest con
+PostgreSQL real UTF8 y Express local: [comando y guardas](base-datos.md#recorrido-continuo-postgresql--angular-22).
+En él no simulo HTTP ni servicios/componentes Angular: edito y guardo por DOM una misma
+oferta histórica, verifico día exacto y nota, sincronizo a IndexedDB y vuelvo a leer con
+servicio, componente e inyector nuevos. Mantengo rechazo IA independiente de Postuladas,
+cambio a `en_proceso` desde el selector real y verifico el upsert real del scraper por
+un control exclusivo del harness. También alterno una edición DOM con PATCH de otro
+cliente sobre campos distintos y verifico la conservación en PostgreSQL.
+La suite habitual lo informa como **SKIPPED**; para
+probar el puente hace falta ejecutar el comando opt-in, no sólo la suite de componentes.
+No equivale a una navegación de login ni a un scraper externo: únicamente la verificación
+del token Firebase es sintética, y la reaparición ingresa directamente al modelo real.
+
 ## Filtros, selección y postulación — issue #21
 
 Selecciono únicamente los IDs de la página visible, después de filtrar en PrimeNG;
@@ -264,6 +327,8 @@ interface Oferta {
     moneda: string | null;
     estado_evaluacion: 'pendiente' | 'aprobada' | 'rechazada';
     razon_evaluacion: string | null;
+    fecha_postulacion?: string | null; // Día YYYY-MM-DD; ausente en cachés anteriores.
+    nota_postulacion?: string | null;
     fecha_publicacion: string | null;
     fecha_extraccion: string;
     fecha_ultima_extraccion?: string | null;
@@ -360,8 +425,12 @@ Archivo: `frontend/src/app/servicios/ofertas.service.ts`
 | Método | HTTP | Ruta | Retorna |
 |--------|------|------|---------|
 | `obtenerOfertas(filtros?)` | GET | `/ofertas` | `Observable<RespuestaApi<Oferta[]>>` |
+| `actualizarSeguimiento(id, cambios)` | PATCH | `/ofertas/:id/seguimiento` | `Observable<RespuestaApi<Oferta>>` |
 | `obtenerEstadisticas()` | GET | `/ofertas/estadisticas` | `Observable<RespuestaApi<Estadisticas>>` |
 | `obtenerOfertaPorId(id)` | GET | `/ofertas/:id` | `Observable<RespuestaApi<Oferta>>` |
+
+`cambios` admite sólo `fecha_postulacion?: string | null` y `nota_postulacion?: string | null`.
+Omitir conserva el campo; `null` lo limpia. El editor envía ambos campos explícitamente.
 
 Filtros opcionales vía `HttpParams`: `estado` y `plataforma`.
 

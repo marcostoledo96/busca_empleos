@@ -145,6 +145,15 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(component.reevaluandoOferta()).toBe(false);
         expect(component.mensajeReevaluacion()).toBeNull();
 
+        // Tampoco permito guardar seguimiento, ni siquiera invocándolo directamente.
+        component.guardarSeguimiento();
+        expect(component.guardandoSeguimiento()).toBeFalse();
+        await fixture.whenStable();
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('[aria-label="Guardar seguimiento"]').disabled).toBeTrue();
+        expect(fixture.nativeElement.querySelector('#fecha-postulacion').disabled).toBeTrue();
+        expect(fixture.nativeElement.querySelector('#nota-postulacion').disabled).toBeTrue();
+
         // 4. Los botones editoriales de descripción y reevaluación no se renderizan en el DOM
         const btnEditar = fixture.nativeElement.querySelector('.btn-editar-descripcion');
         const btnReevaluar = fixture.nativeElement.querySelector('.btn-reevaluar-oferta');

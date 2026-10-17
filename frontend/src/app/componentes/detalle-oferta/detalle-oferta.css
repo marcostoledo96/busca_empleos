@@ -555,6 +555,26 @@
     box-sizing: border-box;
 }
 
+#fecha-postulacion {
+    max-width: 16rem;
+    padding: 0.75rem;
+    border: 1px solid var(--outline);
+    border-radius: var(--radius-sm);
+    color: var(--on-surface);
+    background: var(--surface);
+    font: inherit;
+    color-scheme: light dark;
+}
+
+#nota-postulacion {
+    min-height: 6rem;
+}
+
+#fecha-postulacion:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
 .textarea-edicion:focus {
     outline: 2px solid var(--primary);
     border-color: var(--primary);

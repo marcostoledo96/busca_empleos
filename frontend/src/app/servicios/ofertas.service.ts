@@ -67,6 +67,10 @@ export class OfertasService {
         );
     }
 
+    actualizarSeguimiento(id: number, cambios: Partial<Pick<Oferta, 'fecha_postulacion' | 'nota_postulacion'>>): Observable<RespuestaApi<Oferta>> {
+        return this.http.patch<RespuestaApi<Oferta>>(`${this.urlBase}/${id}/seguimiento`, cambios);
+    }
+
     // Actualiza manualmente la descripción de una oferta.
     actualizarDescripcion(id: number, descripcion: string): Observable<RespuestaApi<Oferta>> {
         return this.http.patch<RespuestaApi<Oferta>>(

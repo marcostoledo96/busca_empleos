@@ -25,6 +25,56 @@ const { asegurarBaseDeDatosDeTest } = require('../helpers/test-db-guard');
 // Esto protege la BD de producción cuando se corre el test suite normal.
 // Además, verifico que NODE_ENV sea 'test' o que PGDATABASE contenga 'test'
 // como doble seguro para no correr TRUNCATE contra producción.
+describe('Issue #22 — contrato SQL sin conexión', () => {
+    let consulta;
+    beforeEach(() => { consulta = jest.spyOn(pool, 'query').mockResolvedValue({ rows: [], rowCount: 0 }); });
+    afterEach(() => consulta.mockRestore());
+
+    test.each([{ nota_postulacion: null }, { fecha_postulacion: '2024-02-29' }, { fecha_postulacion: null, nota_postulacion: 'CV' }])('actualiza solamente campos explícitos: %j', async cambios => {
+        await modeloOferta.actualizarSeguimiento(7, cambios);
+        const [sql, parametros] = consulta.mock.calls[0];
+        const set = sql.split('SET')[1].split('WHERE')[0];
+        for (const campo of ['fecha_postulacion', 'nota_postulacion']) {
+            expect(set.includes(campo)).toBe(Object.hasOwn(cambios, campo));
+        }
+        expect(set).not.toMatch(/estado_|fecha_extraccion|firma_|descripcion|cache/);
+        expect(parametros).toEqual([...Object.values(cambios), 7]);
+        expect(sql).toContain("to_char(fecha_postulacion, 'YYYY-MM-DD') AS fecha_postulacion");
+    });
+
+    test('listado, conteo y estadísticas conservan seguimiento; pendientes no amplía IA', async () => {
+        consulta.mockResolvedValue({ rows: [{ total: 0 }] });
+        await modeloOferta.obtenerOfertas();
+        await modeloOferta.obtenerEstadisticas();
+        for (const [sql] of consulta.mock.calls) {
+            expect(sql).toContain("estado_postulacion IN ('cv_enviado', 'en_proceso')");
+            expect(sql).toContain('OR fecha_postulacion IS NOT NULL');
+        }
+        consulta.mockClear();
+        await modeloOferta.obtenerOfertasPendientes();
+        expect(consulta.mock.calls[0][0]).not.toContain('OR fecha_postulacion');
+    });
+
+    test('conserva filtros y paginación existentes con la nueva visibilidad', async () => {
+        const fila = { id: 7, fecha_postulacion: '2024-02-29', nota_postulacion: 'CV' };
+        consulta.mockResolvedValueOnce({ rows: [{ total: 3 }] }).mockResolvedValueOnce({ rows: [fila] });
+        const resultado = await modeloOferta.obtenerOfertas({ estado: 'rechazada', plataforma: 'linkedin', estado_postulacion: 'cv_enviado', limite_pagina: 2, pagina: 2, ordenar_por: 'titulo', direccion: 'ASC' });
+        expect(resultado).toEqual({ ofertas: [fila], total: 3, pagina: 2, limite_pagina: 2 });
+        expect(consulta.mock.calls[0][1]).toEqual(['rechazada', 'linkedin', 'cv_enviado']);
+        expect(consulta.mock.calls[1][1]).toEqual(['rechazada', 'linkedin', 'cv_enviado', 2, 2]);
+        expect(consulta.mock.calls[1][0]).toContain('ORDER BY titulo ASC NULLS LAST LIMIT $4 OFFSET $5');
+    });
+
+    test('estado individual, masivo y upsert no escriben datos manuales', async () => {
+        await modeloOferta.actualizarPostulacion(7, 'en_proceso');
+        await modeloOferta.actualizarPostulacionMasiva([7], 'descartada');
+        await modeloOferta.crearOferta(ofertaEjemplo);
+        for (const [sql] of consulta.mock.calls) {
+            expect(sql).not.toMatch(/(?:fecha_postulacion|nota_postulacion)\s*=/);
+        }
+    });
+});
+
 const dbTestsPermitidos = process.env.ALLOW_DB_TESTS === 'true';
 const entornoSeguro = process.env.NODE_ENV === 'test'
     || (process.env.PGDATABASE || '').includes('test');

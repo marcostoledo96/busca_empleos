@@ -45,8 +45,12 @@
                 <span class="dashboard-stat__valor" aria-labelledby="stat-label-postuladas">{{ statPostuladas() }}</span>
             </div>
             <div class="dashboard-stat dashboard-stat--rechazadas" role="listitem">
-                <span class="dashboard-stat__label" id="stat-label-rechazadas">Rechazadas</span>
+                <span class="dashboard-stat__label" id="stat-label-rechazadas">Rechazadas por IA</span>
                 <span class="dashboard-stat__valor" aria-labelledby="stat-label-rechazadas">{{ statRechazadas() }}</span>
+            </div>
+            <div class="dashboard-stat" role="listitem">
+                <span class="dashboard-stat__label" id="stat-label-descartadas">Descartadas manualmente</span>
+                <span class="dashboard-stat__valor" aria-labelledby="stat-label-descartadas">{{ statDescartadas() }}</span>
             </div>
         </div>
     </div>
@@ -119,7 +123,7 @@
                 </p-tab>
                 <p-tab [value]="2">
                     <span class="tab-label">
-                        RECHAZADAS
+                        RECHAZADAS POR IA
                         @if (ofertasRechazadas().length > 0) {
                             <span class="tab-badge tab-badge--rechazada">{{ ofertasRechazadas().length }}</span>
                         }
@@ -130,6 +134,14 @@
                         PENDIENTES
                         @if (ofertasPendientes().length > 0) {
                             <span class="tab-badge tab-badge--pendiente">{{ ofertasPendientes().length }}</span>
+                        }
+                    </span>
+                </p-tab>
+                <p-tab [value]="4">
+                    <span class="tab-label">
+                        DESCARTADAS MANUALMENTE
+                        @if (ofertasDescartadas().length > 0) {
+                            <span class="tab-badge tab-badge--rechazada">{{ ofertasDescartadas().length }}</span>
                         }
                     </span>
                 </p-tab>
@@ -219,6 +231,25 @@
                         (postulacionPendiente)="onPostulacionPendiente($event)"
                         (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
+                <p-tabpanel [value]="4">
+                    <app-tabla-ofertas
+                        [modoDemo]="modoDemo()"
+                        [ofertas]="ofertasDescartadas()"
+                        [conciliacionMasiva]="conciliacionMasiva()"
+                        [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                        [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                        [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                        (limpiarFiltros)="filtroPlataforma.set(null)"
+                        [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                        (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
+                        [cargando]="cargando()"
+                        [sortField]="'porcentaje_match'"
+                        [sortOrder]="-1"
+                        (ofertaSeleccionada)="mostrarDetalle($event)"
+                        (postulacionActualizada)="onAccionCompletada()"
+                        (postulacionPendiente)="onPostulacionPendiente($event)"
+                        (accionMasiva)="onAccionMasiva($event)" />
+                </p-tabpanel>
             </p-tabpanels>
         </p-tabs>
         }
@@ -240,5 +271,6 @@
         [modoDemo]="modoDemo()"
         (postulacionActualizada)="onAccionCompletada()"
         (postulacionPendiente)="onPostulacionPendiente($event)"
+        (seguimientoPendiente)="onSeguimientoPendiente($event)"
         (ofertaActualizada)="onAccionCompletada()" />
 </section>

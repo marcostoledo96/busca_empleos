@@ -55,6 +55,9 @@ export interface Oferta {
     razon_evaluacion: string | null;
     porcentaje_match: number | null;
     estado_postulacion: 'no_postulado' | 'cv_enviado' | 'en_proceso' | 'descartada';
+    // Conservo el día calendario YYYY-MM-DD sin conversión a fecha/hora.
+    fecha_postulacion?: string | null;
+    nota_postulacion?: string | null;
     fecha_publicacion: string | null;
     fecha_publicacion_aproximada?: boolean;
     fecha_extraccion: string;

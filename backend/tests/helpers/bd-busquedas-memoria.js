@@ -106,7 +106,7 @@ function crearAdaptadorBusqueda({ vertical = false } = {}) {
                 return { rows: [oferta] };
             }
             if (/SELECT COUNT\(\*\)::integer AS total FROM ofertas/.test(sql)) return { rows: [{ total: ofertas.length }] };
-            if (/SELECT \* FROM ofertas/.test(sql)) return { rows: [...ofertas] };
+            if (/SELECT \*(?:, to_char\(fecha_postulacion, 'YYYY-MM-DD'\) AS fecha_postulacion)? FROM ofertas/.test(sql)) return { rows: [...ofertas] };
             consultasNoContempladas.push(sql);
             throw new Error(`Consulta no contemplada en el adaptador: ${sql}`);
         }),

@@ -401,6 +401,7 @@ Todas las respuestas siguen este formato:
 | GET | `/api/ofertas/diagnostico/persistencia` | Verifica qué base está leyendo la API y cuántas ofertas ve | **Sí** | No |
 | GET | `/api/ofertas/:id` | Detalle de una oferta | **Sí** | No |
 | PATCH | `/api/ofertas/:id/postulacion` | Actualizar estado de postulación | **Sí** | No |
+| PATCH | `/api/ofertas/:id/seguimiento` | Editar fecha y nota personales | **Sí** | No |
 | POST | `/api/scraping/linkedin` | Ejecutar scraping de LinkedIn | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/computrabajo` | Ejecutar scraping de Computrabajo | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
@@ -429,9 +430,9 @@ Controlador: `backend/src/controladores/controlador-ofertas.js`
 
 ### GET /api/ofertas
 
-Lista las ofertas de los **últimos 30 días**, con filtros opcionales por query params.
+Lista las ofertas recientes y las postulaciones en seguimiento, con filtros opcionales por query params.
 
-> **Ventana de 30 días:** Solo se muestran ofertas con `fecha_extraccion` dentro de los últimos 30 días. Ofertas más antiguas no aparecen en el listado ni en el conteo total.
+> **Visibilidad (#22):** Incluyo las ofertas con `COALESCE(fecha_ultima_extraccion, fecha_extraccion)` dentro de los últimos 30 días **o** estado `cv_enviado`/`en_proceso` **o** `fecha_postulacion` explícita (también en estados cerrados). Una nota sola no retiene ofertas históricas. Aplico esta misma política al conteo, estadísticas y sincronización; no amplío la cola de evaluación IA ni cambio fechas de extracción.
 
 **Query params:**
 
@@ -485,9 +486,7 @@ GET /api/ofertas?estado_postulacion=cv_enviado
 
 ### GET /api/ofertas/estadisticas
 
-Retorna contadores agrupados por estado de evaluación **de los últimos 30 días**.
-
-> **Ventana de 30 días (Issue #19):** Al igual que `GET /api/ofertas`, este endpoint solo cuenta ofertas con `COALESCE(fecha_ultima_extraccion, fecha_extraccion)` dentro de los últimos 30 días. Si una oferta histórica reaparece hoy en un nuevo scraping, actualiza su `fecha_ultima_extraccion` y vuelve a ser visible en el dashboard y en las estadísticas, preservando su `fecha_extraccion` inicial inalterada.
+Retorna contadores agrupados por estado de evaluación del mismo universo visible que `GET /api/ofertas`: recientes o seguimiento activo o fecha de postulación explícita. Las reapariciones conservan la primera `fecha_extraccion` y actualizan únicamente `fecha_ultima_extraccion`.
 
 **Ejemplo response (200):**
 ```json
@@ -504,7 +503,7 @@ Retorna contadores agrupados por estado de evaluación **de los últimos 30 día
 
 ### GET /api/ofertas/sincronizacion
 
-Transfiere una proyección liviana de las ofertas de los últimos 30 días por bloques. Requiere
+Transfiere una proyección liviana del mismo universo visible que el listado por bloques, incluyendo `fecha_postulacion` (`YYYY-MM-DD` o `null`) y `nota_postulacion`. Requiere
 `limite` entero entre 100 y 500 (default 500) y un `cursor` opaco opcional retornado por el
 bloque previo.
 
@@ -593,6 +592,23 @@ Retorna una oferta específica.
 ```json
 { "exito": false, "error": "Oferta no encontrada." }
 ```
+
+### PATCH /api/ofertas/:id/seguimiento
+
+Actualizo parcialmente fecha y nota, con autenticación habitual y sin modificar estado manual, matching ni caché de IA.
+
+```json
+{ "fecha_postulacion": "2024-02-29", "nota_postulacion": "Envié CV; espero respuesta." }
+```
+
+- `fecha_postulacion`: día real `YYYY-MM-DD` (años 0001–9999), sin hora/zona, o `null`. No infiero fechas históricas.
+- `nota_postulacion`: texto de hasta 4000 puntos Unicode o `null`; admito texto vacío sin recortarlo. Cuento igual que `char_length` de PostgreSQL UTF8: 4000 emoji astrales son válidos, 4001 se rechazan con `400` sin escribir datos.
+- Campo omitido: conservo su valor. `null` explícito: limpio ese campo. Cada cliente debe enviar sólo los campos realmente editados; una respuesta de oferta completa no autoriza a reemplazar localmente campos ajenos al PATCH. No implemento versionado para conflictos del mismo campo.
+- Rechazo cuerpo vacío, arrays, campos adicionales, tipos incorrectos y fechas imposibles con `400`, sin escribir datos.
+- `200`: `{ "exito": true, "datos": { "id": 1, "fecha_postulacion": "2024-02-29", "nota_postulacion": "Envié CV", "...": "resto de la oferta" }, "mensaje": "Seguimiento actualizado correctamente." }`.
+- ID inválido: `400`; oferta inexistente: `404` (`Oferta no encontrada.`); fallo inesperado: `500` genérico. Sin token válido: `401`.
+
+Los endpoints existentes de estado individual/masivo y las reapariciones del scraper no sobrescriben fecha ni nota. El snapshot conserva la firma `id+xmin`: si una edición concurrente modifica filas del universo, respondo `409` y reinicio la sincronización, nunca acepto silenciosamente un snapshot mezclado.
 
 ### PATCH /api/ofertas/:id/postulacion
 

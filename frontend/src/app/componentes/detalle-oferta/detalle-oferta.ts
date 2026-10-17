@@ -1,4 +1,4 @@
-import { Component, ElementRef, inject, input, model, output, effect, signal, OnDestroy } from '@angular/core';
+import { Component, ElementRef, inject, input, model, output, effect, signal, computed, OnDestroy } from '@angular/core';
 import { DatePipe, UpperCasePipe } from '@angular/common';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
@@ -54,6 +54,110 @@ export class DetalleOferta implements OnDestroy {
     readonly mensajeReevaluacion = signal<string | null>(null);
     readonly ofertaActualizada = output<Oferta>();
 
+    readonly fechaPostulacion = signal('');
+    readonly notaPostulacion = signal('');
+    readonly longitudNotaPostulacion = computed(() => [...this.notaPostulacion()].length);
+    readonly errorSeguimiento = signal<string | null>(null);
+    readonly mensajeSeguimiento = signal<string | null>(null);
+    private readonly seguimientoGuardandoIds = signal<ReadonlySet<number>>(new Set());
+    readonly guardandoSeguimiento = computed(() => this.seguimientoGuardandoIds().has(this.oferta()?.id ?? -1));
+    readonly seguimientoPendiente = output<{ id: number; pendiente: boolean }>();
+    private idBorrador: number | null = null;
+    private readonly borradoresSeguimiento = new Map<number, {
+        fecha: { valor: string; base: string; revision: number; pendiente: boolean };
+        nota: { valor: string; base: string; revision: number; pendiente: boolean };
+        error: string | null;
+    }>();
+
+    private mostrarBorradorSeguimiento(): void {
+        const borrador = this.borradoresSeguimiento.get(this.idBorrador ?? -1);
+        this.fechaPostulacion.set(borrador?.fecha.valor ?? '');
+        this.notaPostulacion.set(borrador?.nota.valor ?? '');
+        this.errorSeguimiento.set(borrador?.error ?? null);
+    }
+
+    private liberarBorradorSeguimiento(id: number | null): void {
+        if (id === null || id === this.idBorrador) return;
+        const borrador = this.borradoresSeguimiento.get(id);
+        if (borrador && !borrador.error && !borrador.fecha.pendiente && !borrador.nota.pendiente
+            && borrador.fecha.valor === borrador.fecha.base && borrador.nota.valor === borrador.nota.base) {
+            this.borradoresSeguimiento.delete(id);
+        }
+    }
+
+    editarSeguimiento(campo: 'fecha' | 'nota', valor: string): void {
+        if (this.modoDemo()) return;
+        const borrador = this.borradoresSeguimiento.get(this.idBorrador ?? -1);
+        if (!borrador) return;
+        borrador[campo].valor = valor;
+        borrador[campo].revision++;
+        borrador.error = null;
+        this.mostrarBorradorSeguimiento();
+        this.mensajeSeguimiento.set(null);
+    }
+
+    guardarSeguimiento(): void {
+        const oferta = this.oferta();
+        if (!oferta || this.modoDemo() || this.guardandoSeguimiento()) return;
+        if (this.longitudNotaPostulacion() > 4000) {
+            this.errorSeguimiento.set('La nota debe tener hasta 4000 caracteres.');
+            return;
+        }
+        const borrador = this.borradoresSeguimiento.get(oferta.id);
+        if (!borrador) return;
+        const revisiones = { fecha: borrador.fecha.revision, nota: borrador.nota.revision };
+        const cambios: Partial<Pick<Oferta, 'fecha_postulacion' | 'nota_postulacion'>> = {};
+        if (borrador.fecha.valor !== borrador.fecha.base) cambios.fecha_postulacion = borrador.fecha.valor || null;
+        if (borrador.nota.valor !== borrador.nota.base) cambios.nota_postulacion = borrador.nota.valor || null;
+        if (Object.keys(cambios).length === 0) return;
+        borrador.fecha.pendiente = Object.hasOwn(cambios, 'fecha_postulacion');
+        borrador.nota.pendiente = Object.hasOwn(cambios, 'nota_postulacion');
+        borrador.error = null;
+        this.seguimientoGuardandoIds.update(ids => new Set([...ids, oferta.id]));
+        this.errorSeguimiento.set(null);
+        this.mensajeSeguimiento.set(null);
+        this.seguimientoPendiente.emit({ id: oferta.id, pendiente: true });
+        const finalizar = () => {
+            borrador.fecha.pendiente = false;
+            borrador.nota.pendiente = false;
+            this.seguimientoGuardandoIds.update(ids => new Set([...ids].filter(id => id !== oferta.id)));
+            this.seguimientoPendiente.emit({ id: oferta.id, pendiente: false });
+            this.liberarBorradorSeguimiento(oferta.id);
+        };
+        const fallar = () => {
+            borrador.error = 'No pude guardar el seguimiento. Conservé el borrador; intentá nuevamente.';
+            if (this.oferta()?.id === oferta.id) this.mostrarBorradorSeguimiento();
+            finalizar();
+        };
+        this.ofertasService.actualizarSeguimiento(oferta.id, cambios).subscribe({
+            next: respuesta => {
+                if (!respuesta.exito || !respuesta.datos) {
+                    fallar();
+                    return;
+                }
+                const editor = this.oferta();
+                const mismoId = editor?.id === oferta.id;
+                // Ignoro campos ajenos al PATCH y preservo por revisión, incluso si volví al valor base.
+                for (const campo of ['fecha', 'nota'] as const) {
+                    const clave = campo === 'fecha' ? 'fecha_postulacion' : 'nota_postulacion';
+                    if (!Object.hasOwn(cambios, clave)) continue;
+                    const valor = respuesta.datos[clave] ?? null;
+                    oferta[clave] = valor;
+                    if (mismoId) editor[clave] = valor;
+                    if (borrador[campo].revision === revisiones[campo]) borrador[campo].valor = valor ?? '';
+                    borrador[campo].base = valor ?? '';
+                }
+                if (mismoId) this.mostrarBorradorSeguimiento();
+                this.ofertaActualizada.emit(mismoId ? editor : oferta);
+                if (mismoId && borrador.fecha.revision === revisiones.fecha && borrador.nota.revision === revisiones.nota) {
+                    this.mensajeSeguimiento.set('Seguimiento guardado.');
+                }
+                finalizar();
+            },
+            error: fallar,
+        });
+    }
+
     readonly opcionesPostulacion = [
         { label: 'No postulado', value: 'no_postulado' },
         { label: 'CV enviado', value: 'cv_enviado' },
@@ -68,6 +172,33 @@ export class DetalleOferta implements OnDestroy {
     private idTimeoutFoco: ReturnType<typeof setTimeout> | null = null;
 
     constructor(private readonly elemento: ElementRef) {
+        effect(() => {
+            const oferta = this.oferta();
+            if ((oferta?.id ?? null) === this.idBorrador) return;
+            const anterior = this.idBorrador;
+            this.idBorrador = oferta?.id ?? null;
+            this.liberarBorradorSeguimiento(anterior);
+            if (oferta) {
+                let borrador = this.borradoresSeguimiento.get(oferta.id);
+                if (!borrador) {
+                    borrador = {
+                        fecha: { valor: oferta.fecha_postulacion ?? '', base: oferta.fecha_postulacion ?? '', revision: 0, pendiente: false },
+                        nota: { valor: oferta.nota_postulacion ?? '', base: oferta.nota_postulacion ?? '', revision: 0, pendiente: false },
+                        error: null,
+                    };
+                    this.borradoresSeguimiento.set(oferta.id, borrador);
+                } else {
+                    for (const campo of ['fecha', 'nota'] as const) {
+                        const clave = campo === 'fecha' ? 'fecha_postulacion' : 'nota_postulacion';
+                        if (!borrador[campo].pendiente && borrador[campo].valor === borrador[campo].base) {
+                            borrador[campo].valor = borrador[campo].base = oferta[clave] ?? '';
+                        }
+                    }
+                }
+            }
+            this.mostrarBorradorSeguimiento();
+            this.mensajeSeguimiento.set(null);
+        });
         // Effect: cuando el modal se abre, mover foco al contenido;
         // cuando se cierra, restaurar foco al elemento que lo abrió.
         effect(() => {
@@ -270,7 +401,8 @@ export class DetalleOferta implements OnDestroy {
                 this.guardandoDescripcion.set(false);
                 if (respuesta.exito && respuesta.datos) {
                     // Actualizar la oferta local con los datos actualizados.
-                    Object.assign(o, respuesta.datos);
+                    const { estado_postulacion, fecha_postulacion, nota_postulacion, ...descripcionActualizada } = respuesta.datos;
+                    Object.assign(o, descripcionActualizada);
                     this.ofertaActualizada.emit(o);
                     this.modoEdicionDescripcion.set(false);
                 } else {
