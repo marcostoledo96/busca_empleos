@@ -114,9 +114,18 @@ reutilizo el máximo vigente `MAX_BYTES_CV_BASE` de 1048576 bytes UTF-8 para el 
 Decodifico Markdown con UTF-8 fatal, conservo sus bytes textuales y rechazo caracteres
 inválidos. Para PDF compruebo encabezado/cierre y uso `new PDFParse({ data: buffer })`,
 `getText()` de todas las páginas y `destroy()` en `finally`. Exijo que la cantidad y
-numeración de páginas coincidan; ante error de parseo o resultado parcial no devuelvo
-texto exitoso. Uno el texto de las páginas, no los marcadores decorativos, para
-rechazar correctamente PDFs vacíos. No hago OCR ni extracción en navegador.
+numeración de páginas coincidan; ante error de parseo o páginas faltantes no devuelvo
+texto exitoso. PDF.js puede recuperar un documento omitiendo comandos desconocidos o
+contenido de página inaccesible aun con `stopAtErrors`; esos casos pueden conservar
+la numeración y devolver texto vacío para la página afectada. Por eso rechazo también
+la mezcla de páginas con texto y páginas vacías/solo espacios mediante HTTP422
+`EXTRACCION_INCOMPLETA`, sin resultado parcial. Esta política conservadora rechaza
+incluso páginas legítimamente en blanco o escaneadas mezcladas con texto: ofrezco pegar
+el contenido manualmente. No certifico detección de corrupción arbitraria ni pérdida
+parcial dentro de una página que aún tenga texto. No intercepto la consola global ni
+agrego un validador PDF general. Uno el texto de las páginas, no los marcadores
+decorativos; si todas quedan vacías conservo `SIN_TEXTO_EXTRAIBLE`. No hago OCR ni
+extracción en navegador.
 
 Mantengo bytes y resultado solo en memoria durante la solicitud, sin almacenar
 originales ni cambiar CV base, perfil confirmado, ofertas, postulaciones o notas.

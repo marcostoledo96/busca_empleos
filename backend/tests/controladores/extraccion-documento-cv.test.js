@@ -95,6 +95,30 @@ test.each([
 ])('rechazo documento inválido %# sin devolver texto parcial', async (bytes, nombre, mime, tipo) => {
     comprobarError(await subir(bytes, nombre, mime), tipo);
 });
+test.each([
+    ['referencia inexistente', '/Contents 7 0 R', '/Contents 9 0 R'],
+    ['operador dañado', '(Idiomas: Ingles B2) Tj', '(Idiomas: Ingles B2) Qq'],
+    ['literal incompleto', '(Idiomas: Ingles B2) Tj', '(Idiomas: Ingles B2  Tj'],
+])('B1: rechazo pérdida de la segunda página por %s sin éxito parcial', async (caso, original, reemplazo) => {
+    const { PDFParse } = require('pdf-parse');
+    const extraer = jest.spyOn(PDFParse.prototype, 'getText');
+    const destruir = jest.spyOn(PDFParse.prototype, 'destroy');
+    const fuente = crearPdf(['Nombre: Eva Verificadora', 'Idiomas: Ingles B2']).toString();
+    expect(fuente).toContain(original);
+    const respuesta = await subir(Buffer.from(fuente.replace(original, reemplazo)));
+    // Ejecuto el parser real: conserva dos páginas, pero pierde íntegramente Idiomas.
+    const resultado = await extraer.mock.results[0].value;
+    expect(resultado.total).toBe(2);
+    expect(resultado.pages.map(pagina => pagina.text.trim())).toEqual(['Nombre: Eva Verificadora', '']);
+    expect(destruir).toHaveBeenCalledTimes(1);
+    comprobarError(respuesta, 'parcial');
+});
+test.each([
+    ['Nombre: Persona Sintetica', ''],
+    ['', 'Nombre: Persona Sintetica'],
+].map(paginas => [paginas]))('rechazo conservadoramente PDF mixto con página vacía %#', async paginas => {
+    comprobarError(await subir(crearPdf(paginas)), 'parcial');
+});
 test('rechazo PDF truncado aunque conserve la primera página legible', async () => {
     const pdf = crearPdf(['Nombre', 'Experiencia', 'Educacion', 'Idiomas']);
     comprobarError(await subir(pdf.subarray(0, pdf.length - 80)), 'danado');

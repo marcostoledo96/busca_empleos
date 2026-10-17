@@ -305,8 +305,15 @@ La respuesta de éxito es exactamente:
 
 `formato` es `pdf` o `md`. Extraigo todas las páginas; uno su texto con dos saltos
 de línea y no cuento los separadores decorativos del lector como texto útil.
-Si no recupero texto, indico que se puede pegar manualmente. No realizo OCR ni
-admito DOCX; un documento escaneado sin texto seleccionable no se puede extraer.
+Si todas las páginas quedan sin texto útil, respondo `SIN_TEXTO_EXTRAIBLE`.
+Si algunas tienen texto y otras quedan vacías o solo con espacios, rechazo el PDF
+completo con HTTP422 `EXTRACCION_INCOMPLETA`, sin `datos` ni texto parcial, y ofrezco
+pegarlo manualmente. Es una política conservadora: también rechazo documentos válidos
+que incluyan una página en blanco, o mezclen páginas de texto con páginas escaneadas.
+El lector no distingue esas páginas de ciertas pérdidas de contenido por corrupción,
+aun con `stopAtErrors`; no garantizo detectar corrupción arbitraria ni pérdidas dentro
+de una página que todavía devuelva texto. No realizo OCR ni admito DOCX; un documento
+escaneado sin texto seleccionable no se puede extraer.
 No guardo bytes originales ni texto en disco o PostgreSQL, no modifico CV base,
 preferencias, ofertas, postulaciones o notas, no invoco DeepSeek ni registro contenido
 privado o errores crudos del parser. El resultado es texto para revisar, no un perfil aplicado.

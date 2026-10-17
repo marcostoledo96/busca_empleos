@@ -28,6 +28,11 @@ async function extraerTextoDocumento(archivo) {
             || resultado.pages.some((pagina, indice) => pagina.num !== indice + 1 || typeof pagina.text !== 'string')) {
             throw errorDocumento('EXTRACCION_INCOMPLETA');
         }
+        // No puedo distinguir una página vacía de contenido perdido por la recuperación tolerante de PDF.js.
+        const paginasConTexto = resultado.pages.filter(pagina => pagina.text.trim()).length;
+        if (paginasConTexto > 0 && paginasConTexto < resultado.total) {
+            throw errorDocumento('EXTRACCION_INCOMPLETA');
+        }
         // Uno las páginas reales, no los separadores decorativos que también aparecen en PDFs vacíos.
         const texto = validarTextoDocumento(resultado.pages.map(pagina => pagina.text).join('\n\n'));
         return { texto, formato };
