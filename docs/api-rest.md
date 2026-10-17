@@ -281,6 +281,63 @@ criterios, no hechos ni permisos para quitar restricciones. Prioridad IA permane
 un ajuste del ranking, no un bonus fijo sobre el match. `filtrar_nivel_linkedin`
 permite omitir `f_E=1,2` en URLs de LinkedIn sin cambiar el seniority real del perfil.
 
+## Vista previa de documentos CV sin IA (issue #23)
+
+En `POST /api/preferencias/importar-cv/extraer-texto` envío `multipart/form-data`
+con un único archivo en el campo `cv`, sin otros campos. Exijo el Bearer de Firebase
+antes de recibir el archivo y aplico el limitador existente de 5 solicitudes por minuto
+por IP, compartido con operaciones costosas (desactivado en tests).
+
+Admito `.pdf` con texto seleccionable (`application/pdf`) y `.md` UTF-8
+(`text/markdown` o `text/plain`); ambos admiten `application/octet-stream` si
+el contenido supera las validaciones. Normalizo extensión y MIME para compararlos,
+pero no modifico el texto Markdown, incluidos BOM, espacios y saltos de línea.
+El máximo del archivo es **5 MiB (5242880 bytes) inclusive** y el del texto completo
+es **1048576 bytes UTF-8 inclusive**, el mismo `MAX_BYTES_CV_BASE` del CV base.
+Compruebo encabezado/cierre y parseo real del PDF, UTF-8 estricto en Markdown y
+caracteres inválidos en ambos formatos. No recorto el contenido para hacerlo entrar.
+
+La respuesta de éxito es exactamente:
+
+```json
+{ "exito": true, "datos": { "texto": "Nombre: Persona Sintetica", "formato": "pdf" } }
+```
+
+`formato` es `pdf` o `md`. Extraigo todas las páginas; uno su texto con dos saltos
+de línea y no cuento los separadores decorativos del lector como texto útil.
+Si todas las páginas quedan sin texto útil, respondo `SIN_TEXTO_EXTRAIBLE`.
+Si algunas tienen texto y otras quedan vacías o solo con espacios, rechazo el PDF
+completo con HTTP422 `EXTRACCION_INCOMPLETA`, sin `datos` ni texto parcial, y ofrezco
+pegarlo manualmente. Es una política conservadora: también rechazo documentos válidos
+que incluyan una página en blanco, o mezclen páginas de texto con páginas escaneadas.
+El lector no distingue esas páginas de ciertas pérdidas de contenido por corrupción,
+aun con `stopAtErrors`; no garantizo detectar corrupción arbitraria ni pérdidas dentro
+de una página que todavía devuelva texto. No realizo OCR ni admito DOCX; un documento
+escaneado sin texto seleccionable no se puede extraer.
+No guardo bytes originales ni texto en disco o PostgreSQL, no modifico CV base,
+preferencias, ofertas, postulaciones o notas, no invoco DeepSeek ni registro contenido
+privado o errores crudos del parser. El resultado es texto para revisar, no un perfil aplicado.
+
+Los errores documentales devuelven exactamente `{ exito: false, codigo, error }`,
+sin `datos` ni texto parcial:
+
+| HTTP | código | error |
+| --- | --- | --- |
+| 400 | `FORMATO_NO_ADMITIDO` | Admito únicamente PDF con texto seleccionable o Markdown (.md). Podés pegar el texto manualmente. |
+| 400 | `CARGA_INVALIDA` | Enviá un único documento en el campo cv. Podés pegar el texto manualmente. |
+| 413 | `DOCUMENTO_DEMASIADO_GRANDE` | El documento no puede superar 5 MiB. Podés pegar el texto manualmente. |
+| 413 | `TEXTO_DEMASIADO_GRANDE` | El texto completo supera 1048576 bytes. No lo recorté. Reducí el documento o pegá texto manualmente. |
+| 422 | `DOCUMENTO_INVALIDO` | El documento está dañado o no coincide con el formato declarado. Podés pegar el texto manualmente. |
+| 422 | `SIN_TEXTO_EXTRAIBLE` | No pude recuperar texto del documento. Podés pegarlo manualmente; no realizo OCR. |
+| 422 | `TEXTO_INVALIDO` | Necesito texto UTF-8 válido sin caracteres de control inválidos. Podés pegar el texto manualmente. |
+| 422 | `EXTRACCION_INCOMPLETA` | No pude extraer todas las páginas de forma completa. Podés pegar el texto manualmente. |
+
+Conservo las respuestas existentes de autenticación (401/403) y limitación (429),
+con `{ exito: false, error }` sin `codigo`. Esta extracción no modifica el contrato de
+`/importar-cv/analizar`: el análisis continúa recibiendo Markdown y puede rechazar
+con `PRESUPUESTO_DOCUMENTO` un texto que sí entra en la vista previa, por su menor
+presupuesto de mensajes de IA. No envío binarios al endpoint de análisis.
+
 ## Extracción de CV completo (issue #10)
 
 En `POST /api/preferencias/importar-cv/analizar` envío un único Markdown en el campo

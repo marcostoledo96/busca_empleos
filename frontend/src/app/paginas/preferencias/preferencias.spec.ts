@@ -80,7 +80,7 @@ describe('Preferencias — CV base persistido', () => {
         componente.tabActiva.set(5);
         await fixture.whenStable();
         expect((fixture.nativeElement.querySelector('input[type=file]') as HTMLInputElement).disabled).toBeTrue();
-        componente.archivoCvSeleccionado = new File(['Archivo'], 'sintetico.md');
+        componente.textoCvImportacion = 'Archivo';
         await componente.usarArchivoComoCvBase();
         componente.editarCvBase('Edición posterior');
         http.expectOne(url).flush({ exito: true, datos: { cv_base: 'Enviado', cv_base_actualizado_en: fecha } });
@@ -126,13 +126,13 @@ describe('Preferencias — CV base persistido', () => {
         http.verify();
     });
 
-    it('importa UTF-8 preservando BOM y CRLF sin guardar ni borrar revisión; confirma reemplazo', async () => {
+    it('copia el borrador UTF-8 preservando BOM y CRLF sin guardar ni borrar revisión; confirma reemplazo', async () => {
         const { componente, http } = await abrir('Original');
         const confirmar = spyOn(window, 'confirm').and.returnValue(false);
         componente.editarCvBase('Pendiente');
         componente.resultadoImportacion = { nombre: 'Corrección' };
         const borrador = componente.resultadoImportacion;
-        componente.archivoCvSeleccionado = new File(['\ufeff# Sintético\r\nñ 🌎\r\n'], 'sintetico.md');
+        componente.textoCvImportacion = '\ufeff# Sintético\r\nñ 🌎\r\n';
         await componente.usarArchivoComoCvBase();
         expect(componente.cvBaseTexto).toBe('Pendiente');
         confirmar.and.returnValue(true);
@@ -141,30 +141,24 @@ describe('Preferencias — CV base persistido', () => {
         expect(componente.resultadoImportacion).toBe(borrador);
         expect(componente.cambiosCvPendientes).toBeTrue();
         http.expectNone(r => r.method !== 'GET');
-        for (const contenido of [new Uint8Array([0xc3, 0x28]), new Uint8Array([0]), new Uint8Array(1048577)]) {
-            componente.archivoCvSeleccionado = new File([contenido], 'invalido.md');
+        for (const contenido of ['\ud800', '\u0000', 'a'.repeat(1048577)]) {
+            componente.textoCvImportacion = contenido;
             await componente.usarArchivoComoCvBase();
             expect(componente.cvBaseTexto).toBe('\ufeff# Sintético\r\nñ 🌎\r\n');
         }
         http.verify();
     });
 
-    it('descarta una lectura de archivo tardía si cambió la identidad o el texto local', async () => {
+    it('no lee bytes ni permite que un archivo anterior reemplace la copia del borrador actual', async () => {
         const { componente, http } = await abrir('Original');
         const archivo = new File(['Primero'], 'primero.md');
-        let resolver!: (contenido: ArrayBuffer) => void;
-        spyOn(archivo, 'arrayBuffer').and.returnValue(new Promise(resolve => resolver = resolve));
+        const leer = spyOn(archivo, 'arrayBuffer');
         componente.archivoCvSeleccionado = archivo;
-        const lectura = componente.usarArchivoComoCvBase();
-        componente.archivoCvSeleccionado = new File(['Segundo'], 'segundo.md');
-        resolver(new TextEncoder().encode('Primero').buffer);
-        await lectura;
-        expect(componente.cvBaseTexto).toBe('Original');
-        componente.archivoCvSeleccionado = archivo;
-        const otraLectura = componente.usarArchivoComoCvBase();
+        componente.textoCvImportacion = 'Segundo corregido';
+        componente.usarArchivoComoCvBase();
+        expect(componente.cvBaseTexto).toBe('Segundo corregido');
+        expect(leer).not.toHaveBeenCalled();
         componente.editarCvBase('Edición concurrente');
-        resolver(new TextEncoder().encode('Primero').buffer);
-        await otraLectura;
         expect(componente.cvBaseTexto).toBe('Edición concurrente');
         http.verify();
     });
@@ -323,7 +317,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({
             exito: true, datos: { nivel_ingles_detalle: { speaking: 'avanzado', reading: 'intermedio' } },
         } as any));
-        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.textoCvImportacion = '# CV';
         component.analizarCv();
         expect(component.resultadoImportacion?.nivel_ingles_detalle).toEqual({
             speaking: 'básico', reading: 'intermedio', regla: 'Sin reuniones en inglés',
@@ -375,7 +369,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         })));
         component.resultadoImportacion = { nombre: 'Anterior' } as any;
         component.preguntasImportacion = [{ campo: 'anterior', pregunta: 'Anterior' }];
-        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.textoCvImportacion = '# CV';
         component.analizarCv();
         expect(component.resultadoImportacion).toBeNull();
         expect(component.preguntasImportacion).toEqual([]);
@@ -396,12 +390,12 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const aviso = spyOn(mensajes, 'add');
         const analizar = spyOn(servicio, 'analizarCvMarkdown').and.returnValue(throwError(() => ({ status: 0 })));
         component.resultadoImportacion = { nombre: 'Anterior' } as any;
-        component.archivoCvSeleccionado = new File(['a'.repeat(1024 * 1024 + 1)], 'cv.md');
+        component.textoCvImportacion = 'a'.repeat(1024 * 1024 + 1);
         component.analizarCv();
-        expect(component.resultadoImportacion).toBeNull();
+        expect(component.resultadoImportacion?.nombre).toBe('Anterior');
         expect(analizar).not.toHaveBeenCalled();
         component.resultadoImportacion = { nombre: 'Anterior' } as any;
-        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.textoCvImportacion = '# CV';
         component.analizarCv();
         expect(component.resultadoImportacion).toBeNull();
         expect(aviso).toHaveBeenCalledWith(jasmine.objectContaining({ detail: 'No se pudo analizar el CV.' }));
@@ -411,7 +405,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         const { fixture, component } = await crearComponente();
         component.cargando.set(false);
         component.tabActiva.set(5);
-        component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+        component.textoCvImportacion = '# CV';
         fixture.autoDetectChanges();
         component.analizarCv();
         await fixture.whenStable();
@@ -430,7 +424,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
             spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true,
                 datos: { nombre: 'Nuevo', ...(preguntas === undefined ? {} : { preguntas }) } } as any));
             component.cargarPreferencias();
-            component.archivoCvSeleccionado = new File(['# CV'], 'cv.md');
+            component.textoCvImportacion = '# CV';
             component.analizarCv();
             component.aplicarImportacion();
             expect(component.preguntasPerfilPendientes.map(p => p.campo)).toEqual((preguntas ?? anterior).map(p => p.campo));
@@ -451,12 +445,13 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
                 spyOn(servicio, 'analizarCvMarkdown').and.returnValues(a, b);
                 const mensajes = fixture.debugElement.injector.get(MessageService);
                 const aviso = spyOn(mensajes, 'add');
-                component.archivoCvSeleccionado = new File(['A'], 'a.md');
+                component.textoCvImportacion = 'A';
                 component.analizarCv();
                 component.onArchivoCvSeleccionado({ target: { files: [new File(['B'], 'b.md')] } } as unknown as Event);
                 expect(component.resultadoImportacion).toBeNull();
                 expect(component.preguntasImportacion).toEqual([]);
                 expect(component.analizandoCv()).toBeFalse();
+                component.textoCvImportacion = 'B';
                 component.analizarCv();
                 if (terminaB) b.next({ exito: true, datos: { nombre: 'B' } });
                 aviso.calls.reset();
@@ -478,11 +473,12 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         spyOn(servicio, 'analizarCvMarkdown').and.returnValues(a, of({ exito: true, datos: {
             nombre: 'B', preguntas_perfil_pendientes: [], preguntas: [{ campo: 'otro', pregunta: '¿Otro?', motivo: 'Ausente' }],
         } } as any));
-        component.archivoCvSeleccionado = new File(['A'], 'a.md');
+        component.textoCvImportacion = 'A';
         component.analizarCv();
         component.onArchivoCvSeleccionado({ target: { files: [new File(['B'], 'b.md')] } } as unknown as Event);
         a.next({ exito: true, datos: { nombre: 'A' } });
         expect(component.resultadoImportacion).toBeNull();
+        component.textoCvImportacion = 'B';
         component.analizarCv();
         component.preguntasPerfilPendientes = [{ campo: 'anterior', pregunta: '¿Anterior?' }];
         component.aplicarImportacion();
@@ -495,7 +491,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         component.resultadoImportacion = { nombre: 'Anterior' };
         component.preguntasImportacion = [{ campo: 'anterior', pregunta: '¿Anterior?' }];
         const limpiar = spyOn(fixture.debugElement.injector.get(MessageService), 'clear');
-        component.onArchivoCvSeleccionado({ target: { files: [] } } as unknown as Event);
+        component.onArchivoCvSeleccionado({ target: { files: [new File(['Nuevo'], 'nuevo.md')] } } as unknown as Event);
         expect(component.resultadoImportacion).toBeNull();
         expect(component.preguntasImportacion).toEqual([]);
         expect(limpiar).toHaveBeenCalled();
@@ -509,7 +505,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         spyOn(servicio, 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: extraido } as any));
         fixture.autoDetectChanges();
         component.tabActiva.set(5);
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         await fixture.whenStable();
         const filas = fixture.nativeElement.querySelectorAll('.importar-pregunta--accionable');
@@ -548,7 +544,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         component.expectativaSalarialMin = 900;
         component.aniosExperienciaReales = 3;
         component.preguntasPerfilPendientes = [{ campo: 'previa', pregunta: 'Confirmada', respuesta: 'Sí' }];
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         component.aceptarSugerenciaImportacion(component.preguntasImportacion[0].id);
         expect(component.expectativaSalarialMin).toBe(900);
@@ -556,7 +552,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         component.cancelarImportacion();
         expect(component.nombre).toBe('Manual sin guardar');
         expect(component.preguntasPerfilPendientes[0].respuesta).toBe('Sí');
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         component.cancelarImportacion();
         tardio.next({ exito: true, datos: { nombre: 'Obsoleto' } });
@@ -572,7 +568,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
             preguntas_perfil_pendientes: [{ campo: 'ingles', pregunta: '¿Nivel?' }, { campo: 'ingles', pregunta: '¿Oral?' }],
         } } as any));
         component.expectativaSalarialMin = 900;
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         const ids = component.preguntasImportacion.map(p => p.id);
         expect(ids[0]).not.toBe(ids[1]);
@@ -603,7 +599,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
                 nombre: 'Parcial', perfil_profesional: null, nivel_ingles_detalle: null,
                 ...(detalle === undefined ? {} : { tecnologias_detalle: detalle }),
             } } as any));
-            component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+            component.textoCvImportacion = 'CV';
             component.analizarCv();
             component.aplicarImportacion();
             expect(component.nombre).toBe('Parcial');
@@ -622,7 +618,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         spyOn(TestBed.inject(PreferenciasService), 'analizarCvMarkdown').and.returnValue(of({ exito: true, datos: {
             nombre: 'Inválido', preguntas_perfil_pendientes: null,
         } } as any));
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         expect(component.resultadoImportacion).toBeNull();
     });
@@ -635,7 +631,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         fixture.autoDetectChanges();
         component.perfilProfesional = 'Texto manual';
         component.tabActiva.set(5);
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         await fixture.whenStable();
         const nivel = fixture.nativeElement.querySelector('[aria-label="Nivel revisado de Docker"]') as HTMLSelectElement;
@@ -664,7 +660,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         component.perfilProfesional = 'Experiencia confirmada';
         component.keywordsPositivas = ['Manual'];
         component.expectativaSalarialMin = 900;
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         component.aceptarSugerenciaImportacion(component.preguntasImportacion[0].id);
         expect(component.preguntasImportacion[0].estado).toBe('pendiente');
@@ -696,7 +692,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         } } as any));
         fixture.autoDetectChanges();
         component.tabActiva.set(5);
-        component.archivoCvSeleccionado = new File(['CV'], 'cv.md');
+        component.textoCvImportacion = 'CV';
         component.analizarCv();
         const id = component.preguntasImportacion[0].id;
         component.actualizarRespuestaPregunta(id, 'Nota confirmada');

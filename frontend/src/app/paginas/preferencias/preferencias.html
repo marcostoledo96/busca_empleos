@@ -457,29 +457,31 @@
                 <!-- IMPORTAR CV -->
                 <p-tabpanel [value]="5">
                     <section class="seccion" aria-labelledby="label-importar">
-                        <div class="seccion-cabecera"><span class="seccion-label" id="label-importar">IMPORTAR_CV_MARKDOWN</span></div>
+                        <div class="seccion-cabecera"><span class="seccion-label" id="label-importar">IMPORTAR_CV</span></div>
                         <div class="seccion-cuerpo">
-                            <small class="campo-ayuda">Usa <strong>{{ modeloIaImportacion }}</strong> por defecto para importar y completar el perfil con más precisión. El botón se habilita cuando seleccionás un archivo `.md` válido.</small>
+                            <p id="importacion-ayuda">Seleccioná PDF con texto seleccionable o Markdown (.md), hasta 5 MiB. Extraer no consume IA. Revisá el texto completo antes de enviarlo a <strong>{{ modeloIaImportacion }}</strong>.</p>
+                            <label class="campo-etiqueta" for="archivo-cv">Documento del CV (.pdf o .md)</label>
                             <div class="importar-grupo">
-                                <input type="file" accept=".md,text/markdown,text/plain" (change)="onArchivoCvSeleccionado($event)" [disabled]="modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" class="importar-input" />
-                                <button class="btn-importar" [disabled]="!archivoCvSeleccionado || analizandoCv() || modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" (click)="analizarCv()">
-                                    @if (analizandoCv()) {
-                                        <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
-                                        ANALIZANDO CV...
-                                    } @else {
-                                        <span class="material-symbols-outlined" aria-hidden="true">upload</span>
-                                        ANALIZAR CV
-                                    }
-                                </button>
+                                <input id="archivo-cv" type="file" accept=".pdf,.md" aria-describedby="importacion-ayuda" (change)="onArchivoCvSeleccionado($event)" [disabled]="modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" class="importar-input" />
+                                <button id="extraer-texto-cv" type="button" class="btn-detalle-secundario"
+                                    [disabled]="!archivoCvSeleccionado || extrayendoCv() || modoDemo() || guardandoCvBase() || guardando()" (click)="extraerTextoCv()">Extraer texto sin IA</button>
+                                <button id="cancelar-importacion" type="button" class="btn-detalle-secundario" (click)="cancelarImportacion()" [disabled]="modoDemo()">Cancelar importación</button>
                             </div>
-
-                            <button type="button" class="btn-detalle-secundario" (click)="usarArchivoComoCvBase()"
-                                [disabled]="!archivoCvSeleccionado || !cvBaseCargado || cargandoCvBase() || guardandoCvBase() || leyendoCvBase() || modoDemo()">Usar este archivo como mi CV base</button>
-                            <small class="campo-ayuda">Esta acción carga el archivo en el editor sin guardar la fuente ni cambiar la revisión. Después elegí Guardar CV base.</small>
-
-                            @if (!archivoCvSeleccionado && !analizandoCv()) {
-                                <small class="campo-ayuda">Seleccioná primero un archivo `.md` para habilitar el análisis.</small>
-                            }
+                            @if (archivoCvSeleccionado) { <p>Documento seleccionado: {{ archivoCvSeleccionado.name }}</p> }
+                            <p id="importacion-estado" role="status" aria-live="polite">{{ estadoImportacion }}</p>
+                            @if (errorExtraccionCv) { <p id="error-extraccion-cv" role="alert" aria-live="polite">Extracción: {{ errorExtraccionCv }}</p> }
+                            <label class="campo-etiqueta" for="texto-cv-importacion">Borrador temporal: corregir o pegar texto del CV</label>
+                            <p id="texto-importacion-ayuda">Podés pegar texto sin seleccionar archivo, incluso si el PDF está escaneado o falla la extracción. Hasta 1 MiB UTF-8; no recorto contenido. Este borrador no reemplaza el CV base ni las preferencias.</p>
+                            <textarea id="texto-cv-importacion" class="cv-base-editor" [value]="textoCvImportacion" (input)="editarTextoImportacion($event)"
+                                [disabled]="modoDemo()" aria-describedby="texto-importacion-ayuda importacion-estado" spellcheck="true" rows="18"></textarea>
+                            @if (errorTextoCv) { <p role="alert">Texto: {{ errorTextoCv }}</p> }
+                            @if (errorAnalisisCv) { <p id="error-analisis-cv" role="alert" aria-live="polite">Análisis IA: {{ errorAnalisisCv }}</p> }
+                            <div class="importar-acciones">
+                                <button id="analizar-texto-cv" type="button" class="btn-importar" [disabled]="!textoCvImportacion.trim() || analizandoCv() || extrayendoCv() || modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" (click)="analizarCv()">Analizar este texto con IA</button>
+                                <button id="usar-texto-cv-base" type="button" class="btn-detalle-secundario" (click)="usarArchivoComoCvBase()"
+                                    [disabled]="!textoCvImportacion.trim() || !cvBaseCargado || cargandoCvBase() || guardandoCvBase() || modoDemo()">Usar este archivo como mi CV base</button>
+                            </div>
+                            <small class="campo-ayuda">Analizar envía exactamente el borrador actual como Markdown y puede consumir saldo. Usar como CV base copia el texto corregido al editor, sin guardar ni cambiar la revisión. Después elegí Guardar CV base.</small>
 
                             @if (analizandoCv()) {
                                 <div class="importar-loading" role="status" aria-live="polite">
@@ -491,7 +493,7 @@
                             @if (resultadoImportacion) {
                                 <div class="importar-resultado">
                                     <h3>Borrador revisable del CV</h3>
-                                    <p>La extracción es una propuesta. Editá los hechos antes de aplicar; todavía no modifico el formulario ni guardo preferencias.</p>
+                                    <p>El análisis es una propuesta. Revisá los hechos, preguntas y decisiones antes de aplicar; todavía no modifico el formulario ni guardo preferencias. Aplicar confirma la revisión del perfil, no su guardado.</p>
                                     <p>Se agregará: {{ resumenImportacion.agregar.join(', ') || 'Nada' }}.</p>
                                     <p>Se modificará: {{ resumenImportacion.modificar.join(', ') || 'Nada' }}.</p>
                                     <p>Se conservará: {{ resumenImportacion.conservar.join(', ') || 'Nada' }}.</p>
@@ -703,7 +705,7 @@
                                 <div class="campo">
                                     <label class="campo-etiqueta">Última importación CV</label>
                                     <input pInputText [ngModel]="fechaImportacionCv || 'Nunca'" readonly />
-                                    <small class="campo-ayuda">Fecha en la que aplicaste por última vez un perfil extraído desde CV Markdown.</small>
+                                    <small class="campo-ayuda">Fecha en la que aplicaste por última vez un perfil analizado desde el texto del CV.</small>
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta">Modo de evaluación</label>

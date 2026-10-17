@@ -4,6 +4,7 @@
 // - GET  /                        → obtener preferencias actuales.
 // - PUT  /                        → actualizar preferencias (parcial o completa).
 // - POST /importar-cv/analizar    → analizar CV Markdown con IA (no guarda).
+// - POST /importar-cv/extraer-texto → extraer PDF/Markdown sin IA ni escrituras.
 
 const { Router } = require('express');
 const multer = require('multer');
@@ -40,6 +41,31 @@ function recibirCv(req, res, next) {
     });
 }
 
+const {
+    MAX_BYTES_DOCUMENTO_CV, validarFormatoDocumento, responderErrorDocumento,
+} = require('../utils/validacion-documento-cv');
+const uploadDocumentoCv = multer({
+    storage: multer.memoryStorage(),
+    // Busboy dispara el límite al alcanzarlo; valido el máximo inclusivo en el servicio.
+    limits: { fileSize: MAX_BYTES_DOCUMENTO_CV + 1, files: 1, fields: 0, parts: 2 },
+    fileFilter: (req, archivo, cb) => {
+        try {
+            validarFormatoDocumento(archivo);
+            cb(null, true);
+        } catch (error) {
+            cb(error);
+        }
+    },
+});
+function recibirDocumentoCv(req, res, next) {
+    uploadDocumentoCv.single('cv')(req, res, error => {
+        if (!error) return next();
+        const codigo = error.code === 'LIMIT_FILE_SIZE' ? 'DOCUMENTO_DEMASIADO_GRANDE'
+            : error.codigo === 'FORMATO_NO_ADMITIDO' ? error.codigo : 'CARGA_INVALIDA';
+        return responderErrorDocumento(res, codigo);
+    });
+}
+
 const router = Router();
 
 router.get('/', controlador.obtenerPreferencias);
@@ -52,3 +78,4 @@ router.post('/importar-cv/analizar', recibirCv, controlador.analizarCvMarkdown);
 module.exports = router;
 module.exports.uploadCv = uploadCv;
 module.exports.recibirCv = recibirCv;
+module.exports.recibirDocumentoCv = recibirDocumentoCv;

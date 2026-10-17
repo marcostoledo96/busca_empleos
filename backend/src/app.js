@@ -213,6 +213,14 @@ app.post(
     controladorPreferencias.analizarCvMarkdown
 );
 
+// Extraigo documentos en memoria, sin IA; limito el trabajo de parseo antes de recibir bytes.
+app.post(
+    '/api/preferencias/importar-cv/extraer-texto',
+    limitadorCostoso,
+    rutasPreferencias.recibirDocumentoCv,
+    controladorPreferencias.extraerTextoCv
+);
+
 // El resto de preferencias (GET/PUT) va sin rate limit.
 app.use('/api/preferencias', rutasPreferencias);
 

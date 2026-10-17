@@ -69,6 +69,15 @@ export class PreferenciasService {
         });
     }
 
+    // Extraigo texto sin llamar a IA ni guardar el documento.
+    extraerTextoCv(archivo: File): Observable<RespuestaApi<{ texto: string; formato: 'pdf' | 'md' }>> {
+        const datos = new FormData();
+        datos.append('cv', archivo);
+        return this.http.post<RespuestaApi<{ texto: string; formato: 'pdf' | 'md' }>>(
+            `${this.urlBase}/importar-cv/extraer-texto`, datos
+        );
+    }
+
     // Analiza un CV Markdown con DeepSeek. No guarda preferencias.
     analizarCvMarkdown(archivo: File): Observable<RespuestaApi<ResultadoImportacionCv>> {
         const fd = new FormData();
