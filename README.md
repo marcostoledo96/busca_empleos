@@ -1,4 +1,4 @@
-# Busca Empleos — AI Job Scraper
+# Busco Trabajo — AI Job Scraper
 
 Plataforma full-stack personal para automatizar la búsqueda activa de empleo IT. El sistema extrae periódicamente cientos de ofertas laborales de múltiples portales, las filtra mediante Inteligencia Artificial (DeepSeek) comparándolas con un perfil técnico configurado, y centraliza los resultados en un dashboard interactivo.
 
@@ -23,7 +23,7 @@ Plataforma full-stack personal para automatizar la búsqueda activa de empleo IT
 ## 📁 Estructura del proyecto
 
 ```text
-Busca_empleos/
+busca_empleos/
 ├── backend/       ← API REST en Node.js + Express (Scraping, IA, Auth, DB)
 │   ├── src/       ← Controladores, Servicios, Modelos y Rutas
 │   ├── sql/       ← Scripts de migración y definición de tablas
@@ -45,8 +45,8 @@ Busca_empleos/
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/marcostoledo96/busca-empleos.git
-cd busca-empleos
+git clone https://github.com/marcostoledo96/busca_empleos.git
+cd busca_empleos
 ```
 
 ### 2. Configurar el backend
@@ -93,6 +93,16 @@ El frontend espera el backend en `http://localhost:3000`. Si usás otro puerto, 
 ```bash
 ng serve          # Inicia en http://localhost:4200
 ```
+
+## Estado del dominio
+
+Conservo `https://busca-empleos.vercel.app` como dirección funcional. Al 18/10/2026,
+`https://busco-trabajo.vercel.app` es solo un candidato: responde 404
+`DEPLOYMENT_NOT_FOUND`, lo que no confirma disponibilidad ni asignación.
+La configuración de Vercel, Firebase y CORS del nuevo dominio queda **PENDIENTE**
+de intervención humana; la publicación de la marca depende del merge y del siguiente
+despliegue automático autorizado. Registro los pasos y checks pendientes en
+[la guía de deploy](docs/deploy.md#transición-de-marca-y-dominio--issue-27).
 
 ## 📚 Documentación técnica
 
