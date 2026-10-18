@@ -1,0 +1,41 @@
+# CV sintético ampliado — Persona Beta
+
+Documento ficticio para comparación manual. Todos los empleadores e instituciones son inventados. No contiene datos de contacto ni representa a una persona real.
+
+## Perfil y objetivos
+Soy desarrollador junior con experiencia en soporte de aplicaciones y proyectos de desarrollo web. Busco roles de soporte IT, QA manual o desarrollo junior en modalidad remota para Argentina o presencial en CABA. No acepto residencia obligatoria en otro país. Mi expectativa salarial y mi disponibilidad no están declaradas.
+
+## Experiencia laboral
+### Mesa de aplicaciones de Empresa Ficticia Nube — enero a diciembre de 2024
+Trabajé doce meses como auxiliar de soporte de aplicaciones internas. Registré tickets, reproduje fallos de acceso y documenté soluciones para usuarios. Consulté registros mediante SQL de solo lectura y escalé incidencias de infraestructura; no administré servidores ni dirigí equipos. No desarrollé microservicios durante este empleo.
+
+### Laboratorio Ficticio Sur — marzo a agosto de 2025
+Trabajé seis meses como QA manual junior de una aplicación de turnos. Preparé casos, ejecuté regresiones y reporté errores reproducibles. Verifiqué servicios REST con Postman y datos con PostgreSQL. Participé en reuniones en español. No implementé automatización con Selenium ni Playwright. Este empleo no se superpone con el anterior: mi experiencia laboral total declarada es de dieciocho meses, no tres años.
+
+## Proyectos personales, no empleo formal
+### Agenda Beta — septiembre a diciembre de 2025
+Construí un prototipo local con React, TypeScript y Express. Implementé formularios y validación de entradas, documenté la API y escribí pruebas unitarias con Jest. Usé SQLite en el prototipo; no PostgreSQL. No lo desplegué ni tuvo usuarios de producción. Consulté ChatGPT para entender mensajes de error y revisé sus sugerencias; eso no acredita experiencia profesional con LLM ni entrenamiento de modelos.
+
+### Biblioteca Beta — enero a febrero de 2026
+Construí un ejercicio académico con C# y ASP.NET, consultas SQL parametrizadas y una interfaz HTML/CSS. SQL Server se utilizó solamente en este ejercicio, no en mis empleos. Estudié Next.js mediante un tutorial corto, sin aplicación publicada. No confundo este aprendizaje con dominio avanzado ni años de empleo.
+
+### Colaboración documental — febrero de 2026
+Organicé instrucciones de instalación de una aplicación ficticia con Markdown y Git. No fui líder ni responsable de arquitectura. Un mentor senior revisó mi documentación: ese nivel describe al mentor, no a mí.
+
+## Educación
+- Instituto Ficticio Horizonte: tecnicatura en desarrollo de software, iniciada en 2023, en curso; me faltan materias y no tengo título expedido.
+- Academia Ficticia Puente: curso de QA manual completado en noviembre de 2023, con casos funcionales y reporte de incidencias.
+- Taller Ficticio Delta: introducción a redes completada en junio de 2024; no es una certificación de administración de redes.
+- Curso de inglés de Instituto Ficticio Idiomas iniciado en 2025, todavía en curso; no otorga una certificación internacional.
+
+## Tecnologías y límites explícitos
+JavaScript, TypeScript, React, HTML y CSS tienen evidencia en proyectos personales. Node.js y Express corresponden al prototipo Agenda Beta. SQL, PostgreSQL y Postman tienen evidencia en mi empleo de QA; SQLite corresponde solo a Agenda Beta. C# y ASP.NET tienen evidencia académica. Uso Git para versionar ejercicios y Markdown para documentar. Next.js es aprendizaje introductorio; no tengo experiencia productiva. No domino Java, Kubernetes, Docker ni AWS. No declaro Python ni Angular. No tengo experiencia con fine-tuning, embeddings, entrenamiento de modelos ni herramientas de automatización de QA. Mi uso de ChatGPT fue asistido y revisado, no una capacidad profesional certificada.
+
+## Idiomas
+Español nativo. Inglés: lectura técnica intermedia, escritura básica, conversación básica, comprensión auditiva intermedia. No declaro C1, inglés fluido ni certificación. No declaro portugués ni otros idiomas.
+
+## Información no declarada
+No informo remuneración pretendida, fecha de incorporación, edad, domicilio, teléfono ni correo. No se deben completar por inferencia. Si un campo resulta ambiguo, espero una pregunta o advertencia y no un hecho inventado.
+
+## Cierre de evidencia
+MARCADOR_FINAL_BETA_26: mantengo dieciocho meses de empleo formal y una tecnicatura sin finalizar. La información al final del documento también debe conservarse en el resumen cuando sea relevante; el marcador sirve para localizar el cierre, no es una habilidad.

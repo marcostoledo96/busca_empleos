@@ -2,10 +2,10 @@
 
 ## Qué es y por qué se usa DeepSeek
 
-DeepSeek es un modelo de lenguaje (como ChatGPT) pero más barato, con una API compatible con el formato de OpenAI. Si algún día se quisiera cambiar a OpenAI u otro proveedor compatible, solo haría falta cambiar la URL y el modelo.
+Uso DeepSeek mediante una API compatible con el formato de Chat Completions de OpenAI. Esta integración no mide calidad ni costos reales frente a otros proveedores; no implemento otros proveedores en este cambio.
 
-**Modelo:** `deepseek-v4-flash` (modelo rápido recomendado).
-**URL:** `https://api.deepseek.com/chat/completions`.
+**Catálogo:** `deepseek-flash` (predeterminado) y `deepseek-v4-pro`. Normalizo el alias legacy `deepseek-v4-flash` a Flash; no representa otro modelo ni una versión fijada.
+**URL:** `https://api.deepseek.com/v1/chat/completions`.
 **API key:** Variable de entorno `DEEPSEEK_API_KEY`.
 **SDK:** Ninguno — usa `fetch()` nativo de Node.js 22 (menos dependencias).
 
@@ -21,13 +21,30 @@ DeepSeek es un modelo de lenguaje (como ChatGPT) pero más barato, con una API c
 
 ## Configuración del cliente (deepseek.js)
 
-### `consultarDeepSeek(mensajeSistema, mensajeUsuario)`
+### `consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo, opciones = {})`
 
-Envía un request a la API de chat completions:
+Envío Chat Completions con `fetch` nativo y los dos mensajes `system`/`user`:
 
-- **messages:** Array con `{ role: "system", content: mensajeSistema }` y `{ role: "user", content: mensajeUsuario }`.
-- **temperature:** `0` — respuestas determinísticas, sin creatividad. Para evaluar ofertas se necesita consistencia.
-- **Validación:** Si la API key no está configurada o es el valor placeholder, lanza error descriptivo.
+| Tarea | Razonamiento | Formato | Salida máxima | Timeout por intento |
+| --- | --- | --- | --- | --- |
+| Evaluación | `thinking: { type: 'enabled' }`, `reasoning_effort: 'low'` | `json_object` | 4096 tokens | 60000 ms |
+| CV (`opciones.importacionCv: true`) | Igual | `json_object` | 16384 tokens | 120000 ms |
+
+No envío temperatura: DeepSeek la ignora con razonamiento. Conservo los valores
+históricos sin presentarlos como operativos. Mantengo Pro si fue seleccionado para
+CV; no elijo Flash automáticamente. Estos límites son presupuestos, no garantía de
+completitud para cualquier documento. Conservo hasta tres reintentos transitorios.
+
+Exijo `choices` no vacío, `finish_reason: 'stop'`, contenido textual no vacío y un
+objeto JSON válido antes del parser estricto de la tarea. `length`, salida vacía o
+JSON inválido son fallos técnicos recuperables, nunca rechazos laborales ni hits de
+caché exitosos. Valido también API key y modelo compatible.
+
+El callback opcional `opciones.alRecibirMetadatos` recibe solo modelo solicitado,
+modelo reportado, `finish_reason`, duración y tokens de entrada/salida/razonamiento
+cuando existen y son válidos. No exporto `reasoning_content`, prompts, CV ni respuestas
+en diagnósticos generales; tampoco invento métricas ausentes. El retorno sigue siendo
+texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
 
 ## Perfil del candidato
 
@@ -153,7 +170,7 @@ Interpreto las señales de Java, seniority, experiencia e inglés dentro de clá
 7. Retornar resultado
 ```
 
-**Manejo de errores:** Si falla la API o el JSON en una reevaluación forzada con resultado válido previo, conservo esa evaluación y actualizo únicamente `evaluacion_error_mensaje`. Sin resultado válido previo mantengo el rechazo técnico existente. Continúo las demás ofertas ante fallos de proveedor; ante fallos SQL detengo el lote con estado `error`, nunca `completado`.
+**Manejo de errores:** Si falla la API o el JSON en una reevaluación forzada con resultado válido previo, conservo esa evaluación y actualizo únicamente `evaluacion_error_mensaje`. Sin resultado válido previo mantengo la oferta pendiente con mensaje técnico, no rechazada. Continúo las demás ofertas ante fallos de proveedor; ante fallos SQL detengo el lote con estado `error`, nunca `completado`.
 
 ### Construcción del prompt (`construirPromptEvaluacion`)
 
@@ -308,9 +325,12 @@ ordenadas recursivamente, arrays conservados). El sistema enviado contiene
 literalmente el perfil efectivo; ordeno sus objetos también al presentar esa vista.
 La firma de criterios incluye el mensaje de sistema real, modelo efectivo
 (`modelo_ia_evaluacion`, luego `modelo_ia`, luego el predeterminado), configuración
-efectiva del proveedor (URL y temperatura cero compartidas con el request) y
-versiones del contrato de reglas/parser y del detector de prioridad. No incluye claves
-API ni configuración visual. Incremento `VERSION_CONTRATO_EVALUACION` cuando cambio
+efectiva del proveedor (`thinking`, `reasoning_effort`, `response_format` y
+`max_tokens`, compartidos con el request) y versiones del contrato de reglas/parser
+y del detector de prioridad. Normalizo el alias de Flash antes de firmar. No incluye
+claves API, timeout, duración, consumo ni configuración visual. No borro entradas
+históricas: sólo reutilizo firmas compatibles; no requiero migración ni reevaluación
+automática al normalizar nombres. Incremento `VERSION_CONTRATO_EVALUACION` cuando cambio
 reglas o parser.
 
 La identidad por oferta incluye el mensaje de usuario real, con `nivel_requerido`

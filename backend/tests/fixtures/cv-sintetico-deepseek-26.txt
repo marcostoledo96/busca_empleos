@@ -1,0 +1,23 @@
+# CV sintético breve — Persona Alfa
+
+Documento ficticio para comparación manual de extracción. No representa a una persona real.
+
+## Perfil
+Soy desarrolladora junior y QA manual. Busco empleo remoto en Argentina o híbrido en CABA. No declaro salario ni disponibilidad horaria.
+
+## Experiencia
+- Cooperativa Ficticia Uno, QA manual junior, marzo a agosto de 2025: diseñé y ejecuté casos funcionales, reporté incidencias y validé datos con SQL. Fue un empleo de seis meses.
+- Proyecto personal Inventario Alfa, septiembre a noviembre de 2025: desarrollé pantallas con Angular y TypeScript y una API Node.js con PostgreSQL. Fue un prototipo local, no estuvo en producción ni equivale a empleo formal.
+
+## Educación
+- Instituto Ficticio Delta: tecnicatura en programación en curso desde 2024; no obtuve el título.
+- Curso ficticio de testing manual completado en febrero de 2025.
+
+## Tecnologías
+Uso HTML, CSS, JavaScript y SQL en proyectos. Angular, TypeScript, Node.js y PostgreSQL tienen evidencia en Inventario Alfa. Aprendí Git en el curso. No domino Java, Docker ni AWS; no son tecnologías confirmadas. No utilicé herramientas de IA en producción.
+
+## Idiomas
+Español nativo. Inglés: lectura técnica intermedia, escritura básica, conversación básica y comprensión auditiva básica. No tengo certificación ni inglés fluido.
+
+## Fin
+MARCADOR_FINAL_ALFA_26: mi tecnicatura sigue en curso.

@@ -23,9 +23,9 @@ Entrega autorizada: commits, push y PR; sin merge, deploy ni llamadas pagas. Pru
 
 ## Tasks
 
-- T1 | S1-S8,S11-S12,S14-S15 | delegated gentle-ai-worker | done | Cliente/preferencias/caché con RED/GREEN; 412 tests backend focales y 75 Angular verdes; commit T1 a registrar.
-- T2 | S9-S10,S13-S14 | delegated gentle-ai-worker | in_progress | Preparar comparación manual pequeña y documentación; ejecutar suites y build; commit pendiente.
-- T3 | S1-S16 | delegated gentle-ai-verify + parent native review | pending | Verificación independiente y revisión nativa cuando corresponda; corrección acotada si hay defectos reales; commit pendiente.
+- T1 | S1-S8,S11-S12,S14-S15 | delegated gentle-ai-worker | done | Cliente/preferencias/caché con RED/GREEN; 412 tests backend focales y 75 Angular verdes; commit cbbc1fb63f06bf1c4f43d991e980b5902d2d4eb7.
+- T2 | S9-S10,S13-S14 | delegated gentle-ai-worker | done | Comparación manual offline 20 ofertas +2 CV, docs alineadas. Backend 2568 PASS/158 omitidos; frontend 538 PASS/4 omitidos; build PASS; commit T2 a registrar.
+- T3 | S1-S16 | delegated gentle-ai-verify + parent native review | in_progress | Verificación independiente y revisión nativa cuando corresponda; corrección acotada si hay defectos reales; commit pendiente.
 - T4 | S16 | inline | pending | Publicar única PR master, observar CI e informar BASE/HEAD; commit de cierre pendiente.
 
 ## Log
@@ -33,6 +33,8 @@ Entrega autorizada: commits, push y PR; sin merge, deploy ni llamadas pagas. Pru
 L1 — Pedido original: "Actuá como desarrollador responsable de Busca Empleos. Implementá completamente la issue #26, utilizando Gentle Shell de Pi y la metodología Gentle AI instalada, con una solución sencilla, comprobable y sin sobreingeniería." Requisitos literales preservados en S1-S16; issue completa consultada en GitHub (sin comentarios). La solicitud exige informe final con URL PR, BASE/HEAD exactos, modelos/alias, configuraciones, truncamiento, caché, pruebas/build, comparación simulada versus real, CI, limitaciones, agentes y skills usados, lista para auditoría externa sin merge ni cierre de #26.
 
 L2 — Preparación observada: fetch --prune origin exitoso; rama y path no existían; worktree aislado creado y registrado. HEAD/base exactos 56de75ad85a3c74276a38ad59165ffdd203f31a6. Workspace original con cambios ajenos intacto. Issue abierta con status:approved y type:feature. CodeGraph init exitoso; gentle-ai-explore usó índice y devolvió mapa. RDD on decidido por global.
+
+L6 — T2: job-4 backend completo exit1 por dos assertions legacy de clave de caché, corregidas sin debilitar SQL/serialización; focal 15 PASS. job-6 backend completo exit0: 77 suites PASS,9 omitidas;2568 tests PASS,158 omitidos (BD/guards existentes). job-5 build +frontend exit0:538 PASS/4 omitidos. Docs y 2 CV sintéticos añadidos; receta offline validada en memoria 40 cuerpos ofertas/4 CV, sin requests ni gasto real. No hay mediciones reales de calidad,costo,latencia. git diff --check padre PASS. Worker docs mvd7pf9z-4-zjp8, corrección test mvd7wpmi-5-wad9. ASSESS de nuevo falló por untracked; siguiente después de stage/commit de T2.
 
 L3 — Documentación oficial consultada antes de cambios: pricing, updates, create-chat-completion, thinking_mode y json_mode, fetch response mvd734ceerpj5e. Catálogo vigente Flash/Pro; Flash legacy alias aceptado pero modelo anterior retirado, nombres no inmutables. Chat Completions usa thinking.type enabled/disabled y reasoning_effort low/high/max (none deshabilita). max_tokens 1..393216, default no-thinking 8K/thinking 64K. JSON response_format json_object más instrucción JSON en prompts. Temperatura sin efecto en thinking. No se exporta reasoning_content. Propuesta conservadora: mantener thinking explícito low, presupuestos diferenciados y no afirmar calidad/costos reales; alternativa disabled sólo comparación manual pendiente.
 
