@@ -1,6 +1,6 @@
 // Identifico entradas efectivas, no toda la configuración ni metadatos visuales.
 const { createHash } = require('crypto');
-const { CONFIGURACION_DECISION, DEEPSEEK_MODELO } = require('../../config/deepseek');
+const { CONFIGURACION_DECISION, DEEPSEEK_MODELO, normalizarModeloDeepSeek } = require('../../config/deepseek');
 const { VERSION_PRIORIDAD_IA } = require('./detector-prioridad-ia');
 const { ordenarObjeto, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./entradas-evaluacion');
 
@@ -18,7 +18,7 @@ function crearHash(valor) {
 function construirCriteriosEvaluacion(prefs = {}, opciones = {}) {
     return {
         mensaje_sistema: opciones.instrucciones || construirInstruccionesDesdePreferencias(prefs),
-        modelo: opciones.modelo || prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO,
+        modelo: normalizarModeloDeepSeek(opciones.modelo || prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO),
         proveedor: CONFIGURACION_DECISION,
         // La defensa geográfica utiliza preferencias aun con instrucciones explícitas.
         zonas_defensa: prefs.zonas_preferidas || [],

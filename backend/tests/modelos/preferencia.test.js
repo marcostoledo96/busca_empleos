@@ -71,7 +71,7 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
             expect(prefs.nivel_experiencia).toBe('junior');
             expect(prefs.perfil_profesional).toBe('Desarrollador de software junior, QA Tester y soporte IT.');
             expect(prefs.modalidad_aceptada).toBe('cualquiera');
-            expect(prefs.modelo_ia).toBe('deepseek-v4-flash');
+            expect(prefs.modelo_ia).toBe('deepseek-flash');
             expect(prefs.usar_prompt_personalizado).toBe(false);
         });
 
@@ -129,8 +129,8 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
                 keywords_negativas: [],
                 plataformas_preferidas: [],
                 plataformas_excluidas: [],
-                modelo_ia: 'deepseek-v4-flash',
-                modelo_ia_evaluacion: 'deepseek-v4-flash',
+                modelo_ia: 'deepseek-flash',
+                modelo_ia_evaluacion: 'deepseek-flash',
                 modelo_ia_importacion: 'deepseek-v4-pro',
                 prompt_personalizado: null,
                 usar_prompt_personalizado: false,
@@ -156,7 +156,7 @@ contexto('Modelo de preferencias — lectura y actualización', () => {
             // Los campos que NO actualicé deben mantener su valor original.
             expect(prefs.perfil_profesional).toBe('Desarrollador de software junior, QA Tester y soporte IT.');
             expect(prefs.stack_tecnologico).toEqual(['JavaScript', 'TypeScript', 'Angular']);
-            expect(prefs.modelo_ia).toBe('deepseek-v4-flash');
+            expect(prefs.modelo_ia).toBe('deepseek-flash');
         });
 
         test('debería actualizar arrays correctamente', async () => {

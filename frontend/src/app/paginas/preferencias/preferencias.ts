@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
-import { Preferencias as PreferenciasModel, PreferenciasActualizar, PerfilEfectivo, PreguntaPerfil } from '../../modelos/preferencia.model';
+import { Preferencias as PreferenciasModel, PreferenciasActualizar, PerfilEfectivo, PreguntaPerfil, ModeloDeepSeek, normalizarModeloDeepSeek } from '../../modelos/preferencia.model';
 import { DemoService } from '../../servicios/demo.service';
 import { obtenerOpcionesPreferenciaPlataforma } from '../../config/plataformas';
 
@@ -95,9 +95,9 @@ export class Preferencias implements OnInit {
     reglasExclusion: string[] = [];
     promptPersonalizado = '';
     usarPromptPersonalizado = false;
-    modeloIa: PreferenciasModel['modelo_ia'] = 'deepseek-v4-flash';
-    modeloIaEvaluacion: 'deepseek-v4-flash' | 'deepseek-v4-pro' = 'deepseek-v4-flash';
-    modeloIaImportacion: 'deepseek-v4-flash' | 'deepseek-v4-pro' = 'deepseek-v4-pro';
+    modeloIa: ModeloDeepSeek = 'deepseek-flash';
+    modeloIaEvaluacion: ModeloDeepSeek = 'deepseek-flash';
+    modeloIaImportacion: ModeloDeepSeek = 'deepseek-v4-pro';
     priorizarOfertasIa = false;
     bonusMaximoPrioridadIa = 6;
     filtrarNivelLinkedin = true;
@@ -312,13 +312,13 @@ export class Preferencias implements OnInit {
     // proveedores (kimi, glm, qwen, mimo) requieren endpoints distintos
     // que todavía no están integrados en este servicio.
     opcionesModelo = [
-        { label: 'DeepSeek V4 Flash (recomendado)', value: 'deepseek-v4-flash' },
+        { label: 'DeepSeek Flash', value: 'deepseek-flash' },
         { label: 'DeepSeek V4 Pro (potente)', value: 'deepseek-v4-pro' },
     ];
 
     opcionesModeloImportacion = [
-        { label: 'DeepSeek V4 Pro (recomendado para CV)', value: 'deepseek-v4-pro' },
-        { label: 'DeepSeek V4 Flash', value: 'deepseek-v4-flash' },
+        { label: 'DeepSeek V4 Pro', value: 'deepseek-v4-pro' },
+        { label: 'DeepSeek Flash', value: 'deepseek-flash' },
     ];
 
     opcionesNivelTecnologia = [
@@ -464,8 +464,8 @@ export class Preferencias implements OnInit {
         this.reglasExclusion = ['Java', 'Spring Boot', 'PHP', 'Ruby', 'COBOL', 'Kotlin'];
         this.promptPersonalizado = '';
         this.usarPromptPersonalizado = false;
-        this.modeloIa = 'deepseek-v4-flash';
-        this.modeloIaEvaluacion = 'deepseek-v4-flash';
+        this.modeloIa = 'deepseek-flash';
+        this.modeloIaEvaluacion = 'deepseek-flash';
         this.modeloIaImportacion = 'deepseek-v4-pro';
         this.disponibilidad = 'full_time';
         this.monedaSalarial = 'NO_FILTRAR';
@@ -609,9 +609,9 @@ export class Preferencias implements OnInit {
         this.reglasExclusion = prefs.reglas_exclusion ?? [];
         this.promptPersonalizado = prefs.prompt_personalizado ?? '';
         this.usarPromptPersonalizado = prefs.usar_prompt_personalizado ?? false;
-        this.modeloIa = prefs.modelo_ia ?? 'deepseek-v4-flash';
-        this.modeloIaEvaluacion = prefs.modelo_ia_evaluacion ?? 'deepseek-v4-flash';
-        this.modeloIaImportacion = prefs.modelo_ia_importacion ?? 'deepseek-v4-pro';
+        this.modeloIa = normalizarModeloDeepSeek(prefs.modelo_ia ?? 'deepseek-flash');
+        this.modeloIaEvaluacion = normalizarModeloDeepSeek(prefs.modelo_ia_evaluacion ?? prefs.modelo_ia ?? 'deepseek-flash');
+        this.modeloIaImportacion = normalizarModeloDeepSeek(prefs.modelo_ia_importacion ?? 'deepseek-v4-pro');
         this.priorizarOfertasIa = prefs.priorizar_ofertas_ia ?? false;
         this.bonusMaximoPrioridadIa = prefs.bonus_maximo_prioridad_ia ?? 6;
         this.filtrarNivelLinkedin = prefs.filtrar_nivel_linkedin !== false;

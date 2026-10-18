@@ -5,6 +5,34 @@ const { construirPerfilEfectivo } = require('../../src/servicios/evaluacion/perf
 
 beforeEach(() => jest.clearAllMocks());
 
+test('normalizo modelos al leer sin persistir ni alterar otros campos', async () => {
+    const fila = { id: 1, modelo_ia: 'deepseek-v4-flash', modelo_ia_evaluacion: 'deepseek-v4-flash',
+        modelo_ia_importacion: 'deepseek-v4-pro', nombre: 'Perfil sintético', temperatura_evaluacion: 0.7 };
+    pool.query.mockResolvedValue({ rows: [fila] });
+    expect(await modelo.obtenerPreferencias()).toEqual({ ...fila, modelo_ia: 'deepseek-flash', modelo_ia_evaluacion: 'deepseek-flash' });
+    expect(fila.modelo_ia).toBe('deepseek-v4-flash');
+    expect(pool.query).toHaveBeenCalledTimes(1);
+    expect(pool.query.mock.calls[0][0]).toMatch(/^SELECT/);
+});
+
+test.each(['modelo_ia', 'modelo_ia_evaluacion', 'modelo_ia_importacion'])('normalizo solo el campo enviado %s y conservo el resto al guardar y recargar', async campo => {
+    let fila = { id: 1, nombre: 'Perfil sintético', modelo_ia: 'deepseek-v4-pro', modelo_ia_evaluacion: 'deepseek-v4-pro',
+        modelo_ia_importacion: 'deepseek-v4-pro', temperatura_importacion: 0.6, preguntas_perfil_pendientes: [{ estado: 'ignorada' }] };
+    const original = { ...fila };
+    pool.query.mockImplementation(async (sql, valores) => {
+        if (sql.includes('RETURNING')) {
+            expect(sql).toContain(`${campo} = $1`);
+            expect(valores).toEqual(['deepseek-flash', 1]);
+            fila = { ...fila, [campo]: valores[0] };
+        }
+        return { rows: [{ ...fila }] };
+    });
+    const datos = { [campo]: 'deepseek-v4-flash' };
+    expect(await modelo.actualizarPreferencias(datos)).toEqual({ ...original, [campo]: 'deepseek-flash' });
+    expect(await modelo.obtenerPreferencias()).toEqual({ ...original, [campo]: 'deepseek-flash' });
+    expect(datos[campo]).toBe('deepseek-v4-flash');
+});
+
 test('serializo identidad, estados, respuesta y nota sin transformar el JSONB revisado', async () => {
     const preguntas = ['pendiente', 'respondida', 'aplicada', 'ignorada', 'nota'].map((estado, indice) => ({
         id: `pregunta-${indice}`, campo: 'docker', pregunta: '¿Nivel?', estado,

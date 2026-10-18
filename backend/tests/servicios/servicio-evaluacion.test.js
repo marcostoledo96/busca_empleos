@@ -439,7 +439,7 @@ describe('Servicio de evaluación con IA', () => {
             expect(mensajeSistema).toContain('evaluador de ofertas');
             expect(mensajeSistema).toContain('Marcos Ezequiel Toledo');
             // Verifico que pasó el modelo como tercer argumento.
-            expect(consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-v4-flash');
+            expect(consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-flash');
         });
 
         test('lee preferencias de BD si no recibe instrucciones', async () => {

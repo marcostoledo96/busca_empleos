@@ -7,7 +7,7 @@
 const modeloPreferencia = require('../modelos/preferencia');
 const { construirPerfilEfectivoCanonico } = require('../servicios/evaluacion/entradas-evaluacion');
 const { crearFirmaCriterios } = require('../servicios/evaluacion/identidad-evaluacion');
-const { consultarDeepSeek } = require('../config/deepseek');
+const { consultarDeepSeek, MODELOS_DEEPSEEK } = require('../config/deepseek');
 const { validarExtraccionCv } = require('../utils/validacion-extraccion-cv');
 const { IDS_PLATAFORMAS, normalizarIdPlataforma } = require('../config/plataformas');
 
@@ -32,13 +32,7 @@ function normalizarPlataformasEnDatos(datos) {
 const NIVELES_VALIDOS = ['trainee', 'junior', 'semi-senior'];
 const MODALIDADES_VALIDAS = ['cualquiera', 'remoto', 'hibrido', 'presencial'];
 const ZONAS_VALIDAS = ['CABA', 'GBA Oeste', 'GBA Norte', 'GBA Sur', 'Interior'];
-const MODELOS_IA_VALIDOS = [
-    // Solo modelos DeepSeek compatibles con la API configurada.
-    // Los demás (kimi, glm, qwen, mimo) requieren endpoints distintos
-    // que todavía no están integrados en este servicio.
-    'deepseek-v4-flash',
-    'deepseek-v4-pro',
-];
+const MODELOS_IA_VALIDOS = [...MODELOS_DEEPSEEK, 'deepseek-v4-flash'];
 
 // Valores válidos para tecnologias_detalle.
 const NIVELES_TECNOLOGIA = new Set(['ninguno', 'basico', 'medio', 'avanzado']);
@@ -543,11 +537,13 @@ async function analizarCvMarkdown(req, res) {
     } catch (error) {
         const truncada = error.codigo === 'SALIDA_TRUNCADA';
         const incompleta = error.codigo === 'SALIDA_INCOMPLETA';
-        return res.status(truncada || incompleta ? 422 : 502).json({
+        const jsonInvalido = error.codigo === 'JSON_INVALIDO';
+        return res.status(truncada || incompleta || jsonInvalido ? 422 : 502).json({
             exito: false,
-            codigo: truncada ? 'SALIDA_TRUNCADA' : incompleta ? 'SALIDA_INCOMPLETA' : 'PROVEEDOR_NO_DISPONIBLE',
+            codigo: truncada ? 'SALIDA_TRUNCADA' : incompleta ? 'SALIDA_INCOMPLETA' : jsonInvalido ? 'JSON_INVALIDO' : 'PROVEEDOR_NO_DISPONIBLE',
             error: truncada || incompleta ? 'El proveedor devolvió una extracción incompleta. Volvé a intentar.'
-                : 'No se pudo consultar el proveedor de análisis. Volvé a intentar.',
+                : jsonInvalido ? 'La respuesta del análisis no es JSON válido. Volvé a intentar.'
+                    : 'No se pudo consultar el proveedor de análisis. Volvé a intentar.',
         });
     }
 }
