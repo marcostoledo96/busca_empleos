@@ -23,6 +23,29 @@ describe('ScrapingService', () => {
         httpMock.verify();
     });
 
+    it('envío GetOnBrd por el endpoint común sin opciones locales ni evaluación', () => {
+        servicio.scrapearGetonbrd().subscribe(resp => expect(resp.datos.fuente?.estado).toBe('parcial'));
+        const req = httpMock.expectOne(`${urlBase}/getonbrd`);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({});
+        req.flush({ exito: true, datos: { fuente: { plataforma: 'getonbrd', estado: 'parcial', nuevas: 2 } } });
+    });
+
+    for (const status of [502, 504, 429]) {
+        it(`conservo el error HTTP ${status} de GetOnBrd sin reintentar`, () => {
+            const cuerpo = { exito: false, datos: { fuente: { plataforma: 'getonbrd', estado: status === 504 ? 'timeout' : 'error' } } };
+            servicio.scrapearGetonbrd().subscribe({
+                next: () => fail('No esperaba éxito'),
+                error: error => {
+                    expect(error.status).toBe(status);
+                    expect(error.error).toEqual(cuerpo);
+                },
+            });
+            httpMock.expectOne(`${urlBase}/getonbrd`).flush(cuerpo, { status, statusText: 'Fallo del proveedor' });
+            httpMock.expectNone(`${urlBase}/getonbrd`);
+        });
+    }
+
     it('should be created', () => {
         expect(servicio).toBeTruthy();
     });

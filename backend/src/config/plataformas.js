@@ -19,6 +19,8 @@
 //   es la excepción porque su URL pública usa guión medio pero internamente usamos
 //   guión bajo para no romper los datos históricos de la BD.
 
+const { validarDestinoGetonbrd } = require('./getonbrd');
+
 const PLATAFORMAS = {
     linkedin: {
         id: 'linkedin',
@@ -54,8 +56,13 @@ const PLATAFORMAS = {
         id: 'getonbrd',
         slugHttp: 'getonbrd',
         label: 'GetOnBrd',
-        activa: false,
-        motivo: 'Piloto API-only deshabilitado hasta contar con autorización escrita verificable',
+        get activa() { return validarDestinoGetonbrd().permitido; },
+        get motivo() {
+            const guardia = validarDestinoGetonbrd();
+            return guardia.permitido ? null : guardia.motivo === 'fuente_deshabilitada'
+                ? 'GetOnBrd requiere habilitación explícita mediante GETONBRD_ENABLED=true.'
+                : 'No pude verificar la evidencia conservada para la búsqueda pública de GetOnBrd.';
+        },
     },
     jooble: {
         id: 'jooble',
@@ -119,7 +126,7 @@ const SLUG_HTTP_A_ID = Object.values(PLATAFORMAS).reduce((mapa, p) => {
  * @returns {Array<{id: string, slugHttp: string, label: string}>}
  */
 function obtenerPlataformasActivas() {
-    return PLATAFORMAS_ACTIVAS.map(p => ({
+    return Object.values(PLATAFORMAS).filter(p => p.activa).map(p => ({
         id: p.id,
         slugHttp: p.slugHttp,
         label: p.label,

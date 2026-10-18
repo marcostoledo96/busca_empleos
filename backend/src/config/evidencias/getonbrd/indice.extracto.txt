@@ -1,0 +1,1 @@
+      url: `/doc/openapi.yaml?v=${OPENAPI_SPEC_VERSION}`,

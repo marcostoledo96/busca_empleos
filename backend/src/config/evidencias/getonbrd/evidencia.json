@@ -1,0 +1,51 @@
+{
+    "evidence_id": "documentacion-publica-getonbrd",
+    "received_at": "2026-10-17T18:28:54.932980+00:00",
+    "allowed_host": "https://www.getonbrd.com",
+    "scope": [
+        "GET /api/v0/search/jobs"
+    ],
+    "uso": "Búsqueda personal acotada de ofertas públicas publicadas. Sin API privada, postulaciones ni scraping HTML. Sin cuota numérica publicada; respetar throttling y detener ante 429.",
+    "documentos": [
+        {
+            "archivo": "manual.extracto.txt",
+            "url": "https://www.getonbrd.com/user-manual/get-on-board-s-api",
+            "consultado_utc": "2026-10-17T18:28:52.171189+00:00",
+            "tipo": "extractos literales; no página completa",
+            "bytes": 1276,
+            "sha256": "7c334e322d9173a9e62fe5c46547afe5f910d47b73ac9dd6b9a270090d6a9117"
+        },
+        {
+            "archivo": "ayuda.extracto.txt",
+            "url": "https://www.getonbrd.com.ar/help/que-puedo-hacer-con-la-api-de-get-on-board",
+            "consultado_utc": "2026-10-17T18:28:52.823797+00:00",
+            "tipo": "extractos literales; no página completa",
+            "bytes": 113,
+            "sha256": "9a12e2df7961a9a8c4f866a5fc2eba54cc14cba5231068485e6237acd5d1ce39"
+        },
+        {
+            "archivo": "openapi.extracto.txt",
+            "url": "https://www.getonbrd.com/doc/openapi.yaml?v=2026-05-08-agent-docs",
+            "consultado_utc": "2026-10-17T18:28:53.621683+00:00",
+            "tipo": "extractos literales; no página completa",
+            "bytes": 3388,
+            "sha256": "903a72378f0d3dd708d80e082b8af6389c2c549223d396d1aa2934af37a19118"
+        },
+        {
+            "archivo": "terminos.extracto.txt",
+            "url": "https://www.getonbrd.com/about/tos",
+            "consultado_utc": "2026-10-17T18:28:54.149709+00:00",
+            "tipo": "extractos literales; no página completa",
+            "bytes": 2614,
+            "sha256": "cb7f67ceaf1beca89b772ca46953004a1327634f119cfbd88d211f3cee581aa1"
+        },
+        {
+            "archivo": "indice.extracto.txt",
+            "url": "https://api-doc.getonbrd.com/?version=latest",
+            "consultado_utc": "2026-10-17T18:28:54.932913+00:00",
+            "tipo": "extractos literales; no página completa",
+            "bytes": 58,
+            "sha256": "c92cd3edd35905754da60e03fca7d7f6d9f4d66c981fa253718461935778c658"
+        }
+    ]
+}

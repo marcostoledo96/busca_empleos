@@ -25,7 +25,7 @@ describe('Piloto seguro de GetOnBrd', () => {
 
         expect(resultado.run_id).toEqual(expect.any(String));
         expect(resultado.ofertas).toHaveLength(1);
-        expect(resultado.ofertas[0].url).toBe('https://fixture.getonbrd.test/jobs/reciente');
+        expect(resultado.ofertas[0].url).toBe('https://www.getonbrd.com/jobs/reciente');
         expect(resultado.metricas).toMatchObject({ dentro_ventana: 1, fuera_ventana: 1, duplicadas_intra_run: 1, invalidas: 1 });
         expect(resultado.motivo_terminacion).toBe('pagina_vacia');
         expect(resultado.checkpoint).toMatchObject({ pagina_confirmada: 2, pagina_siguiente: 3 });
@@ -44,7 +44,8 @@ describe('Piloto seguro de GetOnBrd', () => {
 
         expect(cliente).toHaveBeenCalledTimes(2);
         expect(resultado.ofertas).toHaveLength(1);
-        expect(resultado).toMatchObject({
+        expect({ estado: resultado.estado, motivo_terminacion: resultado.motivo_terminacion,
+            metricas: resultado.metricas, checkpoint: resultado.checkpoint }).toMatchObject({
             estado: 'completado',
             motivo_terminacion: 'paginas_agotadas',
             metricas: { requests: 2, paginas: 2, recibidas: 1, normalizadas: 1, dentro_ventana: 1 },
@@ -159,7 +160,7 @@ describe('Piloto seguro de GetOnBrd', () => {
     });
 
     test('una oferta vencida no bloquea otra vigente con la misma URL', async () => {
-        const url = 'https://fixture.getonbrd.test/jobs/repetida';
+        const url = 'https://www.getonbrd.com/jobs/repetida';
         const vencida = crearOfertaGetonbrd({ id: 'vencida', url, publicadaHaceDias: 31 });
         const vigente = crearOfertaGetonbrd({ id: 'vigente', url, publicadaHaceDias: 1 });
 

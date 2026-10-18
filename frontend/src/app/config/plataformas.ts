@@ -82,7 +82,7 @@ export const PLATAFORMAS: Record<string, PlataformaConfig> = {
         slugHttp: 'getonbrd',
         label: 'GetOnBrd',
         activa: false,
-        motivo: 'Piloto API-only deshabilitado hasta contar con autorización escrita verificable',
+        motivo: 'Disponibilidad sujeta a la previsualización del backend: habilitación explícita y evidencia válida',
     },
     jooble: {
         id: 'jooble',
@@ -185,8 +185,12 @@ export function obtenerOpcionesFiltroPlataforma(): Array<{ label: string; value:
 
 // Opciones para dropdowns de scraping (solo plataformas activas, sin "Todas").
 // Usa el id interno como valor.
-export function obtenerOpcionesScrapingPlataforma(): Array<{ value: string; label: string }> {
-    return PLATAFORMAS_ACTIVAS.map(p => ({
+export function obtenerOpcionesScrapingPlataforma(
+    previsualizacion: ReadonlyArray<{ plataforma: string; habilitada: boolean; ejecutable: boolean }> = []
+): Array<{ value: string; label: string }> {
+    // No infiero el permiso de GetOnBrd desde el registry estático del navegador.
+    const getonbrdDisponible = previsualizacion.some(p => p.plataforma === 'getonbrd' && p.habilitada && p.ejecutable);
+    return Object.values(PLATAFORMAS).filter(p => p.activa || (p.id === 'getonbrd' && getonbrdDisponible)).map(p => ({
         value: p.id,
         label: p.label,
     }));

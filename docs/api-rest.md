@@ -5,9 +5,10 @@
 Los individuales conservan los campos anteriores y agregan `datos.fuente`, el mismo
 objeto que integra `ultimoResultado.fuentes[]` en ciclo/cron. Leo su `estado`, no deduzco
 éxito por estar activa en el registry. Estados: `completada`, `sin_resultados`, `parcial`,
-`error`, `timeout`, `sin_credenciales`, `deshabilitada`; el ciclo agrega `omitida` para
-consultas incompatibles. GetOnBrd conserva `datos.estado: "bloqueado"` por compatibilidad;
-su `datos.fuente.estado` es `deshabilitada`, con motivo del registry y cero peticiones.
+`error`, `timeout`, `sin_credenciales`, `deshabilitada`, `cancelada`; el ciclo agrega `omitida` para
+consultas incompatibles. Solo si GetOnBrd está deshabilitado conservo `datos.estado: "bloqueado"`
+por compatibilidad; `datos.fuente.estado` es `deshabilitada`, con motivo del registry y cero peticiones.
+Si está habilitado, `datos.estado` refleja el resultado real, nunca un bloqueo fijo.
 
 Ejemplo **sintético ilustrativo**, no resultado de un proveedor real:
 
@@ -154,8 +155,29 @@ Ejemplo parcial de preview, cuando hay credenciales configuradas:
 
 La lista real incluye todas las plataformas del registry. Muestro los filtros y
 advertencias del backend sin deducir capacidades por nombre desde el frontend.
-GetOnBrd conserva su respuesta bloqueada; Google Jobs e InfoJobs conservan su
-respuesta inactiva y cero requests. No activo cron al consultar ni al ejecutar manualmente.
+GetOnBrd usa `habilitada`/`ejecutable` de esta misma preview: dependen de
+`GETONBRD_ENABLED=true` y de verificar la evidencia pública conservada. `advertencias` explica
+el bloqueo y las preferencias incompatibles; no deduzco habilitación solo del flag en frontend.
+Su `consultasEfectivas` conserva los términos guardados o explícitos y `filtros` informa
+`maxPeticiones` (2 por defecto, máximo 10), `porPagina` (20) y `timeoutMs` (5000).
+Google Jobs e InfoJobs conservan su respuesta inactiva y cero requests.
+No activo cron al consultar ni al ejecutar manualmente.
+
+### GetOnBrd individual
+
+`POST /api/scraping/getonbrd` acepta las opciones comunes `terminos`/`terminos_busqueda`,
+`maxResultados` (40 por defecto) y `maxPeticiones`. No acepta `destino`, evidencia ni banderas
+de habilitación desde HTTP. Usa la persistencia común y devuelve nuevas, actualizadas,
+reapariciones, duplicadas y errores de guardado en `datos.fuente`, más historial.
+La ventana local es de 30 días; no envío ubicación ni otros filtros incompatibles al proveedor.
+
+Una respuesta parcial mantiene HTTP 200 y `fuente.estado: 'parcial'`, ofertas ingresadas,
+`errores` y `checkpoint`. Un fallo externo sin ofertas devuelve 502 (`error`), o 504 (`timeout`),
+con `exito: false`; una cancelación conserva `cancelada`. HTTP 429 aparece como
+`errores: [{ tipo: 'limite_solicitudes', codigoHttp: 429 }]`, sin reintentos.
+Los campos `checkpoint` y `run_id` están en la fuente cuando el scraper se ejecutó;
+el historial conserva un checkpoint saneado. No expongo una ruta nueva de reanudación.
+Ver [evidencia y rollback](scraping.md#getonbrd--api-pública-con-habilitación-controlada).
 
 ## CV base editable — documento fuente (issue #12)
 
@@ -464,7 +486,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/glassdoor` | Ejecutar scraping de Glassdoor | **Sí** | **Sí** (5/min) |
-| POST | `/api/scraping/getonbrd` | Consultar estado bloqueado del piloto GetOnBrd | **Sí** | **Inactivo** |
+| POST | `/api/scraping/getonbrd` | Ejecutar GetOnBrd con habilitación efectiva o informar bloqueo | **Sí** | **Sí** (5/min, límite común de scraping) |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |
@@ -945,28 +967,41 @@ Ejecuta el scraping de Glassdoor Argentina usando el actor de Apify, normaliza y
 
 ### POST /api/scraping/getonbrd
 
-El endpoint es un **shadow endpoint**: devuelve un Result Contract bloqueado y no llama a red,
-servicios externos ni `crearOferta`. Acepta autenticación normal, pero no body operativo mientras
-el registry esté inactivo.
+Uso autenticación y contrato común de scraping. La fuente está habilitada efectivamente solo
+con `GETONBRD_ENABLED=true` y evidencia/configuración válidas; consulto ese estado en
+`GET /api/scraping/previsualizacion`. Sin esas condiciones no consulto al proveedor ni ingreso ofertas.
 
+**Request opcional cuando está habilitada:**
 ```json
 {
-    "exito": true,
-    "datos": {
-        "run_id": null,
-        "estado": "bloqueado",
-        "motivo_terminacion": "politica_destino",
-        "destino": "bloqueado",
-        "ofertas": [],
-        "checkpoint": { "termino_indice": 0, "termino": null, "pagina_confirmada": 0, "pagina_siguiente": 1, "item_offset": 0 },
-        "metricas": { "requests": 0, "paginas": 0, "recibidas": 0, "normalizadas": 0, "dentro_ventana": 0, "fuera_ventana": 0, "duplicadas_intra_run": 0, "invalidas": 0, "latencia_ms": 0 }
-    }
+    "terminos": ["qa junior"],
+    "maxResultados": 10,
+    "maxPeticiones": 1
 }
 ```
 
-La activación futura requiere API oficial con sandbox/fixtures, evidencia escrita auditable y
-rollout explícito. El rollback es deshabilitar el registry y retirar la evidencia; no hay datos
-productivos generados por este piloto.
+Sin body uso las preferencias guardadas y los límites del resolver. La respuesta incluye
+`datos.fuente`, `configuracion`, `historial`, contadores comunes y sus alias compatibles
+(`ofertas_nuevas`, `ofertas_actualizadas`, `ofertas_reapariciones`, `ofertas_duplicadas`,
+`total_extraidas`), más métricas y checkpoint. No devuelvo un listado de ofertas en la respuesta
+operativa: lo consulto mediante el listado habitual.
+
+| Resultado | HTTP y estado |
+|-----------|---------------|
+| Completada o vacía | 200; `datos.fuente.estado`: `completada` o `sin_resultados` |
+| Parcial o cancelada | 200; `parcial` o `cancelada`; conservo resultados válidos y motivo |
+| Timeout | 504, `exito: false`, estado `timeout` |
+| Error sin resultados | 502, `exito: false`, estado `error` (500 si no pude guardar ninguna oferta por fallos de BD) |
+| Deshabilitada o bloqueada por guarda | 200 sin HTTP externo; `datos.fuente.estado: "deshabilitada"` y motivo |
+
+En el último caso conservo el alias legacy `datos.estado: "bloqueado"`,
+`motivo_terminacion: "politica_destino"`, `destino: "bloqueado"`, `ofertas: []` y métricas
+sin solicitudes; no representa una búsqueda vacía exitosa.
+
+Para rollback configuro `GETONBRD_ENABLED=false` y reinicio el backend, sin retirar evidencia
+ni borrar ofertas o historial. La integración habilitable no equivale a activación productiva
+ni aceptación operativa: el smoke histórico de tres ofertas en memoria no valida novedad,
+repetición ni utilidad. Ver [alcance, límites y consulta acotada](scraping.md#getonbrd--api-pública-con-habilitación-controlada).
 
 ---
 

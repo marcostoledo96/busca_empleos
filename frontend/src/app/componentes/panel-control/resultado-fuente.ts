@@ -5,7 +5,7 @@ import { PLATAFORMAS } from '../../config/plataformas';
 export function etiquetaEstado(estado?: string): string {
     const etiquetas: Record<string, string> = {
         completada: 'Completada', sin_resultados: 'Sin resultados', parcial: 'Parcial',
-        error: 'Error', timeout: 'Timeout', sin_credenciales: 'Sin credenciales',
+        error: 'Error', timeout: 'Timeout', cancelada: 'Cancelada', sin_credenciales: 'Sin credenciales',
         deshabilitada: 'Deshabilitada', interrumpida: 'Interrumpida', omitida: 'Omitida', ejecutando: 'En ejecución',
     };
     return estado ? etiquetas[estado] || estado : 'No informado';
@@ -22,6 +22,10 @@ export function etiquetaEstado(estado?: string): string {
             <p>Descartadas por idioma: {{ fuente().idiomaDescartadas ?? 'No medido' }} · Por antigüedad: {{ fuente().antiguasDescartadas ?? 'No medido' }}</p>
             <p>Brutas: {{ fuente().totalCrudos ?? 'No medido' }} · Elegibles: {{ fuente().totalElegibles ?? 'No medido' }} · Peticiones: {{ fuente().peticionesRealizadas ?? 'No medido' }} · Consultas ejecutadas: {{ fuente().consultasEjecutadas ?? 'No medido' }}</p>
             <p>Duración: {{ fuente().duracionMs ?? 'No medido' }} ms · Finalización: {{ fuente().motivoFinalizacion || 'No informado' }}</p>
+            @if (fuente().run_id) { <p>Ejecución: {{ fuente().run_id }}</p> }
+            @if (fuente().checkpoint; as checkpoint) {
+                <p>Checkpoint: término {{ checkpoint.termino_indice }} ({{ checkpoint.termino || 'No informado' }}) · Página confirmada: {{ checkpoint.pagina_confirmada }} · Página siguiente: {{ checkpoint.pagina_siguiente }} · Posición: {{ checkpoint.item_offset ?? 0 }}</p>
+            }
             @for (error of fuente().errores; track $index) {
                 <p>Error: {{ error.tipo }} {{ error.codigoHttp }} {{ error.mensaje }}</p>
             }

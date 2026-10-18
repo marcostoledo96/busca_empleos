@@ -11,7 +11,7 @@ function crearOfertaGetonbrd({ id, url, publicadaHaceDias = 1, titulo = 'Desarro
             published_at: Math.floor((Date.now() - publicadaHaceDias * MS_DIA) / 1000),
         },
         relationships: { seniority: { data: { id: 2 } } },
-        links: { public_url: url || `https://fixture.getonbrd.test/jobs/${id || 'oferta-fixture'}` },
+        links: { public_url: url || `https://www.getonbrd.com/jobs/${id || 'oferta-fixture'}` },
     };
 }
 
@@ -25,8 +25,8 @@ function crearRespuestaGetonbrd(data, totalPages = 1) {
 
 const PAGINAS_GETONBRD = {
     paginaConDuplicadaYVencida: crearRespuestaGetonbrd([
-        crearOfertaGetonbrd({ id: 'reciente', url: 'https://fixture.getonbrd.test/jobs/reciente/' }),
-        crearOfertaGetonbrd({ id: 'duplicada', url: 'https://fixture.getonbrd.test/jobs/reciente#detalle' }),
+        crearOfertaGetonbrd({ id: 'reciente', url: 'https://www.getonbrd.com/jobs/reciente/' }),
+        crearOfertaGetonbrd({ id: 'duplicada', url: 'https://www.getonbrd.com/jobs/reciente#detalle' }),
         crearOfertaGetonbrd({ id: 'vencida', publicadaHaceDias: 31 }),
         { id: 'invalida', attributes: {} },
     ], 2),

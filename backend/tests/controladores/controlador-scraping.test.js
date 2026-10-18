@@ -23,6 +23,23 @@ const app = require('../../src/app');
 const servicioScraping = require('../../src/servicios/servicio-scraping');
 const modeloOferta = require('../../src/modelos/oferta');
 
+describe('GetOnBrd habilitado efectivamente', () => {
+    test.each(['completada', 'parcial', 'cancelada'])('expongo estado %s sin sobreescribirlo como bloqueado', async estado => {
+        const { PLATAFORMAS } = require('../../src/config/plataformas');
+        const activa = jest.spyOn(PLATAFORMAS.getonbrd, 'activa', 'get').mockReturnValue(true);
+        try {
+            const ofertas = [{ titulo: 'Desarrollador junior', url: 'https://www.getonbrd.com/jobs/1', plataforma: 'getonbrd' }];
+            Object.defineProperty(ofertas, 'metricas', { value: { estado, peticionesRealizadas: 1, checkpoint: { pagina_siguiente: 2 } } });
+            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue(ofertas);
+            modeloOferta.crearOferta.mockResolvedValue({ resultado_persistencia: 'insertada' });
+            const respuesta = await request(app).post('/api/scraping/getonbrd').send({ terminos: ['qa'] });
+            expect(respuesta.status).toBe(200);
+            expect(respuesta.body.datos).toMatchObject({ estado, fuente: { estado, nuevas: 1, checkpoint: { pagina_siguiente: 2 } } });
+            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith(expect.objectContaining({ terminos: ['qa'], maxResultados: 40 }));
+        } finally { activa.mockRestore(); }
+    });
+});
+
 describe('Contrato compartido #20', () => {
     test.each([
         ['sin_resultados', 200, undefined], ['error', 502, 503], ['error', 502, 429],

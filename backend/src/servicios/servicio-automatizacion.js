@@ -44,6 +44,7 @@ const { PLATAFORMAS_ACTIVAS, PLATAFORMAS, esPlataformaActiva } = require('../con
 // No está en config/plataformas.js porque eso crearía una dependencia circular
 // entre config y servicios. Este mapa es la "pista de ejecución" del servicio.
 const SCRAPERS = {
+    getonbrd: 'ejecutarScrapingGetonbrd',
     linkedin: 'ejecutarScrapingLinkedin',
     computrabajo: 'ejecutarScrapingComputrabajo',
     indeed: 'ejecutarScrapingIndeed',

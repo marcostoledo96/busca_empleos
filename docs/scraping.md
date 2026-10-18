@@ -55,8 +55,8 @@ real es `sin_credenciales`, no una desactivación del registry.
 
 T2 debe construir `deshabilitada` con el motivo del registry **antes** de invocar
 adaptadores inactivos, compartir este resultado entre individual/ciclo/cron y
-continuar las fuentes siguientes. GetOnBrd sigue bloqueado hasta autorización
-escrita verificable; Google Jobs sigue desactivado por costo y baja utilidad;
+continuar las fuentes siguientes. GetOnBrd requiere habilitación explícita y evidencia
+pública conservada válida; Google Jobs sigue desactivado por costo y baja utilidad;
 InfoJobs sigue deshabilitado. Activa sólo significa que se puede intentar
 consultar, no que la integración esté operativa ni que haya respondido bien.
 
@@ -118,7 +118,7 @@ No afirmo que apliquen términos personalizados. Mantengo caps, credenciales,
 ventanas, paginación y reglas de normalización existentes. Bumeran informa que
 su actor no consume maxResultados. La preview autenticada muestra esos límites
 sin hacer requests; no comprueba conectividad ni validez remota de credenciales.
-GetOnBrd sigue bloqueado; Google Jobs e InfoJobs permanecen inactivos.
+GetOnBrd usa términos guardados y habilitación efectiva; Google Jobs e InfoJobs permanecen inactivos.
 
 Comparto la limpieza de Computrabajo entre URL y validación: si algún término
 queda vacío después de quitar signos, devuelvo 400 antes del primer request.
@@ -212,35 +212,67 @@ Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) e
 | Bumeran | apify/puppeteer-scraper | `apify/puppeteer-scraper` | Compute del Actor; sin consumo exacto medido | — |
 | Glassdoor | cheap_scraper/glassdoor-jobs-scraper-remove-duplicate-jobs | `bYSAbQqxwImLaf2nb` | ~$0.001/resultado + $0.05 fijo | 5.0 (187 usuarios) |
 
-## GetOnBrd — piloto API-only bloqueado
+## GetOnBrd — API pública con habilitación controlada
 
-El adaptador está **deshabilitado**: no hace scraping HTML, no usa Apify, no descarga
-producción, no guarda en PostgreSQL y no figura como fuente activa de UI ni cron. El único
-contrato implementado procesa sandbox/fixtures inyectables para validar el flujo.
+Mantengo la fuente apagada por defecto. Para habilitarla configuro `GETONBRD_ENABLED=true`
+y reinicio el backend. La evidencia queda en `backend/src/config/evidencias/getonbrd/`,
+dentro del root de despliegue `backend`, sin copiar recursos externos. La guarda
+comprueba los SHA-256 de los **bytes de cada extracto conservado**, host y alcance exactos,
+fecha de consulta no futura y vencimiento solo si existe. Un archivo ausente, alterado o una
+configuración inválida bloquea la fuente antes de consultar. No invento permisos privados ni
+vencimientos: el fundamento es la documentación pública, con el alcance explicado en
+[evidencia conservada](../backend/src/config/evidencias/getonbrd/README.md).
 
-La guarda acepta únicamente `https://sandbox.getonbrd.test/api/v0`. Cualquier otro host se
-deniega antes de invocar al cliente. La producción requerirá en el futuro `GETONBRD_ENABLED=true`
-**y** evidencia auditable con `evidence_id`, `received_at`, `allowed_host`, `scope` que incluya
-`GET /api/v0/search/jobs`, `valid_until` vigente y `document_sha256` válido. El booleano aislado
-no habilita nada.
+Solo consulto `GET https://www.getonbrd.com/api/v0/search/jobs` con `query`, `page` y `per_page`.
+Rechazo otros destinos, puertos, credenciales en URL y redirecciones (`redirect: 'error'`).
+Valido también `links.public_url`: solo acepto URL absoluta HTTPS con host exacto
+`www.getonbrd.com`, sin credenciales ni puerto distinto del estándar HTTPS. Rechazo esquemas,
+hosts ajenos (incluidos subdominios, regionales, documentación y sandbox) antes del cupo,
+deduplicación e ingreso; conservo la identidad canónica sin hash ni barra final. Los enlaces
+de fixtures usan ese host documentado con HTTP simulado, sin solicitudes reales.
+No uso HTML, navegadores ni Apify. El dominio reservado `sandbox.getonbrd.test` es exclusivo
+para fixtures con cliente inyectado; **no** es el sandbox oficial `sandbox.getonbrd.dev`.
 
-### Límites y resultado del piloto
+### Límites y contrato compartido
 
-- `per_page=120`, hasta 10 páginas, 1.200 ítems y 5 segundos por solicitud.
-- Ventana de 30 días; la URL pública canónica deduplica dentro de la corrida.
-- El resultado incluye `run_id`, estado, motivo, checkpoint serializable y métricas de requests,
-  páginas, ítems, normalización, ventana, duplicados, inválidos y latencia.
-- Motivos: `paginas_agotadas`, `pagina_vacia`, `limite_items`, `limite_paginas`, `timeout`,
-  `cancelacion`, `error_http`, `respuesta_invalida` o `politica_destino`.
-- El checkpoint incluye `item_offset` para reanudar exactamente dentro de una página cuando se
-  alcanza el límite de ítems. Timeout, cancelación y error conservan el último avance procesado.
+- Defaults: 2 peticiones/páginas globales, 20 ofertas por página, máximo 40 ofertas y 5 segundos
+  por solicitud, incluida la lectura del JSON. Conservo techos de 10 páginas, 120 por página y 1.200 ofertas.
+- Uso términos/preferencias del resolver y `maxResultados`/`maxPeticiones`. Informo ubicación,
+  zonas y opciones incompatibles en la preview; no envío filtros inventados al proveedor.
+- Aplico ventana de 30 días, idioma antes del cupo, normalización e identidad canónica comunes.
+- Devuelvo un array con `.metricas`: `completada`, `sin_resultados`, `parcial`, `timeout`,
+  `error`, `cancelada` o `deshabilitada`. Conservo los alias internos del piloto para sus fixtures.
+- HTTP 429 detiene inmediatamente, sin reintentos ni avanzar el checkpoint: informo
+  `limite_solicitudes`, código HTTP y resultados ya válidos. Otros HTTP fallidos, red o JSON
+  inválido son `error` sin ofertas o `parcial` con ofertas; nunca éxito vacío.
+- Mantengo `run_id` en las métricas, más contadores y checkpoint (`termino_indice`, `termino`,
+  `pagina_confirmada`, `pagina_siguiente`, `item_offset`) también en el historial saneado. Reanudo pasando
+  `checkpointInicial` internamente; no agrego una opción HTTP para reanudar.
+- Individual y ciclo pasan por `ejecutarFuente` y el ingreso #19/#20: nuevas, actualizadas,
+  reapariciones, duplicadas, descartes por idioma y errores aislados de guardado. No agrego SQL:
+  el modelo existente conserva postulación, fecha y notas manuales de #22.
 
 ### Rollout y rollback
 
-No habilitar producción sin autorización escrita verificable revisada fuera del código. El rollout
-debe empezar con sandbox y conservar la evidencia junto al cambio de configuración. Para rollback,
-mantener `activa: false`, retirar cualquier configuración de evidencia y deshabilitar el endpoint;
-no hay datos productivos que borrar.
+Verifico primero fixtures offline y habilitación efectiva en `GET /api/scraping/previsualizacion`.
+El `2026-10-17T19:13:01.915Z`, después de las pruebas offline y de validar la guarda y
+los cinco hashes conservados, ejecuté la única consulta real autorizada:
+`GET https://www.getonbrd.com/api/v0/search/jobs?query=junior&page=1&per_page=3`.
+Observé HTTP200 en 591 ms, 3 ofertas recibidas y 3 normalizadas en memoria, sin errores
+de normalización. El contador registró **una petición total**, sin reintentos; limité a
+una página y tres ítems, timeout de 5000 ms y `redirect: 'error'`.
+
+Usé `fetch` directo con guarda y habilitación como argumento local, no el piloto: su
+import carga `.env` mediante Apify. Por eso `run_id` y checkpoint no aplican a esta
+prueba; no afirmo haber verificado el executor real ni la ventana/elegibilidad remota.
+El proceso terminó con exit0 y metadatos JSON agregados, sin guardar ni imprimir datos
+de ofertas. No inicié Express, PostgreSQL, persistencia, listado, dashboard, ciclo,
+cron ni DeepSeek. El recorrido común sigue respaldado por las pruebas sintéticas,
+no por esta consulta. Conservo fecha final y detalle en el
+[registro de la consulta real](../backend/src/config/evidencias/getonbrd/README.md#única-consulta-real-acotada--issue-5).
+Para rollback configuro `GETONBRD_ENABLED=false` y reinicio; conservo ofertas e historial.
+Habilitar la fuente **no crea ni activa cron**: una programación existente sigue gobernada por
+su configuración persistida y activación explícita.
 
 ### Estructura de la respuesta
 
@@ -303,7 +335,7 @@ llama a `crearOferta`; el endpoint actual permanece bloqueado y responde el cont
 | `backend/src/config/getonbrd.js` | Guarda deny-by-default, límites y evidencia de autorización. |
 | `backend/src/servicios/servicio-scraping.js` | Procesa cliente inyectable, normalización, checkpoints y métricas sin persistencia. |
 | `backend/src/servicios/servicio-normalizacion.js` | Transforma datos crudos de cada plataforma al formato de la tabla `ofertas`. |
-| `backend/src/controladores/controlador-scraping.js` | Responde el contrato bloqueado de GetOnBrd sin invocar cliente ni BD. |
+| `backend/src/controladores/controlador-scraping.js` | Comparte configuración, ingreso e historial; conserva alias bloqueado solo si GetOnBrd está deshabilitado. |
 
 ## Términos de búsqueda
 
@@ -584,7 +616,7 @@ El registry de plataformas (`backend/src/config/plataformas.js`) define qué pla
 |------------|-----|-----------|--------|
 | Google Jobs | `google_jobs` | `google-jobs` | Desactivado por costo y baja utilidad |
 | InfoJobs | `infojobs` | `infojobs` | Portal developers suspendido |
-| GetOnBrd | `getonbrd` | `getonbrd` | Piloto API-only sin autorización verificable |
+| GetOnBrd | `getonbrd` | `getonbrd` | Inactivo por defecto; requiere GETONBRD_ENABLED=true y evidencia pública conservada válida |
 
 **Comportamiento cuando se invoca una plataforma inactiva:**
 

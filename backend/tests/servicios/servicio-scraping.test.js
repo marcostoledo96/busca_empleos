@@ -1694,6 +1694,8 @@ describe('Servicio de scraping', () => {
     // ===========================================================================
 
     describe('ejecutarScrapingGetonbrd()', () => {
+        const opcionesPiloto = opciones => ({ destino: require('../../src/config/getonbrd').DESTINO_SANDBOX,
+            cliente: global.fetch, ...opciones });
         // Respuesta simulada de la API pública de GetOnBrd.
         const respuestaGetonbrdFalsa = {
             data: [
@@ -1736,7 +1738,7 @@ describe('Servicio de scraping', () => {
                 json: jest.fn().mockResolvedValue(respuestaGetonbrdFalsa),
             });
 
-            await ejecutarScrapingGetonbrd({ terminos: ['qa tester'] });
+            await ejecutarScrapingGetonbrd(opcionesPiloto({ terminos: ['qa tester'] }));
 
             expect(global.fetch).toHaveBeenCalledWith(
                 expect.stringContaining('qa%20tester'),
@@ -1750,7 +1752,7 @@ describe('Servicio de scraping', () => {
                 json: jest.fn().mockResolvedValue(respuestaGetonbrdFalsa),
             });
 
-            const resultado = await ejecutarScrapingGetonbrd({ terminos: ['frontend'] });
+            const resultado = await ejecutarScrapingGetonbrd(opcionesPiloto({ terminos: ['frontend'] }));
 
             expect(resultado.ofertas).toHaveLength(1);
             expect(resultado.ofertas[0].plataforma).toBe('getonbrd');
@@ -1773,15 +1775,15 @@ describe('Servicio de scraping', () => {
                 .mockResolvedValueOnce({ ok: true, json: jest.fn().mockResolvedValue(respuestaPagina1) })
                 .mockResolvedValue({ ok: true, json: jest.fn().mockResolvedValue(respuestaOtrasPaginas) });
 
-            // Con maxResultados=50, debe procesar las 3 páginas (1 item c/u).
-            const resultado = await ejecutarScrapingGetonbrd({ terminos: ['qa'], maxResultados: 50 });
+            // Amplío explícitamente el presupuesto conservador para verificar tres páginas.
+            const resultado = await ejecutarScrapingGetonbrd(opcionesPiloto({ terminos: ['qa'], maxResultados: 50, limitePaginas: 3 }));
 
             // El contrato del piloto retiene ofertas únicas y devuelve métricas.
             expect(resultado.ofertas.length).toBeGreaterThanOrEqual(1);
             expect(global.fetch).toHaveBeenCalledTimes(3);
         });
 
-        test('continua con el siguiente término si la API devuelve error HTTP', async () => {
+        test('detengo todos los términos ante 429 sin reintentar', async () => {
             global.fetch
                 .mockResolvedValueOnce({ ok: false, status: 429 }) // primer término falla
                 .mockResolvedValue({
@@ -1789,21 +1791,19 @@ describe('Servicio de scraping', () => {
                     json: jest.fn().mockResolvedValue(respuestaGetonbrdFalsa),
                 }); // segundo término OK
 
-            const resultado = await ejecutarScrapingGetonbrd({
+            const resultado = await ejecutarScrapingGetonbrd(opcionesPiloto({
                 terminos: ['termino-que-falla', 'frontend'],
-            });
+            }));
 
-            expect(resultado).toMatchObject({ estado: 'parcial', motivo_terminacion: 'error_http' });
+            expect(resultado.metricas).toMatchObject({ estado: 'error', motivoFinalizacion: 'limite_solicitudes' });
             expect(global.fetch).toHaveBeenCalledTimes(1);
         });
 
-        test('tira error descriptivo si fetch lanza excepción', async () => {
+        test('distingo un error de red sin resultados de un timeout', async () => {
             global.fetch.mockRejectedValue(new Error('Network error'));
 
-            await expect(ejecutarScrapingGetonbrd()).resolves.toMatchObject({
-                estado: 'parcial',
-                motivo_terminacion: 'timeout',
-            });
+            const resultado = await ejecutarScrapingGetonbrd(opcionesPiloto({ terminos: ['qa'] }));
+            expect(resultado.metricas).toMatchObject({ estado: 'error', motivoFinalizacion: 'red' });
         });
     });
 

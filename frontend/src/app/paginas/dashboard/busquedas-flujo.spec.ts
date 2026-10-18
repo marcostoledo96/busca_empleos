@@ -256,7 +256,13 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
         expect(texto).toContain('Deshabilitada');
         expect(texto).toContain('(+1 más)');
         expect(texto).not.toContain('sexto');
-        expect(fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]')).toBeNull();
+        const botonGetonbrd = fixture.nativeElement.querySelector('[aria-label="Scrapear GetOnBrd"]') as HTMLButtonElement;
+        expect(botonGetonbrd).not.toBeNull();
+        expect(botonGetonbrd.disabled).toBeTrue();
+        expect(fixture.nativeElement.querySelector('#disponibilidad-getonbrd').textContent).toContain('Destino bloqueado');
+        botonGetonbrd.click();
+        http.expectNone(`${base}/scraping/getonbrd`);
+        http.expectNone(`${base}/scraping/previsualizacion`);
     }));
 
     it('cuando fallan sincronización y fallback conservo datos anteriores sin fingir actualización', fakeAsync(() => {

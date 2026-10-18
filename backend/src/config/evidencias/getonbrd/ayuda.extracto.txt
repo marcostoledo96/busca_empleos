@@ -1,0 +1,1 @@
+<p>La API pública se puede usar para estudiar información visible del mercado laboral sin iniciar sesión.</p>
