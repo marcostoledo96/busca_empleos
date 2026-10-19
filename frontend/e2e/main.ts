@@ -10,11 +10,15 @@ import { DemoService } from '../src/app/servicios/demo.service';
 import { PersistenciaDashboardService } from '../src/app/servicios/persistencia-dashboard.service';
 import { OFERTAS_DEMO } from '../src/app/datos/ofertas-demo';
 import { ResumenBusqueda, ResultadoFuente } from '../src/app/modelos/respuesta-api.model';
+import { crearOfertasDetalle, crearHttpDetalle } from './detalle-fixture';
 
 // Aíslo el fixture: no inicializo Firebase, no guardo datos ni uso el interceptor productivo.
-const escenario = new URLSearchParams(location.search).get('estado') || 'parcial';
+const parametros = new URLSearchParams(location.search);
+const escenario = parametros.get('estado') || 'parcial';
+const detalle = parametros.get('detalle');
 const llamadas = signal<string[]>([]);
-const ofertas = escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
+const ofertas = detalle ? crearOfertasDetalle(detalle) : escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
+const httpDetalle = detalle ? crearHttpDetalle(ofertas, parametros) : null;
 let bloqueGuardado = ofertas;
 let evaluacionIniciada = false;
 let cicloIniciado = false;
@@ -42,6 +46,8 @@ const progresoEvaluacion = () => ({ activo: escenario === 'cargando',
 const fixtureHttp: HttpInterceptorFn = solicitud => {
     const ruta = new URL(solicitud.url, location.origin).pathname.replace(/^.*\/api/, '');
     llamadas.update(actuales => [...actuales, `${solicitud.method} ${ruta}`]);
+    const respuestaDetalle = httpDetalle?.(solicitud, ruta);
+    if (respuestaDetalle) return respuestaDetalle;
     if (escenario === 'error' && /ofertas|historial|previsualizacion/.test(ruta)) {
         return throwError(() => new HttpErrorResponse({ status: 503, error: { error: 'Fallo sintético de carga' } }));
     }
@@ -69,7 +75,7 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
         ofertas_nuevas: 3, ofertas_duplicadas: 0, fuente: fuentes[0], configuracion: configuracion[0],
     };
     else if (ruta.endsWith('/ofertas/sincronizacion')) return of(new HttpResponse({ body: {
-        exito: true, datos: ofertas, total: ofertas.length, total_inicial: ofertas.length,
+        exito: true, datos: structuredClone(ofertas), total: ofertas.length, total_inicial: ofertas.length,
         max_id: 48, fecha_corte: '2026-01-15T18:00:00Z', cursor_siguiente: null, completada: true,
     } }));
     else if (ruta.endsWith('/ofertas')) datos = ofertas;
@@ -94,9 +100,10 @@ class EscenarioDashboard {
 if (['/preferencias', '/salida', '/cv'].includes(location.pathname)) {
     void import('./preferencias-fixture').then(fixture => fixture.iniciarPreferencias());
 } else {
+document.documentElement.classList.toggle('dark', parametros.get('tema') === 'oscuro');
 bootstrapApplication(EscenarioDashboard, { providers: [
     provideNoopAnimations(),
-    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: 'none' } } }),
+    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: detalle ? '.dark' : 'none' } } }),
     provideHttpClient(withInterceptors([fixtureHttp])),
     { provide: DemoService, useValue: { esModoDemo: signal(false) } },
     { provide: PersistenciaDashboardService, useValue: {
