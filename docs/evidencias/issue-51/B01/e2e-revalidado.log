@@ -1,0 +1,321 @@
+
+> frontend@0.0.0 test:e2e
+> playwright test
+
+
+Running 202 tests using 1 worker
+
+  ✓    1 e2e/controles.spec.ts:4:9 › operaciones simuladas y detalles a 1440px @controles (10.4s)
+  ✓    2 e2e/controles.spec.ts:4:9 › operaciones simuladas y detalles a 768px @controles (10.3s)
+  ✓    3 e2e/controles.spec.ts:4:9 › operaciones simuladas y detalles a 390px @controles (10.1s)
+{"tema":"claro","ancho":1440,"altoPanel":447.1875,"inicioListado":745.578125}
+{"tema":"claro","ancho":1366,"altoPanel":447.1875,"inicioListado":745.578125}
+{"tema":"claro","ancho":1024,"altoPanel":534.1875,"inicioListado":816.171875}
+{"tema":"claro","ancho":768,"altoPanel":687.1875,"inicioListado":1047.953125}
+{"tema":"claro","ancho":390,"altoPanel":790.78125,"inicioListado":1177.140625}
+{"tema":"claro","ancho":320,"altoPanel":896.78125,"inicioListado":1323.125}
+{"tema":"oscuro","ancho":1440,"altoPanel":447.1875,"inicioListado":745.578125}
+{"tema":"oscuro","ancho":1366,"altoPanel":447.1875,"inicioListado":745.578125}
+{"tema":"oscuro","ancho":1024,"altoPanel":534.1875,"inicioListado":816.171875}
+{"tema":"oscuro","ancho":768,"altoPanel":687.1875,"inicioListado":1047.953125}
+{"tema":"oscuro","ancho":390,"altoPanel":790.78125,"inicioListado":1177.140625}
+{"tema":"oscuro","ancho":320,"altoPanel":896.78125,"inicioListado":1323.125}
+  ✓    4 e2e/dashboard.spec.ts:20:5 › matriz sintética @evidencia (10.0s)
+  ✓    5 e2e/dashboard.spec.ts:41:5 › detalles abiertos y objetivos táctiles en toda la matriz @responsive (3.8s)
+{"tema":"claro","abierto":false,"anchoPagina":320,"viewport":320,"fuente":"\"DejaVu Sans\", sans-serif","caja":{"x":16,"y":91.1875,"width":288,"height":48,"top":91.1875,"right":304,"bottom":139.1875,"left":16},"fragmentos":[{"x":33,"y":89.1875,"width":263.375,"height":28,"top":89.1875,"right":296.375,"bottom":117.1875,"left":33},{"x":33,"y":113.1875,"width":31.765625,"height":28,"top":113.1875,"right":64.765625,"bottom":141.1875,"left":33}]}
+{"tema":"claro","abierto":true,"anchoPagina":320,"viewport":320,"fuente":"\"DejaVu Sans\", sans-serif","caja":{"x":16,"y":-1739.8125,"width":288,"height":48,"top":-1739.8125,"right":304,"bottom":-1691.8125,"left":16},"fragmentos":[{"x":33,"y":-1741.8125,"width":263.375,"height":28,"top":-1741.8125,"right":296.375,"bottom":-1713.8125,"left":33},{"x":33,"y":-1717.8125,"width":31.765625,"height":28,"top":-1717.8125,"right":64.765625,"bottom":-1689.8125,"left":33}]}
+{"tema":"oscuro","abierto":false,"anchoPagina":320,"viewport":320,"fuente":"\"DejaVu Sans\", sans-serif","caja":{"x":16,"y":91.1875,"width":288,"height":48,"top":91.1875,"right":304,"bottom":139.1875,"left":16},"fragmentos":[{"x":33,"y":89.1875,"width":263.375,"height":28,"top":89.1875,"right":296.375,"bottom":117.1875,"left":33},{"x":33,"y":113.1875,"width":31.765625,"height":28,"top":113.1875,"right":64.765625,"bottom":141.1875,"left":33}]}
+{"tema":"oscuro","abierto":true,"anchoPagina":320,"viewport":320,"fuente":"\"DejaVu Sans\", sans-serif","caja":{"x":16,"y":-1739.8125,"width":288,"height":48,"top":-1739.8125,"right":304,"bottom":-1691.8125,"left":16},"fragmentos":[{"x":33,"y":-1741.8125,"width":263.375,"height":28,"top":-1741.8125,"right":296.375,"bottom":-1713.8125,"left":33},{"x":33,"y":-1717.8125,"width":31.765625,"height":28,"top":-1717.8125,"right":64.765625,"bottom":-1689.8125,"left":33}]}
+  ✓    6 e2e/dashboard.spec.ts:64:5 › título completo a 320px con fallback ancho @fallback320 (2.9s)
+  ✓    7 e2e/dashboard.spec.ts:113:5 › acciones primero y diagnósticos cerrados @regresion (943ms)
+  ✓    8 e2e/dashboard.spec.ts:124:5 › resumen crítico visible sin abrir detalles @regresion (933ms)
+  ✓    9 e2e/dashboard.spec.ts:132:5 › divulgación por teclado no ejecuta operaciones @preservar (1.1s)
+  ✓   10 e2e/dashboard.spec.ts:152:5 › contadores, pestañas, filtro y apertura de oferta @preservar (1.6s)
+  ✓   11 e2e/dashboard.spec.ts:169:9 › estado vacio @estados (657ms)
+  ✓   12 e2e/dashboard.spec.ts:169:9 › estado error @estados (676ms)
+  ✓   13 e2e/dashboard.spec.ts:169:9 › estado cargando @estados (638ms)
+  ✓   14 e2e/dashboard.spec.ts:169:9 › estado completado @estados (959ms)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"claro","viewport":{"width":1440,"height":900},"captura":"aprobada-1440x900-claro.png"}
+  ✓   15 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada claro 1440 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"claro","viewport":{"width":1024,"height":768},"captura":"aprobada-1024x768-claro.png"}
+  ✓   16 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada claro 1024 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"claro","viewport":{"width":768,"height":900},"captura":"aprobada-768x900-claro.png"}
+  ✓   17 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada claro 768 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"claro","viewport":{"width":390,"height":844},"captura":"aprobada-390x844-claro.png"}
+  ✓   18 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada claro 390 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"claro","viewport":{"width":320,"height":844},"captura":"aprobada-320x844-claro.png"}
+  ✓   19 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada claro 320 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"aprobada-1440x900-oscuro.png"}
+  ✓   20 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada oscuro 1440 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"aprobada-1024x768-oscuro.png"}
+  ✓   21 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada oscuro 1024 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"aprobada-768x900-oscuro.png"}
+  ✓   22 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada oscuro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"aprobada-390x844-oscuro.png"}
+  ✓   23 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada oscuro 390 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"aprobada","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"aprobada-320x844-oscuro.png"}
+  ✓   24 e2e/detalle-capturas.spec.ts:56:17 › captura despues aprobada oscuro 320 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"claro","viewport":{"width":1440,"height":900},"captura":"rechazada-1440x900-claro.png"}
+  ✓   25 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada claro 1440 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"claro","viewport":{"width":1024,"height":768},"captura":"rechazada-1024x768-claro.png"}
+  ✓   26 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada claro 1024 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"claro","viewport":{"width":768,"height":900},"captura":"rechazada-768x900-claro.png"}
+  ✓   27 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada claro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"claro","viewport":{"width":390,"height":844},"captura":"rechazada-390x844-claro.png"}
+  ✓   28 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada claro 390 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"claro","viewport":{"width":320,"height":844},"captura":"rechazada-320x844-claro.png"}
+  ✓   29 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada claro 320 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"rechazada-1440x900-oscuro.png"}
+  ✓   30 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada oscuro 1440 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"rechazada-1024x768-oscuro.png"}
+  ✓   31 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada oscuro 1024 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"rechazada-768x900-oscuro.png"}
+  ✓   32 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada oscuro 768 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"rechazada-390x844-oscuro.png"}
+  ✓   33 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada oscuro 390 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"rechazada","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"rechazada-320x844-oscuro.png"}
+  ✓   34 e2e/detalle-capturas.spec.ts:56:17 › captura despues rechazada oscuro 320 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"claro","viewport":{"width":1440,"height":900},"captura":"pendiente-1440x900-claro.png"}
+  ✓   35 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente claro 1440 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"claro","viewport":{"width":1024,"height":768},"captura":"pendiente-1024x768-claro.png"}
+  ✓   36 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente claro 1024 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"claro","viewport":{"width":768,"height":900},"captura":"pendiente-768x900-claro.png"}
+  ✓   37 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente claro 768 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"claro","viewport":{"width":390,"height":844},"captura":"pendiente-390x844-claro.png"}
+  ✓   38 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente claro 390 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"claro","viewport":{"width":320,"height":844},"captura":"pendiente-320x844-claro.png"}
+  ✓   39 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente claro 320 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"pendiente-1440x900-oscuro.png"}
+  ✓   40 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente oscuro 1440 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"pendiente-1024x768-oscuro.png"}
+  ✓   41 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente oscuro 1024 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"pendiente-768x900-oscuro.png"}
+  ✓   42 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente oscuro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"pendiente-390x844-oscuro.png"}
+  ✓   43 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente oscuro 390 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"pendiente","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"pendiente-320x844-oscuro.png"}
+  ✓   44 e2e/detalle-capturas.spec.ts:56:17 › captura despues pendiente oscuro 320 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"claro","viewport":{"width":1440,"height":900},"captura":"error-1440x900-claro.png"}
+  ✓   45 e2e/detalle-capturas.spec.ts:56:17 › captura despues error claro 1440 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"claro","viewport":{"width":1024,"height":768},"captura":"error-1024x768-claro.png"}
+  ✓   46 e2e/detalle-capturas.spec.ts:56:17 › captura despues error claro 1024 @detalle-captura (1.5s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"claro","viewport":{"width":768,"height":900},"captura":"error-768x900-claro.png"}
+  ✓   47 e2e/detalle-capturas.spec.ts:56:17 › captura despues error claro 768 @detalle-captura (1.5s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"claro","viewport":{"width":390,"height":844},"captura":"error-390x844-claro.png"}
+  ✓   48 e2e/detalle-capturas.spec.ts:56:17 › captura despues error claro 390 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"claro","viewport":{"width":320,"height":844},"captura":"error-320x844-claro.png"}
+  ✓   49 e2e/detalle-capturas.spec.ts:56:17 › captura despues error claro 320 @detalle-captura (1.5s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"error-1440x900-oscuro.png"}
+  ✓   50 e2e/detalle-capturas.spec.ts:56:17 › captura despues error oscuro 1440 @detalle-captura (1.5s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"error-1024x768-oscuro.png"}
+  ✓   51 e2e/detalle-capturas.spec.ts:56:17 › captura despues error oscuro 1024 @detalle-captura (1.6s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"error-768x900-oscuro.png"}
+  ✓   52 e2e/detalle-capturas.spec.ts:56:17 › captura despues error oscuro 768 @detalle-captura (1.6s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"error-390x844-oscuro.png"}
+  ✓   53 e2e/detalle-capturas.spec.ts:56:17 › captura despues error oscuro 390 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"error","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"error-320x844-oscuro.png"}
+  ✓   54 e2e/detalle-capturas.spec.ts:56:17 › captura despues error oscuro 320 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"claro","viewport":{"width":1440,"height":900},"captura":"reevaluacion-fallida-1440x900-claro.png"}
+  ✓   55 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida claro 1440 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"claro","viewport":{"width":1024,"height":768},"captura":"reevaluacion-fallida-1024x768-claro.png"}
+  ✓   56 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida claro 1024 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"claro","viewport":{"width":768,"height":900},"captura":"reevaluacion-fallida-768x900-claro.png"}
+  ✓   57 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida claro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"claro","viewport":{"width":390,"height":844},"captura":"reevaluacion-fallida-390x844-claro.png"}
+  ✓   58 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida claro 390 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"claro","viewport":{"width":320,"height":844},"captura":"reevaluacion-fallida-320x844-claro.png"}
+  ✓   59 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida claro 320 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"reevaluacion-fallida-1440x900-oscuro.png"}
+  ✓   60 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida oscuro 1440 @detalle-captura (1.7s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"reevaluacion-fallida-1024x768-oscuro.png"}
+  ✓   61 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida oscuro 1024 @detalle-captura (1.5s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"reevaluacion-fallida-768x900-oscuro.png"}
+  ✓   62 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida oscuro 768 @detalle-captura (1.5s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"reevaluacion-fallida-390x844-oscuro.png"}
+  ✓   63 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida oscuro 390 @detalle-captura (1.6s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"reevaluacion-fallida","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"reevaluacion-fallida-320x844-oscuro.png"}
+  ✓   64 e2e/detalle-capturas.spec.ts:56:17 › captura despues reevaluacion-fallida oscuro 320 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"claro","viewport":{"width":1440,"height":900},"captura":"desactualizada-1440x900-claro.png"}
+  ✓   65 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada claro 1440 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"claro","viewport":{"width":1024,"height":768},"captura":"desactualizada-1024x768-claro.png"}
+  ✓   66 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada claro 1024 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"claro","viewport":{"width":768,"height":900},"captura":"desactualizada-768x900-claro.png"}
+  ✓   67 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada claro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"claro","viewport":{"width":390,"height":844},"captura":"desactualizada-390x844-claro.png"}
+  ✓   68 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada claro 390 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"claro","viewport":{"width":320,"height":844},"captura":"desactualizada-320x844-claro.png"}
+  ✓   69 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada claro 320 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"desactualizada-1440x900-oscuro.png"}
+  ✓   70 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada oscuro 1440 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"desactualizada-1024x768-oscuro.png"}
+  ✓   71 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada oscuro 1024 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"desactualizada-768x900-oscuro.png"}
+  ✓   72 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada oscuro 768 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"desactualizada-390x844-oscuro.png"}
+  ✓   73 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada oscuro 390 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"desactualizada","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"desactualizada-320x844-oscuro.png"}
+  ✓   74 e2e/detalle-capturas.spec.ts:56:17 › captura despues desactualizada oscuro 320 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"claro","viewport":{"width":1440,"height":900},"captura":"historica-1440x900-claro.png"}
+  ✓   75 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica claro 1440 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"claro","viewport":{"width":1024,"height":768},"captura":"historica-1024x768-claro.png"}
+  ✓   76 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica claro 1024 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"claro","viewport":{"width":768,"height":900},"captura":"historica-768x900-claro.png"}
+  ✓   77 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica claro 768 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"claro","viewport":{"width":390,"height":844},"captura":"historica-390x844-claro.png"}
+  ✓   78 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica claro 390 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"claro","viewport":{"width":320,"height":844},"captura":"historica-320x844-claro.png"}
+  ✓   79 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica claro 320 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"historica-1440x900-oscuro.png"}
+  ✓   80 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica oscuro 1440 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"historica-1024x768-oscuro.png"}
+  ✓   81 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica oscuro 1024 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"historica-768x900-oscuro.png"}
+  ✓   82 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica oscuro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"historica-390x844-oscuro.png"}
+  ✓   83 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica oscuro 390 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"historica","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"historica-320x844-oscuro.png"}
+  ✓   84 e2e/detalle-capturas.spec.ts:56:17 › captura despues historica oscuro 320 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"claro","viewport":{"width":1440,"height":900},"captura":"postulada-1440x900-claro.png"}
+  ✓   85 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada claro 1440 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"claro","viewport":{"width":1024,"height":768},"captura":"postulada-1024x768-claro.png"}
+  ✓   86 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada claro 1024 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"claro","viewport":{"width":768,"height":900},"captura":"postulada-768x900-claro.png"}
+  ✓   87 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada claro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"claro","viewport":{"width":390,"height":844},"captura":"postulada-390x844-claro.png"}
+  ✓   88 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada claro 390 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"claro","viewport":{"width":320,"height":844},"captura":"postulada-320x844-claro.png"}
+  ✓   89 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada claro 320 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"postulada-1440x900-oscuro.png"}
+  ✓   90 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada oscuro 1440 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"postulada-1024x768-oscuro.png"}
+  ✓   91 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada oscuro 1024 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"postulada-768x900-oscuro.png"}
+  ✓   92 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada oscuro 768 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"postulada-390x844-oscuro.png"}
+  ✓   93 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada oscuro 390 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"postulada","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"postulada-320x844-oscuro.png"}
+  ✓   94 e2e/detalle-capturas.spec.ts:56:17 › captura despues postulada oscuro 320 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"claro","viewport":{"width":1440,"height":900},"captura":"textos-largos-1440x900-claro.png"}
+  ✓   95 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos claro 1440 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"claro","viewport":{"width":1024,"height":768},"captura":"textos-largos-1024x768-claro.png"}
+  ✓   96 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos claro 1024 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"claro","viewport":{"width":768,"height":900},"captura":"textos-largos-768x900-claro.png"}
+  ✓   97 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos claro 768 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"claro","viewport":{"width":390,"height":844},"captura":"textos-largos-390x844-claro.png"}
+  ✓   98 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos claro 390 @detalle-captura (1.0s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"claro","viewport":{"width":320,"height":844},"captura":"textos-largos-320x844-claro.png"}
+  ✓   99 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos claro 320 @detalle-captura (1.1s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"oscuro","viewport":{"width":1440,"height":900},"captura":"textos-largos-1440x900-oscuro.png"}
+  ✓  100 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos oscuro 1440 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"oscuro","viewport":{"width":1024,"height":768},"captura":"textos-largos-1024x768-oscuro.png"}
+  ✓  101 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos oscuro 1024 @detalle-captura (1.4s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"textos-largos-768x900-oscuro.png"}
+  ✓  102 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos oscuro 768 @detalle-captura (1.2s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"oscuro","viewport":{"width":390,"height":844},"captura":"textos-largos-390x844-oscuro.png"}
+  ✓  103 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos oscuro 390 @detalle-captura (1.3s)
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"oscuro","viewport":{"width":320,"height":844},"captura":"textos-largos-320x844-oscuro.png"}
+  ✓  104 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos oscuro 320 @detalle-captura (1.3s)
+  ✓  105 e2e/detalle-harness.spec.ts:11:9 › detalle aprobada: lista, apertura y navegación sin escrituras @detalle-smoke (1.0s)
+  ✓  106 e2e/detalle-harness.spec.ts:11:9 › detalle rechazada: lista, apertura y navegación sin escrituras @detalle-smoke (1.1s)
+  ✓  107 e2e/detalle-harness.spec.ts:11:9 › detalle pendiente: lista, apertura y navegación sin escrituras @detalle-smoke (1.1s)
+  ✓  108 e2e/detalle-harness.spec.ts:11:9 › detalle error: lista, apertura y navegación sin escrituras @detalle-smoke (1.1s)
+  ✓  109 e2e/detalle-harness.spec.ts:11:9 › detalle reevaluacion-fallida: lista, apertura y navegación sin escrituras @detalle-smoke (977ms)
+  ✓  110 e2e/detalle-harness.spec.ts:11:9 › detalle desactualizada: lista, apertura y navegación sin escrituras @detalle-smoke (1.1s)
+  ✓  111 e2e/detalle-harness.spec.ts:11:9 › detalle historica: lista, apertura y navegación sin escrituras @detalle-smoke (940ms)
+  ✓  112 e2e/detalle-harness.spec.ts:11:9 › detalle postulada: lista, apertura y navegación sin escrituras @detalle-smoke (1.0s)
+  ✓  113 e2e/detalle-harness.spec.ts:11:9 › detalle textos-largos: lista, apertura y navegación sin escrituras @detalle-smoke (948ms)
+  ✓  114 e2e/detalle-ui.spec.ts:41:5 › cabecera inicial, enlace seguro único y cierre con retorno de foco @detalle-ui (1.4s)
+  ✓  115 e2e/detalle-ui.spec.ts:76:5 › exclusión crítica visible y evidencia completa operable por teclado @detalle-ui (1.2s)
+  ✓  116 e2e/detalle-ui.spec.ts:107:9 › estado pendiente: aviso único sin confundir rechazo @detalle-ui (1.1s)
+  ✓  117 e2e/detalle-ui.spec.ts:107:9 › estado error: aviso único sin confundir rechazo @detalle-ui (1.1s)
+  ✓  118 e2e/detalle-ui.spec.ts:107:9 › estado reevaluacion-fallida: aviso único sin confundir rechazo @detalle-ui (1.0s)
+  ✓  119 e2e/detalle-ui.spec.ts:107:9 › estado desactualizada: aviso único sin confundir rechazo @detalle-ui (1.0s)
+  ✓  120 e2e/detalle-ui.spec.ts:107:9 › estado historica: aviso único sin confundir rechazo @detalle-ui (973ms)
+  ✓  121 e2e/detalle-ui.spec.ts:122:9 › selector overlay: estado confirmado independiente del matching @detalle-ui (1.4s)
+  ✓  122 e2e/detalle-ui.spec.ts:122:9 › selector overlay: rollback HTTP independiente del matching @detalle-ui (1.4s)
+  ✓  123 e2e/detalle-ui.spec.ts:142:5 › fecha y nota: guardado explícito, carga, éxito y persistencia por interfaz @detalle-ui (2.1s)
+  ✓  124 e2e/detalle-ui.spec.ts:160:9 › seguimiento seguimiento: error accesible conserva borrador y otra oferta @detalle-ui (1.7s)
+  ✓  125 e2e/detalle-ui.spec.ts:160:9 › seguimiento validacion-seguimiento: error accesible conserva borrador y otra oferta @detalle-ui (1.7s)
+  ✓  126 e2e/detalle-ui.spec.ts:184:5 › nota Unicode: límite 4000 y rechazo local de 4001 sin escritura @detalle-ui (1.1s)
+  ✓  127 e2e/detalle-ui.spec.ts:199:5 › revisión asíncrona: escribir y cambiar de oferta durante guardado no pierde borradores @detalle-ui (2.2s)
+  ✓  128 e2e/detalle-ui.spec.ts:222:5 › descripción: expandir, cancelar, límites y guardar sin reevaluación automática @detalle-ui (3.4s)
+  ✓  129 e2e/detalle-ui.spec.ts:267:9 › descripción descripcion: conserva texto original y edición recuperable @detalle-ui (1.2s)
+  ✓  130 e2e/detalle-ui.spec.ts:267:9 › descripción validacion-descripcion: conserva texto original y edición recuperable @detalle-ui (1.2s)
+  ✓  131 e2e/detalle-ui.spec.ts:286:5 › reevaluación HTTP fallida: informa error sin inventar evaluación completada @detalle-ui (1.0s)
+  ✓  132 e2e/detalle-ui.spec.ts:298:9 › límites de Tab retroceso: primer y último control permanecen en el modal @detalle-ui @detalle-red (1.0s)
+  ✓  133 e2e/detalle-ui.spec.ts:298:9 › límites de Tab avance: primer y último control permanecen en el modal @detalle-ui @detalle-red (1.0s)
+  ✓  134 e2e/detalle-ui.spec.ts:322:5 › overlay por teclado: Escape cierra selector antes que diálogo y conserva estado @detalle-ui @detalle-red (1.1s)
+  ✓  135 e2e/detalle-ui.spec.ts:344:9 › footer íntegro y contenido utilizable con cabecera larga 320 claro @detalle-ui @detalle-red (1.1s)
+  ✓  136 e2e/detalle-ui.spec.ts:353:9 › título largo legible completo mediante scroll interno 320 claro @detalle-ui @detalle-red (907ms)
+  ✓  137 e2e/detalle-ui.spec.ts:344:9 › footer íntegro y contenido utilizable con cabecera larga 320 oscuro @detalle-ui @detalle-red (1.3s)
+  ✓  138 e2e/detalle-ui.spec.ts:353:9 › título largo legible completo mediante scroll interno 320 oscuro @detalle-ui @detalle-red (1.1s)
+  ✓  139 e2e/detalle-ui.spec.ts:402:13 › textos extremos claro 320: scroll íntegro y controles sin solapar @detalle-ui (1.1s)
+  ✓  140 e2e/detalle-ui.spec.ts:402:13 › textos extremos claro 390: scroll íntegro y controles sin solapar @detalle-ui (1.2s)
+  ✓  141 e2e/detalle-ui.spec.ts:402:13 › textos extremos oscuro 320: scroll íntegro y controles sin solapar @detalle-ui (1.3s)
+  ✓  142 e2e/detalle-ui.spec.ts:402:13 › textos extremos oscuro 390: scroll íntegro y controles sin solapar @detalle-ui (1.4s)
+  ✓  143 e2e/preferencias-harness.spec.ts:32:5 › conservo la entrada Dashboard del harness (928ms)
+  ✓  144 e2e/preferencias-harness.spec.ts:38:5 › cargo Preferencias reales con perfil confirmado y sin análisis automático (1.1s)
+  ✓  145 e2e/preferencias-harness.spec.ts:52:5 › protejo la navegación real y guardo únicamente el CV solicitado (1.4s)
+  ✓  146 e2e/preferencias-harness.spec.ts:72:9 › extraigo pdf y analizo solamente por acciones explícitas (1.4s)
+  ✓  147 e2e/preferencias-harness.spec.ts:72:9 › extraigo md y analizo solamente por acciones explícitas (1.3s)
+  ✓  148 e2e/preferencias-harness.spec.ts:93:5 › simulo el error de guardado sin perder el texto ni persistirlo (1.3s)
+  ✓  149 e2e/preferencias.spec.ts:33:5 › A: navegación antes del contenido secundario y editor solamente en Importar CV (900ms)
+  ✓  150 e2e/preferencias.spec.ts:46:5 › B: resumen confirmado breve y detalles completos por teclado, sin confundir edición (975ms)
+  ✓  151 e2e/preferencias.spec.ts:72:5 › C: borrador protegido entre pestañas, guard cancelado, beforeunload y guardado (1.2s)
+  ✓  152 e2e/preferencias.spec.ts:101:5 › D: errores globales conservan borrador y perfil confirmado (1.2s)
+  ✓  153 e2e/preferencias.spec.ts:117:9 › E: pdf extraer, editar, analizar, decidir y aplicar sin guardar automáticamente (2.3s)
+  ✓  154 e2e/preferencias.spec.ts:117:9 › E: md extraer, editar, analizar, decidir y aplicar sin guardar automáticamente (2.3s)
+  ✓  155 e2e/preferencias.spec.ts:165:5 › E: cancelar revisión no modifica preferencias ni analiza al editar la fuente (1.4s)
+  ✓  156 e2e/preferencias.spec.ts:185:9 › D: estado global esperando=cv-carga sin abrir el editor (854ms)
+  ✓  157 e2e/preferencias.spec.ts:185:9 › D: estado global error=cv-carga sin abrir el editor (841ms)
+  ✓  158 e2e/preferencias.spec.ts:195:9 › D: cv-guardar en curso sigue visible al cambiar de pestaña (1.0s)
+  ✓  159 e2e/preferencias.spec.ts:195:9 › D: analizar en curso sigue visible al cambiar de pestaña (991ms)
+  ✓  160 e2e/preferencias.spec.ts:195:9 › D: extraer en curso sigue visible al cambiar de pestaña (940ms)
+  ✓  161 e2e/preferencias.spec.ts:224:13 › F: 1440px claro, siete pestañas por teclado y sin overflow global (2.1s)
+  ✓  162 e2e/preferencias.spec.ts:224:13 › F: 1440px oscuro, siete pestañas por teclado y sin overflow global (2.1s)
+  ✓  163 e2e/preferencias.spec.ts:224:13 › F: 1366px claro, siete pestañas por teclado y sin overflow global (2.0s)
+  ✓  164 e2e/preferencias.spec.ts:224:13 › F: 1366px oscuro, siete pestañas por teclado y sin overflow global (2.1s)
+  ✓  165 e2e/preferencias.spec.ts:224:13 › F: 1024px claro, siete pestañas por teclado y sin overflow global (1.9s)
+  ✓  166 e2e/preferencias.spec.ts:224:13 › F: 1024px oscuro, siete pestañas por teclado y sin overflow global (2.0s)
+  ✓  167 e2e/preferencias.spec.ts:224:13 › F: 768px claro, siete pestañas por teclado y sin overflow global (1.9s)
+  ✓  168 e2e/preferencias.spec.ts:224:13 › F: 768px oscuro, siete pestañas por teclado y sin overflow global (2.1s)
+  ✓  169 e2e/preferencias.spec.ts:224:13 › F: 390px claro, siete pestañas por teclado y sin overflow global (2.0s)
+  ✓  170 e2e/preferencias.spec.ts:224:13 › F: 390px oscuro, siete pestañas por teclado y sin overflow global (2.0s)
+  ✓  171 e2e/preferencias.spec.ts:224:13 › F: 320px claro, siete pestañas por teclado y sin overflow global (2.1s)
+  ✓  172 e2e/preferencias.spec.ts:224:13 › F: 320px oscuro, siete pestañas por teclado y sin overflow global (2.0s)
+  ✓  173 e2e/tabla-ui.spec.ts:42:5 › búsqueda desktop por título, empresa, ubicación, acentos, mayúsculas y espacios conserva contains (2.2s)
+  ✓  174 e2e/tabla-ui.spec.ts:56:5 › plataforma, pestaña, ordenamiento y búsqueda invalidan selección sin escrituras (2.8s)
+  ✓  175 e2e/tabla-ui.spec.ts:81:5 › página desktop final parcial y payload masivo sólo de sus cinco IDs visibles (2.3s)
+  ✓  176 e2e/tabla-ui.spec.ts:99:5 › ambas barras independientes, cancelación, error recuperable y no doble envío (2.4s)
+  ✓  177 e2e/tabla-ui.spec.ts:125:5 › reevaluación exige confirmar, cancelar no escribe y un doble clic envía una sola vez (1.5s)
+  ✓  178 e2e/tabla-ui.spec.ts:144:9 › tarjetas 390: selección, dropdown, teclado, modal Escape y página parcial (2.0s)
+  ✓  179 e2e/tabla-ui.spec.ts:144:9 › tarjetas 320: selección, dropdown, teclado, modal Escape y página parcial (2.1s)
+  ✓  180 e2e/tabla-ui.spec.ts:192:5 › refresco mantiene IDs visibles seleccionados y reducción de resultados ajusta la última página móvil (1.7s)
+  ✓  181 e2e/tabla-ui.spec.ts:214:5 › tabla abre detalle issue50 y Escape devuelve foco sin escrituras (1.3s)
+  ✓  182 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 1440 claro: texto íntegro, sin overflow de página y controles visibles (1.4s)
+  ✓  183 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 1440 oscuro: texto íntegro, sin overflow de página y controles visibles (1.8s)
+  ✓  184 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 1024 claro: texto íntegro, sin overflow de página y controles visibles (1.5s)
+  ✓  185 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 1024 oscuro: texto íntegro, sin overflow de página y controles visibles (1.7s)
+  ✓  186 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 768 claro: texto íntegro, sin overflow de página y controles visibles (1.1s)
+  ✓  187 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 768 oscuro: texto íntegro, sin overflow de página y controles visibles (1.3s)
+  ✓  188 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 390 claro: texto íntegro, sin overflow de página y controles visibles (1.1s)
+  ✓  189 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 390 oscuro: texto íntegro, sin overflow de página y controles visibles (1.3s)
+  ✓  190 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 320 claro: texto íntegro, sin overflow de página y controles visibles (1.1s)
+  ✓  191 e2e/tabla-ui.spec.ts:227:13 › matriz extrema 320 oscuro: texto íntegro, sin overflow de página y controles visibles (1.3s)
+B01 [{"ancho":1440,"tema":"claro","estado":"no_postulado","texto":"No postulado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}},{"ancho":1440,"tema":"claro","estado":"cv_enviado","texto":"CV enviado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}},{"ancho":1440,"tema":"claro","estado":"en_proceso","texto":"En proceso","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}},{"ancho":1440,"tema":"claro","estado":"descartada","texto":"Descartada","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}}]
+  ✓  192 e2e/tabla-ui.spec.ts:257:13 › B-01 seguimiento íntegro 1440 claro (2.9s)
+B01 [{"ancho":1440,"tema":"oscuro","estado":"no_postulado","texto":"No postulado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}},{"ancho":1440,"tema":"oscuro","estado":"cv_enviado","texto":"CV enviado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}},{"ancho":1440,"tema":"oscuro","estado":"en_proceso","texto":"En proceso","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}},{"ancho":1440,"tema":"oscuro","estado":"descartada","texto":"Descartada","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":1190,"scrollWidth":1200,"overflowX":"auto","pagina":1440,"viewport":1440,"cuerpo":1440}}]
+  ✓  193 e2e/tabla-ui.spec.ts:257:13 › B-01 seguimiento íntegro 1440 oscuro (3.3s)
+B01 [{"ancho":1024,"tema":"claro","estado":"no_postulado","texto":"No postulado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}},{"ancho":1024,"tema":"claro","estado":"cv_enviado","texto":"CV enviado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}},{"ancho":1024,"tema":"claro","estado":"en_proceso","texto":"En proceso","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}},{"ancho":1024,"tema":"claro","estado":"descartada","texto":"Descartada","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}}]
+  ✓  194 e2e/tabla-ui.spec.ts:257:13 › B-01 seguimiento íntegro 1024 claro (3.0s)
+B01 [{"ancho":1024,"tema":"oscuro","estado":"no_postulado","texto":"No postulado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}},{"ancho":1024,"tema":"oscuro","estado":"cv_enviado","texto":"CV enviado","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}},{"ancho":1024,"tema":"oscuro","estado":"en_proceso","texto":"En proceso","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}},{"ancho":1024,"tema":"oscuro","estado":"descartada","texto":"Descartada","clientWidth":122,"scrollWidth":122,"fuente":"14px","tabla":{"clientWidth":934,"scrollWidth":1200,"overflowX":"auto","pagina":1024,"viewport":1024,"cuerpo":1024}}]
+  ✓  195 e2e/tabla-ui.spec.ts:257:13 › B-01 seguimiento íntegro 1024 oscuro (3.2s)
+  ✓  196 e2e/tabla-ui.spec.ts:309:9 › estado pendiente: diferencia evaluación de seguimiento (1.1s)
+  ✓  197 e2e/tabla-ui.spec.ts:309:9 › estado error: diferencia evaluación de seguimiento (1.1s)
+  ✓  198 e2e/tabla-ui.spec.ts:309:9 › estado desactualizada: diferencia evaluación de seguimiento (1.1s)
+  ✓  199 e2e/tabla-ui.spec.ts:309:9 › estado reevaluacion-fallida: diferencia evaluación de seguimiento (1.1s)
+  ✓  200 e2e/tabla-ui.spec.ts:309:9 › estado historica: diferencia evaluación de seguimiento (1.0s)
+  ✓  201 e2e/tabla-ui.spec.ts:309:9 › estado rechazada: diferencia evaluación de seguimiento (1.1s)
+  ✓  202 e2e/tabla-ui.spec.ts:328:5 › vacío global, categoría sin ofertas, filtro sin coincidencias, carga y error técnico (2.7s)
+
+  202 passed (5.4m)

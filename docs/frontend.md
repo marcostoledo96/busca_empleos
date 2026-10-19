@@ -31,6 +31,18 @@ verificados, comparación equivalente, matriz, intentos fallidos y límites est�
 [la evidencia de #51](evidencias/issue-51/README.md). No atribuyo estos resultados
 al commit de preparación ni a un futuro commit de entrega.
 
+### Corrección B-01 de la auditoría PR55
+
+Amplío únicamente la columna desktop de postulación de 150 a 180 px para mostrar
+«No postulado», «CV enviado», «En proceso» y «Descartada» completos, sin reducir
+la fuente ni ocultar columnas. Las 16 mediciones a 1440/1024 px en claro/oscuro
+pasan y conservan scroll interno sin overflow global. Este lote tiene Angular
+561 PASS/4 SKIPPED y build PASS. Tras conservar un intento con 201 PASS/1 timeout,
+Marcos autorizó una reproducción focal (1 PASS) y una suite completa (202 PASS),
+sin cambiar timeout/retries/assertions. Revisión independiente focal y MCP: PASS.
+Conservo la evidencia anterior y separo [reproducción, métricas y resultados B-01](evidencias/issue-51/B01/README.md),
+atribuidos al árbol local derivado de `1e33df8`; el comentario de entrega informa el nuevo SHA y su CI.
+
 ## Detalle de oferta compacto — issue #50
 
 Recupero la jerarquía editorial del modal con los tokens y controles existentes:

@@ -12,7 +12,7 @@ const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).tr
 const candidato = `${head}:${createHash('sha256').update(execFileSync('git', ['diff', 'HEAD', '--', 'frontend/src', 'frontend/e2e'], { encoding: 'utf8', cwd: resolve(__dirname, '../..') }))
     .update(readFileSync(resolve(__dirname, 'detalle-ui.spec.ts'))).digest('hex')}`;
 const destino = resolve(__dirname, '../.angular/issue51-historico/detalle', fase);
-const documentadas = resolve(__dirname, '../../docs/evidencias/issue-51/detalle', fase);
+const documentadas = resolve(__dirname, '../../docs/evidencias/issue-51/B01/detalle', fase);
 const escenarios = ['aprobada', 'rechazada', 'pendiente', 'error', 'reevaluacion-fallida', 'desactualizada', 'historica', 'postulada', 'textos-largos'];
 const representantes = new Set([
     'aprobada-1440x900-claro', 'aprobada-1440x900-oscuro',

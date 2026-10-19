@@ -1,0 +1,11 @@
+
+> frontend@0.0.0 test:e2e
+> playwright test e2e/detalle-capturas.spec.ts --grep textos-largos oscuro 768
+
+
+Running 1 test using 1 worker
+
+{"fase":"despues","head":"1e33df8784baf6e0b089b334e2611b44a6e1458b","escenario":"textos-largos","tema":"oscuro","viewport":{"width":768,"height":900},"captura":"textos-largos-768x900-oscuro.png"}
+  ✓  1 e2e/detalle-capturas.spec.ts:56:17 › captura despues textos-largos oscuro 768 @detalle-captura (1.4s)
+
+  1 passed (7.1s)

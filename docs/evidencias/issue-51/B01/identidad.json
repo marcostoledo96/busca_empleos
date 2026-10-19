@@ -1,0 +1,11 @@
+{
+  "fecha": "2026-10-19",
+  "head": "1e33df8784baf6e0b089b334e2611b44a6e1458b",
+  "arbol_head": "63daecf0204a73efef9839c5355b2e4d3a8d3e2a",
+  "base_pr": "bd12660c263ef55bd61486b179fc19ce787d0e66",
+  "fuentes_diff_sha256": "626a197b5268ffa3e00056ea4ba7fce6e4b88f4339e87905bbf3123d4e10443a",
+  "atribucion": "Árbol local no commiteado: HEAD más diff de fuentes; no es un nuevo SHA Git.",
+  "candidato_detalle": "1e33df8784baf6e0b089b334e2611b44a6e1458b:f766b753aa1c76efc53b494ee89cfac103f6deb528d00156848bd8abb2879558",
+  "evidencia_previa_intacta": 56,
+  "adjuntos_png_b01": 16
+}

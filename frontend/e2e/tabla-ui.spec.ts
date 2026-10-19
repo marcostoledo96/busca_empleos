@@ -243,9 +243,56 @@ for (const [ancho, alto] of [[1440,900], [1024,768], [768,900], [390,844], [320,
                 expect(caja!.x).toBeGreaterThanOrEqual(0);
                 expect(caja!.x + caja!.width).toBeLessThanOrEqual(ancho);
             }
-            await page.screenshot({ path: `../docs/evidencias/issue-51/matriz-extremos-${ancho}-${tema}.png`, fullPage: true, animations: 'disabled' });
-            await testInfo.attach(`matriz-extremos-${ancho}-${tema}`, { path: `../docs/evidencias/issue-51/matriz-extremos-${ancho}-${tema}.png`, contentType: 'image/png' });
+            const captura = testInfo.outputPath(`matriz-extremos-${ancho}-${tema}.png`);
+            await page.screenshot({ path: captura, fullPage: true, animations: 'disabled' });
+            await testInfo.attach(`matriz-extremos-${ancho}-${tema}`, { path: captura, contentType: 'image/png' });
             expect(testInfo.attachments).toContainEqual(expect.objectContaining({ name: `matriz-extremos-${ancho}-${tema}`, contentType: 'image/png', path: expect.stringContaining(testInfo.outputDir) }));
+            expect(await escrituras(page)).toEqual([]);
+        });
+    }
+}
+
+for (const ancho of [1440, 1024]) {
+    for (const tema of ['claro', 'oscuro']) {
+        test(`B-01 seguimiento íntegro ${ancho} ${tema}`, async ({ page }, testInfo) => {
+            await page.setViewportSize({ width: ancho, height: ancho === 1440 ? 900 : 768 });
+            await iniciar(page, `tabla=1&tema=${tema}`);
+            const mediciones = [];
+            for (const [estado, tab, titulo, etiqueta] of [
+                ['no_postulado', /APROBADAS/, 'Angular junior 01', 'No postulado'],
+                ['cv_enviado', /POSTULADAS/, 'Caso postulada', 'CV enviado'],
+                ['en_proceso', /POSTULADAS/, 'Caso en proceso', 'En proceso'],
+                ['descartada', /DESCARTADAS MANUALMENTE/, 'Caso descartada', 'Descartada'],
+            ] as const) {
+                await page.getByRole('tab', { name: tab }).click();
+                await buscar(page).fill(titulo);
+                await expect(filas(page)).toHaveCount(1);
+                const label = filas(page).locator('.columna-postulacion .p-select-label');
+                await expect(label).toHaveText(etiqueta);
+                await label.scrollIntoViewIfNeeded();
+                await expect(label).toBeInViewport();
+                await page.evaluate(() => document.fonts.ready);
+                const medida = await label.evaluate(e => ({
+                    texto: e.textContent?.trim(), clientWidth: e.clientWidth, scrollWidth: e.scrollWidth,
+                    fuente: getComputedStyle(e).fontSize,
+                }));
+                const scroll = await vista(page).locator('.p-datatable-table-container').evaluate(e => ({
+                    clientWidth: e.clientWidth, scrollWidth: e.scrollWidth, overflowX: getComputedStyle(e).overflowX,
+                    pagina: document.documentElement.scrollWidth, viewport: innerWidth,
+                    cuerpo: document.body.scrollWidth,
+                }));
+                mediciones.push({ ancho, tema, estado, ...medida, tabla: scroll });
+                const captura = testInfo.outputPath(`B01-${ancho}-${tema}-${estado}.png`);
+                await page.screenshot({ path: captura, fullPage: true, animations: 'disabled' });
+                await testInfo.attach(`B01-${ancho}-${tema}-${estado}`, { path: captura, contentType: 'image/png' });
+                expect.soft(medida.scrollWidth, `${estado}: etiqueta completa`).toBeLessThanOrEqual(medida.clientWidth);
+                expect.soft(scroll.pagina).toBeLessThanOrEqual(scroll.viewport);
+                expect.soft(scroll.cuerpo).toBeLessThanOrEqual(scroll.viewport);
+                expect.soft(scroll.overflowX).toBe('auto');
+                if (ancho === 1024) expect.soft(scroll.scrollWidth).toBeGreaterThan(scroll.clientWidth);
+            }
+            await testInfo.attach('B01-mediciones', { body: JSON.stringify(mediciones, null, 2), contentType: 'application/json' });
+            console.log(`B01 ${JSON.stringify(mediciones)}`);
             expect(await escrituras(page)).toEqual([]);
         });
     }

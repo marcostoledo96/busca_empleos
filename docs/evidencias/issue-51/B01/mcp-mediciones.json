@@ -1,0 +1,290 @@
+[
+  {
+    "width": 1440,
+    "theme": "claro",
+    "title": "Angular junior 01",
+    "text": "No postulado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "claro",
+    "title": "Caso postulada",
+    "text": "CV enviado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "claro",
+    "title": "Caso en proceso",
+    "text": "En proceso",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "claro",
+    "title": "Caso descartada",
+    "text": "Descartada",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "oscuro",
+    "title": "Angular junior 01",
+    "text": "No postulado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "oscuro",
+    "title": "Caso postulada",
+    "text": "CV enviado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "oscuro",
+    "title": "Caso en proceso",
+    "text": "En proceso",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1440,
+    "theme": "oscuro",
+    "title": "Caso descartada",
+    "text": "Descartada",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1436,
+    "bodyWidth": 1436,
+    "viewport": 1440,
+    "table": {
+      "clientWidth": 1191,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "claro",
+    "title": "Angular junior 01",
+    "text": "No postulado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "claro",
+    "title": "Caso postulada",
+    "text": "CV enviado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "claro",
+    "title": "Caso en proceso",
+    "text": "En proceso",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "claro",
+    "title": "Caso descartada",
+    "text": "Descartada",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "oscuro",
+    "title": "Angular junior 01",
+    "text": "No postulado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "oscuro",
+    "title": "Caso postulada",
+    "text": "CV enviado",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "oscuro",
+    "title": "Caso en proceso",
+    "text": "En proceso",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  },
+  {
+    "width": 1024,
+    "theme": "oscuro",
+    "title": "Caso descartada",
+    "text": "Descartada",
+    "clientWidth": 122,
+    "scrollWidth": 122,
+    "font": "14px",
+    "documentWidth": 1020,
+    "bodyWidth": 1020,
+    "viewport": 1024,
+    "table": {
+      "clientWidth": 931,
+      "scrollWidth": 1200,
+      "overflow": "auto"
+    },
+    "writes": []
+  }
+]
