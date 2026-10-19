@@ -1,4 +1,4 @@
-# Busca Empleos — AI Job Scraper
+# Busco Trabajo — AI Job Scraper
 
 Plataforma full-stack personal para automatizar la búsqueda activa de empleo IT. El sistema extrae periódicamente cientos de ofertas laborales de múltiples portales, las filtra mediante Inteligencia Artificial (DeepSeek) comparándolas con un perfil técnico configurado, y centraliza los resultados en un dashboard interactivo.
 
@@ -23,7 +23,7 @@ Plataforma full-stack personal para automatizar la búsqueda activa de empleo IT
 ## 📁 Estructura del proyecto
 
 ```text
-Busca_empleos/
+busca_empleos/
 ├── backend/       ← API REST en Node.js + Express (Scraping, IA, Auth, DB)
 │   ├── src/       ← Controladores, Servicios, Modelos y Rutas
 │   ├── sql/       ← Scripts de migración y definición de tablas
@@ -45,8 +45,8 @@ Busca_empleos/
 ### 1. Clonar el repositorio
 
 ```bash
-git clone https://github.com/marcostoledo96/busca-empleos.git
-cd busca-empleos
+git clone https://github.com/marcostoledo96/busca_empleos.git
+cd busca_empleos
 ```
 
 ### 2. Configurar el backend
@@ -93,6 +93,18 @@ El frontend espera el backend en `http://localhost:3000`. Si usás otro puerto, 
 ```bash
 ng serve          # Inicia en http://localhost:4200
 ```
+
+## Estado del dominio
+
+La dirección final es **https://busco-trabajo.vercel.app**. Conservo
+https://busca-empleos.vercel.app como alias del mismo proyecto Vercel.
+Ambos sirven `/preferencias` por HTTPS con COOP preservado. Railway ya permite
+ambos orígenes; Marcos confirmó el dominio autorizado y Google en Firebase,
+y el recorrido de acceso, ofertas existentes, preferencias/recarga y salida.
+Distingo esa confirmación humana de los checks HTTP independientes.
+La marca nueva se publica con el merge y despliegue automático; no doy por
+verificada su activación antes de comprobar producción. Registro evidencia en
+[la guía de deploy](docs/deploy.md#transición-de-marca-y-dominio--issue-27).
 
 ## 📚 Documentación técnica
 

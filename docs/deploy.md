@@ -1,4 +1,4 @@
-﻿# Guía de Deploy — Busca Empleos
+﻿# Guía de Deploy — Busco Trabajo
 
 Backend en **Railway** (Node.js + PostgreSQL), frontend en **Vercel** (Angular).
 
@@ -6,6 +6,50 @@ Con el plan de $5 de Railway podés correr el servidor Node.js Y la base de dato
 en el mismo proyecto — sin cold starts, sin terceros extra, todo en un solo lugar.
 
 ---
+
+## Transición de marca y dominio — issue #27
+
+Para este cambio uso los proyectos existentes; los pasos de instalación inicial de
+esta guía no autorizan crear servicios ni hacer un despliegue manual.
+
+**Estado al 18/10/2026 (21:14 ART):** URL final
+https://busco-trabajo.vercel.app; conservo https://busca-empleos.vercel.app.
+Ambos dominios están asociados y verificados en el proyecto Vercel existente
+`prj_Ypi1UGFGpB6vaXPnzqMez6LhoEPp`, equipo `team_YYklambpsZOydoZ5P7Y2dfIa`.
+Ambos `GET /preferencias` devuelven HTTPS 200 HTML y
+`Cross-Origin-Opener-Policy: same-origin-allow-popups`. No agrego rewrites
+ni cambio cabeceras, IDs de proyecto, backend o claves de almacenamiento.
+
+**Railway — comprobación independiente:** servicio existente `busca_empleos`,
+entorno `production`, backend https://buscaempleos-production.up.railway.app.
+Marcos confirmó que anexó el nuevo origen al valor completo de `CORS_ORIGEN`
+conservando los anteriores. El despliegue automático
+`e5d2e6cf-6058-491b-9871-3cfb803f745b` terminó SUCCESS, sin cambios staged.
+Después de activarse, `OPTIONS /api/ofertas` devolvió 204 con
+`Access-Control-Allow-Origin` exacto para ambos orígenes Vercel; un origen ajeno
+(`https://ajeno.invalid`) devolvió 200 sin ese header (rechazo del navegador,
+no HTTP 403). Los valores completos siguen ocultos al conector y no se publican.
+
+**Firebase y acceso — confirmación humana, no lectura independiente:** Marcos
+confirmó agregar `busco-trabajo.vercel.app` en Authorized domains del proyecto
+existente `busca-empleo-a4fbe`, conservar dominios/proveedor Google e IDs, y
+completar desde el dominio nuevo login Google, consulta de ofertas existentes,
+preferencias/recarga y cierre de sesión. El agente no usó credenciales personales
+ni consultó datos productivos. La sesión MCP autenticada por sí sola no prueba
+Authorized domains; la consola no permitió lectura independiente.
+
+El ejemplo `backend/.env.example` incluye ahora localhost y ambos dominios;
+la lectura y escritura fueron permitidas en esta continuación. Es documentación,
+no el mecanismo que configura Railway. Para futuros cambios, anexar siempre al
+valor completo existente, sin borrar otros orígenes ni sustituir secretos.
+
+**Publicación de marca:** el título productivo todavía era `Busca Empleos` antes
+del merge, como corresponde a la versión anterior. Tras el squash merge y el
+siguiente despliegue automático, comprobar `Busco Trabajo` en título, login,
+sidebar y pies en escritorio/móvil; repetir HTTPS, ruta interna y CORS. No ejecutar
+scraping ni evaluaciones pagas. El [seguimiento de la PR #47](https://github.com/marcostoledo96/busca_empleos/pull/47)
+registra el SHA publicado y el resultado final; no convertir una comprobación
+pendiente en PASS.
 
 ## Índice
 
