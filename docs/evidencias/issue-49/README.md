@@ -81,6 +81,6 @@ Una expectativa inicial de su probe de teclado falló: ArrowRight mueve el foco 
 
 Observaciones no bloqueantes: la pregunta sintética de salario omite `motivo`, requerido por el validador backend; el fixture no acredita integración completa con ese contrato. El destino `/cv` es un placeholder: cubrí entrada/guarda, no render imprimible real. No modifiqué backend ni amplié esta issue para resolver esas limitaciones.
 
-RDD permanece desactivado; no hay aprobación nativa inventada. ASSESS no pudo clasificar el diff por el spec inicialmente no trackeado: se trató como alto y se ejecutó la verificación independiente. URL/estado de entrega: consultar la PR de `fix/issue-49-preferencias-ui` hacia `master`.
+RDD permanece desactivado; no hay aprobación nativa inventada. ASSESS no pudo clasificar el diff por el spec inicialmente no trackeado: se trató como alto y se ejecutó la verificación independiente. Entrega: [PR #53 abierta hacia master](https://github.com/marcostoledo96/busca_empleos/pull/53), no draft, etiqueta type:bug y Closes #49. Sin merge; issue49 continúa abierta. CI remota se consulta en la PR; al publicar estaban en curso Backend unit tests, Frontend build & test y Vercel. No se presenta ese estado inicial como PASS.
 
 No se probó una cuenta Firebase ni producción; no fue necesario autenticar para este harness aislado. No afirmo equivalencia con una sesión productiva autenticada ni pruebas en dispositivos físicos. No hubo scraping, DeepSeek real ni escrituras de preferencias productivas.
