@@ -91,6 +91,9 @@ class EscenarioDashboard {
     readonly llamadas = llamadas;
 }
 
+if (['/preferencias', '/salida', '/cv'].includes(location.pathname)) {
+    void import('./preferencias-fixture').then(fixture => fixture.iniciarPreferencias());
+} else {
 bootstrapApplication(EscenarioDashboard, { providers: [
     provideNoopAnimations(),
     providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: 'none' } } }),
@@ -105,3 +108,4 @@ bootstrapApplication(EscenarioDashboard, { providers: [
         obtenerOfertasSincronizadas: async () => bloqueGuardado,
     } },
 ] }).catch(console.error);
+}
