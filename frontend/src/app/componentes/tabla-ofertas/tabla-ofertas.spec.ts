@@ -178,6 +178,69 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
         expect(fixture.nativeElement.textContent).toContain('RECHAZADA');
     });
 
+    for (const cambios of [
+        { estado_evaluacion: 'pendiente', porcentaje_match: 97 },
+        { evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' },
+        { evaluacion_error_mensaje: 'HTTP 503', firma_criterios_evaluacion: null },
+        { porcentaje_match: NaN }, { porcentaje_match: -1 }, { porcentaje_match: 101 },
+    ]) {
+        it(`no presento compatibilidad inválida o pendiente: ${JSON.stringify(cambios)}`, () => {
+            fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], ...cambios }]);
+            fixture.detectChanges();
+            expect(fixture.nativeElement.querySelectorAll('.celda-match, .card-oferta__match').length).toBe(0);
+        });
+    }
+
+    it('conservo la evaluación anterior sin darle énfasis de aprobación actual', () => {
+        fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], vigencia_evaluacion: 'anterior',
+            firma_criterios_evaluacion: 'firma', evaluacion_error_mensaje: 'HTTP 503 muy extenso' }]);
+        fixture.detectChanges();
+        const raiz = fixture.nativeElement;
+        expect(raiz.querySelector('.celda-match').textContent).toContain('90');
+        expect(raiz.querySelector('.celda-match').getAttribute('data-nivel')).not.toBe('alto');
+        expect(raiz.textContent).toContain('Resultado anterior conservado');
+        expect(raiz.querySelector('details').textContent).toContain('HTTP 503 muy extenso');
+    });
+
+    it('preservo un resultado anterior fechado sin firma como resultado conservado, nunca como aprobación actual', () => {
+        fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], fecha_evaluacion: '2026-01-01',
+            evaluacion_error_mensaje: 'Timeout', firma_criterios_evaluacion: null }]);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('.celda-match').textContent).toContain('90');
+        expect(fixture.nativeElement.querySelector('.celda-match').getAttribute('data-nivel')).toBe('anterior');
+        expect(fixture.nativeElement.textContent).toContain('Resultado anterior conservado');
+    });
+
+    it('un rechazo de match alto no se presenta verde y mantiene la prioridad IA independiente', () => {
+        fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], estado_evaluacion: 'rechazada', prioridad_ia: true }]);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('.celda-match').getAttribute('data-nivel')).toBe('bajo');
+        expect(fixture.nativeElement.textContent).toContain('RECHAZADA');
+        expect(fixture.nativeElement.querySelector('[aria-label^="Prioridad IA:"]')).not.toBeNull();
+    });
+
+    it('distingo la reevaluación en cola del error técnico y de la ausencia de evaluación', () => {
+        fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], estado_evaluacion: 'pendiente',
+            evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA', vigencia_evaluacion: 'anterior' }]);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('Desactualizada · reevaluación pendiente');
+        expect(fixture.nativeElement.textContent).not.toContain('Error técnico');
+    });
+
+    it('una tecla sostenida y una tecla de un control anidado no duplican la apertura', () => {
+        fixture.componentRef.setInput('ofertas', mockOfertas);
+        fixture.detectChanges();
+        const abrir = jasmine.createSpy('abrir');
+        component.ofertaSeleccionada.subscribe(abrir);
+        const tarjeta = fixture.nativeElement.querySelector('.card-oferta');
+        tarjeta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true }));
+        const hijo = tarjeta.querySelector('h3');
+        hijo.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true }));
+        expect(abrir).not.toHaveBeenCalled();
+        tarjeta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        expect(abrir).toHaveBeenCalledTimes(1);
+    });
+
     // --- paginasVisiblesCards: paginador acotado para evitar overflow en mobile ---
 
     it('paginasVisiblesCards retorna todas las páginas cuando hay 5 o menos', () => {

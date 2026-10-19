@@ -17,7 +17,7 @@ test.beforeEach(async ({ context, page }) => {
     });
 });
 
-test('matriz sintética @evidencia', async ({ page }) => {
+test('matriz sintética @evidencia', async ({ page }, testInfo) => {
     test.setTimeout(25000);
     for (const tema of ['claro', 'oscuro']) {
         for (const tamano of tamanos) {
@@ -26,7 +26,9 @@ test('matriz sintética @evidencia', async ({ page }) => {
             await expect(page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' })).toBeVisible();
             await page.evaluate(() => document.fonts.ready);
             await page.addStyleTag({ content: '*,*::before,*::after { animation: none !important; transition: none !important; }' });
-            await page.screenshot({ path: `.angular/evidencia-48/${process.env['EVIDENCIA48'] || 'despues'}-${tamano.width}-${tema}.png`, fullPage: true });
+            await page.screenshot({ path: `.angular/issue51-historico/dashboard/${process.env['EVIDENCIA48'] || 'despues'}-${tamano.width}-${tema}.png`, fullPage: true });
+            await testInfo.attach(`dashboard-${tamano.width}-${tema}`, { path: `.angular/issue51-historico/dashboard/${process.env['EVIDENCIA48'] || 'despues'}-${tamano.width}-${tema}.png`, contentType: 'image/png' });
+            expect(testInfo.attachments).toContainEqual(expect.objectContaining({ name: `dashboard-${tamano.width}-${tema}`, contentType: 'image/png', path: expect.stringContaining(testInfo.outputDir) }));
             expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
             console.log(JSON.stringify({ tema, ancho: tamano.width, ...await page.evaluate(() => ({
                 altoPanel: document.querySelector('.panel')!.getBoundingClientRect().height,
@@ -59,7 +61,7 @@ test('detalles abiertos y objetivos táctiles en toda la matriz @responsive', as
     }
 });
 
-test('título completo a 320px con fallback ancho @fallback320', async ({ page }) => {
+test('título completo a 320px con fallback ancho @fallback320', async ({ page }, testInfo) => {
     await page.setViewportSize({ width: 320, height: 844 });
     for (const tema of ['claro', 'oscuro']) {
         await page.goto(`/?tema=${tema}`);
@@ -85,7 +87,9 @@ test('título completo a 320px con fallback ancho @fallback320', async ({ page }
             });
             console.log(JSON.stringify({ tema, abierto, ...medidas }));
             await page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' }).scrollIntoViewIfNeeded();
-            await page.screenshot({ path: `.angular/evidencia-48/fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}.png` });
+            await page.screenshot({ path: `.angular/issue51-historico/dashboard/fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}.png` });
+            await testInfo.attach(`fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}`, { path: `.angular/issue51-historico/dashboard/fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}.png`, contentType: 'image/png' });
+            expect(testInfo.attachments).toContainEqual(expect.objectContaining({ name: `fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}`, contentType: 'image/png', path: expect.stringContaining(testInfo.outputDir) }));
             expect(medidas.anchoPagina).toBeLessThanOrEqual(medidas.viewport);
             for (const fragmento of medidas.fragmentos) {
                 expect(fragmento.left).toBeGreaterThanOrEqual(medidas.caja.left);

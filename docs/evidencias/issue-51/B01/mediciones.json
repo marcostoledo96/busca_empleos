@@ -1,0 +1,551 @@
+{
+  "antes_origen": "Salida RED observada de npm run test:e2e -- tabla-ui.spec.ts --grep B-01; transcripción de las 16 mediciones",
+  "antes": [
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 95,
+      "scrollWidth": 109,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 95,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 95,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 95,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 95,
+      "scrollWidth": 109,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 95,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 95,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 95,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1190,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 93,
+      "scrollWidth": 109,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 93,
+      "scrollWidth": 93,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 93,
+      "scrollWidth": 93,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 93,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 93,
+      "scrollWidth": 109,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 93,
+      "scrollWidth": 93,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 93,
+      "scrollWidth": 93,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 93,
+      "scrollWidth": 95,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1180,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    }
+  ],
+  "despues": [
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "claro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1440,
+      "tema": "oscuro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 1190,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1440,
+        "viewport": 1440,
+        "cuerpo": 1440
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "claro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "no_postulado",
+      "texto": "No postulado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "cv_enviado",
+      "texto": "CV enviado",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "en_proceso",
+      "texto": "En proceso",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    },
+    {
+      "ancho": 1024,
+      "tema": "oscuro",
+      "estado": "descartada",
+      "texto": "Descartada",
+      "clientWidth": 122,
+      "scrollWidth": 122,
+      "fuente": "14px",
+      "tabla": {
+        "clientWidth": 934,
+        "scrollWidth": 1200,
+        "overflowX": "auto",
+        "pagina": 1024,
+        "viewport": 1024,
+        "cuerpo": 1024
+      }
+    }
+  ]
+}

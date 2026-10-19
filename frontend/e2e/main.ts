@@ -1,4 +1,4 @@
-import { Component, signal } from '@angular/core';
+import { Component, signal, viewChild } from '@angular/core';
 import { bootstrapApplication } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { HttpErrorResponse, HttpInterceptorFn, HttpResponse, provideHttpClient, withInterceptors } from '@angular/common/http';
@@ -11,14 +11,18 @@ import { PersistenciaDashboardService } from '../src/app/servicios/persistencia-
 import { OFERTAS_DEMO } from '../src/app/datos/ofertas-demo';
 import { ResumenBusqueda, ResultadoFuente } from '../src/app/modelos/respuesta-api.model';
 import { crearOfertasDetalle, crearHttpDetalle } from './detalle-fixture';
+import { crearOfertasTabla, crearHttpTabla } from './tabla-fixture';
 
 // Aíslo el fixture: no inicializo Firebase, no guardo datos ni uso el interceptor productivo.
 const parametros = new URLSearchParams(location.search);
 const escenario = parametros.get('estado') || 'parcial';
 const detalle = parametros.get('detalle');
+const tabla = parametros.has('tabla');
 const llamadas = signal<string[]>([]);
-const ofertas = detalle ? crearOfertasDetalle(detalle) : escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
-const httpDetalle = detalle ? crearHttpDetalle(ofertas, parametros) : null;
+const cuerpos = signal<{ metodo: string; ruta: string; cuerpo: unknown }[]>([]);
+const ofertas = tabla ? crearOfertasTabla() : detalle ? crearOfertasDetalle(detalle) : escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
+const httpTabla = tabla ? crearHttpTabla(ofertas, parametros) : null;
+const httpDetalle = httpTabla ?? (detalle ? crearHttpDetalle(ofertas, parametros) : null);
 let bloqueGuardado = ofertas;
 let evaluacionIniciada = false;
 let cicloIniciado = false;
@@ -46,6 +50,8 @@ const progresoEvaluacion = () => ({ activo: escenario === 'cargando',
 const fixtureHttp: HttpInterceptorFn = solicitud => {
     const ruta = new URL(solicitud.url, location.origin).pathname.replace(/^.*\/api/, '');
     llamadas.update(actuales => [...actuales, `${solicitud.method} ${ruta}`]);
+    if (['POST', 'PATCH'].includes(solicitud.method)) cuerpos.update(actuales => [...actuales,
+        { metodo: solicitud.method, ruta, cuerpo: structuredClone(solicitud.body) }]);
     const respuestaDetalle = httpDetalle?.(solicitud, ruta);
     if (respuestaDetalle) return respuestaDetalle;
     if (escenario === 'error' && /ofertas|historial|previsualizacion/.test(ruta)) {
@@ -87,7 +93,12 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
 @Component({
     selector: 'app-root', imports: [Dashboard],
     template: `<header>Busco Trabajo · Entorno sintético E2E</header><app-dashboard />
-        <details><summary>Registro del fixture</summary><output aria-label="Llamadas simuladas">{{ llamadas().join('\n') }}</output></details>`,
+        <details><summary>Registro del fixture</summary><output aria-label="Llamadas simuladas">{{ llamadas().join('\n') }}</output>
+        <output aria-label="Cuerpos simulados">{{ cuerposJson() }}</output></details>
+        @if (tabla) {
+            <button type="button" (click)="refrescar()">Refrescar datos sintéticos</button>
+            <button type="button" (click)="recortar()">Reducir datos sintéticos a 15</button>
+        }`,
     styles: `:host { display: block; max-width: 1280px; margin: auto; padding: 24px; }
         header { font-family: var(--font-mono); margin-bottom: 24px; }
         output { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -95,6 +106,11 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
 })
 class EscenarioDashboard {
     readonly llamadas = llamadas;
+    readonly tabla = tabla;
+    readonly dashboard = viewChild.required(Dashboard);
+    cuerposJson(): string { return JSON.stringify(cuerpos()); }
+    refrescar(): void { this.dashboard().cargarDatos(); }
+    recortar(): void { httpTabla?.recortar(); this.refrescar(); }
 }
 
 if (['/preferencias', '/salida', '/cv'].includes(location.pathname)) {
@@ -103,7 +119,7 @@ if (['/preferencias', '/salida', '/cv'].includes(location.pathname)) {
 document.documentElement.classList.toggle('dark', parametros.get('tema') === 'oscuro');
 bootstrapApplication(EscenarioDashboard, { providers: [
     provideNoopAnimations(),
-    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: detalle ? '.dark' : 'none' } } }),
+    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: detalle || tabla ? '.dark' : 'none' } } }),
     provideHttpClient(withInterceptors([fixtureHttp])),
     { provide: DemoService, useValue: { esModoDemo: signal(false) } },
     { provide: PersistenciaDashboardService, useValue: {

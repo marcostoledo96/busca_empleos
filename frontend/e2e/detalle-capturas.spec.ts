@@ -11,8 +11,8 @@ if (fase !== 'despues') throw new Error('Sólo genero DESPUÉS: preservo ANTES y
 const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
 const candidato = `${head}:${createHash('sha256').update(execFileSync('git', ['diff', 'HEAD', '--', 'frontend/src', 'frontend/e2e'], { encoding: 'utf8', cwd: resolve(__dirname, '../..') }))
     .update(readFileSync(resolve(__dirname, 'detalle-ui.spec.ts'))).digest('hex')}`;
-const destino = resolve(__dirname, '../.angular/evidencia-50', fase);
-const documentadas = resolve(__dirname, '../../docs/evidencias/issue-50', fase);
+const destino = resolve(__dirname, '../.angular/issue51-historico/detalle', fase);
+const documentadas = resolve(__dirname, '../../docs/evidencias/issue-51/B01/detalle', fase);
 const escenarios = ['aprobada', 'rechazada', 'pendiente', 'error', 'reevaluacion-fallida', 'desactualizada', 'historica', 'postulada', 'textos-largos'];
 const representantes = new Set([
     'aprobada-1440x900-claro', 'aprobada-1440x900-oscuro',
@@ -53,7 +53,7 @@ test.afterAll(() => {
 for (const escenario of escenarios) {
     for (const tema of ['claro', 'oscuro']) {
         for (const viewport of tamanos) {
-            test(`captura ${fase} ${escenario} ${tema} ${viewport.width} @detalle-captura`, async ({ page }) => {
+            test(`captura ${fase} ${escenario} ${tema} ${viewport.width} @detalle-captura`, async ({ page }, testInfo) => {
                 const fila: Record<string, unknown> = { escenario, ofertaId: 501, tema, viewport, head, candidato, validado: false };
                 matriz.push(fila);
                 await page.setViewportSize(viewport);
@@ -64,6 +64,8 @@ for (const escenario of escenarios) {
                 mkdirSync(destino, { recursive: true });
                 const nombre = `${escenario}-${viewport.width}x${viewport.height}-${tema}`;
                 await page.screenshot({ path: resolve(destino, `${nombre}.png`), animations: 'disabled' });
+                await testInfo.attach(nombre, { path: resolve(destino, `${nombre}.png`), contentType: 'image/png' });
+                expect(testInfo.attachments).toContainEqual(expect.objectContaining({ name: nombre, contentType: 'image/png', path: expect.stringContaining(testInfo.outputDir) }));
                 const tieneScore = ['aprobada', 'rechazada', 'reevaluacion-fallida', 'historica', 'postulada', 'textos-largos'].includes(escenario);
                 await expect(dialogo.locator('.tag-match')).toHaveCount(tieneScore ? 1 : 0);
                 const medidas = await comprobarGeometriaDetalle(dialogo, page, true);
@@ -73,7 +75,7 @@ for (const escenario of escenarios) {
                     copyFileSync(resolve(destino, `${nombre}.png`), resolve(documentadas, `${nombre}.png`));
                 }
                 Object.assign(fila, { url, validado: true,
-                    capturaLocal: `frontend/.angular/evidencia-50/${fase}/${nombre}.png`,
+                    capturaLocal: `frontend/.angular/issue51-historico/detalle/${fase}/${nombre}.png`,
                     capturaDocumentada: representante ? `${nombre}.png` : null, medidas });
                 console.log(JSON.stringify({ fase, head, escenario, tema, viewport, captura: `${nombre}.png` }));
             });

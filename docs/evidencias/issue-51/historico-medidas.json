@@ -1,0 +1,426 @@
+{
+  "alcance": "Componente nativo aislado; no reconstruyo la aplicación histórica completa. Fixture crearOfertasDetalle(aprobada), Angular/PrimeNG actuales instalados; fuentes externas bloqueadas.",
+  "medidas": [
+    {
+      "referencia": "732",
+      "tema": "claro",
+      "viewport": [
+        1440,
+        900
+      ],
+      "pagina": {
+        "ancho": 1440,
+        "scroll": 1440
+      },
+      "alturas": [
+        92.171875,
+        104
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-732-1440-claro.png"
+    },
+    {
+      "referencia": "732",
+      "tema": "claro",
+      "viewport": [
+        1024,
+        768
+      ],
+      "pagina": {
+        "ancho": 1024,
+        "scroll": 1024
+      },
+      "alturas": [
+        111.078125,
+        111.078125
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "732",
+      "tema": "claro",
+      "viewport": [
+        768,
+        900
+      ],
+      "pagina": {
+        "ancho": 768,
+        "scroll": 768
+      },
+      "alturas": [
+        137.09375,
+        138.09375
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "732",
+      "tema": "claro",
+      "viewport": [
+        390,
+        844
+      ],
+      "pagina": {
+        "ancho": 390,
+        "scroll": 390
+      },
+      "alturas": [
+        177.71875,
+        178.71875
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-732-390-claro.png"
+    },
+    {
+      "referencia": "732",
+      "tema": "claro",
+      "viewport": [
+        320,
+        844
+      ],
+      "pagina": {
+        "ancho": 320,
+        "scroll": 320
+      },
+      "alturas": [
+        198.828125,
+        198.53125
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "732",
+      "tema": "oscuro",
+      "viewport": [
+        1440,
+        900
+      ],
+      "pagina": {
+        "ancho": 1440,
+        "scroll": 1440
+      },
+      "alturas": [
+        92.171875,
+        104
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-732-1440-oscuro.png"
+    },
+    {
+      "referencia": "732",
+      "tema": "oscuro",
+      "viewport": [
+        1024,
+        768
+      ],
+      "pagina": {
+        "ancho": 1024,
+        "scroll": 1024
+      },
+      "alturas": [
+        111.078125,
+        111.078125
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "732",
+      "tema": "oscuro",
+      "viewport": [
+        768,
+        900
+      ],
+      "pagina": {
+        "ancho": 768,
+        "scroll": 768
+      },
+      "alturas": [
+        137.09375,
+        138.09375
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "732",
+      "tema": "oscuro",
+      "viewport": [
+        390,
+        844
+      ],
+      "pagina": {
+        "ancho": 390,
+        "scroll": 390
+      },
+      "alturas": [
+        177.71875,
+        178.71875
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-732-390-oscuro.png"
+    },
+    {
+      "referencia": "732",
+      "tema": "oscuro",
+      "viewport": [
+        320,
+        844
+      ],
+      "pagina": {
+        "ancho": 320,
+        "scroll": 320
+      },
+      "alturas": [
+        198.828125,
+        198.53125
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "b6",
+      "tema": "claro",
+      "viewport": [
+        1440,
+        900
+      ],
+      "pagina": {
+        "ancho": 1440,
+        "scroll": 1440
+      },
+      "alturas": [
+        92.171875,
+        104
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-b6-1440-claro.png"
+    },
+    {
+      "referencia": "b6",
+      "tema": "claro",
+      "viewport": [
+        1024,
+        768
+      ],
+      "pagina": {
+        "ancho": 1024,
+        "scroll": 1024
+      },
+      "alturas": [
+        92.171875,
+        104
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "b6",
+      "tema": "claro",
+      "viewport": [
+        768,
+        900
+      ],
+      "pagina": {
+        "ancho": 768,
+        "scroll": 768
+      },
+      "alturas": [
+        137.09375,
+        138.09375
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "b6",
+      "tema": "claro",
+      "viewport": [
+        390,
+        844
+      ],
+      "pagina": {
+        "ancho": 390,
+        "scroll": 390
+      },
+      "alturas": [
+        161.09375,
+        178.71875
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-b6-390-claro.png"
+    },
+    {
+      "referencia": "b6",
+      "tema": "claro",
+      "viewport": [
+        320,
+        844
+      ],
+      "pagina": {
+        "ancho": 320,
+        "scroll": 320
+      },
+      "alturas": [
+        180.90625,
+        198.53125
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "b6",
+      "tema": "oscuro",
+      "viewport": [
+        1440,
+        900
+      ],
+      "pagina": {
+        "ancho": 1440,
+        "scroll": 1440
+      },
+      "alturas": [
+        92.171875,
+        104
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-b6-1440-oscuro.png"
+    },
+    {
+      "referencia": "b6",
+      "tema": "oscuro",
+      "viewport": [
+        1024,
+        768
+      ],
+      "pagina": {
+        "ancho": 1024,
+        "scroll": 1024
+      },
+      "alturas": [
+        92.171875,
+        104
+      ],
+      "padding": "0px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "b6",
+      "tema": "oscuro",
+      "viewport": [
+        768,
+        900
+      ],
+      "pagina": {
+        "ancho": 768,
+        "scroll": 768
+      },
+      "alturas": [
+        137.09375,
+        138.09375
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    },
+    {
+      "referencia": "b6",
+      "tema": "oscuro",
+      "viewport": [
+        390,
+        844
+      ],
+      "pagina": {
+        "ancho": 390,
+        "scroll": 390
+      },
+      "alturas": [
+        161.09375,
+        178.71875
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": "historico-b6-390-oscuro.png"
+    },
+    {
+      "referencia": "b6",
+      "tema": "oscuro",
+      "viewport": [
+        320,
+        844
+      ],
+      "pagina": {
+        "ancho": 320,
+        "scroll": 320
+      },
+      "alturas": [
+        180.90625,
+        198.53125
+      ],
+      "padding": "12px",
+      "fuenteTitulo": "Inter, system-ui, sans-serif",
+      "tamanoTitulo": "12.8px",
+      "detalle": false,
+      "captura": null
+    }
+  ],
+  "errores": []
+}
