@@ -18,8 +18,8 @@ S11. "No continúes navegando por la pantalla autenticada hasta que responda: «
 ## Tasks
 T1 | S1,S2,S8,S11 | delegated exploration + worker | done | e59182996c334f10350fefa8cbe2d8798d795393; 6/6 smoke PASS; 6 BEFORE + 6 historical captures; historical build PASS.
 T2 | S3-S8 | delegated worker | done | 2a9da70e1a96e4e049ce6d1cf92430a7d5952102; RED 6PASS/19FAIL, GREEN 30/30 E2E + 67/67 unit; docs updated.
-T3 | S2,S7-S9 | inline browser checks + independent verify | in_progress | Angular542PASS/4existingSKIP; E2E44PASS; buildPASS warning CSS15.61kB; 36captures; independent28probesPASS/no blockers. Evidence commit next.
-T4 | S10 | inline | pending | push and single PR to master, CI state; commit pending.
+T3 | S2,S7-S9 | inline browser checks + independent verify | done | 107627bb0d801483bbd71e2501b11bbb40c5b5bb; Angular542PASS/4existingSKIP; E2E44PASS; buildPASS warningCSS;36captures;independent28PASS/no blockers.
+T4 | S10 | inline | in_progress | push and single PR to master with Closes #49; CI state to observe; delivery commit pending.
 
 ## Log
 L1. User request: "Actuá como desarrollador frontend especializado en **Angular, UI/UX, diseño visual y responsive**, utilizando **Gentle Shell de Pi y la metodología Gentle AI**." "Tu objetivo es implementar completamente la siguiente issue, realizar pruebas E2E con navegador real y abrir una PR para auditoría externa." Full issue and acceptance criteria: https://github.com/marcostoledo96/busca_empleos/issues/49 (read complete including no comments); user supplemental constraints are quoted in Specs above. User authorized branch/worktree, frontend implementation, synthetic tests, commits, push and one PR; no merge.
