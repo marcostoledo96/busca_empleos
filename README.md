@@ -96,12 +96,14 @@ ng serve          # Inicia en http://localhost:4200
 
 ## Estado del dominio
 
-Conservo `https://busca-empleos.vercel.app` como dirección funcional. Al 18/10/2026,
-`https://busco-trabajo.vercel.app` es solo un candidato: responde 404
-`DEPLOYMENT_NOT_FOUND`, lo que no confirma disponibilidad ni asignación.
-La configuración de Vercel, Firebase y CORS del nuevo dominio queda **PENDIENTE**
-de intervención humana; la publicación de la marca depende del merge y del siguiente
-despliegue automático autorizado. Registro los pasos y checks pendientes en
+La dirección final es **https://busco-trabajo.vercel.app**. Conservo
+https://busca-empleos.vercel.app como alias del mismo proyecto Vercel.
+Ambos sirven `/preferencias` por HTTPS con COOP preservado. Railway ya permite
+ambos orígenes; Marcos confirmó el dominio autorizado y Google en Firebase,
+y el recorrido de acceso, ofertas existentes, preferencias/recarga y salida.
+Distingo esa confirmación humana de los checks HTTP independientes.
+La marca nueva se publica con el merge y despliegue automático; no doy por
+verificada su activación antes de comprobar producción. Registro evidencia en
 [la guía de deploy](docs/deploy.md#transición-de-marca-y-dominio--issue-27).
 
 ## 📚 Documentación técnica

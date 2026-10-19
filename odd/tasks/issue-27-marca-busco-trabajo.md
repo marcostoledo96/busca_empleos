@@ -36,3 +36,19 @@ L5 — Worker mve20lo5-2-qwk1 detenido antes de editar: capa de seguridad deneg�
 L2 — Git inicial: directorio principal tiene cambios ajenos; preservados. Worktree aislado `../busca_empleos-issue-27`, rama `chore/issue-27-marca-busco-trabajo`, BASE `56de75ad85a3c74276a38ad59165ffdd203f31a6`. PR46 OPEN, sin merge. CodeGraph inicializado en worktree.
 L4 — Evidencia pública: candidato HTTPS404 DEPLOYMENT_NOT_FOUND (no demuestra disponibilidad); anterior /preferencias HTTPS200 HTML con COOP preservado, por lo que no hace falta agregar rewrite. Vercel dashboard requiere login; Firebase Console requiere login Google. Railway OAuth expone nombres pero no valores; CORS_ORIGEN existe, no se sobrescribe. Preflight real: anterior204 con ACAO correcto; candidato y origen ajeno200 sin ACAO (rechazados por navegador). Sin mutaciones externas; configuración nueva pendiente humana. No modificar H1 genérico Authentication: marca del encabezado sí cambia.
 L3 — Railway MCP confirma servicio existente `busca_empleos` en producción y dominio `buscaempleos-production.up.railway.app`. Herramientas Vercel no disponibles en catálogo ni CLI; acceso de navegador todavía por comprobar. No mutaciones externas realizadas.
+
+## Continuación autorizada — 18/10/2026
+
+La autorización posterior permite completar documentación, commit/push y squash merge
+si se cumplen criterios; reemplaza la restricción de entrega inicial, no sus evidencias históricas.
+Marcos aprobó el esquema documental de cuatro puntos. Vercel conserva ambos dominios
+asociados/verificados; Firebase dominio/proveedor y recorrido Google/ofertas existentes/
+preferencias-recarga/salida son confirmación humana, no inspección independiente.
+Railway deployment e5d2e6cf-6058-491b-9871-3cfb803f745b SUCCESS sin staged;
+preflight anterior/nuevo204 ACAO exacto, ajeno200 sin ACAO comprobados a21:14ART.
+Ambos /preferencias HTTPS200 HTML COOP same-origin-allow-popups.
+Tests ejecutados sobre83ab435: CORS3PASS y Angularapp/rutas13PASS; CI39150827276success.
+No prueban popup Google. Esta continuación cambia únicamente docs y ejemplo CORS,
+ahora accesible sin eludir denegaciones. Marca en producción pendiente del merge y
+despliegue automático, a verificar antes del cierre final. Sin cambios #26/PR46,
+datos personales, BD productiva, scraping, APIs pagas ni infraestructura nueva.

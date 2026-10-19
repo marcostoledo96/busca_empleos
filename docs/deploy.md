@@ -12,54 +12,44 @@ en el mismo proyecto — sin cold starts, sin terceros extra, todo en un solo lu
 Para este cambio uso los proyectos existentes; los pasos de instalación inicial de
 esta guía no autorizan crear servicios ni hacer un despliegue manual.
 
-**Estado observado al 18/10/2026:** conservo `https://busca-empleos.vercel.app`:
-`GET /preferencias` devuelve HTTPS 200 HTML y
-`Cross-Origin-Opener-Policy: same-origin-allow-popups`. No hace falta agregar un
-fallback Angular ni modificar las cabeceras. El candidato
-`https://busco-trabajo.vercel.app` devuelve HTTPS 404 `DEPLOYMENT_NOT_FOUND`;
-no confirma disponibilidad, propiedad ni asignación. No hay una URL nueva confirmada.
-El servicio Railway sigue siendo `busca_empleos`, entorno `production`, en
-`https://buscaempleos-production.up.railway.app`.
+**Estado al 18/10/2026 (21:14 ART):** URL final
+https://busco-trabajo.vercel.app; conservo https://busca-empleos.vercel.app.
+Ambos dominios están asociados y verificados en el proyecto Vercel existente
+`prj_Ypi1UGFGpB6vaXPnzqMez6LhoEPp`, equipo `team_YYklambpsZOydoZ5P7Y2dfIa`.
+Ambos `GET /preferencias` devuelven HTTPS 200 HTML y
+`Cross-Origin-Opener-Policy: same-origin-allow-popups`. No agrego rewrites
+ni cambio cabeceras, IDs de proyecto, backend o claves de almacenamiento.
 
-El preflight real `OPTIONS /api/ofertas` permite el origen anterior (204 con
-`Access-Control-Allow-Origin` coincidente). El candidato y
-`https://origen-no-autorizado.example` reciben 200 **sin** ese header: el navegador
-los bloquea, no es un HTTP 403. Railway expone el nombre `CORS_ORIGEN`, pero no su
-valor completo; no lo sobrescribo. Vercel y Firebase requieren iniciar sesión;
-los dominios autorizados actuales de Firebase no están verificados.
+**Railway — comprobación independiente:** servicio existente `busca_empleos`,
+entorno `production`, backend https://buscaempleos-production.up.railway.app.
+Marcos confirmó que anexó el nuevo origen al valor completo de `CORS_ORIGEN`
+conservando los anteriores. El despliegue automático
+`e5d2e6cf-6058-491b-9871-3cfb803f745b` terminó SUCCESS, sin cambios staged.
+Después de activarse, `OPTIONS /api/ofertas` devolvió 204 con
+`Access-Control-Allow-Origin` exacto para ambos orígenes Vercel; un origen ajeno
+(`https://ajeno.invalid`) devolvió 200 sin ese header (rechazo del navegador,
+no HTTP 403). Los valores completos siguen ocultos al conector y no se publican.
 
-**PENDIENTE — intervención humana, en este orden:**
+**Firebase y acceso — confirmación humana, no lectura independiente:** Marcos
+confirmó agregar `busco-trabajo.vercel.app` en Authorized domains del proyecto
+existente `busca-empleo-a4fbe`, conservar dominios/proveedor Google e IDs, y
+completar desde el dominio nuevo login Google, consulta de ofertas existentes,
+preferencias/recarga y cierre de sesión. El agente no usó credenciales personales
+ni consultó datos productivos. La sesión MCP autenticada por sí sola no prueba
+Authorized domains; la consola no permitió lectura independiente.
 
-1. En Vercel, abrir el proyecto existente `busca-empleos` → **Settings → Domains**.
-   Intentar asociar `busco-trabajo.vercel.app`, verificar disponibilidad y propiedad,
-   y registrar el hostname realmente confirmado. Conservar el dominio anterior
-   hasta comprobar la nueva dirección; no crear otro proyecto.
-2. En el proyecto Firebase existente → **Authentication → Settings → Authorized domains**,
-   usar **Add domain** para agregar únicamente el hostname confirmado, sin `https://`,
-   conservando todos los anteriores. Mantener `FIREBASE_AUTH_DOMAIN`,
-   `FIREBASE_PROJECT_ID`, `FIREBASE_APP_ID` y las demás credenciales sin cambios.
-3. En Railway → servicio `busca_empleos` → entorno `production` → **Variables**,
-   leer el valor completo de `CORS_ORIGEN` y anexar el origen HTTPS confirmado,
-   separado por coma, sin barra final y conservando todos los orígenes existentes.
-   Solo si Vercel confirma exactamente el candidato y el valor previo contiene
-   únicamente el origen anterior, el resultado sería:
-   ```text
-   CORS_ORIGEN=https://busca-empleos.vercel.app,https://busco-trabajo.vercel.app
-   ```
-   Este ejemplo condicional no configura producción ni prueba el dominio.
-   `backend/.env.example` no fue actualizado por denegación de acceso; queda
-   **PENDIENTE** a cargo del orquestador con acceso permitido. Estas instrucciones
-   no sustituyen la actualización real de Railway.
-4. Activar los cambios con el siguiente despliegue automático autorizado tras el
-   merge, sin deploy manual. Una configuración guardada o pendiente de despliegue
-   no demuestra que esté activa.
+El ejemplo `backend/.env.example` incluye ahora localhost y ambos dominios;
+la lectura y escritura fueron permitidas en esta continuación. Es documentación,
+no el mecanismo que configura Railway. Para futuros cambios, anexar siempre al
+valor completo existente, sin borrar otros orígenes ni sustituir secretos.
 
-**PENDIENTE — checks posteriores al merge y a la activación:** comprobar HTTPS,
-`/login`, `/` y `/preferencias` por acceso directo y recarga en ambos dominios,
-cabeceras intactas, marca en título, login, sidebar y pies en desktop/mobile,
-login Google real y acceso al backend. Repetir preflight para origen anterior,
-nuevo confirmado y origen ajeno (este último sin `Access-Control-Allow-Origin`).
-No afirmo que el login del dominio nuevo funcione; no ejecuto scraping ni evaluaciones pagas.
+**Publicación de marca:** el título productivo todavía era `Busca Empleos` antes
+del merge, como corresponde a la versión anterior. Tras el squash merge y el
+siguiente despliegue automático, comprobar `Busco Trabajo` en título, login,
+sidebar y pies en escritorio/móvil; repetir HTTPS, ruta interna y CORS. No ejecutar
+scraping ni evaluaciones pagas. El [seguimiento de la PR #47](https://github.com/marcostoledo96/busca_empleos/pull/47)
+registra el SHA publicado y el resultado final; no convertir una comprobación
+pendiente en PASS.
 
 ## Índice
 
