@@ -224,7 +224,7 @@ test('tabla abre detalle issue50 y Escape devuelve foco sin escrituras', async (
 
 for (const [ancho, alto] of [[1440,900], [1024,768], [768,900], [390,844], [320,844]]) {
     for (const tema of ['claro', 'oscuro']) {
-        test(`matriz extrema ${ancho} ${tema}: texto íntegro, sin overflow de página y controles visibles`, async ({ page }) => {
+        test(`matriz extrema ${ancho} ${tema}: texto íntegro, sin overflow de página y controles visibles`, async ({ page }, testInfo) => {
             await page.setViewportSize({ width: ancho, height: alto });
             await iniciar(page, `tabla=1&tema=${tema}`);
             await buscar(page).fill('Frontend sintética');
@@ -244,6 +244,8 @@ for (const [ancho, alto] of [[1440,900], [1024,768], [768,900], [390,844], [320,
                 expect(caja!.x + caja!.width).toBeLessThanOrEqual(ancho);
             }
             await page.screenshot({ path: `../docs/evidencias/issue-51/matriz-extremos-${ancho}-${tema}.png`, fullPage: true, animations: 'disabled' });
+            await testInfo.attach(`matriz-extremos-${ancho}-${tema}`, { path: `../docs/evidencias/issue-51/matriz-extremos-${ancho}-${tema}.png`, contentType: 'image/png' });
+            expect(testInfo.attachments).toContainEqual(expect.objectContaining({ name: `matriz-extremos-${ancho}-${tema}`, contentType: 'image/png', path: expect.stringContaining(testInfo.outputDir) }));
             expect(await escrituras(page)).toEqual([]);
         });
     }

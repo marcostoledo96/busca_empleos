@@ -53,7 +53,7 @@ test.afterAll(() => {
 for (const escenario of escenarios) {
     for (const tema of ['claro', 'oscuro']) {
         for (const viewport of tamanos) {
-            test(`captura ${fase} ${escenario} ${tema} ${viewport.width} @detalle-captura`, async ({ page }) => {
+            test(`captura ${fase} ${escenario} ${tema} ${viewport.width} @detalle-captura`, async ({ page }, testInfo) => {
                 const fila: Record<string, unknown> = { escenario, ofertaId: 501, tema, viewport, head, candidato, validado: false };
                 matriz.push(fila);
                 await page.setViewportSize(viewport);
@@ -64,6 +64,8 @@ for (const escenario of escenarios) {
                 mkdirSync(destino, { recursive: true });
                 const nombre = `${escenario}-${viewport.width}x${viewport.height}-${tema}`;
                 await page.screenshot({ path: resolve(destino, `${nombre}.png`), animations: 'disabled' });
+                await testInfo.attach(nombre, { path: resolve(destino, `${nombre}.png`), contentType: 'image/png' });
+                expect(testInfo.attachments).toContainEqual(expect.objectContaining({ name: nombre, contentType: 'image/png', path: expect.stringContaining(testInfo.outputDir) }));
                 const tieneScore = ['aprobada', 'rechazada', 'reevaluacion-fallida', 'historica', 'postulada', 'textos-largos'].includes(escenario);
                 await expect(dialogo.locator('.tag-match')).toHaveCount(tieneScore ? 1 : 0);
                 const medidas = await comprobarGeometriaDetalle(dialogo, page, true);

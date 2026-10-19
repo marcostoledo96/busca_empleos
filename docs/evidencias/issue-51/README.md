@@ -12,8 +12,9 @@ La exploración y los renders históricos previos están en
 Verificación del **working tree**, con HEAD de preparación
 `ec5a68d402c85e9c995a8031165b8e7b2a0a8daf`, no de ese commit limpio ni de un SHA futuro.
 [fuentes-verificadas.sha256](fuentes-verificadas.sha256) identifica los diez archivos
-de fuente/tests cambiados que verificaron las suites finales. Después sólo agregué
-esta documentación. La revisión independiente, Git y la entrega de la PR son del padre.
+de fuente/tests cambiados que verificaron las suites finales. Los tres hashes E2E
+se actualizaron con la corrección B1 documentada abajo; las siete entradas restantes
+no cambiaron. Git y la entrega de la PR son del padre.
 
 ### Cambio visual y funcional
 
@@ -95,8 +96,9 @@ Los renders completos preexistentes de detalle/dashboard se mantienen sin nuevas
 combinaciones de CI. Tras la autorización B sólo redirijo sus destinos:
 `frontend/.angular/issue51-historico/{detalle,dashboard}/` para los renders locales,
 `detalle/despues/` aquí para cuatro representantes y `matriz.json` (90/90 detalle).
-No cambio ninguna assertion. No borro imágenes existentes ni otros artefactos.
-El runner sigue usando `frontend/test-results/`, sin nuevas workflows.
+Conservo todas las assertions previas. No borro imágenes existentes ni otros artefactos.
+La corrección B1 adjunta además cada PNG al runner en `frontend/test-results/`,
+sin nuevos workflows ni combinaciones.
 
 ## Recorridos mínimos S10 y preservación S5/S7
 
@@ -159,9 +161,48 @@ Intentos previos, **no** resultados del candidato final:
    probé54 móviles y recién repetí el completo con timeout de1200s (terminó en5.7min).
 5. Antes de B, la suite automática escribió tres artefactos tracked de issue50.
    B redirigió exclusivamente las salidas para no repetir esa contaminación.
-   **Queda al padre restaurar exactamente** `docs/evidencias/issue-50/despues/`:
+   El padre ya restauró exactamente los tres archivos de `docs/evidencias/issue-50/despues/`:
    `aprobada-1440x900-claro.png`, `aprobada-1440x900-oscuro.png` y `matriz.json`.
-   El worker no ejecuta git restore ni altera evidencia previa por otro medio.
+   Tras el completo B1, `git diff --name-only -- frontend/src docs/evidencias/issue-50`
+   sigue vacío. El worker no ejecutó restauraciones.
+
+### Corrección B1 — empaquetado de evidencia CI (T3; S9,S12,S14)
+
+El verificador independiente `mvfgbhh0-6-tku9` informó 26 E2E aprobados, probes propios
+y revisión visual sobre `d817b148e02aab68f7506384e61f8a0842bc934d`, pero confirmó B1:
+las capturas exitosas quedaban fuera del artefacto CI existente. Esa revisión es previa
+a esta corrección. El recheck independiente `mvfh2c8s-8-6jn4` confirmó B1 **PASS**: 116 PNG válidos, idénticos a sus originales y cubiertos por el upload existente de `test-results`.
+
+Agrego `testInfo.attach` después de cada captura existente en las tres specs, incluido
+el fallback del dashboard. Playwright copia los PNG a su outputDir, sin cambiar rutas
+representativas, fixtures, screenshots, assertions previas, omisiones ni fuentes productivas.
+Cada captura exige un attachment con su nombre, `image/png` y ruta dentro de
+`testInfo.outputDir`, usando la interfaz pública de Playwright.
+
+Comandos ejecutados desde `frontend`, salvo las comprobaciones Git/SHA desde la raíz:
+
+| Comando | Resultado B1 observado |
+|---|---|
+| `npm run test:e2e -- e2e/tabla-ui.spec.ts --grep 'matriz extrema 1440 claro'` | RED exit1: 1 fallo esperado, attachments vacío; GREEN exit0: 1/1, 6.1s |
+| `npm run test:e2e` | Exit0: 198/198, 5.0min, una ejecución completa, sin omisiones ni retries |
+| `sha256sum -c docs/evidencias/issue-51/fuentes-verificadas.sha256` | Exit0: 10/10; sólo actualicé hashes de las tres specs E2E |
+| `git diff --check` | Exit0 |
+
+Inventario final de `frontend/test-results/**/attachments/*.png`: **116 PNG**:
+10 tabla extrema, 12 dashboard (seis tamaños por dos temas), 4 fallback320 y 90 detalle.
+Comprobé firma PNG y SHA256 idéntico a un original en docs/cache para los 116 archivos.
+Ejemplos: `matriz-extremos-1440-claro-*.png`, `dashboard-1440-claro-*.png`,
+`fallback320-claro-cerrado-*.png`, `aprobada-1440x900-claro-*.png`.
+Conservo las cuatro rutas representantes `detalle/despues/{aprobada-1440x900-claro,
+aprobada-1440x900-oscuro,aprobada-390x844-claro,rechazada-320x844-claro}.png` y las
+rutas `matriz-extremos-{ancho}-{tema}.png`; no redirijo ni reemplazo sus originales.
+`detalle/despues/matriz.json` fue regenerado automáticamente por el harness existente.
+
+Los siete hashes no editados del manifiesto permanecen idénticos, incluidos los cuatro
+de TablaOfertas en `frontend/src`; el diff productivo frente a d817b14 está vacío.
+No repito Angular ni build: el padre ya verificó 561 éxitos/4 omisiones y build exit0
+sobre esas mismas fuentes. No atribuyo esos resultados a otro SHA ni al árbol E2E nuevo.
+Los warnings y limitaciones siguientes permanecen vigentes; no cambié sus causas.
 
 ### Omisiones heredadas exactas
 
@@ -200,17 +241,20 @@ productivos accesibles a esta suite:
 - **S8,S10**: recorrido integrado y veinte journeys anteriores, sin modificar fuentes de otras pantallas.
 - **S11**: suites y build finales aprobados; cuatro omisiones heredadas explicitadas.
 - **S12**: pares equivalentes, matriz extrema e historia con sus condiciones y limitaciones.
-- **S13**: fuentes restringidas respetadas; pendiente sólo recuperación Git de tres artefactos
-  generados, acción del padre. No hubo cambios de backend, matching, proveedores ni producción.
-- **S2/S9** aportan contexto/matriz histórica previa y matriz integrada presente; **S14/S15**
-  siguen en revisión independiente/entrega del padre. No declaro finalizada toda la issue ni la PR.
+- **S13**: fuentes restringidas respetadas; padre restauró los tres artefactos de #50.
+  No hubo cambios de backend, matching, proveedores ni producción.
+- **S2/S9** aportan contexto/matriz histórica previa y matriz integrada presente; **S14** pasó revisión independiente y MCP final. **S15** se documenta en la PR y en el informe final de entrega.
 
 No usé Firebase, credenciales, DeepSeek, scrapers ni servicios reales. No probé Safari,
 Firefox, lector de pantalla real, login autenticado ni un dispositivo físico. La revisión
-MCP final del padre y la revisión independiente todavía deben contrastar esta evidencia.
+MCP final y el recheck independiente de B1 ya terminaron; detalle en [verificacion-final.md](verificacion-final.md).
 No agregué dependencias, workflows ni un segundo framework E2E.
 
 ## Key Learnings
+
+- Guardar un screenshot fuera de `test-results` no lo incluye en el artefacto CI:
+  `testInfo.attach({ path, contentType: 'image/png' })` copia el archivo sin perder su ruta documental.
+  Compruebo el attachment público y su outputDir, no el almacenamiento interno del reporter.
 
 - La densidad desktop dependía de paddings globales `!important`: el override local evita
   cambiar el resto de la aplicación; no alcanza con bajar font-size en una clase débil.
