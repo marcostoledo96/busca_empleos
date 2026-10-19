@@ -59,6 +59,53 @@ test('detalles abiertos y objetivos táctiles en toda la matriz @responsive', as
     }
 });
 
+test('título completo a 320px con fallback ancho @fallback320', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    for (const tema of ['claro', 'oscuro']) {
+        await page.goto(`/?tema=${tema}`);
+        await expect(page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' })).toBeVisible();
+        // Reproduzco una fuente de sistema más ancha sin alterar tamaño, espaciado ni viewport.
+        await page.addStyleTag({ content: '.dashboard-titulo { font-family: "DejaVu Sans", sans-serif !important; }' });
+        await page.evaluate(() => document.fonts.ready);
+        for (const abierto of [false, true]) {
+            if (abierto) {
+                await page.getByText('Configuración efectiva de búsquedas', { exact: true }).click();
+                await page.getByText('Configuración guardada actual', { exact: true }).click();
+                await page.getByText('Resultados e historial', { exact: true }).click();
+            }
+            const medidas = await page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' }).evaluate(titulo => {
+                const rango = document.createRange();
+                rango.selectNodeContents(titulo);
+                return {
+                    anchoPagina: document.documentElement.scrollWidth, viewport: innerWidth,
+                    fuente: getComputedStyle(titulo).fontFamily,
+                    caja: titulo.getBoundingClientRect().toJSON(),
+                    fragmentos: Array.from(rango.getClientRects(), rect => rect.toJSON()),
+                };
+            });
+            console.log(JSON.stringify({ tema, abierto, ...medidas }));
+            await page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' }).scrollIntoViewIfNeeded();
+            await page.screenshot({ path: `.angular/evidencia-48/fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}.png` });
+            expect(medidas.anchoPagina).toBeLessThanOrEqual(medidas.viewport);
+            for (const fragmento of medidas.fragmentos) {
+                expect(fragmento.left).toBeGreaterThanOrEqual(medidas.caja.left);
+                expect(fragmento.right).toBeLessThanOrEqual(medidas.caja.right);
+            }
+            await expect(page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' })).toHaveText('OFERTAS_DISPONIBLES');
+            await expect(page.getByLabel('Total', { exact: true })).toHaveText('25');
+        }
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/');
+    const titulo = page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' });
+    await expect(titulo).toHaveCSS('font-size', '40px');
+    expect(await titulo.evaluate(elemento => {
+        const rango = document.createRange();
+        rango.selectNodeContents(elemento);
+        return rango.getClientRects().length;
+    })).toBe(1);
+});
+
 test('acciones primero y diagnósticos cerrados @regresion', async ({ page }) => {
     await page.goto('/');
     const configuracion = page.getByText('Configuración efectiva de búsquedas', { exact: true });

@@ -348,12 +348,18 @@ Sin esa variable las capturas se llaman `despues-<ancho>-<tema>.png`. El bloqueo
 red usa las fuentes locales/fallback disponibles; no acredita la carga de tipografías
 externas ni sustituye la auditoría autenticada y el build productivo.
 
+Permito que el token `OFERTAS_DISPONIBLES` salte de línea si la fuente de respaldo
+no cabe, sin cambiar su tipografía ni tamaño. La regresión `@fallback320` usa una
+fuente de sistema más ancha a 320 px, verifica página y fragmentos de texto dentro
+de sus límites en ambos temas con detalles cerrados/abiertos, y conserva el título
+de escritorio a 40 px en una línea. No recorto contenido ni relajo el ancho estricto.
+
 Las comparativas compactas [desktop claro](evidencia/issue-48/desktop-claro.png),
 [desktop oscuro](evidencia/issue-48/desktop-oscuro.png),
 [móvil claro](evidencia/issue-48/mobile-claro.png) y
 [móvil oscuro](evidencia/issue-48/mobile-oscuro.png) muestran el histórico demo
 (con su shell) y el mismo fixture antes/después. No representan datos de una cuenta.
-CI ejecuta los 13 E2E y publica las 12 capturas completas AFTER y resultados en el
+CI ejecuta los 14 E2E y publica las 12 capturas completas AFTER y resultados en el
 artefacto `dashboard-ui-<run_id>`, disponible durante 14 días.
 
 ## Resultados por fuente e historial — issue #20
