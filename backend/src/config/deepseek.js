@@ -18,13 +18,25 @@ require('dotenv').config({ path: path.resolve(__dirname, '../../.env') });
 // URL de la API de DeepSeek (compatible con formato OpenAI).
 const DEEPSEEK_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-// Modelo a usar por defecto. DeepSeek V4 Flash es rápido y eficiente para
-// tareas de clasificación simple como evaluar ofertas laborales.
-// Usa el endpoint estándar de DeepSeek, no un proxy externo.
-const DEEPSEEK_MODELO = 'deepseek-v4-flash';
+// Mantengo un catálogo estático; estos identificadores no fijan versiones inmutables.
+const MODELOS_DEEPSEEK = Object.freeze(['deepseek-flash', 'deepseek-v4-pro']);
+const DEEPSEEK_MODELO = 'deepseek-flash';
 
-// Comparto solamente configuración que afecta la decisión; nunca credenciales.
-const CONFIGURACION_DECISION = Object.freeze({ url: DEEPSEEK_URL, temperature: 0 });
+function normalizarModeloDeepSeek(modelo) {
+    return modelo === 'deepseek-v4-flash' ? DEEPSEEK_MODELO : modelo;
+}
+
+// Comparto solo parámetros que afectan la decisión. El timeout queda fuera de la firma.
+// Mantengo razonamiento bajo hasta comparar calidad con la alternativa deshabilitada.
+const CONFIGURACION_DECISION = Object.freeze({
+    thinking: Object.freeze({ type: 'enabled' }),
+    reasoning_effort: 'low',
+    response_format: Object.freeze({ type: 'json_object' }),
+    max_tokens: 4096,
+});
+const CONFIGURACION_IMPORTACION = Object.freeze({ ...CONFIGURACION_DECISION, max_tokens: 16384 });
+const TIMEOUT_EVALUACION_MS = 60000;
+const TIMEOUT_IMPORTACION_MS = 120000;
 
 // La API key de DeepSeek viene del .env. NUNCA se hardcodea.
 // Se obtiene de: https://platform.deepseek.com → API Keys.
@@ -84,7 +96,7 @@ function calcularBackoff(intento, retryAfterHeader) {
  * @param {Object} [config] - Configuración opcional.
  * @param {number} [config.timeoutMs] - Timeout en ms (default: 30000).
  * @param {number} [config.maxReintentos] - Máximo de reintentos (default: 3).
- * @returns {Promise<Response>} La respuesta HTTP.
+ * @returns {Promise<Object>} El sobre JSON completo del proveedor.
  */
 async function fetchConTimeoutYRetry(url, opciones, config = {}) {
     const {
@@ -104,11 +116,22 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
                 signal: controlador.signal,
             });
 
-            clearTimeout(timeout);
-
             if (respuesta.ok) {
-                return respuesta;
+                try {
+                    // Mantengo el aborto activo hasta terminar de leer el cuerpo, no solo los headers.
+                    return await respuesta.json();
+                } catch (error) {
+                    if (error instanceof SyntaxError && !controlador.signal.aborted) {
+                        const invalido = crearErrorRespuesta('JSON_INVALIDO', 'DeepSeek no devolvió JSON válido.');
+                        invalido.noReintentar = true;
+                        throw invalido;
+                    }
+                    throw error;
+                } finally {
+                    clearTimeout(timeout);
+                }
             }
+            clearTimeout(timeout);
 
             // Solo reintentamos errores transitorios.
             const reintentable = [
@@ -120,11 +143,9 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
             ].includes(respuesta.status);
 
             if (!reintentable || intento === maxReintentos) {
-                const cuerpo = await respuesta.text();
-                throw new Error(
-                    config.importacionCv ? `DeepSeek respondió con error ${respuesta.status}.` :
-                        `DeepSeek respondió con error ${respuesta.status}: ${cuerpo}`
-                );
+                const error = new Error(`DeepSeek respondió con error ${respuesta.status}.`);
+                error.noReintentar = true;
+                throw error;
             }
 
             // Respetar el header Retry-After si existe.
@@ -142,24 +163,22 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
             clearTimeout(timeout);
             ultimoError = error;
 
-            if (intento === maxReintentos) {
+            if (error.noReintentar || intento === maxReintentos) {
                 break;
             }
 
             // Si fue abortado por timeout, damos un poco más de tiempo.
             const espera = calcularBackoff(intento);
 
-            console.warn(
-                config.importacionCv
-                    ? `[DeepSeek] Error de importación en intento ${intento + 1}, reintentando en ${espera}ms.`
-                    : `[DeepSeek] Error en intento ${intento + 1}, reintentando en ${espera}ms: ${error.message}`
-            );
+            // No registro mensajes originales de red ni respuestas potencialmente privadas.
+            console.warn(`[DeepSeek] Error técnico en intento ${intento + 1}, reintentando en ${espera}ms.`);
 
             await esperar(espera);
         }
     }
 
-    throw ultimoError || new Error('Se agotaron los reintentos sin respuesta de DeepSeek.');
+    if (ultimoError?.noReintentar) throw ultimoError;
+    throw new Error('Se agotaron los reintentos de DeepSeek por un error de red o timeout.');
 }
 
 /**
@@ -169,12 +188,10 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
  * - messages: array de objetos con { role, content }
  *   - role "system": le digo a la IA QUIÉN ES y CÓMO debe responder
  *   - role "user": el mensaje concreto que quiero que procese
- * - temperature: 0 (queremos respuestas determinísticas, no creativas)
- *
- * Ahora incluye:
- * - Timeout de 30 segundos (AbortController).
- * - Hasta 3 reintentos con backoff exponencial + jitter.
- * - Manejo de rate limits (429) respetando el header Retry-After.
+ * - JSON explícito, razonamiento y presupuesto de salida según la tarea.
+ * - No envío temperatura porque el proveedor la ignora con razonamiento.
+ * - Timeout por tarea y hasta 3 reintentos transitorios con backoff.
+ * - Metadatos seguros opcionales mediante opciones.alRecibirMetadatos.
  *
  * @param {string} mensajeSistema - Instrucciones para la IA (quién es, cómo responder).
  * @param {string} mensajeUsuario - El contenido a evaluar.
@@ -188,44 +205,74 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo, opcione
         );
     }
 
-    const respuesta = await fetchConTimeoutYRetry(CONFIGURACION_DECISION.url, {
+    const modeloEfectivo = normalizarModeloDeepSeek(modelo || DEEPSEEK_MODELO);
+    if (!MODELOS_DEEPSEEK.includes(modeloEfectivo)) {
+        throw new Error('El modelo DeepSeek configurado no es compatible.');
+    }
+    const configuracion = opciones.importacionCv ? CONFIGURACION_IMPORTACION : CONFIGURACION_DECISION;
+    const inicio = Date.now();
+    const datos = await fetchConTimeoutYRetry(DEEPSEEK_URL, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
         },
         body: JSON.stringify({
-            model: modelo || DEEPSEEK_MODELO,
+            model: modeloEfectivo,
             messages: [
                 { role: 'system', content: mensajeSistema },
                 { role: 'user', content: mensajeUsuario },
             ],
-            temperature: CONFIGURACION_DECISION.temperature,
+            ...configuracion,
         }),
     }, {
-        timeoutMs: 30000,
+        timeoutMs: opciones.importacionCv ? TIMEOUT_IMPORTACION_MS : TIMEOUT_EVALUACION_MS,
         maxReintentos: 3,
-        importacionCv: opciones.importacionCv === true,
     });
 
-    const datos = await respuesta.json();
-
-    // La respuesta viene en data.choices[0].message.content
-    // (mismo formato que OpenAI).
-    if (!datos.choices || datos.choices.length === 0) {
-        throw new Error('DeepSeek no devolvió ninguna respuesta (choices vacío).');
+    const eleccion = Array.isArray(datos?.choices) ? datos.choices[0] : null;
+    if (opciones.alRecibirMetadatos) {
+        const metadatos = { modelo_solicitado: modeloEfectivo, duracion_ms: Date.now() - inicio };
+        if (typeof datos?.model === 'string') metadatos.modelo_reportado = datos.model;
+        if (typeof eleccion?.finish_reason === 'string') metadatos.finish_reason = eleccion.finish_reason;
+        for (const [campo, valor] of Object.entries({
+            tokens_entrada: datos?.usage?.prompt_tokens,
+            tokens_salida: datos?.usage?.completion_tokens,
+            tokens_razonamiento: datos?.usage?.completion_tokens_details?.reasoning_tokens,
+        })) {
+            if (Number.isFinite(valor) && valor >= 0) metadatos[campo] = valor;
+        }
+        opciones.alRecibirMetadatos(metadatos);
     }
-
-    if (opciones.importacionCv && datos.choices[0].finish_reason !== 'stop') {
-        const error = new Error('La extracción está incompleta.');
-        error.codigo = datos.choices[0].finish_reason === 'length' ? 'SALIDA_TRUNCADA' : 'SALIDA_INCOMPLETA';
-        throw error;
+    if (eleccion?.finish_reason !== 'stop') {
+        throw crearErrorRespuesta(eleccion?.finish_reason === 'length' ? 'SALIDA_TRUNCADA' : 'SALIDA_INCOMPLETA',
+            'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.');
     }
-    return datos.choices[0].message.content;
+    const contenido = eleccion.message?.content;
+    if (typeof contenido !== 'string' || !contenido.trim()) {
+        throw crearErrorRespuesta('SALIDA_INCOMPLETA', 'DeepSeek devolvió una respuesta vacía. Volvé a intentar.');
+    }
+    try {
+        const objeto = JSON.parse(contenido);
+        if (!objeto || typeof objeto !== 'object' || Array.isArray(objeto)) throw new Error();
+    } catch {
+        throw crearErrorRespuesta('JSON_INVALIDO', 'DeepSeek no devolvió un objeto JSON válido. Volvé a intentar.');
+    }
+    // Los validadores estrictos de cada tarea conservan la validación semántica.
+    return contenido;
+}
+
+function crearErrorRespuesta(codigo, mensaje) {
+    const error = new Error(mensaje);
+    error.codigo = codigo;
+    return error;
 }
 
 module.exports = {
     consultarDeepSeek,
+    MODELOS_DEEPSEEK,
+    normalizarModeloDeepSeek,
+    CONFIGURACION_IMPORTACION,
     DEEPSEEK_URL,
     DEEPSEEK_MODELO,
     CONFIGURACION_DECISION,

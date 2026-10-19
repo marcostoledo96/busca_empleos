@@ -1,5 +1,17 @@
 # Frontend — Busca Empleos
 
+## Selección de DeepSeek por tarea — issue #26
+
+En Preferencias conservo selectores independientes **DeepSeek Flash**
+(`deepseek-flash`) y **DeepSeek V4 Pro** (`deepseek-v4-pro`) para evaluación e
+importación. Al recargar normalizo el alias `deepseek-v4-flash` sin sustituir Pro ni
+alterar otras preferencias. Guardar no inicia reevaluación automática.
+
+Oculto los controles de temperatura sin efecto y explico que ambas tareas usan
+razonamiento explícito bajo y JSON: el proveedor ignora temperatura en ese modo.
+Conservo los valores históricos; no agrego parámetros avanzados. Ver
+[preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
+
 ## CV imprimible con datos confirmados — issue #24
 
 Abro **Preparar CV imprimible con los datos guardados** desde Preferencias y llego

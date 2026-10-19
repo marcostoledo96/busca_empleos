@@ -364,12 +364,17 @@ presupuesto de mensajes de IA. No envío binarios al endpoint de análisis.
 
 En `POST /api/preferencias/importar-cv/analizar` envío un único Markdown en el campo
 multipart `cv` (máximo 1 MiB). Analizo el contenido completo en una solicitud lógica,
-sin recortar a 15000 caracteres. Mantengo modelo, timeout y reintentos existentes.
+sin recortar a 15000 caracteres. Uso `modelo_ia_importacion` seleccionado (Pro como
+fallback), con normalización del alias Flash, razonamiento `enabled/low`,
+`response_format: json_object`, `max_tokens: 16384`, timeout de 120000 ms por intento
+y hasta tres reintentos transitorios. No envío temperatura. Exijo `finish_reason: stop`
+y objeto JSON no vacío antes del validador. Ver [configuración por tarea](evaluacion-ia.md#configuración-del-cliente-deepseekjs).
 Uso bytes UTF-8 de ambos mensajes como presupuesto conservador, **no tokens exactos**:
 acepto hasta 602688 bytes de mensajes (contexto de 1000000 menos reserva de salida
 máxima 393216 —384 × 1024— y margen de formato 4096). El límite efectivo del CV
 es ese techo menos los bytes de instrucciones y encuadre del prompt de usuario;
-un archivo permitido por Multer puede excederlo. No aumento `max_tokens`.
+un archivo permitido por Multer puede excederlo. Esta cota conservadora de entrada
+no equivale al límite de salida configurado de 16384 tokens ni garantiza completitud.
 Rechazo UTF-8 malformado con decodificación fatal, sin sustituir bytes silenciosamente.
 Referencia de límites: https://api-docs.deepseek.com/quick_start/pricing.
 

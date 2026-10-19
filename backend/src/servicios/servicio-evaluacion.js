@@ -17,7 +17,7 @@
 // "haceme algo lindo" te da cualquier cosa. Si le decís exactamente qué
 // querés, colores, medidas, tipografía — te clava el diseño.
 
-const { consultarDeepSeek, DEEPSEEK_MODELO } = require('../config/deepseek');
+const { consultarDeepSeek, DEEPSEEK_MODELO, normalizarModeloDeepSeek } = require('../config/deepseek');
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
@@ -138,7 +138,7 @@ function ubicacionEnZonas(ubicacion, zonas) {
  *
  * @param {Object} oferta - La oferta de la base de datos.
  * @param {string} instrucciones - Instrucciones de sistema armadas desde preferencias.
- * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-v4-flash').
+ * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-flash').
  * @param {Object} [preferencias] - Preferencias guardadas del lote (para defensas programáticas).
  * @param {{forzar?: boolean, diferirCache?: boolean, guardarCache?: Function}} [opciones] - Difiero la caché del worker hasta persistir la oferta.
  * @returns {Object} Resultado con firma_criterios_evaluacion solo si fue exitoso.
@@ -286,7 +286,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         const textoOferta = [oferta.titulo, oferta.descripcion].filter(Boolean).join('\n');
         const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta);
 
-        // Si el parser no pudo interpretar la respuesta, devuelvo rechazo seguro.
+        // Si el parser falla, informo un error técnico; el worker no persiste un rechazo.
         if (respuesta.error && !respuesta.inconsistente) {
             return {
                 match: false,
@@ -403,7 +403,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
         // Leo las preferencias UNA sola vez para todo el lote.
         const prefs = structuredClone((await modeloPreferencia.obtenerPreferencias()) || {});
         const instrucciones = construirInstruccionesDesdePreferencias(prefs);
-        const modeloIA = prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO;
+        const modeloIA = normalizarModeloDeepSeek(prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO);
 
         const pendientes = seleccionadas || await modeloOferta.obtenerOfertasPendientes();
 

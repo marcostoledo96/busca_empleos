@@ -1,3 +1,10 @@
+export type ModeloDeepSeek = 'deepseek-flash' | 'deepseek-v4-pro';
+export type ModeloDeepSeekPersistido = ModeloDeepSeek | 'deepseek-v4-flash';
+
+export function normalizarModeloDeepSeek(modelo: ModeloDeepSeekPersistido): ModeloDeepSeek {
+    return modelo === 'deepseek-v4-flash' ? 'deepseek-flash' : modelo;
+}
+
 // Conservo la resolución explícita de cada pregunta en el JSONB existente.
 export interface PreguntaPerfil {
     id?: string;
@@ -26,7 +33,7 @@ export interface Preferencias {
     reglas_exclusion: string[];
     prompt_personalizado: string | null;
     usar_prompt_personalizado: boolean;
-    modelo_ia: 'deepseek-v4-flash' | 'deepseek-v4-pro';
+    modelo_ia: ModeloDeepSeekPersistido;
     fecha_creacion: string;
     fecha_actualizacion: string;
     // Perfil detallado (P3) — tecnologías con niveles.
@@ -47,8 +54,8 @@ export interface Preferencias {
     // scoring_config fue deprecado en B1. La columna sigue existiendo en BD
     // para B2, pero el frontend ya no lo consume ni envía.
     preguntas_perfil_pendientes: PreguntaPerfil[];
-    modelo_ia_evaluacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
-    modelo_ia_importacion?: 'deepseek-v4-flash' | 'deepseek-v4-pro';
+    modelo_ia_evaluacion?: ModeloDeepSeekPersistido;
+    modelo_ia_importacion?: ModeloDeepSeekPersistido;
     disponibilidad?: 'full_time' | 'part_time' | 'freelance' | 'a_coordinar';
     expectativa_salarial_min?: number | null;
     expectativa_salarial_max?: number | null;

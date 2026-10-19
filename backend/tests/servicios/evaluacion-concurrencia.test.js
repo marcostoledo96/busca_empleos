@@ -1,6 +1,6 @@
 jest.mock('dotenv', () => ({ config: jest.fn() }));
 jest.mock('../../src/config/base-datos', () => ({ connect: jest.fn(), query: jest.fn() }));
-jest.mock('../../src/config/deepseek', () => ({ consultarDeepSeek: jest.fn(), DEEPSEEK_MODELO: 'deepseek-v4-flash' }));
+jest.mock('../../src/config/deepseek', () => ({ ...jest.requireActual('../../src/config/deepseek'), consultarDeepSeek: jest.fn() }));
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/modelos/evaluacion-cache');

@@ -412,18 +412,8 @@
                                     <p-select [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" appendTo="body" />
                                 </div>
                             </div>
-                            <!--
-                                NOTA(P5-Fix5): Los campos temperamentos_evaluacion/importacion y
-                                max_caracteres_descripcion_ia están deshabilitados porque todavía
-                                no están conectados al backend.
-                                - consultarDeepSeek() hardcodea temperature: 0.
-                                - El recorte de descripción está fijo en 1500 chars en servicio-evaluacion.js.
-                                Para conectarlos habría que:
-                                1. Agregar temperature al body de DeepSeek dinámicamente.
-                                2. Leer max_caracteres_descripcion_ia en construirPromptRefinamiento().
-                                3. Pasar ambos valores desde preferencias → evaluarOferta.
-                                Hasta que se haga eso, no se muestran para no mentir al usuario.
-                            -->
+                            <p id="temperatura-ayuda">Uso razonamiento explícito bajo y formato JSON en ambas tareas. DeepSeek ignora la temperatura con razonamiento: conservo los valores anteriores, pero no los envío al proveedor.</p>
+                            <!-- Conservo ocultos los controles sin efecto operativo. -->
                             <!--
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo">

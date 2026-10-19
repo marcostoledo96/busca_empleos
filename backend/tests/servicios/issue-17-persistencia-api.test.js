@@ -17,8 +17,8 @@ jest.mock('../../src/config/base-datos', () => ({
 }));
 
 jest.mock('../../src/config/deepseek', () => ({
+    ...jest.requireActual('../../src/config/deepseek'),
     consultarDeepSeek: jest.fn(),
-    DEEPSEEK_MODELO: 'deepseek-chat',
 }));
 
 jest.mock('../../src/modelos/preferencia', () => ({

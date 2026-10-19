@@ -11,9 +11,8 @@
 'use strict';
 
 jest.mock('../../src/config/deepseek', () => ({
+    ...jest.requireActual('../../src/config/deepseek'),
     consultarDeepSeek: jest.fn(),
-    DEEPSEEK_MODELO: 'deepseek-chat',
-    CONFIGURACION_DECISION: { proveedor: 'deepseek' },
 }));
 
 jest.mock('../../src/modelos/evaluacion-cache', () => ({

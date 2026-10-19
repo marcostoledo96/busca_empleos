@@ -3,7 +3,7 @@ jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
 jest.mock('../../src/utils/middleware-auth', () => ({ verificarAuth: (req, res, next) => next() }));
-jest.mock('../../src/config/deepseek', () => ({ consultarDeepSeek: jest.fn() }));
+jest.mock('../../src/config/deepseek', () => ({ ...jest.requireActual('../../src/config/deepseek'), consultarDeepSeek: jest.fn() }));
 const express = require('express');
 const request = require('supertest');
 const preferencias = require('../../src/modelos/preferencia');
@@ -21,6 +21,21 @@ beforeEach(() => {
     consultarDeepSeek.mockResolvedValue(JSON.stringify({ nombre: 'Perfil sintético' }));
 });
 afterEach(() => expect(preferencias.actualizarPreferencias).not.toHaveBeenCalled());
+
+test.each(['deepseek-v4-pro', 'deepseek-flash', 'deepseek-v4-flash'])('utilizo el modelo de importación seleccionado %s sin guardar preferencias', async modelo => {
+    preferencias.obtenerPreferencias.mockResolvedValue({ modelo_ia: 'deepseek-v4-pro', modelo_ia_evaluacion: 'deepseek-v4-pro', modelo_ia_importacion: modelo });
+    const respuesta = await subir();
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body).toEqual({ exito: true, datos: { nombre: 'Perfil sintético' } });
+    expect(consultarDeepSeek).toHaveBeenCalledWith(expect.any(String), expect.stringContaining('# CV sintético'), modelo, { importacionCv: true });
+});
+
+test('conservo el error JSON_INVALIDO del cliente sin devolver contenido privado ni modificar perfil', async () => {
+    consultarDeepSeek.mockRejectedValue(Object.assign(new Error('CUERPO_PRIVADO'), { codigo: 'JSON_INVALIDO' }));
+    const respuesta = await subir();
+    expect(respuesta.status).toBe(422);
+    expect(respuesta.body).toEqual({ exito: false, codigo: 'JSON_INVALIDO', error: 'La respuesta del análisis no es JSON válido. Volvé a intentar.' });
+});
 
 test('acepto un Markdown pequeño y conservo ausencia, null y listas vacías', async () => {
     consultarDeepSeek.mockResolvedValue(JSON.stringify({ nombre: null, perfil_profesional: 'Perfil sintético', tecnologias_detalle: [], advertencias: [] }));

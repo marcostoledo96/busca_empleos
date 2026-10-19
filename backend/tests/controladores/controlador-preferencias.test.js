@@ -75,6 +75,22 @@ describe('Firma de preferencias efectivamente persistidas', () => {
     });
 });
 
+describe('Catálogo y compatibilidad DeepSeek', () => {
+    afterEach(() => jest.clearAllMocks());
+    test.each(['modelo_ia', 'modelo_ia_evaluacion', 'modelo_ia_importacion'])('acepto Flash canónico y alias en %s sin enviar otros campos al modelo', async campo => {
+        for (const valor of ['deepseek-flash', 'deepseek-v4-flash', 'deepseek-v4-pro']) {
+            const guardadas = { ...preferenciasEjemplo, [campo]: valor };
+            modeloPreferencia.obtenerPreferencias.mockResolvedValue(preferenciasEjemplo);
+            modeloPreferencia.actualizarPreferencias.mockResolvedValue(guardadas);
+            const res = await request(app).put('/api/preferencias').send({ [campo]: valor });
+            expect(res.status).toBe(200);
+            expect(res.body.exito).toBe(true);
+            expect(modeloPreferencia.actualizarPreferencias).toHaveBeenLastCalledWith({ [campo]: valor });
+            if (campo === 'modelo_ia_importacion' || valor !== 'deepseek-v4-pro') expect(res.body.cambio_criterios).toBe(false);
+        }
+    });
+});
+
 describe('Controlador de preferencias', () => {
     afterEach(() => jest.clearAllMocks());
 

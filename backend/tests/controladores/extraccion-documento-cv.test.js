@@ -4,7 +4,7 @@ jest.mock('../../src/modelos/preferencia');
 jest.mock('../../src/modelos/oferta');
 jest.mock('../../src/servicios/servicio-scraping');
 jest.mock('../../src/servicios/servicio-evaluacion');
-jest.mock('../../src/config/deepseek', () => ({ consultarDeepSeek: jest.fn() }));
+jest.mock('../../src/config/deepseek', () => ({ ...jest.requireActual('../../src/config/deepseek'), consultarDeepSeek: jest.fn() }));
 // Cargo el worker real con Node: Jest no admite su import() sin flags de VM experimentales.
 const path = require('node:path');
 const requireNativo = process.getBuiltinModule('module').createRequire(__filename);

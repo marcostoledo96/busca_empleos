@@ -9,6 +9,16 @@
 // La BD persiste los cambios automáticamente.
 
 const pool = require('../config/base-datos');
+const { normalizarModeloDeepSeek } = require('../config/deepseek');
+
+function normalizarModelosPreferencias(preferencias) {
+    if (!preferencias) return preferencias;
+    const normalizadas = { ...preferencias };
+    for (const campo of ['modelo_ia', 'modelo_ia_evaluacion', 'modelo_ia_importacion']) {
+        if (normalizadas[campo] !== undefined) normalizadas[campo] = normalizarModeloDeepSeek(normalizadas[campo]);
+    }
+    return normalizadas;
+}
 
 // ID fijo de la fila de preferencias. Siempre es 1.
 const ID_PREFERENCIAS = 1;
@@ -27,7 +37,7 @@ async function obtenerPreferencias() {
     );
 
     if (resultado.rows.length > 0) {
-        return resultado.rows[0];
+        return normalizarModelosPreferencias(resultado.rows[0]);
     }
 
     return crearPreferenciasPorDefecto();
@@ -66,11 +76,11 @@ async function crearPreferenciasPorDefecto() {
             ['CABA', 'GBA Oeste'],
             ['qa tester', 'soporte tecnico it', 'programador', 'desarrollador junior c#', 'frontend developer angular', 'full stack node'],
             ['Java'],
-            'deepseek-v4-flash',
+            'deepseek-flash',
         ]
     );
 
-    return resultado.rows[0];
+    return normalizarModelosPreferencias(resultado.rows[0]);
 }
 
 /**
@@ -88,7 +98,7 @@ async function crearPreferenciasPorDefecto() {
  */
 async function actualizarPreferencias(datos) {
     // El detalle explícito prevalece sobre el stack anterior, incluso vacío.
-    datos = { ...datos };
+    datos = normalizarModelosPreferencias(datos);
     if (datos.tecnologias_detalle !== undefined) {
         datos.stack_tecnologico = datos.tecnologias_detalle
             .filter(tech => tech && tech.nombre && tech.nivel !== 'ninguno')
@@ -175,7 +185,7 @@ async function actualizarPreferencias(datos) {
         valores
     );
 
-    return resultado.rows.length > 0 ? resultado.rows[0] : null;
+    return resultado.rows.length > 0 ? normalizarModelosPreferencias(resultado.rows[0]) : null;
 }
 
 module.exports = {

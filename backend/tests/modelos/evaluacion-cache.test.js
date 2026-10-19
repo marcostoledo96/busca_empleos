@@ -166,18 +166,22 @@ describe('Modelo de cache de evaluaciones', () => {
     // === buscarCache ===
 
     describe('buscarCache()', () => {
-        test('devuelve el resultado cuando existe cache hit', async () => {
+        test.each([
+            ['deepseek-v4-flash', 'deepseek-flash'],
+            ['deepseek-flash', 'deepseek-flash'],
+            ['deepseek-v4-pro', 'deepseek-v4-pro'],
+        ])('devuelvo el cache hit usando la clave canónica de %s', async (modeloEntrada, modeloEfectivo) => {
             const resultadoEsperado = { match: true, razon: 'Coincide con el perfil.' };
             pool.query.mockResolvedValueOnce({
                 rows: [{ resultado: resultadoEsperado }],
             });
 
-            const resultado = await modeloCache.buscarCache('hashOferta123', 'hashPrefs456', 'deepseek-v4-flash');
+            const resultado = await modeloCache.buscarCache('hashOferta123', 'hashPrefs456', modeloEntrada);
 
             expect(resultado).toEqual(resultadoEsperado);
             expect(pool.query).toHaveBeenCalledWith(
                 expect.stringContaining('SELECT resultado FROM evaluaciones_cache'),
-                ['hashOferta123', 'hashPrefs456', 'deepseek-v4-flash']
+                ['hashOferta123', 'hashPrefs456', modeloEfectivo]
             );
         });
 
@@ -193,18 +197,22 @@ describe('Modelo de cache de evaluaciones', () => {
     // === guardarCache ===
 
     describe('guardarCache()', () => {
-        test('guarda correctamente el resultado serializado', async () => {
+        test.each([
+            ['deepseek-v4-flash', 'deepseek-flash'],
+            ['deepseek-flash', 'deepseek-flash'],
+            ['deepseek-v4-pro', 'deepseek-v4-pro'],
+        ])('guardo el resultado serializado usando la clave canónica de %s', async (modeloEntrada, modeloEfectivo) => {
             pool.query.mockResolvedValueOnce({ rows: [] });
 
             const resultado = { match: false, razon: 'No coincide con el perfil.' };
-            await modeloCache.guardarCache('hashOferta789', 'hashPrefs012', 'deepseek-v4-flash', resultado);
+            await modeloCache.guardarCache('hashOferta789', 'hashPrefs012', modeloEntrada, resultado);
 
             expect(pool.query).toHaveBeenCalledWith(
                 expect.stringContaining('INSERT INTO evaluaciones_cache'),
                 [
                     'hashOferta789',
                     'hashPrefs012',
-                    'deepseek-v4-flash',
+                    modeloEfectivo,
                     JSON.stringify(resultado),
                 ]
             );

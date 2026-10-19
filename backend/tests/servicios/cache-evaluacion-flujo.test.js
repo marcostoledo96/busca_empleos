@@ -5,7 +5,7 @@ jest.mock('../../src/config/deepseek', () => ({
     consultarDeepSeek: jest.fn(),
 }));
 jest.mock('../../src/modelos/preferencia', () => ({ obtenerPreferencias: jest.fn() }));
-jest.mock('../../src/modelos/oferta', () => ({ obtenerOfertasPendientes: jest.fn(), actualizarEvaluacion: jest.fn() }));
+jest.mock('../../src/modelos/oferta', () => ({ obtenerOfertasPendientes: jest.fn(), actualizarEvaluacion: jest.fn(), registrarErrorEvaluacion: jest.fn() }));
 jest.mock('../../src/modelos/evaluacion-lote', () => ({
     crearLote: jest.fn().mockResolvedValue({ id: 1 }),
     actualizarProgreso: jest.fn().mockResolvedValue(),
@@ -41,6 +41,44 @@ beforeEach(() => {
     });
 });
 
+test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
+    const primera = await servicio.evaluarOferta(oferta);
+    fila.modelo_ia = 'deepseek-flash';
+    expect(await servicio.evaluarOferta(oferta)).toEqual(primera);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(proveedor.consultarDeepSeek.mock.calls[0][2]).toBe('deepseek-flash');
+    expect(registros.size).toBe(1);
+});
+
+test.each(['SALIDA_TRUNCADA', 'SALIDA_INCOMPLETA', 'JSON_INVALIDO'])('error técnico %s no rechaza, no cachea y permite reintentar', async codigo => {
+    proveedor.consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('Error técnico recuperable'), { codigo }));
+    const resumen = await servicio.evaluarOfertasPendientes();
+    expect(resumen.errores).toBe(1);
+    expect(resumen.rechazadas).toBe(0);
+    expect(resumen.aprobadas).toBe(0);
+    expect(ofertas.actualizarEvaluacion).toHaveBeenCalledWith(9, 'pendiente', expect.stringContaining('Error técnico'), null,
+        expect.stringContaining('Error técnico'), null, null, null, oferta.descripcion);
+    expect(registros.size).toBe(0);
+    expect((await servicio.evaluarOferta(oferta)).match).toBe(true);
+    expect(registros.size).toBe(1);
+});
+
+test('una reevaluación incompleta conserva el resultado válido y no sustituye su caché', async () => {
+    const anterior = { ...oferta, estado_evaluacion: 'aprobada', fecha_evaluacion: '2026-01-01', razon_evaluacion: 'Confirmada',
+        porcentaje_match: 80, firma_criterios_evaluacion: 'anterior' };
+    await servicio.evaluarOferta(oferta);
+    const almacenada = [...registros.values()][0];
+    proveedor.consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('Salida incompleta'), { codigo: 'SALIDA_TRUNCADA' }));
+    const resumen = await servicio.evaluarOfertasPendientes([anterior]);
+    expect(resumen.errores).toBe(1);
+    expect(resumen.rechazadas).toBe(0);
+    expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
+    expect(ofertas.registrarErrorEvaluacion).toHaveBeenCalledWith(9, expect.stringContaining('Salida incompleta'), anterior.descripcion);
+    expect([...registros.values()]).toEqual([almacenada]);
+    expect(anterior.porcentaje_match).toBe(80);
+    expect(anterior.firma_criterios_evaluacion).toBe('anterior');
+});
+
 test('mismas entradas reales reutilizan caché: una sola llamada al proveedor', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     const segunda = await servicio.evaluarOferta({ ...oferta, id: 10 });
@@ -63,7 +101,7 @@ test.each([
     await servicio.evaluarOferta(oferta);
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
     expect(proveedor.consultarDeepSeek.mock.calls[1][0]).toBe(servicio.construirInstruccionesDesdePreferencias(fila));
-    expect(proveedor.consultarDeepSeek.mock.calls[1][2]).toBe(fila.modelo_ia_evaluacion || fila.modelo_ia);
+    expect(proveedor.consultarDeepSeek.mock.calls[1][2]).toBe(proveedor.normalizarModeloDeepSeek(fila.modelo_ia_evaluacion || fila.modelo_ia));
 });
 
 test('contenido activo y toggle cambian entradas; contenido inactivo no las cambia', async () => {
@@ -122,7 +160,7 @@ test('forzar también reemplaza una aprobación incompatible por rechazo determi
     pool.query.mockClear();
     const resultado = await servicio.evaluarOferta(prohibida, undefined, undefined, undefined, { forzar: true });
     expect(resultado.match).toBe(false);
-    expect(registros.get(JSON.stringify([hash, firma, fila.modelo_ia])).match).toBe(false);
+    expect(registros.get(JSON.stringify([hash, firma, 'deepseek-flash'])).match).toBe(false);
     expect(pool.query.mock.calls.some(([sql]) => sql.includes('SELECT resultado'))).toBe(false);
     expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
 });

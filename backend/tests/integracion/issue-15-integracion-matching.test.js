@@ -14,8 +14,8 @@ const { evaluarOferta } = require('../../src/servicios/servicio-evaluacion');
 
 // Mock de DeepSeek para pruebas integradas sintéticas sin costo ni llamadas reales
 jest.mock('../../src/config/deepseek', () => ({
+    ...jest.requireActual('../../src/config/deepseek'),
     consultarDeepSeek: jest.fn(),
-    DEEPSEEK_MODELO: 'deepseek-v4-flash',
 }));
 
 jest.mock('../../src/modelos/oferta', () => ({

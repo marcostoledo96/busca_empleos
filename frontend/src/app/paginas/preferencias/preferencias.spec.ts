@@ -14,7 +14,7 @@ describe('Preferencias — CV base persistido', () => {
     const url = 'http://localhost:3000/api/preferencias/cv-base';
     const fecha = '2026-01-01T00:00:00Z';
 
-    async function abrir(texto: string | null = null) {
+    async function abrir(texto: string | null = null, preferencias: Record<string, unknown> = {}) {
         await TestBed.configureTestingModule({
             imports: [Preferencias],
             providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
@@ -23,11 +23,57 @@ describe('Preferencias — CV base persistido', () => {
         const fixture = TestBed.createComponent(Preferencias);
         fixture.autoDetectChanges();
         const http = TestBed.inject(HttpTestingController);
-        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: {} });
+        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: preferencias });
         http.expectOne(url).flush({ exito: true, datos: { cv_base: texto, cv_base_actualizado_en: texto === null ? null : fecha } });
         await fixture.whenStable();
         return { fixture, componente: fixture.componentInstance, http };
     }
+
+    it('normaliza alias, guarda y recarga Flash sin cambiar Pro ni otras preferencias', async () => {
+        const anteriores = { nombre: 'Perfil sintético', modelo_ia: 'deepseek-v4-pro', modelo_ia_evaluacion: 'deepseek-v4-flash',
+            modelo_ia_importacion: 'deepseek-v4-pro', temperatura_evaluacion: 0.7, temperatura_importacion: 0.6 };
+        const { componente, http, fixture } = await abrir(null, anteriores);
+        expect(componente.modeloIaEvaluacion as string).toBe('deepseek-flash');
+        expect(componente.modeloIa).toBe('deepseek-v4-pro');
+        expect(componente.modeloIaImportacion).toBe('deepseek-v4-pro');
+        expect(componente.opcionesModelo.map(opcion => opcion.value)).toEqual(['deepseek-flash', 'deepseek-v4-pro']);
+        componente.tabActiva.set(4);
+        await fixture.whenStable();
+        const selectores = fixture.nativeElement.querySelectorAll('[aria-labelledby="label-ia-tabs"] p-select');
+        expect(selectores[0].textContent).toContain('DeepSeek Flash');
+        expect(selectores[1].textContent).toContain('DeepSeek V4 Pro');
+        componente.modeloIaImportacion = 'deepseek-flash';
+        componente.guardar();
+        const guardado = http.expectOne(r => r.method === 'PUT');
+        expect(guardado.request.body).toEqual({ modelo_ia_importacion: 'deepseek-flash' });
+        const nuevas = { ...anteriores, modelo_ia_evaluacion: 'deepseek-flash', modelo_ia_importacion: 'deepseek-flash' };
+        guardado.flush({ exito: true, datos: nuevas, cambio_criterios: false });
+        componente.cargarPreferencias();
+        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: nuevas });
+        await fixture.whenStable();
+        expect(componente.modeloIaImportacion as string).toBe('deepseek-flash');
+        expect(componente.modeloIaEvaluacion as string).toBe('deepseek-flash');
+        expect(selectores[1].textContent).toContain('DeepSeek Flash');
+        componente.modeloIaEvaluacion = 'deepseek-v4-pro';
+        componente.guardar();
+        const evaluacion = http.expectOne(r => r.method === 'PUT');
+        expect(evaluacion.request.body).toEqual({ modelo_ia_evaluacion: 'deepseek-v4-pro' });
+        evaluacion.flush({ exito: true, datos: { ...nuevas, modelo_ia_evaluacion: 'deepseek-v4-pro' } });
+        expect(componente.nombre).toBe('Perfil sintético');
+        expect(componente.temperaturaEvaluacion).toBe(0.7);
+        expect(componente.temperaturaImportacion).toBe(0.6);
+        http.verify();
+    });
+
+    it('explica que la temperatura no es operativa con razonamiento', async () => {
+        const { fixture, componente, http } = await abrir();
+        componente.tabActiva.set(4);
+        await fixture.whenStable();
+        expect(fixture.nativeElement.querySelector('#temperatura-ayuda')?.textContent).toContain('ignora la temperatura');
+        expect(fixture.nativeElement.querySelector('#temperatura-evaluacion:not(:disabled)')).toBeNull();
+        expect(fixture.nativeElement.querySelector('#temperatura-importacion:not(:disabled)')).toBeNull();
+        http.verify();
+    });
 
     it('enlaza al CV imprimible sin guardar ni alterar el editor o las preferencias', async () => {
         const { fixture, componente, http } = await abrir('Fuente guardada');
