@@ -77,248 +77,258 @@
     </div>
 
     <div class="panel-cuerpo">
-        <section class="busqueda-resumen" aria-label="Configuración efectiva de búsquedas">
-            @if (modoDemo()) {
-                <p>Modo demo: no consulto ni ejecuto búsquedas reales.</p>
-            } @else {
-                <button type="button" (click)="actualizarPrevisualizacion()" [disabled]="cargandoPrevisualizacion()">
-                    Actualizar configuración guardada
-                </button>
-                @if (cargandoPrevisualizacion()) { <p role="status">Consultando configuración guardada...</p> }
-                @if (errorPrevisualizacion(); as error) { <p role="alert">{{ error }}</p> }
-                <p>Consulto nuevamente antes de extraer. La ejecución informa su configuración aplicada; no uso cambios sin guardar. En el ciclo omito solamente las fuentes con consultas incompatibles, sin sustituir términos por defaults.</p>
-                @for (grupo of gruposResumen(); track grupo.titulo) {
-                    @if (grupo.resumenes.length) {
-                        <details>
-                            <summary>{{ grupo.titulo }}</summary>
-                            @for (resumen of grupo.resumenes; track resumen.plataforma) {
-                                <article>
-                                    <strong>{{ resumen.nombre }}</strong>
-                                    — {{ !resumen.habilitada ? 'Deshabilitada' : grupo.esCiclo && resumen.motivoOmision ? 'Omitida' : resumen.ejecutable ? 'Habilitada para intentar' : 'No disponible' }}
-                                    <p>Términos: {{ resumen.terminos.slice(0, 5).join(', ') || 'Sin términos aplicables' }}
-                                        @if (resumen.terminos.length > 5) { (+{{ resumen.terminos.length - 5 }} más) }
-                                        · Origen: {{ resumen.origen.terminos }}</p>
-                                    <p>Ubicación: {{ resumen.ubicacion.join(', ') || 'Sin ubicación aplicable' }} · Origen: {{ resumen.origen.ubicacion }}.
-                                        Ventana: {{ resumen.ventanaDias === null ? 'No aplica' : resumen.ventanaDias + ' días' }}.
-                                        maxResultados: {{ resumen.maxResultados === null ? 'Sin valor configurable' : resumen.maxResultados }}.</p>
-                                    @if (resumen.motivoFinalizacion) {
-                                        <p>Finalización: {{ resumen.motivoFinalizacion }}.</p>
-                                    }
-                                    @if (resumen.totalElegibles !== undefined) {
-                                        <p>Resultados útiles: {{ resumen.totalElegibles }} elegibles / {{ resumen.totalCrudos ?? resumen.totalElegibles }} crudos
-                                            @if (resumen.duplicadasDescartadas) { · {{ resumen.duplicadasDescartadas }} duplicadas }
-                                            @if (resumen.antiguasDescartadas) { · {{ resumen.antiguasDescartadas }} fuera de ventana }
-                                            @if (resumen.sinFechaConocida) { · {{ resumen.sinFechaConocida }} sin fecha }
-                                        </p>
-                                    }
-                                    @if (resumen.consultasOmitidasPorPresupuesto && resumen.consultasOmitidasPorPresupuesto.length > 0) {
-                                        <p>Consultas omitidas por presupuesto: {{ resumen.consultasOmitidasPorPresupuesto.join(', ') }}</p>
-                                    }
-                                    <p>Filtros informados: {{ resumen.filtros | json }}</p>
-                                    @if (resumen.consultasEfectivas) {
-                                        <p>Consultas efectivas: {{ formatearConsultas(resumen.consultasEfectivas) }}</p>
-                                    }
-                                    @if (resumen.equivalenciasAplicadas && hayEquivalencias(resumen.equivalenciasAplicadas)) {
-                                        <p>Equivalencias aplicadas: {{ resumen.equivalenciasAplicadas | json }}</p>
-                                    }
-                                    @if (resumen.equivalenciasSugeridas && hayEquivalencias(resumen.equivalenciasSugeridas)) {
-                                        <p>Sugerencias disponibles (no enviadas): {{ resumen.equivalenciasSugeridas | json }}</p>
-                                    }
-                                    @for (aviso of resumen.advertencias; track $index) { <p role="note">{{ aviso }}</p> }
-                                </article>
-                            }
-                        </details>
-                    }
-                }
-            }
-        </section>
-        @if (!modoDemo()) {
-            <section class="busqueda-resumen" aria-label="Resultados de búsquedas">
-                <p>Habilitada en configuración permite intentar la consulta; no garantiza disponibilidad del proveedor.</p>
-                @if (resultadoIndividual(); as fuente) {
-                    <h3>Última búsqueda individual</h3>
-                    <app-resultado-fuente [fuente]="fuente" />
-                }
-                @if (resultadoCiclo(); as resultado) {
-                    <h3>Último ciclo: {{ etiquetaEstado(resultado.estado) }}</h3>
-                    <p>Scraping: {{ etiquetaEstado(resultado.estadoScraping) }} · Evaluación: {{ etiquetaEstado(resultado.estadoEvaluacion) }} (global de pendientes, no atribuible a cada fuente).</p>
-                    @if (resultado.errorHistorial || resultado.historial?.guardado === false) {
-                        <p role="alert">{{ resultado.errorHistorial || resultado.historial?.error }}</p>
-                    }
-                    @for (fuente of resultado.fuentes; track fuente.plataforma) {
-                        <app-resultado-fuente [fuente]="fuente" />
-                    }
-                }
-                <h3>Ejecuciones recientes (hasta 20)</h3>
-                <button type="button" (click)="actualizarHistorial()" [disabled]="cargandoHistorial()">Actualizar historial</button>
-                @if (cargandoHistorial()) { <p role="status">Consultando historial...</p> }
-                @if (errorHistorial(); as error) { <p role="alert">{{ error }}</p> }
-                @for (ejecucion of historial(); track ejecucion.id) {
-                    <details>
-                        <summary>{{ ejecucion.tipo }} · {{ ejecucion.inicio }} · {{ etiquetaEstado(ejecucion.estado) }}</summary>
-                        <p>Inicio: {{ ejecucion.inicio }} · Fin: {{ ejecucion.fin || 'Sin finalización' }} · Duración: {{ ejecucion.duracion_ms }} ms</p>
-                        <p>Scraping: {{ etiquetaEstado(ejecucion.resumen.estadoScraping) }} · Evaluación: {{ etiquetaEstado(ejecucion.resumen.estadoEvaluacion) }} (global, sin atribución por fuente).</p>
-                        @if (ejecucion.resumen.motivoFinalizacion) { <p>Finalización: {{ ejecucion.resumen.motivoFinalizacion }}</p> }
-                        @for (fuente of ejecucion.resumen.fuentes; track fuente.plataforma) {
-                            <app-resultado-fuente [fuente]="fuente" />
-                        }
-                    </details>
-                } @empty {
-                    @if (!cargandoHistorial() && !errorHistorial()) { <p>No hay ejecuciones recientes.</p> }
-                }
-            </section>
-        }
-        <!-- Scraping -->
-        <div class="panel-grupo" role="group" aria-label="Acciones de scraping">
-            <span class="grupo-label" id="label-scraping">Scraping</span>
-            <div class="grupo-acciones" role="group" aria-labelledby="label-scraping" [attr.inert]="cargandoPrevisualizacion() ? '' : null">
-                <!-- ── Botones individuales: sólo visibles en desktop (>768px) ── -->
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearLinkedin()" [pTooltip]="modoDemo() ? 'Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos.' : undefined" tooltipPosition="top" aria-label="Scrapear LinkedIn">
-                    <i class="pi pi-linkedin" aria-hidden="true"></i>
-                    {{ scrapeandoLinkedin() ? '...' : 'LinkedIn' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearComputrabajo()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Computrabajo con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Computrabajo">
-                    <i class="pi pi-globe" aria-hidden="true"></i>
-                    {{ scrapeandoComputrabajo() ? '...' : 'Computrabajo' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearIndeed()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Indeed con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Indeed">
-                    <i class="pi pi-search" aria-hidden="true"></i>
-                    {{ scrapeandoIndeed() ? '...' : 'Indeed' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearBumeran()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web.' : undefined" tooltipPosition="top" aria-label="Scrapear Bumeran">
-                    <i class="pi pi-briefcase" aria-hidden="true"></i>
-                    {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearGlassdoor()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Glassdoor con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Glassdoor">
-                    <i class="pi pi-star" aria-hidden="true"></i>
-                    {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoJooble()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top" aria-label="Scrapear Jooble">
-                    <i class="pi pi-search" aria-hidden="true"></i>
-                    {{ scrapeandoJooble() ? '...' : 'Jooble' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || !getonbrdDisponible()" (click)="scrapearGetonbrd()" aria-label="Scrapear GetOnBrd" aria-describedby="disponibilidad-getonbrd">
-                    <i class="pi pi-briefcase" aria-hidden="true"></i>
-                    {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
-                </button>
-                <!-- Google Jobs desactivado — alto costo sin resultados útiles.
-                     Para reactivar: descomentar el botón y restaurar la signal en panel-control.ts.
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
-                    <i class="pi pi-google" aria-hidden="true"></i>
-                    {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
-                </button>
-                -->
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear Remotive">
-                    <i class="pi pi-globe" aria-hidden="true"></i>
-                    {{ scrapeandoRemotive() ? '...' : 'Remotive' }}
-                </button>
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear RemoteOK">
-                    <i class="pi pi-globe" aria-hidden="true"></i>
-                    {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
-                </button>
-                <!-- InfoJobs desactivado temporalmente — el portal de developers no acepta nuevas apps.
-                     Para reactivar: descomentar el botón, restaurar 'infojobs' en opcionesPlataforma,
-                     etiquetasPorPlataforma y el case del dispatcher en panel-control.ts.
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoInfojobs()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearInfojobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de InfoJobs usando su API oficial REST (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear InfoJobs">
-                    <i class="pi pi-briefcase" aria-hidden="true"></i>
-                    {{ scrapeandoInfojobs() ? '...' : 'InfoJobs' }}
-                </button>
-                -->
-                <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoAdzuna()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearAdzuna()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Adzuna usando su API REST oficial (sin Apify). Jobs by Adzuna.' : undefined" tooltipPosition="top" aria-label="Scrapear Adzuna">
-                    <i class="pi pi-search" aria-hidden="true"></i>
-                    {{ scrapeandoAdzuna() ? '...' : 'Adzuna' }}
-                </button>
+        <div class="panel-acciones">
+            <!-- Scraping -->
+            <div class="panel-grupo" role="group" aria-label="Acciones de scraping">
+                <span class="grupo-label" id="label-scraping">Scraping</span>
+                <div class="grupo-acciones" role="group" aria-labelledby="label-scraping" [attr.inert]="cargandoPrevisualizacion() ? '' : null">
+                    <!-- ── Botones individuales: sólo visibles en desktop (>768px) ── -->
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoLinkedin()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearLinkedin()" [pTooltip]="modoDemo() ? 'Extrae ofertas de LinkedIn con la API de Apify. Puede tardar hasta 2 minutos.' : undefined" tooltipPosition="top" aria-label="Scrapear LinkedIn">
+                        <i class="pi pi-linkedin" aria-hidden="true"></i>
+                        {{ scrapeandoLinkedin() ? '...' : 'LinkedIn' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoComputrabajo()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearComputrabajo()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Computrabajo con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Computrabajo">
+                        <i class="pi pi-globe" aria-hidden="true"></i>
+                        {{ scrapeandoComputrabajo() ? '...' : 'Computrabajo' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoIndeed()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearIndeed()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Indeed con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Indeed">
+                        <i class="pi pi-search" aria-hidden="true"></i>
+                        {{ scrapeandoIndeed() ? '...' : 'Indeed' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoBumeran()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearBumeran()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Bumeran usando el web-scraper de Apify (Chrome headless) para renderizar la web.' : undefined" tooltipPosition="top" aria-label="Scrapear Bumeran">
+                        <i class="pi pi-briefcase" aria-hidden="true"></i>
+                        {{ scrapeandoBumeran() ? '...' : 'Bumeran' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGlassdoor()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearGlassdoor()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Glassdoor con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Glassdoor">
+                        <i class="pi pi-star" aria-hidden="true"></i>
+                        {{ scrapeandoGlassdoor() ? '...' : 'Glassdoor' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoJooble()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearJooble()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Jooble usando su API oficial gratuita (requiere API key de registro).' : undefined" tooltipPosition="top" aria-label="Scrapear Jooble">
+                        <i class="pi pi-search" aria-hidden="true"></i>
+                        {{ scrapeandoJooble() ? '...' : 'Jooble' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGetonbrd()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || !getonbrdDisponible()" (click)="scrapearGetonbrd()" aria-label="Scrapear GetOnBrd" aria-describedby="disponibilidad-getonbrd">
+                        <i class="pi pi-briefcase" aria-hidden="true"></i>
+                        {{ scrapeandoGetonbrd() ? '...' : 'GetOnBrd' }}
+                    </button>
+                    <!-- Google Jobs desactivado — alto costo sin resultados útiles.
+                         Para reactivar: descomentar el botón y restaurar la signal en panel-control.ts.
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoGoogleJobs()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearGoogleJobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Google Jobs con la API de Apify.' : undefined" tooltipPosition="top" aria-label="Scrapear Google Jobs">
+                        <i class="pi pi-google" aria-hidden="true"></i>
+                        {{ scrapeandoGoogleJobs() ? '...' : 'Google Jobs' }}
+                    </button>
+                    -->
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemotive()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearRemotive()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de Remotive usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear Remotive">
+                        <i class="pi pi-globe" aria-hidden="true"></i>
+                        {{ scrapeandoRemotive() ? '...' : 'Remotive' }}
+                    </button>
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoRemoteOK()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearRemoteOK()" [pTooltip]="modoDemo() ? 'Extrae ofertas remotas de RemoteOK usando su API pública gratuita (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear RemoteOK">
+                        <i class="pi pi-globe" aria-hidden="true"></i>
+                        {{ scrapeandoRemoteOK() ? '...' : 'RemoteOK' }}
+                    </button>
+                    <!-- InfoJobs desactivado temporalmente — el portal de developers no acepta nuevas apps.
+                         Para reactivar: descomentar el botón, restaurar 'infojobs' en opcionesPlataforma,
+                         etiquetasPorPlataforma y el case del dispatcher en panel-control.ts.
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoInfojobs()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearInfojobs()" [pTooltip]="modoDemo() ? 'Extrae ofertas de InfoJobs usando su API oficial REST (sin Apify).' : undefined" tooltipPosition="top" aria-label="Scrapear InfoJobs">
+                        <i class="pi pi-briefcase" aria-hidden="true"></i>
+                        {{ scrapeandoInfojobs() ? '...' : 'InfoJobs' }}
+                    </button>
+                    -->
+                    <button class="btn-accion scraping-solo-desktop" [class.btn-cargando]="scrapeandoAdzuna()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="scrapearAdzuna()" [pTooltip]="modoDemo() ? 'Extrae ofertas de Adzuna usando su API REST oficial (sin Apify). Jobs by Adzuna.' : undefined" tooltipPosition="top" aria-label="Scrapear Adzuna">
+                        <i class="pi pi-search" aria-hidden="true"></i>
+                        {{ scrapeandoAdzuna() ? '...' : 'Adzuna' }}
+                    </button>
 
-                <p id="disponibilidad-getonbrd" role="status">
-                    {{ getonbrdDisponible() && !modoDemo() ? 'GetOnBrd: disponible según la configuración del backend.' : motivoGetonbrd() }}
-                </p>
 
-                <!-- ── Selector mobile: sólo visible en ≤768px ── -->
-                <div class="scraping-selector-mobile" role="group" aria-label="Seleccionar plataforma de scraping">
-                    <label class="scraping-selector-mobile__label" for="selector-plataforma-mobile">Plataforma</label>
-                    <div class="scraping-selector-mobile__fila">
-                        <p-select
-                            inputId="selector-plataforma-mobile"
-                            [(ngModel)]="plataformaSeleccionadaModel"
-                            [options]="opcionesPlataforma"
-                            optionLabel="label"
-                            optionValue="value"
-                            [disabled]="busquedaOcupada() || cargandoPrevisualizacion()"
-                            placeholder="Seleccioná plataforma"
-                            aria-label="Seleccioná la plataforma de scraping"
-                            styleClass="scraping-selector-mobile__select"
-                            appendTo="body" />
-                        <button
-                            class="btn-accion scraping-selector-mobile__btn-extraer"
-                            [class.btn-cargando]="scrapeandoAlguno()"
-                            [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || (plataformaSeleccionada() === 'getonbrd' && !getonbrdDisponible())"
-                            (click)="scrapearPlataformaSeleccionada()"
-                            [attr.aria-label]="'Extraer ofertas de ' + (etiquetasPorPlataforma[plataformaSeleccionada()] || plataformaSeleccionada())">
-                            <span class="material-symbols-outlined" aria-hidden="true">download</span>
-                            {{ scrapeandoAlguno() ? '...' : 'Extraer' }}
+                    <!-- ── Selector mobile: sólo visible en ≤768px ── -->
+                    <div class="scraping-selector-mobile" role="group" aria-label="Seleccionar plataforma de scraping">
+                        <label class="scraping-selector-mobile__label" for="selector-plataforma-mobile">Plataforma</label>
+                        <div class="scraping-selector-mobile__fila">
+                            <p-select
+                                inputId="selector-plataforma-mobile"
+                                [(ngModel)]="plataformaSeleccionadaModel"
+                                [options]="opcionesPlataforma"
+                                optionLabel="label"
+                                optionValue="value"
+                                [disabled]="busquedaOcupada() || cargandoPrevisualizacion()"
+                                placeholder="Seleccioná plataforma"
+                                aria-label="Seleccioná la plataforma de scraping"
+                                styleClass="scraping-selector-mobile__select"
+                                appendTo="body" />
+                            <button
+                                class="btn-accion scraping-selector-mobile__btn-extraer"
+                                [class.btn-cargando]="scrapeandoAlguno()"
+                                [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || (plataformaSeleccionada() === 'getonbrd' && !getonbrdDisponible())"
+                                (click)="scrapearPlataformaSeleccionada()"
+                                [attr.aria-label]="'Extraer ofertas de ' + (etiquetasPorPlataforma[plataformaSeleccionada()] || plataformaSeleccionada())">
+                                <span class="material-symbols-outlined" aria-hidden="true">download</span>
+                                {{ scrapeandoAlguno() ? '...' : 'Extraer' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="ejecutarCicloCompleto()" [pTooltip]="modoDemo() ? 'Ciclo completo: extrae de todas las plataformas y evalúa con IA en una sola operación.' : undefined" tooltipPosition="top" aria-label="Ejecutar ciclo completo de scraping y evaluación">
+                        <span class="material-symbols-outlined" aria-hidden="true">play_circle</span>
+                        {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
+                    </button>
+                </div>
+            </div>
+
+            <!-- Evaluación IA + Automatización en la misma fila -->
+            <div class="panel-fila-secundaria" role="group" aria-label="Evaluación IA y automatización">
+                <div class="panel-grupo" role="group" aria-labelledby="label-evaluacion">
+                    <span class="grupo-label" id="label-evaluacion">Evaluación IA</span>
+                    <div class="grupo-acciones eval-acciones">
+                        <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top" aria-label="Evaluar ofertas pendientes con IA">
+                            {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
                         </button>
+                        <button class="btn-accion btn-reintentar" [class.btn-cargando]="reintentandoErrores()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || evaluando() || reintentandoErrores()" (click)="reintentarErrores()" [pTooltip]="modoDemo() ? 'Reintenta la evaluación con IA únicamente de aquellas ofertas que sufrieron un fallo técnico.' : undefined" tooltipPosition="top" aria-label="Reintentar evaluación de ofertas con error">
+                            <span class="material-symbols-outlined btn-icono" aria-hidden="true">refresh</span>
+                            {{ reintentandoErrores() ? 'Reintentando...' : 'Reintentar errores' }}
+                        </button>
+                        @if (evaluando()) {
+                            <div class="eval-progreso" role="progressbar" [attr.aria-valuenow]="progresoEvaluacion()?.porcentaje ?? 0" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Progreso de evaluación: ' + (progresoEvaluacion()?.porcentaje ?? 0) + '%'">
+                                <div class="eval-progreso__barra">
+                                    <div class="eval-progreso__relleno" [style.width.%]="progresoEvaluacion()?.porcentaje ?? 0"></div>
+                                </div>
+                                <span class="eval-progreso__texto">
+                                    {{ progresoEvaluacion()?.evaluadas ?? 0 }}/{{ progresoEvaluacion()?.total ?? '...' }}
+                                    ({{ progresoEvaluacion()?.porcentaje ?? 0 }}%)
+                                </span>
+                            </div>
+                            <button class="btn-cancelar" [attr.title]="modoDemo() ? 'Cancelar evaluación' : null" (click)="cancelarEvaluacion()" aria-label="Cancelar evaluación en progreso">
+                                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                            </button>
+                        }
                     </div>
                 </div>
 
-                <button class="btn-primario btn-ejecutar-todo" [class.btn-cargando]="ejecutandoCiclo()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="ejecutarCicloCompleto()" [pTooltip]="modoDemo() ? 'Ciclo completo: extrae de todas las plataformas y evalúa con IA en una sola operación.' : undefined" tooltipPosition="top" aria-label="Ejecutar ciclo completo de scraping y evaluación">
-                    <span class="material-symbols-outlined" aria-hidden="true">play_circle</span>
-                    {{ ejecutandoCiclo() ? 'Ejecutando...' : 'Ejecutar todo' }}
-                </button>
-            </div>
-        </div>
+                <div class="panel-separador-v" aria-hidden="true"></div>
 
-        <!-- Evaluación IA + Automatización en la misma fila -->
-        <div class="panel-fila-secundaria" role="group" aria-label="Evaluación IA y automatización">
-            <div class="panel-grupo" role="group" aria-labelledby="label-evaluacion">
-                <span class="grupo-label" id="label-evaluacion">Evaluación IA</span>
-                <div class="grupo-acciones eval-acciones">
-                    <button class="btn-primario" [class.btn-cargando]="evaluando()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion()" (click)="ejecutarEvaluacion()" [pTooltip]="modoDemo() ? 'Usa DeepSeek IA para analizar ofertas pendientes y determinar si hacen match con el perfil configurado.' : undefined" tooltipPosition="top" aria-label="Evaluar ofertas pendientes con IA">
-                        {{ evaluando() ? 'Evaluando...' : 'Evaluar pendientes' }}
-                    </button>
-                    <button class="btn-secundario btn-reintentar" [class.btn-cargando]="reintentandoErrores()" [disabled]="busquedaOcupada() || cargandoPrevisualizacion() || evaluando() || reintentandoErrores()" (click)="reintentarErrores()" [pTooltip]="modoDemo() ? 'Reintenta la evaluación con IA únicamente de aquellas ofertas que sufrieron un fallo técnico.' : undefined" tooltipPosition="top" aria-label="Reintentar evaluación de ofertas con error">
-                        <span class="material-symbols-outlined btn-icono" aria-hidden="true">refresh</span>
-                        {{ reintentandoErrores() ? 'Reintentando...' : 'Reintentar errores' }}
-                    </button>
-                    @if (evaluando()) {
-                        <div class="eval-progreso" role="progressbar" [attr.aria-valuenow]="progresoEvaluacion()?.porcentaje ?? 0" aria-valuemin="0" aria-valuemax="100" [attr.aria-label]="'Progreso de evaluación: ' + (progresoEvaluacion()?.porcentaje ?? 0) + '%'">
-                            <div class="eval-progreso__barra">
-                                <div class="eval-progreso__relleno" [style.width.%]="progresoEvaluacion()?.porcentaje ?? 0"></div>
-                            </div>
-                            <span class="eval-progreso__texto">
-                                {{ progresoEvaluacion()?.evaluadas ?? 0 }}/{{ progresoEvaluacion()?.total ?? '...' }}
-                                ({{ progresoEvaluacion()?.porcentaje ?? 0 }}%)
-                            </span>
-                        </div>
-                        <button class="btn-cancelar" [attr.title]="modoDemo() ? 'Cancelar evaluación' : null" (click)="cancelarEvaluacion()" aria-label="Cancelar evaluación en progreso">
-                            <span class="material-symbols-outlined" aria-hidden="true">close</span>
-                        </button>
+                <div class="panel-grupo" role="group" aria-labelledby="label-automatizacion">
+                    <span class="grupo-label" id="label-automatizacion">Automatización</span>
+                    <div class="grupo-acciones grupo-cron">
+                        <p-toggleswitch
+                            [ngModel]="cronActivo()"
+                            (ngModelChange)="toggleCron($event)"
+                            [disabled]="modoDemo() || cambiandoCron()"
+                            [pTooltip]="modoDemo() ? 'Activa un ciclo automático que se ejecuta cada martes a las 20:00 (ART) sin intervención manual.' : undefined"
+                            tooltipPosition="top"
+                            aria-label="Activar automatización semanal los martes a las 20:00" />
+                        <span class="cron-texto" [class.cron-activo]="cronActivo()" aria-live="polite">
+                            {{ cronActivo() ? expresionCron() : 'Inactivo' }}
+                        </span>
+                    </div>
+                    @if (zonaHoraria()) { <p>Zona horaria: {{ zonaHoraria() }}</p> }
+                    @if (cambiandoCron()) { <p role="status">Confirmando automatización...</p> }
+                    @if (errorCron(); as error) {
+                        <p role="alert">{{ error }}</p>
+                        <button class="btn-accion" type="button" (click)="consultarEstadoCron()">Consultar estado de automatización</button>
                     }
                 </div>
             </div>
-
-            <div class="panel-separador-v" aria-hidden="true"></div>
-
-            <div class="panel-grupo" role="group" aria-labelledby="label-automatizacion">
-                <span class="grupo-label" id="label-automatizacion">Automatización</span>
-                <div class="grupo-acciones grupo-cron">
-                    <p-toggleswitch
-                        [ngModel]="cronActivo()"
-                        (ngModelChange)="toggleCron($event)"
-                        [disabled]="modoDemo() || cambiandoCron()"
-                        [pTooltip]="modoDemo() ? 'Activa un ciclo automático que se ejecuta cada martes a las 20:00 (ART) sin intervención manual.' : undefined"
-                        tooltipPosition="top"
-                        aria-label="Activar automatización semanal los martes a las 20:00" />
-                    <span class="cron-texto" [class.cron-activo]="cronActivo()" aria-live="polite">
-                        {{ cronActivo() ? expresionCron() : 'Inactivo' }}
-                    </span>
-                </div>
-                @if (zonaHoraria()) { <p>Zona horaria: {{ zonaHoraria() }}</p> }
-                @if (cambiandoCron()) { <p role="status">Confirmando automatización...</p> }
-                @if (errorCron(); as error) {
-                    <p role="alert">{{ error }}</p>
-                    <button type="button" (click)="consultarEstadoCron()">Consultar estado de automatización</button>
+        </div>
+        <section class="panel-estado" aria-label="Estado operativo de búsquedas" aria-live="polite">
+            <p id="disponibilidad-getonbrd">{{ getonbrdDisponible() && !modoDemo() ? 'GetOnBrd: disponible según la configuración del backend.' : motivoGetonbrd() }}</p>
+            @if (cargandoPrevisualizacion()) { <p role="status">Consultando configuración guardada...</p> }
+            @if (errorPrevisualizacion(); as error) { <p role="alert">{{ error }}</p> }
+            @if (cargandoHistorial()) { <p role="status">Consultando historial...</p> }
+            @if (errorHistorial(); as error) { <p role="alert">{{ error }}</p> }
+            @if (resultadoCiclo(); as resultado) {
+                <p>Último ciclo: {{ etiquetaEstado(resultado.estado) }} · Scraping: {{ etiquetaEstado(resultado.estadoScraping) }} · Evaluación: {{ etiquetaEstado(resultado.estadoEvaluacion) }} (global de pendientes).</p>
+                @if (resultado.errorHistorial || resultado.historial?.guardado === false) {
+                    <p role="alert">{{ resultado.errorHistorial || resultado.historial?.error }}</p>
                 }
-            </div>
+            }
+            @for (aviso of avisosOperativos(); track aviso) { <p>{{ aviso }}</p> }
+        </section>
+        <div class="panel-diagnosticos">
+            <details class="busqueda-resumen" aria-label="Configuración efectiva de búsquedas">
+                <summary>Configuración efectiva de búsquedas</summary>
+                @if (modoDemo()) {
+                    <p>Modo demo: no consulto ni ejecuto búsquedas reales.</p>
+                } @else {
+                    <button class="btn-accion" type="button" (click)="actualizarPrevisualizacion()" [disabled]="cargandoPrevisualizacion()">
+                        Actualizar configuración guardada
+                    </button>
+                    <p>Consulto nuevamente antes de extraer. La ejecución informa su configuración aplicada; no uso cambios sin guardar. En el ciclo omito solamente las fuentes con consultas incompatibles, sin sustituir términos por defaults.</p>
+                    @for (grupo of gruposResumen(); track grupo.titulo) {
+                        @if (grupo.resumenes.length) {
+                            <details>
+                                <summary>{{ grupo.titulo }}</summary>
+                                @for (resumen of grupo.resumenes; track resumen.plataforma) {
+                                    <article>
+                                        <strong>{{ resumen.nombre }}</strong>
+                                        — {{ !resumen.habilitada ? 'Deshabilitada' : grupo.esCiclo && resumen.motivoOmision ? 'Omitida' : resumen.ejecutable ? 'Habilitada para intentar' : 'No disponible' }}
+                                        <p>Términos: {{ resumen.terminos.slice(0, 5).join(', ') || 'Sin términos aplicables' }}
+                                            @if (resumen.terminos.length > 5) { (+{{ resumen.terminos.length - 5 }} más) }
+                                            · Origen: {{ resumen.origen.terminos }}</p>
+                                        <p>Ubicación: {{ resumen.ubicacion.join(', ') || 'Sin ubicación aplicable' }} · Origen: {{ resumen.origen.ubicacion }}.
+                                            Ventana: {{ resumen.ventanaDias === null ? 'No aplica' : resumen.ventanaDias + ' días' }}.
+                                            maxResultados: {{ resumen.maxResultados === null ? 'Sin valor configurable' : resumen.maxResultados }}.</p>
+                                        @if (resumen.motivoFinalizacion) {
+                                            <p>Finalización: {{ resumen.motivoFinalizacion }}.</p>
+                                        }
+                                        @if (resumen.totalElegibles !== undefined) {
+                                            <p>Resultados útiles: {{ resumen.totalElegibles }} elegibles / {{ resumen.totalCrudos ?? resumen.totalElegibles }} crudos
+                                                @if (resumen.duplicadasDescartadas) { · {{ resumen.duplicadasDescartadas }} duplicadas }
+                                                @if (resumen.antiguasDescartadas) { · {{ resumen.antiguasDescartadas }} fuera de ventana }
+                                                @if (resumen.sinFechaConocida) { · {{ resumen.sinFechaConocida }} sin fecha }
+                                            </p>
+                                        }
+                                        @if (resumen.consultasOmitidasPorPresupuesto && resumen.consultasOmitidasPorPresupuesto.length > 0) {
+                                            <p>Consultas omitidas por presupuesto: {{ resumen.consultasOmitidasPorPresupuesto.join(', ') }}</p>
+                                        }
+                                        <p>Filtros informados: {{ resumen.filtros | json }}</p>
+                                        @if (resumen.consultasEfectivas) {
+                                            <p>Consultas efectivas: {{ formatearConsultas(resumen.consultasEfectivas) }}</p>
+                                        }
+                                        @if (resumen.equivalenciasAplicadas && hayEquivalencias(resumen.equivalenciasAplicadas)) {
+                                            <p>Equivalencias aplicadas: {{ resumen.equivalenciasAplicadas | json }}</p>
+                                        }
+                                        @if (resumen.equivalenciasSugeridas && hayEquivalencias(resumen.equivalenciasSugeridas)) {
+                                            <p>Sugerencias disponibles (no enviadas): {{ resumen.equivalenciasSugeridas | json }}</p>
+                                        }
+                                        @for (aviso of resumen.advertencias; track $index) { <p role="note">{{ aviso }}</p> }
+                                    </article>
+                                }
+                            </details>
+                        }
+                    }
+                }
+            </details>
+            @if (!modoDemo()) {
+                <details class="busqueda-resumen" aria-label="Resultados e historial">
+                    <summary>Resultados e historial</summary>
+                    <p>Habilitada en configuración permite intentar la consulta; no garantiza disponibilidad del proveedor.</p>
+                    @if (resultadoIndividual(); as fuente) {
+                        <h3>Última búsqueda individual</h3>
+                        <app-resultado-fuente [fuente]="fuente" />
+                    }
+                    @if (resultadoCiclo(); as resultado) {
+                        <h3>Último ciclo: {{ etiquetaEstado(resultado.estado) }}</h3>
+                        <p>Scraping: {{ etiquetaEstado(resultado.estadoScraping) }} · Evaluación: {{ etiquetaEstado(resultado.estadoEvaluacion) }} (global de pendientes, no atribuible a cada fuente).</p>
+                        @for (fuente of resultado.fuentes; track fuente.plataforma) {
+                            <app-resultado-fuente [fuente]="fuente" />
+                        }
+                    }
+                    <h3>Ejecuciones recientes (hasta 20)</h3>
+                    <button class="btn-accion" type="button" (click)="actualizarHistorial()" [disabled]="cargandoHistorial()">Actualizar historial</button>
+                    @for (ejecucion of historial(); track ejecucion.id) {
+                        <details>
+                            <summary>{{ ejecucion.tipo }} · {{ ejecucion.inicio }} · {{ etiquetaEstado(ejecucion.estado) }}</summary>
+                            <p>Inicio: {{ ejecucion.inicio }} · Fin: {{ ejecucion.fin || 'Sin finalización' }} · Duración: {{ ejecucion.duracion_ms }} ms</p>
+                            <p>Scraping: {{ etiquetaEstado(ejecucion.resumen.estadoScraping) }} · Evaluación: {{ etiquetaEstado(ejecucion.resumen.estadoEvaluacion) }} (global, sin atribución por fuente).</p>
+                            @if (ejecucion.resumen.motivoFinalizacion) { <p>Finalización: {{ ejecucion.resumen.motivoFinalizacion }}</p> }
+                            @for (fuente of ejecucion.resumen.fuentes; track fuente.plataforma) {
+                                <app-resultado-fuente [fuente]="fuente" />
+                            }
+                        </details>
+                    } @empty {
+                        @if (!cargandoHistorial() && !errorHistorial()) { <p>No hay ejecuciones recientes.</p> }
+                    }
+                </details>
+            }
         </div>
     </div>
 </div>

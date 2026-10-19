@@ -68,6 +68,43 @@ describe('PanelControl — Selector mobile de scraping', () => {
         fixture.detectChanges();
     });
 
+    it('priorizo acciones y conservo configuración e historial cerrados sin disparar operaciones', () => {
+        const extraer = spyOn(mockScrapingService, 'scrapearLinkedin').and.callThrough();
+        const cron = spyOn(mockAutomatizacionService, 'iniciarCron').and.callThrough();
+        const evaluar = spyOn(mockEvaluacionService, 'ejecutarEvaluacion').and.callThrough();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const detalles = raiz.querySelector<HTMLDetailsElement>('details[aria-label="Configuración efectiva de búsquedas"]');
+        expect(detalles).not.toBeNull();
+        expect(detalles?.open).toBeFalse();
+        const accion = raiz.querySelector('[aria-label="Acciones de scraping"]')!;
+        expect(accion.compareDocumentPosition(detalles!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        detalles!.open = true;
+        raiz.querySelector<HTMLButtonElement>('details button')!.click();
+        fixture.detectChanges();
+        expect(extraer).not.toHaveBeenCalled();
+        expect(cron).not.toHaveBeenCalled();
+        expect(evaluar).not.toHaveBeenCalled();
+        expect(raiz.querySelector<HTMLDetailsElement>('details[aria-label="Resultados e historial"]')?.open).toBeFalse();
+    });
+
+    it('mantengo errores, límites y fuentes bloqueadas visibles fuera de los detalles', () => {
+        component.previsualizacion.set([{ plataforma: 'jooble', nombre: 'Jooble', habilitada: true,
+            ejecutable: false, terminos: [], ubicacion: [], ventanaDias: 30, maxResultados: 40,
+            advertencias: ['Falta la clave del proveedor'], filtros: {},
+            origen: { terminos: 'preferencias', ubicacion: 'preferencias' } }]);
+        component.resultadoIndividual.set({ plataforma: 'linkedin', estado: 'parcial',
+            motivoFinalizacion: 'Límite de peticiones', errores: [{ tipo: 'proveedor', mensaje: 'Cuota agotada' }] });
+        component.errorHistorial.set('No pude leer el historial');
+        fixture.detectChanges();
+        const resumen: HTMLElement = fixture.nativeElement.querySelector('[aria-label="Estado operativo de búsquedas"]');
+        expect(resumen).not.toBeNull();
+        expect(resumen.textContent).toContain('Cuota agotada');
+        expect(resumen.textContent).toContain('Límite de peticiones');
+        expect(resumen.textContent).toContain('Falta la clave del proveedor');
+        expect(resumen.textContent).toContain('No pude leer el historial');
+        expect(resumen.closest('details')).toBeNull();
+    });
+
     const resumenGetonbrd: ResumenBusqueda = {
         plataforma: 'getonbrd', nombre: 'GetOnBrd', habilitada: true, ejecutable: true,
         terminos: ['junior'], ubicacion: [], ventanaDias: 30, maxResultados: 40,

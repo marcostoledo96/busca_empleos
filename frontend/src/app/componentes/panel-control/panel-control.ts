@@ -107,6 +107,35 @@ export class PanelControl implements OnInit, OnDestroy {
         { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo(), esCiclo: true },
     ]);
 
+    // Conservo los avisos operativos a la vista aunque cierre el detalle técnico.
+    readonly avisosOperativos = computed(() => {
+        const avisos = new Set<string>();
+        for (const grupo of this.gruposResumen()) {
+            for (const resumen of grupo.resumenes) {
+                const prefijo = `${resumen.nombre}: `;
+                if (!resumen.habilitada || !resumen.ejecutable || resumen.motivoOmision) {
+                    avisos.add(prefijo + (resumen.motivoOmision || (!resumen.habilitada ? 'Deshabilitada' : 'No disponible')));
+                }
+                for (const aviso of resumen.advertencias) avisos.add(prefijo + aviso);
+                if (resumen.motivoFinalizacion) avisos.add(prefijo + resumen.motivoFinalizacion);
+                if (resumen.consultasOmitidasPorPresupuesto?.length) {
+                    avisos.add(`${prefijo}Consultas omitidas por presupuesto: ${resumen.consultasOmitidasPorPresupuesto.join(', ')}`);
+                }
+            }
+        }
+        const fuentes = [...(this.resultadoCiclo()?.fuentes ?? [])];
+        const individual = this.resultadoIndividual();
+        if (individual) fuentes.unshift(individual);
+        for (const fuente of fuentes) {
+            const nombre = fuente.nombre || this.etiquetasPorPlataforma[fuente.plataforma] || fuente.plataforma;
+            avisos.add(`${nombre}: ${etiquetaEstado(fuente.estado)}${fuente.motivoFinalizacion ? ' · ' + fuente.motivoFinalizacion : ''}`);
+            for (const error of [...(fuente.errores ?? []), ...(fuente.resultadosConsultas ?? []).flatMap(consulta => consulta.errores)]) {
+                avisos.add(`${nombre}: ${error.tipo}${error.codigoHttp ? ' ' + error.codigoHttp : ''}${error.mensaje ? ' · ' + error.mensaje : ''}`);
+            }
+        }
+        return [...avisos];
+    });
+
     formatearConsultas(consultas: unknown): string {
         if (!consultas) return '';
         if (Array.isArray(consultas)) return consultas.join(', ');

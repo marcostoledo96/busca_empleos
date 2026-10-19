@@ -24,7 +24,8 @@
 .dashboard-stats {
     display: flex;
     align-items: baseline;
-    gap: 3rem;
+    gap: 1.5rem;
+    flex-wrap: wrap;
     padding-left: calc(1.5rem + 8px);
     font-family: var(--font-mono);
 }
@@ -84,6 +85,43 @@
 
 .dashboard {
     animation: aparecer 0.3s ease-out;
+}
+
+.dashboard__sincronizacion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem 1rem;
+    margin-top: 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    overflow-wrap: anywhere;
+}
+
+.dashboard__sincronizacion > p[role="alert"] {
+    color: var(--error);
+    font-weight: 700;
+}
+
+.dashboard__sincronizacion details {
+    min-width: 0;
+}
+
+.dashboard__sincronizacion summary {
+    cursor: pointer;
+    min-height: 44px;
+    padding-block: 0.75rem;
+}
+
+.dashboard__sincronizacion button,
+.dashboard__mensaje button {
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    background: var(--surface);
+    color: var(--on-surface);
+    border: 1px solid var(--outline-variant);
+    font: inherit;
+    cursor: pointer;
 }
 
 /* Mensaje de estado de carga (cache / fresco) */

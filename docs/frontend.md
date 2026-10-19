@@ -292,6 +292,62 @@ panel de scraping y la persistencia. Cubren filtro/página → selección → bu
 → aviso visible → reintento confirmado, concurrencia cruzada, respuesta parcial y
 refresco HTTP. No equivalen a pruebas contra PostgreSQL ni proveedores reales.
 
+## Jerarquía del dashboard y pruebas de navegador — issue #48
+
+Conservo **Busco Trabajo** y los tokens de **The Silent Processor**. Muestro primero
+los contadores, las acciones de búsqueda, IA y automatización y el estado actual.
+En escritorio comparto el espacio de acciones; en tablet y teléfono mantengo el
+selector de fuente existente y dejo que los controles se distribuyan sin solaparse.
+
+Uso `details`/`summary` nativos, cerrados al entrar, para **Configuración efectiva de
+búsquedas**, **Resultados e historial** y **Detalle de sincronización**. Abrirlos no
+consulta ni ejecuta operaciones: los botones de actualización siguen siendo explícitos.
+Conservo todos los campos, resultados por fuente e historial de hasta 20 ejecuciones.
+Con Tab y Shift+Tab recorro controles; Enter abre o cierra los resúmenes. Escape sigue
+cerrando el diálogo de oferta y los selectores de PrimeNG, no un `details` nativo.
+
+Fuera de los desplegables mantengo fallas de carga/sincronización, previsualización,
+historial, evaluación y cron; estado del último ciclo, estados y errores de fuentes
+(incluidas sus consultas), bloqueos, advertencias, límites y omisiones por presupuesto.
+El progreso y la cancelación existentes no dependen de abrir los diagnósticos.
+
+### E2E aislado y reproducible
+
+Desde `frontend`, con dependencias instaladas y Google Chrome disponible:
+
+```bash
+npx --no-install playwright test
+```
+
+Playwright levanta automáticamente `ng serve --configuration e2e` en
+`http://127.0.0.1:4350`. Para inspección manual uso:
+
+```bash
+npx --no-install ng serve --configuration e2e --host 127.0.0.1 --port 4350
+```
+
+La entrada **exclusiva de pruebas** `e2e/main.ts` monta Dashboard y PanelControl reales,
+con respuestas HTTP y persistencia en memoria. No inicializo Firebase ni simulo un
+login productivo; no uso credenciales, cookies ni almacenamiento de sesiones. El
+interceptor responde exhaustivamente sin delegar al transporte; rechazo solicitudes
+no previstas. Además bloqueo en Playwright cualquier recurso externo al servidor
+local. No ejecuto scraping, IA paga, postulaciones ni cron reales.
+
+`?estado=vacio|error|cargando|completado` selecciona escenarios; sin parámetro uso
+un ciclo parcial. `?tema=oscuro` activa el tema oscuro. Las pruebas recorren contadores,
+pestañas, filtro, detalle de oferta/Escape, divulgación/teclado, actualización de
+configuración/historial y operaciones individuales, IA y ciclo completo simulados.
+Compruebo que inspeccionar no dispare POST/PATCH ni active automatización.
+
+La matriz sintética usa 1440×900, 1366×768, 1024×768, 768×900, 390×844 y 320×844,
+ambos temas, fuentes listas y animaciones desactivadas. Guardo capturas y logs sólo
+en `.angular/evidencia-48/` (ignorado), nunca datos productivos en el repositorio.
+`EVIDENCIA48=antes npx --no-install playwright test --grep '@evidencia'` etiqueta una
+captura del código que esté ejecutándose: **no reconstruye la revisión anterior**.
+Sin esa variable las capturas se llaman `despues-<ancho>-<tema>.png`. El bloqueo de
+red usa las fuentes locales/fallback disponibles; no acredita la carga de tipografías
+externas ni sustituye la auditoría autenticada y el build productivo.
+
 ## Resultados por fuente e historial — issue #20
 
 Mantengo el panel existente y agrego detalles HTML desplegables para la última búsqueda
