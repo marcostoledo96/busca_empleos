@@ -16,8 +16,8 @@ S10. "La PR debe incluir `Closes #49`." "No hagas merge ni cierres la issue." "L
 S11. "No continúes navegando por la pantalla autenticada hasta que responda: «Ya me autentiqué»." "No solicites contraseñas, cookies, tokens ni códigos 2FA."
 
 ## Tasks
-T1 | S1,S2,S8,S11 | delegated exploration + worker | in_progress | harness verified 6/6 Chrome smoke; 6 BEFORE + 6 historical captures; historical build PASS; committing evidence.
-T2 | S3-S8 | delegated worker | pending | minimal Preferences organization, unit/E2E RED/GREEN, docs; commit pending.
+T1 | S1,S2,S8,S11 | delegated exploration + worker | done | e59182996c334f10350fefa8cbe2d8798d795393; 6/6 smoke PASS; 6 BEFORE + 6 historical captures; historical build PASS.
+T2 | S3-S8 | delegated worker | in_progress | UI readback complete; RED 6PASS/19FAIL, GREEN 30/30 E2E + 67/67 unit. Local styles/NgTemplateOutlet only, docs updated; committing.
 T3 | S2,S7-S9 | inline browser checks + independent verify | pending | full suites/build, visual evidence, independent verdict; commit pending.
 T4 | S10 | inline | pending | push and single PR to master, CI state; commit pending.
 

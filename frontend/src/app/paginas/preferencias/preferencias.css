@@ -3,7 +3,7 @@
    ============================================ */
 
 .preferencias-contenedor {
-    width: min(1380px, calc(100vw - 96px));
+    width: 100%;
     max-width: 1380px;
     min-width: 0;
     margin: 0 auto;
@@ -367,7 +367,7 @@
 /* === Responsive — tablet (769–1024px) === */
 @media (min-width: 769px) and (max-width: 1024px) {
     .preferencias-contenedor {
-        width: min(100%, calc(100vw - 48px));
+        width: 100%;
         max-width: none;
         padding: 0 0.5rem;
     }
@@ -399,7 +399,7 @@
     }
 
     .preferencias-contenedor {
-        width: min(100%, calc(100vw - 24px));
+        width: 100%;
         max-width: none;
     }
 
@@ -512,8 +512,9 @@
 .tabla-tech {
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
-    overflow: visible;
+    overflow-x: auto;
     width: 100%;
+    box-sizing: border-box;
 }
 
 .tabla-tech__header {
@@ -572,8 +573,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: 44px;
+    height: 44px;
     background: transparent;
     border: 1px solid var(--outline-variant);
     border-radius: var(--radius-sm);
@@ -596,8 +597,8 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 28px;
-    height: 28px;
+    width: 44px;
+    height: 44px;
     background: transparent;
     border: none;
     color: var(--on-surface-variant);
@@ -838,13 +839,106 @@
 
 .tabla-tech__header--amplia,
 .tabla-tech__fila--amplia {
-    grid-template-columns: 1.2fr 0.9fr 1fr 1fr 1.4fr 1.6fr 44px;
+    grid-template-columns: 1.2fr 0.9fr 1fr 1fr 1.4fr 1.6fr 60px;
     min-width: 980px;
 }
 
 .roles-grid__header,
 .roles-grid__fila {
-    grid-template-columns: 1.3fr 0.8fr 1.8fr 44px;
+    grid-template-columns: 1.3fr 0.8fr 1.8fr 60px;
+    min-width: 620px;
+}
+
+/* Mantengo el desborde de las tablas dentro de su propio bloque. */
+:host {
+    display: block;
+    min-width: 0;
+}
+
+.preferencias-contenedor,
+.seccion,
+.seccion-cuerpo,
+.campo,
+.campo-fila,
+.importar-mini-lista {
+    min-width: 0;
+    box-sizing: border-box;
+    overflow-wrap: anywhere;
+}
+
+summary {
+    cursor: pointer;
+    min-height: 44px;
+    padding: 0.75rem 1.25rem;
+    box-sizing: border-box;
+    color: var(--on-surface);
+    background: var(--surface-container-low);
+}
+
+summary:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.preferencias-estados:empty {
+    display: none;
+}
+
+.preferencias-estados p {
+    margin: 0 0 0.75rem;
+}
+
+:host ::ng-deep .preferencias-contenedor input,
+:host ::ng-deep .preferencias-contenedor select,
+:host ::ng-deep .preferencias-contenedor button,
+:host ::ng-deep .preferencias-contenedor textarea,
+.importar-input::file-selector-button {
+    min-height: 44px;
+    box-sizing: border-box;
+    max-width: 100%;
+}
+
+:host ::ng-deep .preferencias-contenedor button {
+    min-width: 44px;
+}
+
+.preferencias-contenedor input[type=checkbox] {
+    width: 44px;
+    flex-shrink: 0;
+}
+
+.tabla-tech__col {
+    min-width: 0;
+}
+
+:host ::ng-deep .preferencias-tabs-shell .p-tabpanels,
+:host ::ng-deep .preferencias-tabs-shell .p-tabpanel,
+:host ::ng-deep .p-select,
+:host ::ng-deep .p-multiselect,
+:host ::ng-deep .p-autocomplete {
+    min-width: 0;
+    max-width: 100%;
+}
+
+:host ::ng-deep .p-select-label,
+:host ::ng-deep .p-multiselect-label {
+    min-height: 44px;
+    box-sizing: border-box;
+}
+
+:host ::ng-deep .p-autocomplete-input-multiple {
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+:host ::ng-deep .p-chip {
+    max-width: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 /* === Fin de estilos de preferencias === */

@@ -29,6 +29,24 @@ describe('Preferencias — CV base persistido', () => {
         return { fixture, componente: fixture.componentInstance, http };
     }
 
+    it('ubica el editor en Importar CV con disclosure nativo y refleja el borrador en el estado global', async () => {
+        const { fixture, http } = await abrir('Fuente confirmada');
+        const raiz = fixture.nativeElement as HTMLElement;
+        const editor = raiz.querySelector('#cv-base') as HTMLTextAreaElement;
+        expect(editor.closest('p-tabpanel')?.textContent).toContain('IMPORTAR_CV');
+        const detalle = editor.closest('details')!;
+        expect(detalle.open).toBeFalse();
+        expect(detalle.querySelector('summary')?.textContent).toBe('Consultar y editar CV base');
+        detalle.open = true;
+        editor.value = 'Borrador pendiente';
+        editor.dispatchEvent(new Event('input'));
+        await fixture.whenStable();
+        expect(raiz.querySelector('.preferencias-estados')?.textContent).toContain('CV base: Cambios pendientes');
+        expect(editor.value).toBe('Borrador pendiente');
+        http.expectNone(r => r.method !== 'GET');
+        http.verify();
+    });
+
     it('normaliza alias, guarda y recarga Flash sin cambiar Pro ni otras preferencias', async () => {
         const anteriores = { nombre: 'Perfil sintético', modelo_ia: 'deepseek-v4-pro', modelo_ia_evaluacion: 'deepseek-v4-flash',
             modelo_ia_importacion: 'deepseek-v4-pro', temperatura_evaluacion: 0.7, temperatura_importacion: 0.6 };
@@ -971,7 +989,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         entradaNombre.value = 'Borrador';
         entradaNombre.dispatchEvent(new Event('input', { bubbles: true }));
         await fixture.whenStable();
-        expect(vista()?.textContent).toContain('Cambios sin guardar');
+        expect(fixture.nativeElement.querySelector('.preferencias-estados')?.textContent).toContain('Cambios sin guardar');
         expect(vista()?.textContent).not.toContain('Borrador');
         expect(vista()?.textContent).toContain('Inicial');
         component.guardar();
@@ -982,7 +1000,7 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
         expect(vista()?.textContent).toContain('Persistido');
         expect(vista()?.textContent).not.toContain('Inicial');
         expect(guardar.calls.mostRecent().args[0]).not.toEqual(jasmine.objectContaining({ perfil_efectivo: jasmine.anything() }));
-        expect(vista()?.textContent).not.toContain('Cambios sin guardar');
+        expect(fixture.nativeElement.querySelector('.preferencias-estados')?.textContent).not.toContain('Cambios sin guardar');
         component.cargarPreferencias();
         fixture.changeDetectorRef.markForCheck();
         await fixture.whenStable();

@@ -1,5 +1,6 @@
 import { Component, inject, signal, OnInit, HostListener } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { PreferenciasService, ResultadoImportacionCv } from '../../servicios/preferencias.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
@@ -38,6 +39,7 @@ const EQUIVALENCIAS_SUGERIDAS_PREFERENCIAS: Record<string, string[]> = {
     selector: 'app-preferencias',
     imports: [
         FormsModule,
+        NgTemplateOutlet,
         RouterLink,
         InputText,
         Textarea,

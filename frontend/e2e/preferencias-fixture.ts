@@ -17,6 +17,7 @@ const errores = new Set((parametros.get('error') || '').split(','));
 const esperando = parametros.get('esperando');
 const fecha = '2026-01-15T18:00:00.000Z';
 const llamadas = signal<string[]>([]);
+const textosAnalizados = signal<string[]>([]);
 const textoExtraido = '# CV sintético extraído\n\nDesarrollo interfaces accesibles con Angular y TypeScript.\nReviso pruebas funcionales y documento resultados.\n';
 let fuente = { cv_base: '# CV sintético\n\nDesarrollo aplicaciones con Angular, Node.js y PostgreSQL.\nPractico QA funcional y accesibilidad.\n', cv_base_actualizado_en: fecha };
 
@@ -126,6 +127,8 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
         return responder({ texto: textoExtraido, formato: archivo.name.toLowerCase().endsWith('.pdf') ? 'pdf' : 'md' });
     }
     if (ruta === '/preferencias/importar-cv/analizar' && solicitud.method === 'POST') {
+        const archivo = (solicitud.body as FormData).get('cv') as File;
+        void archivo.text().then(texto => textosAnalizados.update(actuales => [...actuales, texto]));
         return responder(errores.has('revision') ? { ...analisis, preguntas: null } : analisis);
     }
     if (ruta === '/evaluacion/resetear' && solicitud.method === 'POST') return responder({ reseteadas: 3 });
@@ -147,7 +150,8 @@ class SalidaFixture {}
             <a routerLink="/salida" [queryParams]="consulta">Salir de Preferencias (fixture)</a>
         </nav></header>
         <router-outlet />
-        <details><summary>Registro del fixture</summary><output aria-label="Llamadas simuladas">{{ llamadas().join('\n') }}</output></details>`,
+        <details><summary>Registro del fixture</summary><output aria-label="Llamadas simuladas">{{ llamadas().join('\n') }}</output>
+            <output aria-label="Textos analizados simulados">{{ textosAnalizados().join('\n---\n') }}</output></details>`,
     styles: `:host { display: block; max-width: 1280px; margin: auto; padding: 24px; }
         header { font-family: var(--font-mono); margin-bottom: 24px; }
         output { display: block; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -155,6 +159,7 @@ class SalidaFixture {}
 })
 class EscenarioPreferencias {
     readonly llamadas = llamadas;
+    readonly textosAnalizados = textosAnalizados;
     readonly consulta = Object.fromEntries(parametros);
 }
 

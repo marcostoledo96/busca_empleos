@@ -24,16 +24,34 @@
         </div>
     }
 
-    <section class="seccion cv-base-seccion" aria-labelledby="cv-base-titulo">
+    <div class="preferencias-estados" aria-label="Estado de los cambios">
+        @if (cambiosSinGuardar) { <p role="status"><strong>Cambios sin guardar.</strong> La IA sigue usando el perfil guardado.</p> }
+        @if (cargandoCvBase()) { <p role="status">Cargando CV base…</p> }
+        @if (cvBaseCargado) { <p id="cv-base-estado" role="status" [hidden]="estadoCvBase === 'Sin cambios'">CV base: {{ estadoCvBase }}</p> }
+        @if (guardando()) { <p role="status">Guardando preferencias…</p> }
+        @if (leyendoCvBase()) { <p role="status">Leyendo archivo…</p> }
+        @if (extrayendoCv()) { <p role="status">Extrayendo texto sin IA…</p> }
+        @if (analizandoCv()) { <p role="status">DeepSeek está procesando tu CV. Esto puede tardar unos minutos.</p> }
+        @if (errorCargaCvBase) {
+            <p role="alert">{{ errorCargaCvBase }}</p>
+            <button type="button" class="btn-detalle-secundario" (click)="cargarCvBase()">Reintentar carga del CV base</button>
+        }
+        @if (errorCvBase) { <p role="alert">{{ errorCvBase }}</p> }
+        @if (errorExtraccionCv) { <p id="error-extraccion-cv" role="alert">Extracción: {{ errorExtraccionCv }}</p> }
+        @if (errorTextoCv) { <p role="alert">Texto: {{ errorTextoCv }}</p> }
+        @if (errorAnalisisCv) { <p id="error-analisis-cv" role="alert">Análisis IA: {{ errorAnalisisCv }}</p> }
+        @if (mensajeAccesible()) { <p role="status">{{ mensajeAccesible() }}</p> }
+    </div>
+
+    <ng-template #editorCv>
+    <details class="seccion cv-base-seccion">
+        <summary>Consultar y editar CV base</summary>
+        <section aria-labelledby="cv-base-titulo">
         <div class="seccion-cabecera"><h3 id="cv-base-titulo">CV base editable</h3></div>
         <div class="seccion-cuerpo">
             <p id="cv-base-ayuda">Guardá el texto fuente por separado. Analizar con IA genera un borrador para revisar: no aplica ni guarda preferencias.</p>
             @if (modoDemo()) { <p role="status">En modo demo no consulto ni guardo el CV base. La edición y el análisis del texto están deshabilitados.</p> }
-            @if (cargandoCvBase()) { <p role="status">Cargando CV base…</p> }
-            @if (errorCargaCvBase) {
-                <p role="alert">{{ errorCargaCvBase }}</p>
-                <button type="button" class="btn-detalle-secundario" (click)="cargarCvBase()">Reintentar carga del CV base</button>
-            }
+
             @if (cvBaseCargado) {
                 <p>{{ cvBaseGuardado === null ? 'Todavía no hay un CV base guardado.' : cvBaseGuardado === '' ? 'El CV base está guardado vacío.' : 'Hay un CV base guardado.' }}</p>
             }
@@ -41,10 +59,8 @@
             <textarea id="cv-base" class="cv-base-editor" [ngModel]="cvBaseTexto" (ngModelChange)="editarCvBase($event)"
                 [disabled]="!cvBaseCargado || cargandoCvBase() || guardandoCvBase() || leyendoCvBase() || modoDemo()"
                 aria-describedby="cv-base-ayuda cv-base-estado" spellcheck="true" rows="18"></textarea>
-            @if (cvBaseCargado) { <p id="cv-base-estado" role="status" aria-live="polite">{{ estadoCvBase }}</p> }
             @if (guardandoCvBase()) { <p>Estoy guardando la fuente. El editor y las acciones de archivo quedan pausados.</p> }
-            @if (leyendoCvBase()) { <p role="status">Leyendo archivo…</p> }
-            @if (errorCvBase) { <p role="alert">{{ errorCvBase }}</p> }
+
             @if (cvBaseFecha) { <p>Último guardado de la fuente: <time [attr.datetime]="cvBaseFecha">{{ cvBaseFecha }}</time></p> }
             <div class="importar-acciones">
                 <button id="guardar-cv-base" type="button" class="btn-guardar" (click)="guardarFuenteCv()"
@@ -56,14 +72,18 @@
         </div>
     </section>
 
+    </details>
+    </ng-template>
+
+    <ng-template #perfilConfirmado>
     <section class="seccion perfil-ia" aria-labelledby="perfil-ia-titulo">
         <div class="seccion-cabecera"><h3 id="perfil-ia-titulo">Qué perfil usa la IA</h3></div>
         <div class="seccion-cuerpo">
             <p>Consulto los datos confirmados y guardados. Esta vista no ejecuta evaluaciones ni llamadas a DeepSeek.</p>
-            @if (cambiosSinGuardar) {
-                <p role="status" aria-live="polite"><strong>Cambios sin guardar.</strong> La IA sigue usando el perfil guardado que muestro a continuación.</p>
-            }
             @if (perfilEfectivo; as perfil) {
+                <p>{{ perfil.candidato.nombre ?? 'Nombre no declarado' }} · {{ perfil.candidato.nivel_real_seniority ?? 'Nivel no declarado' }} · {{ perfil.candidato.stack_tecnologico.length }} tecnologías confirmadas.</p>
+                <details>
+                    <summary>Ver todos los datos del perfil confirmado</summary>
                 <h4>Candidato confirmado</h4>
                 <dl>
                     <dt>Nombre</dt><dd>{{ perfil.candidato.nombre ?? 'No declarado' }}</dd>
@@ -122,11 +142,14 @@
                 <ul>
                     @for (politica of perfil.restricciones.politicas_sistema; track $index) { <li>{{ politica }}</li> }
                 </ul>
+                </details>
             } @else {
                 <p>No recibí una representación del perfil guardado. No la reconstruyo a partir del formulario.</p>
             }
         </div>
     </section>
+
+    </ng-template>
 
     <div class="preferencias-tabs-shell">
         <p-tabs [value]="tabActiva()" (valueChange)="tabActiva.set($any($event))">
@@ -143,6 +166,7 @@
             <p-tabpanels>
                 <!-- PERFIL -->
                 <p-tabpanel [value]="0">
+                    <ng-container *ngTemplateOutlet="perfilConfirmado" />
                     <section class="seccion" aria-labelledby="label-perfil">
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-perfil">PERFIL_PROFESIONAL</span></div>
                         <div class="seccion-cuerpo">
@@ -447,6 +471,7 @@
 
                 <!-- IMPORTAR CV -->
                 <p-tabpanel [value]="5">
+                    <ng-container *ngTemplateOutlet="editorCv" />
                     <section class="seccion" aria-labelledby="label-importar">
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-importar">IMPORTAR_CV</span></div>
                         <div class="seccion-cuerpo">
@@ -460,13 +485,10 @@
                             </div>
                             @if (archivoCvSeleccionado) { <p>Documento seleccionado: {{ archivoCvSeleccionado.name }}</p> }
                             <p id="importacion-estado" role="status" aria-live="polite">{{ estadoImportacion }}</p>
-                            @if (errorExtraccionCv) { <p id="error-extraccion-cv" role="alert" aria-live="polite">Extracción: {{ errorExtraccionCv }}</p> }
                             <label class="campo-etiqueta" for="texto-cv-importacion">Borrador temporal: corregir o pegar texto del CV</label>
                             <p id="texto-importacion-ayuda">Podés pegar texto sin seleccionar archivo, incluso si el PDF está escaneado o falla la extracción. Hasta 1 MiB UTF-8; no recorto contenido. Este borrador no reemplaza el CV base ni las preferencias.</p>
                             <textarea id="texto-cv-importacion" class="cv-base-editor" [value]="textoCvImportacion" (input)="editarTextoImportacion($event)"
                                 [disabled]="modoDemo()" aria-describedby="texto-importacion-ayuda importacion-estado" spellcheck="true" rows="18"></textarea>
-                            @if (errorTextoCv) { <p role="alert">Texto: {{ errorTextoCv }}</p> }
-                            @if (errorAnalisisCv) { <p id="error-analisis-cv" role="alert" aria-live="polite">Análisis IA: {{ errorAnalisisCv }}</p> }
                             <div class="importar-acciones">
                                 <button id="analizar-texto-cv" type="button" class="btn-importar" [disabled]="!textoCvImportacion.trim() || analizandoCv() || extrayendoCv() || modoDemo() || guardandoCvBase() || leyendoCvBase() || guardando()" (click)="analizarCv()">Analizar este texto con IA</button>
                                 <button id="usar-texto-cv-base" type="button" class="btn-detalle-secundario" (click)="usarArchivoComoCvBase()"
@@ -474,12 +496,6 @@
                             </div>
                             <small class="campo-ayuda">Analizar envía exactamente el borrador actual como Markdown y puede consumir saldo. Usar como CV base copia el texto corregido al editor, sin guardar ni cambiar la revisión. Después elegí Guardar CV base.</small>
 
-                            @if (analizandoCv()) {
-                                <div class="importar-loading" role="status" aria-live="polite">
-                                    <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
-                                    <span>DeepSeek está procesando tu CV. Esto puede tardar unos minutos.</span>
-                                </div>
-                            }
 
                             @if (resultadoImportacion) {
                                 <div class="importar-resultado">
@@ -723,7 +739,6 @@
     </div>
 
     <div class="acciones">
-        <span class="sr-only" aria-live="polite" role="status">{{ mensajeAccesible() }}</span>
         <button class="btn-guardar" [disabled]="guardando() || analizandoCv() || modoDemo()" (click)="guardar()" aria-label="Guardar preferencias">
             @if (guardando()) {
                 <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>

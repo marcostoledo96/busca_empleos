@@ -486,10 +486,25 @@ explícitas sin llamadas a Indeed/Bumeran/Jooble/Adzuna, y comprueba oferta eval
 evento final y conteos visibles. Restauro `environment.urlApi` después de cada prueba.
 Los límites del adaptador SQL y proveedores simulados están en [Scraping](scraping.md#evidencia-vertical-sin-proveedores-reales).
 
+## Organización de Preferencias — issue #49
+
+Conservo las siete pestañas inmediatamente después del encabezado y los avisos importantes.
+En **Perfil** muestro un resumen del perfil confirmado; **Ver todos los datos del perfil
+confirmado** despliega su información completa, sin mezclarla con cambios sin guardar.
+En **Importar CV**, **Consultar y editar CV base** abre el editor persistido. Los estados de
+carga, cambios pendientes, guardado y errores siguen visibles aunque cierre el desplegable
+o cambie de pestaña. Ambos desplegables funcionan con teclado; abrirlos no llama a IA.
+Mantengo el estilo The Silent Processor, tablas con scroll local y controles táctiles.
+
+La [evidencia visual y de pruebas](evidencias/issue-49/README.md) compara capturas reales
+históricas/antes/después. Los E2E reutilizan el runner existente con `/preferencias` en un
+harness sintético sin Firebase ni APIs productivas; `/` conserva Dashboard.
+
 ## CV base editable — issue #12
 
-En `/preferencias` mantengo un editor de texto Markdown cómodo, independiente del
-perfil confirmado y del borrador de revisión. No leo ningún `cv.md` del repositorio.
+En `/preferencias`, pestaña **Importar CV**, despliego **Consultar y editar CV base** para
+usar el editor Markdown, independiente del perfil confirmado y del borrador de revisión.
+No leo ningún `cv.md` del repositorio.
 
 - **Guardar CV base**: envío la cadena exacta a `PUT /api/preferencias/cv-base`
   como `text/markdown; charset=utf-8`, sin JSON. Consulto la fuente con `GET` al abrir.

@@ -1,4 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, Page } from '@playwright/test';
+
+async function abrirEditor(pagina: Page) {
+    await pagina.getByRole('tab', { name: 'IMPORTAR CV', exact: true }).click();
+    await pagina.getByText('Consultar y editar CV base', { exact: true }).click();
+}
 
 const origen = 'http://127.0.0.1:4350';
 
@@ -33,7 +38,9 @@ test('conservo la entrada Dashboard del harness', async ({ page }) => {
 test('cargo Preferencias reales con perfil confirmado y sin análisis automático', async ({ page }) => {
     await page.goto('/preferencias');
     await expect(page.getByRole('heading', { name: 'Preferencias de búsqueda', exact: true })).toBeVisible();
+    await abrirEditor(page);
     await expect(page.getByLabel('Texto del CV en Markdown')).toHaveValue(/CV sintético/);
+    await page.getByRole('tab', { name: 'PERFIL', exact: true }).click();
     await expect(page.getByLabel('Nombre completo')).toHaveValue('Candidatura sintética');
     const registro = page.getByLabel('Llamadas simuladas');
     await expect(registro).toHaveText('GET /preferencias\nGET /preferencias/cv-base');
@@ -44,6 +51,7 @@ test('cargo Preferencias reales con perfil confirmado y sin análisis automátic
 
 test('protejo la navegación real y guardo únicamente el CV solicitado', async ({ page }) => {
     await page.goto('/preferencias');
+    await abrirEditor(page);
     const editor = page.getByLabel('Texto del CV en Markdown');
     await editor.fill('# CV sintético editado');
     page.once('dialog', dialogo => dialogo.dismiss());
@@ -55,6 +63,7 @@ test('protejo la navegación real y guardo únicamente el CV solicitado', async 
     await page.getByRole('link', { name: 'Salir de Preferencias (fixture)' }).click();
     await expect(page).toHaveURL(/\/salida$/);
     await page.getByRole('link', { name: 'Volver a Preferencias (fixture)' }).click();
+    await abrirEditor(page);
     await expect(editor).toHaveValue('# CV sintético editado');
     await expect(page.getByLabel('Llamadas simuladas')).not.toContainText('/analizar');
 });
@@ -76,12 +85,14 @@ for (const formato of ['pdf', 'md']) {
         await expect(page.getByRole('heading', { name: 'Borrador revisable del CV' })).toBeVisible();
         await expect(page.locator('#cv-nombre')).toHaveValue('Candidatura propuesta por análisis sintético');
         await expect(registro).toHaveText('GET /preferencias\nGET /preferencias/cv-base\nPOST /preferencias/importar-cv/extraer-texto\nPOST /preferencias/importar-cv/analizar');
+        await abrirEditor(page);
         await expect(page.getByLabel('Texto del CV en Markdown')).toHaveValue(/# CV sintético\n/);
     });
 }
 
 test('simulo el error de guardado sin perder el texto ni persistirlo', async ({ page }) => {
     await page.goto('/preferencias?error=cv-guardar');
+    await abrirEditor(page);
     const editor = page.getByLabel('Texto del CV en Markdown');
     await editor.fill('# Borrador que conservo');
     await page.getByRole('button', { name: 'Guardar CV base', exact: true }).click();
@@ -90,5 +101,6 @@ test('simulo el error de guardado sin perder el texto ni persistirlo', async ({ 
     page.once('dialog', dialogo => dialogo.accept());
     await page.getByRole('link', { name: 'Salir de Preferencias (fixture)' }).click();
     await page.getByRole('link', { name: 'Volver a Preferencias (fixture)' }).click();
+    await abrirEditor(page);
     await expect(editor).toHaveValue(/CV sintético/);
 });
