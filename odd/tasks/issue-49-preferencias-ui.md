@@ -17,10 +17,11 @@ S11. "No continúes navegando por la pantalla autenticada hasta que responda: «
 
 ## Tasks
 T1 | S1,S2,S8,S11 | delegated exploration + worker | done | e59182996c334f10350fefa8cbe2d8798d795393; 6/6 smoke PASS; 6 BEFORE + 6 historical captures; historical build PASS.
-T2 | S3-S8 | delegated worker | in_progress | UI readback complete; RED 6PASS/19FAIL, GREEN 30/30 E2E + 67/67 unit. Local styles/NgTemplateOutlet only, docs updated; committing.
-T3 | S2,S7-S9 | inline browser checks + independent verify | pending | full suites/build, visual evidence, independent verdict; commit pending.
+T2 | S3-S8 | delegated worker | done | 2a9da70e1a96e4e049ce6d1cf92430a7d5952102; RED 6PASS/19FAIL, GREEN 30/30 E2E + 67/67 unit; docs updated.
+T3 | S2,S7-S9 | inline browser checks + independent verify | in_progress | Angular542PASS/4existingSKIP; E2E44PASS; buildPASS warning CSS15.61kB; 36captures; independent28probesPASS/no blockers. Evidence commit next.
 T4 | S10 | inline | pending | push and single PR to master, CI state; commit pending.
 
 ## Log
 L1. User request: "Actuá como desarrollador frontend especializado en **Angular, UI/UX, diseño visual y responsive**, utilizando **Gentle Shell de Pi y la metodología Gentle AI**." "Tu objetivo es implementar completamente la siguiente issue, realizar pruebas E2E con navegador real y abrir una PR para auditoría externa." Full issue and acceptance criteria: https://github.com/marcostoledo96/busca_empleos/issues/49 (read complete including no comments); user supplemental constraints are quoted in Specs above. User authorized branch/worktree, frontend implementation, synthetic tests, commits, push and one PR; no merge.
-L2. Current worktree base verified exact; original workspace dirty and untouched. Explorer mapped CV guards, confirmed-profile/form separation and existing dashboard harness. RDD off per session; ordinary verification applies. Historical seven tabs confirmed using actual Git blob. No rendered evidence yet. Existing Engram preferences about delivery were marked needs_review; current explicit user grant is authoritative instead.
+L2. Initial worktree base verified exact; original workspace dirty and untouched. Explorer mapped CV guards, confirmed-profile/form separation and existing dashboard harness. RDD off; ordinary verification applies. Initial Git-blob comparison subsequently corroborated with rendered historical/current screenshots. Stale Engram delivery preferences were not relied upon; current explicit user grant is authoritative.
+L3. Completed real MCP comparison: 6 historical +6 BEFORE +24 AFTER images. Parent observed44E2E PASS,542AngularPASS/4existingSKIP,production buildPASS(CSSwarning610B). Source frozen at2a9da70. Independent verifier28probesPASS/no candidate blockers, developmentbuildPASS; own productionbuild offlineBLOCK fonts, not counted asPASS. Advisory fixture salary lacks motivo, /cv placeholder only entry/guard. No production auth/API/DeepSeek used.
