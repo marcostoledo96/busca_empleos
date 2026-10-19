@@ -1,0 +1,2612 @@
+[
+  {
+    "escenario": "aprobada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "aprobada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 932
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 932
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "rechazada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 660
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 658
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 79.03125,
+        "width": 680,
+        "height": 741.921875,
+        "top": 79.03125,
+        "right": 724,
+        "bottom": 820.953125,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 582,
+        "total": 582
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 816
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 841
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 660
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 658
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 79.03125,
+        "width": 680,
+        "height": 741.921875,
+        "top": 79.03125,
+        "right": 724,
+        "bottom": 820.953125,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 582,
+        "total": 582
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 816
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "pendiente",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 841
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 660
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 658
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 79.03125,
+        "width": 680,
+        "height": 741.921875,
+        "top": 79.03125,
+        "right": 724,
+        "bottom": 820.953125,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 582,
+        "total": 582
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 792
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 841
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 660
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 658
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 79.03125,
+        "width": 680,
+        "height": 741.921875,
+        "top": 79.03125,
+        "right": 724,
+        "bottom": 820.953125,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 582,
+        "total": 582
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 792
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "error",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 841
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "reevaluacion-fallida",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "desactualizada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "historica",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 747
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 531,
+        "total": 746
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 650,
+        "total": 657
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 911
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "postulada",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": false,
+      "overflowDialogo": false,
+      "contenido": {
+        "visible": 588,
+        "total": 957
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "claro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 634,
+        "total": 915
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "claro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 515,
+        "total": 913
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "claro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 638,
+        "total": 771
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "claro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 588,
+        "total": 927
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "claro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 588,
+        "total": 973
+      },
+      "fondo": "rgb(255, 255, 255)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 380,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 1060,
+        "bottom": 855,
+        "left": 380
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 634,
+        "total": 915
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 1024,
+      "height": 768
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 172,
+        "y": 38.40625,
+        "width": 680,
+        "height": 691.1875,
+        "top": 38.40625,
+        "right": 852,
+        "bottom": 729.59375,
+        "left": 172
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 515,
+        "total": 913
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 768,
+      "height": 900
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 44,
+        "y": 45,
+        "width": 680,
+        "height": 810,
+        "top": 45,
+        "right": 724,
+        "bottom": 855,
+        "left": 44
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 638,
+        "total": 771
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 358,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 374,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 588,
+        "total": 927
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  },
+  {
+    "escenario": "textos-largos",
+    "tema": "oscuro",
+    "viewport": {
+      "width": 320,
+      "height": 844
+    },
+    "head": "73284da5463c916772274456a48ecedd19c9a608",
+    "fixture": "detalle-fixture-v1",
+    "medidas": {
+      "dialogo": {
+        "x": 16,
+        "y": 42.203125,
+        "width": 288,
+        "height": 759.59375,
+        "top": 42.203125,
+        "right": 304,
+        "bottom": 801.796875,
+        "left": 16
+      },
+      "overflowPagina": true,
+      "overflowDialogo": true,
+      "contenido": {
+        "visible": 588,
+        "total": 973
+      },
+      "fondo": "rgb(31, 31, 31)"
+    }
+  }
+]

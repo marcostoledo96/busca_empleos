@@ -101,6 +101,7 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
                         requisito: 'Docker',
                         tipo: 'deseable',
                         evidencia_oferta: 'Deseable nociones de contenedores',
+                        evidencia_perfil: 'El perfil no declara Docker',
                         explicacion: 'No se encontraron evidencias de Docker en el perfil.'
                     }
                 ],
@@ -108,6 +109,8 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
                     {
                         requisito: 'Inglés conversacional B2',
                         tipo: 'deseable',
+                        evidencia_oferta: 'Reuniones en inglés con clientes',
+                        evidencia_perfil: 'Lectura técnica sin nivel conversacional declarado',
                         explicacion: 'Nivel no detallado en extracto disponible.'
                     }
                 ],
@@ -116,6 +119,7 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
                         requisito: 'Java empresarial',
                         tipo: 'obligatorio',
                         evidencia_oferta: 'Mantenimiento de microservicios en Java Spring',
+                        evidencia_perfil: 'Exclusión explícita de Java en el perfil',
                         explicacion: 'El perfil excluye activamente vacantes de Java.'
                     }
                 ]
@@ -126,7 +130,27 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
         component.visible.set(true);
         fixture.detectChanges();
 
-        const texto = fixture.nativeElement.textContent;
+        const desglose = fixture.nativeElement.querySelector('.seccion-matching details') as HTMLDetailsElement | null;
+        expect(desglose).withContext('S4: el análisis completo usa details nativo cerrado al abrir').not.toBeNull();
+        expect(desglose?.open).toBeFalse();
+        const resumen = desglose?.querySelector('summary');
+        expect(resumen?.textContent?.trim()).toBeTruthy();
+        resumen?.click();
+        fixture.detectChanges();
+        expect(desglose?.open).toBeTrue();
+
+        const texto = desglose?.textContent ?? '';
+        const explicacion = ofertaConDesglose.explicacion_evaluacion!;
+        for (const grupo of [explicacion.cumplidos, explicacion.no_cumplidos, explicacion.exclusiones, explicacion.por_confirmar]) {
+            for (const item of grupo) {
+                for (const evidencia of [item.requisito, item.explicacion, item.evidencia_oferta, item.evidencia_perfil]) {
+                    expect(texto).withContext('S4: conservo cada requisito, explicación y evidencia de oferta/perfil').toContain(evidencia!);
+                }
+            }
+        }
+        expect(mockEvaluacionService.ejecutarEvaluacion).not.toHaveBeenCalled();
+        expect(mockOfertasService.actualizarDescripcion).not.toHaveBeenCalled();
+        expect(mockOfertasService.actualizarPostulacion).not.toHaveBeenCalled();
 
         // Sección a favor del match
         expect(texto).toContain('A favor del match');
@@ -176,7 +200,33 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
         const alerta = fixture.nativeElement.querySelector('.alerta-exclusion-score-alto');
         expect(alerta).toBeTruthy();
         expect(alerta.textContent).toContain('Atención: Compatibilidad estimada alta rechazada por exclusión');
-        expect(alerta.textContent).toContain('88%');
+        expect(fixture.nativeElement.textContent).toContain('88%');
+        expect((fixture.nativeElement.textContent as string).match(/88\s*%/g)?.length).toBe(1);
+        expect(alerta.closest('details')).withContext('S4: la alerta crítica no queda plegada').toBeNull();
+    });
+
+    it('S4: mantiene la exclusión obligatoria visible con matching cerrado incluso con compatibilidad baja', () => {
+        fixture.componentRef.setInput('oferta', crearOfertaBase({
+            porcentaje_match: 30,
+            estado_evaluacion: 'rechazada',
+            explicacion_evaluacion: {
+                desglose_disponible: true,
+                cumplidos: [],
+                no_cumplidos: [],
+                por_confirmar: [],
+                exclusiones: [{ requisito: 'Java obligatorio', tipo: 'obligatorio', explicacion: 'Tecnología excluida del perfil.' }]
+            }
+        }));
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const desglose = fixture.nativeElement.querySelector('.seccion-matching details') as HTMLDetailsElement | null;
+        expect(desglose).not.toBeNull();
+        expect(desglose?.open).toBeFalse();
+        const alertas = Array.from(fixture.nativeElement.querySelectorAll('[role="alert"]')) as HTMLElement[];
+        const exclusion = alertas.find(alerta => alerta.textContent?.includes('Java obligatorio'));
+        expect(exclusion).withContext('La advertencia identifica el requisito excluyente sin abrir el análisis').toBeDefined();
+        expect(exclusion?.closest('details')).toBeNull();
     });
 
     it('muestra fallback con leyenda explicativa cuando es un registro histórico sin desglose', () => {
@@ -215,6 +265,7 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
 
         const texto = fixture.nativeElement.textContent.toLowerCase();
         expect(texto).toContain('compatibilidad estimada: 75%');
+        expect(texto.match(/75\s*%/g)?.length).withContext('S3: no duplico el porcentaje entre cabecera y matching').toBe(1);
         expect(texto).not.toContain('probabilidad de ser contratado');
         expect(texto).not.toContain('probabilidad de contratación');
     });
@@ -249,7 +300,7 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
         expect(fixture.nativeElement.textContent).toContain('Descripción completa');
     });
 
-    it('muestra badge y alerta de evaluación desactualizada cuando está pendiente o con reevaluación solicitada', () => {
+    it('S7: muestra una sola advertencia de evaluación desactualizada y oculta la compatibilidad anterior', () => {
         const ofertaDesactualizada = crearOfertaBase({
             estado_evaluacion: 'pendiente',
             evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA'
@@ -259,16 +310,66 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
         component.visible.set(true);
         fixture.detectChanges();
 
-        const badge = fixture.nativeElement.querySelector('.tag-desactualizada');
-        expect(badge).toBeTruthy();
-        expect(badge.textContent).toContain('Evaluación desactualizada — pendiente de reevaluación');
+        const texto = fixture.nativeElement.textContent as string;
+        expect(texto.split('Evaluación desactualizada — pendiente de reevaluación').length - 1).toBe(1);
+        expect(texto).not.toContain('85%');
+        expect(texto).not.toContain('Compatibilidad estimada:');
 
         const alerta = fixture.nativeElement.querySelector('.alerta-desactualizada');
         expect(alerta).toBeTruthy();
         expect(alerta.textContent).toContain('Evaluación desactualizada — pendiente de reevaluación');
+        expect(alerta.closest('details')).toBeNull();
 
         const btnReevaluar = fixture.nativeElement.querySelector('.btn-reevaluar-oferta');
         expect(btnReevaluar).toBeTruthy();
+    });
+
+    it('S6: ofrece un resumen breve y permite consultar la descripción completa sin ejecutar servicios', () => {
+        const inicio = 'Buscamos una persona junior para desarrollar interfaces accesibles. ';
+        const descripcion = inicio + 'El equipo trabaja con Angular y TypeScript en productos internos. '.repeat(24)
+            + '\nBeneficios: capacitación y acompañamiento técnico.';
+        fixture.componentRef.setInput('oferta', crearOfertaBase({ descripcion }));
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const seccion = fixture.nativeElement.querySelector('.seccion-descripcion') as HTMLElement;
+        const divulgacion = seccion.querySelector('details');
+        expect(divulgacion).not.toBeNull();
+        expect(divulgacion?.open).toBeFalse();
+        const resumen = Array.from(seccion.querySelectorAll('p, .detalle-descripcion'))
+            .find(elemento => !elemento.closest('details') && elemento.textContent?.includes('Buscamos una persona junior'));
+        expect(resumen).withContext('El extracto permanece visible sin abrir el texto completo').toBeDefined();
+        expect((resumen?.textContent ?? '').length).toBeGreaterThan(0);
+        expect((resumen?.textContent ?? '').length).toBeLessThan(descripcion.length);
+        const disparador = divulgacion?.querySelector('summary');
+        expect(disparador?.textContent?.trim()).toBeTruthy();
+        disparador?.click();
+        fixture.detectChanges();
+        expect(divulgacion?.open).toBeTrue();
+        expect(divulgacion?.querySelector('.detalle-descripcion')?.textContent).toBe(descripcion);
+        expect(mockEvaluacionService.ejecutarEvaluacion).not.toHaveBeenCalled();
+        expect(mockOfertasService.actualizarDescripcion).not.toHaveBeenCalled();
+        expect(mockOfertasService.actualizarPostulacion).not.toHaveBeenCalled();
+    });
+
+    it('S6,S8: permite entrar a la edición mediante un botón accesible fuera de los plegables cerrados', () => {
+        const oferta = crearOfertaBase();
+        fixture.componentRef.setInput('oferta', oferta);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        const editar = fixture.nativeElement.querySelector('button[aria-label="Completar o editar descripción"]') as HTMLButtonElement;
+        expect(editar).not.toBeNull();
+        expect(editar.closest('details')).toBeNull();
+        expect(editar.disabled).toBeFalse();
+        editar.click();
+        fixture.detectChanges();
+        const editor = fixture.nativeElement.querySelector('textarea[aria-label="Editor de descripción de la oferta"]') as HTMLTextAreaElement;
+        expect(editor).not.toBeNull();
+        expect(editor.closest('details:not([open])')).toBeNull();
+        expect(component.nuevaDescripcion()).toBe(oferta.descripcion!);
+        expect(mockOfertasService.actualizarDescripcion).not.toHaveBeenCalled();
+        expect(mockEvaluacionService.ejecutarEvaluacion).not.toHaveBeenCalled();
     });
 
     it('gestiona el flujo de edición: abrir, cancelar sin modificar y validar longitud mínima', () => {

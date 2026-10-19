@@ -231,18 +231,52 @@ export class DetalleOferta implements OnDestroy {
         }
     }
 
-    // Mueve el foco al primer elemento interactivo dentro del modal.
+    cancelarFocoInicial(): void {
+        this.limpiarTimeoutFoco();
+    }
+
+    mantenerFocoEnDialogo(evento: KeyboardEvent): void {
+        this.cancelarFocoInicial();
+        if (evento.key !== 'Tab' || evento.defaultPrevented || evento.altKey || evento.ctrlKey || evento.metaKey) return;
+        const dialogo = (evento.target as HTMLElement).closest<HTMLElement>('.p-dialog');
+        // Dejo al selector manejar sus teclas y el overlay que agrega a body.
+        if (!dialogo || dialogo.querySelector('[role="combobox"][aria-expanded="true"]')) return;
+        const controles = Array.from(dialogo.querySelectorAll<HTMLElement>(
+            'a[href], button, input, select, textarea, summary, [tabindex]'
+        )).filter(control => control.tabIndex >= 0 && !control.matches(':disabled')
+            && !control.closest('[inert], [aria-hidden="true"]') && control.getClientRects().length > 0
+            && !['hidden', 'collapse'].includes(getComputedStyle(control).visibility));
+        const primero = controles[0];
+        const ultimo = controles[controles.length - 1];
+        const destino = evento.shiftKey && document.activeElement === primero ? ultimo
+            : !evento.shiftKey && document.activeElement === ultimo ? primero : null;
+        if (destino) {
+            evento.preventDefault();
+            destino.focus();
+        }
+    }
+
+    // Corrijo el autofocus interno sin interferir con quien ya usó teclado o puntero.
     private moverFocoAlModal(): void {
-        // Si ya hay un elemento enfocado dentro del modal (ej. el dropdown de
-        // p-select está abierto), no robar el foco. Esto evita que overlays
-        // internos se cierren por un cambio de foco programático.
-        const activo = document.activeElement;
-        if (activo && this.elemento.nativeElement.contains(activo)) {
+        const activo = document.activeElement as HTMLElement | null;
+        if (activo?.closest('.p-select-overlay') || activo?.getAttribute('aria-expanded') === 'true') {
             return;
         }
 
-        const dialogContent = this.elemento.nativeElement.querySelector('.p-dialog-content') as HTMLElement
-            ?? this.elemento.nativeElement.querySelector('.dialogo-cabecera') as HTMLElement;
+        const dialogContent = this.elemento.nativeElement.querySelector('.p-dialog-content') as HTMLElement | null;
+        if (dialogContent) dialogContent.scrollTop = 0;
+        // Enfoco la cabecera sin desplazar el contenido hasta el selector de seguimiento.
+        const enlaceOriginal = this.elemento.nativeElement.querySelector('.enlace-original') as HTMLElement | null;
+        if (enlaceOriginal) {
+            enlaceOriginal.focus({ preventScroll: true });
+            return;
+        }
+        const cierre = this.elemento.nativeElement.querySelector('.p-dialog-header button') as HTMLElement | null;
+        if (cierre) {
+            cierre.focus({ preventScroll: true });
+            return;
+        }
+
         if (dialogContent) {
             const primerInteractivo = dialogContent.querySelector(
                 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
@@ -261,6 +295,27 @@ export class DetalleOferta implements OnDestroy {
             this.elementoFocoPrevio.focus();
             this.elementoFocoPrevio = null;
         }
+    }
+
+    etiquetaEvaluacion(oferta: Oferta): string {
+        if (oferta.evaluacion_error_mensaje && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
+            && (oferta.estado_evaluacion === 'pendiente' || !oferta.firma_criterios_evaluacion)) {
+            return 'Error técnico';
+        }
+        return oferta.estado_evaluacion;
+    }
+
+    compatibilidadVigente(oferta: Oferta): boolean {
+        return oferta.porcentaje_match !== null && Number.isFinite(oferta.porcentaje_match)
+            && oferta.porcentaje_match >= 0 && oferta.porcentaje_match <= 100
+            && oferta.estado_evaluacion !== 'pendiente'
+            && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
+            && (!oferta.evaluacion_error_mensaje || !!oferta.firma_criterios_evaluacion);
+    }
+
+    resumenDescripcion(descripcion: string): string {
+        const texto = descripcion.replace(/\s+/g, ' ').trim();
+        return texto.length > 260 ? `${texto.slice(0, 260).trimEnd()}…` : texto;
     }
 
     // Determina el color del tag según el estado.
