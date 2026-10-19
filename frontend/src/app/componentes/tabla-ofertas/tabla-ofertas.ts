@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
-import { DatePipe, UpperCasePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet, UpperCasePipe } from '@angular/common';
 import { Table, TableModule } from 'primeng/table';
 import { FilterService, MessageService } from 'primeng/api';
 import { TagModule } from 'primeng/tag';
@@ -14,7 +14,7 @@ import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 
 @Component({
     selector: 'app-tabla-ofertas',
-    imports: [DatePipe, UpperCasePipe, TableModule, SelectModule, FormsModule],
+    imports: [DatePipe, NgTemplateOutlet, UpperCasePipe, TableModule, SelectModule, FormsModule],
     templateUrl: './tabla-ofertas.html',
     styleUrl: './tabla-ofertas.css',
     host: { '(window:resize)': 'limpiarSeleccion()' }
@@ -149,15 +149,40 @@ export class TablaOfertas {
     }
 
     errorEvaluacionOferta(oferta: Oferta): string | null {
-        const datos = oferta as Oferta & { evaluacion_error_mensaje?: string | null; fecha_evaluacion?: string | null };
-        const mensaje = datos.evaluacion_error_mensaje;
-        if (!mensaje || mensaje === 'REEVALUACION_SOLICITADA') return null;
-        const conservado = datos.fecha_evaluacion && oferta.razon_evaluacion !== mensaje;
-        return `Error de evaluación: ${mensaje}. ${conservado ? 'Resultado anterior conservado' : 'Sin resultado válido nuevo'}.`;
+        const mensaje = oferta.evaluacion_error_mensaje;
+        return mensaje && mensaje !== 'REEVALUACION_SOLICITADA' ? mensaje : null;
+    }
+
+    private resultadoConservado(oferta: Oferta): boolean {
+        const fecha = (oferta as Oferta & { fecha_evaluacion?: string | null }).fecha_evaluacion;
+        // Conservo también el contrato histórico de resultados fechados, sin presentarlos como nuevos.
+        return !!oferta.firma_criterios_evaluacion || !!(fecha && oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
+    }
+
+    compatibilidadVisible(oferta: Oferta): boolean {
+        const porcentaje = oferta.porcentaje_match;
+        return porcentaje !== null && Number.isFinite(porcentaje) && porcentaje >= 0 && porcentaje <= 100
+            && oferta.estado_evaluacion !== 'pendiente'
+            && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
+            && (!this.errorEvaluacionOferta(oferta) || this.resultadoConservado(oferta));
+    }
+
+    nivelCompatibilidad(oferta: Oferta): string {
+        if (oferta.estado_evaluacion === 'rechazada') return 'bajo';
+        if (oferta.vigencia_evaluacion !== 'actual' || this.errorEvaluacionOferta(oferta)) return 'anterior';
+        return this.nivelMatch(oferta.porcentaje_match!);
+    }
+
+    etiquetaEvaluacion(oferta: Oferta): string {
+        return this.errorEvaluacionOferta(oferta) && !this.compatibilidadVisible(oferta)
+            ? 'Error técnico' : oferta.estado_evaluacion;
     }
 
     textoVigencia(oferta: Oferta): string {
-        if (oferta.estado_evaluacion === 'pendiente') return 'Sin evaluación';
+        if (oferta.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') return 'Desactualizada · reevaluación pendiente';
+        if (this.errorEvaluacionOferta(oferta)) return this.compatibilidadVisible(oferta)
+            ? 'Resultado anterior conservado' : 'Sin resultado válido nuevo';
+        if (oferta.estado_evaluacion === 'pendiente') return 'Pendiente de evaluación';
         if (oferta.vigencia_evaluacion === 'actual') return 'Evaluación actual';
         if (oferta.vigencia_evaluacion === 'anterior') return 'Evaluación anterior';
         return 'Vigencia desconocida';
@@ -361,6 +386,7 @@ export class TablaOfertas {
 
     // Permite activar una card con Enter o Espacio desde el teclado.
     activarCardConTeclado(evento: KeyboardEvent, oferta: Oferta): void {
+        if (evento.repeat || evento.defaultPrevented || evento.target !== evento.currentTarget) return;
         if (evento.key === 'Enter' || evento.key === ' ') {
             evento.preventDefault();
             this.verDetalle(oferta);

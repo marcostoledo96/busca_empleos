@@ -111,8 +111,10 @@ export function crearHttpDetalle(ofertas: Oferta[], parametros: URLSearchParams)
                 Object.assign(oferta, { descripcion: descripcion.trim(), origen_descripcion: 'manual', descripcion_completitud: 'completa',
                     descripcion_modificada_en: FECHA_DETALLE, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' });
             } else {
-                oferta.estado_evaluacion = 'pendiente';
-                return of(new HttpResponse({ body: { exito: true, en_curso: true, cantidad: 1, mensaje: 'Reevaluación sintética iniciada' } }));
+                const ids = parametros.has('tabla') ? cambios['ids'] as number[] : [oferta.id];
+                if (!ids?.length || !ids.every(id => guardadas.some(item => item.id === id))) return fallar(400, 'IDs de reevaluación inválidos.');
+                guardadas.filter(item => ids.includes(item.id)).forEach(item => item.estado_evaluacion = 'pendiente');
+                return of(new HttpResponse({ body: { exito: true, en_curso: true, cantidad: ids.length, mensaje: 'Reevaluación sintética iniciada' } }));
             }
             return responder(oferta);
         })));

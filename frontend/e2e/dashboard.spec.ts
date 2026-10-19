@@ -26,7 +26,7 @@ test('matriz sintética @evidencia', async ({ page }) => {
             await expect(page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' })).toBeVisible();
             await page.evaluate(() => document.fonts.ready);
             await page.addStyleTag({ content: '*,*::before,*::after { animation: none !important; transition: none !important; }' });
-            await page.screenshot({ path: `.angular/evidencia-48/${process.env['EVIDENCIA48'] || 'despues'}-${tamano.width}-${tema}.png`, fullPage: true });
+            await page.screenshot({ path: `.angular/issue51-historico/dashboard/${process.env['EVIDENCIA48'] || 'despues'}-${tamano.width}-${tema}.png`, fullPage: true });
             expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
             console.log(JSON.stringify({ tema, ancho: tamano.width, ...await page.evaluate(() => ({
                 altoPanel: document.querySelector('.panel')!.getBoundingClientRect().height,
@@ -85,7 +85,7 @@ test('título completo a 320px con fallback ancho @fallback320', async ({ page }
             });
             console.log(JSON.stringify({ tema, abierto, ...medidas }));
             await page.getByRole('heading', { name: 'OFERTAS_DISPONIBLES' }).scrollIntoViewIfNeeded();
-            await page.screenshot({ path: `.angular/evidencia-48/fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}.png` });
+            await page.screenshot({ path: `.angular/issue51-historico/dashboard/fallback320-${tema}-${abierto ? 'abierto' : 'cerrado'}.png` });
             expect(medidas.anchoPagina).toBeLessThanOrEqual(medidas.viewport);
             for (const fragmento of medidas.fragmentos) {
                 expect(fragmento.left).toBeGreaterThanOrEqual(medidas.caja.left);

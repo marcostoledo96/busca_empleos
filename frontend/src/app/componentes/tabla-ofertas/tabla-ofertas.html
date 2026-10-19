@@ -57,6 +57,24 @@
     </div>
 }
 
+<ng-template #evaluacion let-oferta>
+    <div class="evaluacion-resumen">
+        <span class="tag-estado" [attr.data-estado]="etiquetaEvaluacion(oferta) === 'Error técnico' ? 'error' : oferta.estado_evaluacion">
+            {{ etiquetaEvaluacion(oferta) | uppercase }}
+        </span>
+        @if (oferta.prioridad_ia) {
+            <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA: ' + (oferta.evidencias_prioridad_ia || []).join(', ')">IA</span>
+        }
+        <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
+        @if (errorEvaluacionOferta(oferta); as error) {
+            <details class="error-evaluacion" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                <summary>Error técnico · ver diagnóstico</summary>
+                <p>{{ error }}</p>
+            </details>
+        }
+    </div>
+</ng-template>
+
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
 <div class="tabla-contenedor vista-desktop" role="region" aria-label="Tabla de ofertas de empleo">
     <div class="tabla-encabezado">
@@ -78,6 +96,7 @@
         [sortField]="sortField()"
         [sortOrder]="sortOrder()"
         styleClass="p-datatable-sm"
+        [tableStyle]="{ 'table-layout': 'fixed', 'min-width': '1180px', width: '100%' }"
         (onPage)="limpiarSeleccion()"
         (onFilter)="onFiltrado($event)"
         (onSort)="onOrdenamiento($event)"
@@ -90,15 +109,17 @@
                     @if (!modoDemo()) {
                         @let ofertasVisibles = (tablaOfertas.filteredValue || ofertas()).slice(tablaOfertas.first || 0, (tablaOfertas.first || 0) + (tablaOfertas.rows || 20));
                         @let todasVisiblesSeleccionadas = todasSeleccionadas(ofertasVisibles);
-                        <input
-                            type="checkbox"
-                            class="checkbox-tabla"
-                            [checked]="todasVisiblesSeleccionadas"
-                            [indeterminate]="contarSeleccionadasVisibles(ofertasVisibles) > 0 && !todasVisiblesSeleccionadas"
-                            [disabled]="evaluacionOcupada() || procesandoBulk() || ofertasVisibles.length === 0"
-                            (change)="toggleSeleccionarTodas(ofertasVisibles)"
-                            aria-label="Seleccionar ofertas de esta página"
-                            title="Seleccionar esta página" />
+                        <label class="seleccion-tabla">
+                            <input
+                                type="checkbox"
+                                class="checkbox-tabla"
+                                [checked]="todasVisiblesSeleccionadas"
+                                [indeterminate]="contarSeleccionadasVisibles(ofertasVisibles) > 0 && !todasVisiblesSeleccionadas"
+                                [disabled]="evaluacionOcupada() || procesandoBulk() || ofertasVisibles.length === 0"
+                                (change)="toggleSeleccionarTodas(ofertasVisibles)"
+                                aria-label="Seleccionar ofertas de esta página"
+                                title="Seleccionar esta página" />
+                        </label>
                     }
                 </th>
                 <th class="columna-titulo" pSortableColumn="titulo" style="min-width: 250px">
@@ -127,13 +148,15 @@
             <tr [class.fila-seleccionada]="seleccionadas().has(oferta.id)">
                 <td class="columna-checkbox" style="padding: 0.5rem;">
                     @if (!modoDemo()) {
-                        <input
-                            type="checkbox"
-                            class="checkbox-tabla"
-                            [checked]="seleccionadas().has(oferta.id)"
-                            [disabled]="evaluacionOcupada() || procesandoBulk()"
-                            (change)="toggleSeleccion(oferta.id)"
-                            [attr.aria-label]="'Seleccionar ' + oferta.titulo" />
+                        <label class="seleccion-tabla">
+                            <input
+                                type="checkbox"
+                                class="checkbox-tabla"
+                                [checked]="seleccionadas().has(oferta.id)"
+                                [disabled]="evaluacionOcupada() || procesandoBulk()"
+                                (change)="toggleSeleccion(oferta.id)"
+                                [attr.aria-label]="'Seleccionar ' + oferta.titulo" />
+                        </label>
                     }
                 </td>
                 <td class="columna-titulo">
@@ -166,20 +189,11 @@
                     <span class="tag-plataforma">{{ oferta.plataforma | uppercase }}</span>
                 </td>
                 <td class="columna-estado">
-                    <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
-                        {{ oferta.estado_evaluacion | uppercase }}
-                    </span>
-                    <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
-                    @if (errorEvaluacionOferta(oferta); as error) {
-                        <span role="status">{{ error }}</span>
-                    }
-                    @if (oferta.prioridad_ia) {
-                        <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA: ' + (oferta.evidencias_prioridad_ia || []).join(', ')">IA</span>
-                    }
+                    <ng-container *ngTemplateOutlet="evaluacion; context: { $implicit: oferta }" />
                 </td>
                 <td class="columna-match">
-                    @if (oferta.porcentaje_match !== null) {
-                        <span class="celda-match" [attr.data-nivel]="nivelMatch(oferta.porcentaje_match)">
+                    @if (compatibilidadVisible(oferta)) {
+                        <span class="celda-match" [attr.data-nivel]="nivelCompatibilidad(oferta)" [attr.aria-label]="textoVigencia(oferta) + ': ' + oferta.porcentaje_match + '%'">
                             {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
                         </span>
                     } @else {
@@ -288,29 +302,26 @@
     @if (ofertasPaginadasCards().length > 0) {
         <div class="cards-lista" role="list">
             @for (oferta of ofertasPaginadasCards(); track oferta.id) {
-                <article class="card-oferta" role="listitem" (click)="verDetalle(oferta)" (keydown)="activarCardConTeclado($event, oferta)" tabindex="0" [attr.aria-label]="'Oferta: ' + oferta.titulo">
-                    @if (!modoDemo()) {
-                        <label class="card-seleccion" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                            <input type="checkbox" [checked]="seleccionadas().has(oferta.id)" [disabled]="evaluacionOcupada() || procesandoBulk()"
-                                (change)="toggleSeleccion(oferta.id)" [attr.aria-label]="'Seleccionar en tarjeta ' + oferta.titulo" />
-                            Seleccionar para acciones
-                        </label>
-                    }
-                    <!-- Encabezado de la card: título + match -->
+                <article class="card-oferta" role="listitem" [class.fila-seleccionada]="seleccionadas().has(oferta.id)" (click)="verDetalle(oferta)" (keydown)="activarCardConTeclado($event, oferta)" tabindex="0" [attr.aria-label]="'Oferta: ' + oferta.titulo">
+                    <!-- Distingo seleccionar de abrir sin una segunda navegación. -->
                     <div class="card-oferta__encabezado">
+                        @if (!modoDemo()) {
+                            <label class="card-seleccion card-seleccion--individual" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                                <input type="checkbox" [checked]="seleccionadas().has(oferta.id)" [disabled]="evaluacionOcupada() || procesandoBulk()"
+                                    (change)="toggleSeleccion(oferta.id)" [attr.aria-label]="'Seleccionar en tarjeta ' + oferta.titulo" />
+                                <span class="sr-only">Seleccionar para acciones</span>
+                            </label>
+                        }
                         <div class="card-oferta__titulo-grupo">
                             <h3 class="card-oferta__titulo">{{ oferta.titulo }}</h3>
                             @if (oferta.empresa) {
                                 <span class="card-oferta__empresa">{{ oferta.empresa }}</span>
                             }
                         </div>
-                        @if (oferta.porcentaje_match !== null) {
-                            <span class="card-oferta__match" [attr.data-nivel]="nivelMatch(oferta.porcentaje_match)">
+                        @if (compatibilidadVisible(oferta)) {
+                            <span class="card-oferta__match" [attr.data-nivel]="nivelCompatibilidad(oferta)" [attr.aria-label]="textoVigencia(oferta) + ': ' + oferta.porcentaje_match + '%'">
                                 {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
                             </span>
-                        }
-                        @if (oferta.prioridad_ia) {
-                            <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA'">IA</span>
                         }
                     </div>
 
@@ -328,19 +339,16 @@
                                 {{ oferta.fecha_extraccion | date:'dd/MM/yy' }} (Reap: {{ oferta.fecha_ultima_extraccion | date:'dd/MM/yy' }})
                             </span>
                         } @else {
-                            <span class="card-oferta__fecha">{{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                            <span class="card-oferta__fecha">Det: {{ oferta.fecha_extraccion | date:'dd/MM/yy' }}</span>
+                        }
+                        @if (oferta.fecha_publicacion) {
+                            <span class="card-oferta__fecha">Pub{{ esFechaAproximada(oferta) ? ' (aprox)' : '' }}: {{ oferta.fecha_publicacion | date:'dd/MM/yy' }}</span>
                         }
                     </div>
 
                     <!-- Footer: estado + postulación -->
                     <div class="card-oferta__footer">
-                        <span class="tag-estado" [attr.data-estado]="oferta.estado_evaluacion">
-                            {{ oferta.estado_evaluacion | uppercase }}
-                        </span>
-                        <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
-                        @if (errorEvaluacionOferta(oferta); as error) {
-                            <span role="status">{{ error }}</span>
-                        }
+                        <ng-container *ngTemplateOutlet="evaluacion; context: { $implicit: oferta }" />
                         @if (!modoDemo()) {
                             <p-select
                                 [options]="opcionesPostulacion"

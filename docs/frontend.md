@@ -1,5 +1,36 @@
 # Frontend — Busca Empleos
 
+## Tabla y tarjetas responsive — issue #51
+
+Conservo PrimeNG, la marca Busco Trabajo y los tokens editoriales existentes.
+Compacto las celdas sólo dentro de TablaOfertas: título y empresa siguen legibles,
+agrupo evaluación/vigencia y mantengo detección, reaparición y publicación aproximada.
+A 1440/1024 px conservo todas las columnas mediante scroll horizontal interno de
+PrimeNG cuando hace falta; hasta 768 px reutilizo las tarjetas de 20 ofertas.
+Los textos sin espacios se ajustan sin desbordar la página.
+
+Distingo seleccionar de abrir: el checkbox tiene un label táctil de 44 px, y la
+misma tarjeta sigue siendo la única apertura del detalle por clic, Enter o Space.
+No activo el modal desde controles anidados ni al mantener una tecla presionada.
+Los selectores siguen agregando su overlay a `body`; Escape del detalle devuelve el
+foco a la tarjeta o botón de origen. Mantengo las dos barras contextuales,
+confirmación explícita de reevaluación, máximo de 200 recientes y protecciones #21
+para filtros, páginas, refrescos, operaciones pendientes y reintentos.
+
+No presento porcentajes inválidos, pendientes ni marcados `REEVALUACION_SOLICITADA`
+como resultados actuales. Un rechazo alto no recibe verde de aprobación; los scores
+anteriores/desconocidos quedan sin ese énfasis. Ante un error distingo ausencia de
+resultado nuevo de resultado anterior conservado (firma o contrato histórico fechado).
+El resumen **Error técnico · ver diagnóstico** deja consultar el mensaje completo
+sin que una traza extensa domine el listado; prioridad IA y postulación son independientes.
+
+Amplío el harness Angular/HTTP existente con 56 ofertas sintéticas y registro de
+cuerpos/IDs, sin Firebase ni proveedores reales. La verificación observada pasó
+561 tests Angular (4 omisiones verticales heredadas), 198 E2E y build; los bytes
+verificados, comparación equivalente, matriz, intentos fallidos y límites están en
+[la evidencia de #51](evidencias/issue-51/README.md). No atribuyo estos resultados
+al commit de preparación ni a un futuro commit de entrega.
+
 ## Detalle de oferta compacto — issue #50
 
 Recupero la jerarquía editorial del modal con los tokens y controles existentes:
