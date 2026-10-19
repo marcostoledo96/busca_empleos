@@ -125,6 +125,50 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(fixture.nativeElement.textContent).toContain('RECHAZADA');
     });
 
+    it('S3,S8: muestra el enlace original en la cabecera y enfoca el inicio sin saltar al seguimiento; restaura el foco al cerrar', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', mockOferta as any);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        const abrir = document.createElement('button');
+        abrir.textContent = 'Abrir detalle';
+        fixture.nativeElement.appendChild(abrir);
+        abrir.focus();
+        expect(document.activeElement).toBe(abrir);
+
+        component.visible.set(true);
+        fixture.detectChanges();
+        await fixture.whenStable();
+        const enlace = fixture.nativeElement.querySelector('.p-dialog-header a[aria-label="Abrir oferta en página original"]') as HTMLAnchorElement | null;
+        expect(enlace).withContext('El aviso original está disponible en la vista inicial, no sólo en el footer').not.toBeNull();
+        expect(enlace?.href).toBe('https://ejemplo.com/');
+        expect(enlace?.target).toBe('_blank');
+        expect(enlace?.rel).toContain('noopener');
+        expect(enlace?.rel).toContain('noreferrer');
+        expect(enlace?.closest('details')).toBeNull();
+        const activo = document.activeElement as HTMLElement;
+        expect(activo.closest('.p-dialog-header')).withContext('El foco inicial permanece arriba, no en p-select').not.toBeNull();
+        expect(fixture.nativeElement.querySelector('.p-dialog-content').scrollTop).toBe(0);
+
+        const cerrar = fixture.nativeElement.querySelector('[aria-label="Cerrar detalle de oferta"]') as HTMLButtonElement;
+        cerrar.click();
+        fixture.detectChanges();
+        await fixture.whenStable();
+        expect(component.visible()).toBeFalse();
+        expect(document.activeElement).toBe(abrir);
+    });
+
+    it('S7: una oferta pendiente no muestra el porcentaje anterior aunque no tenga mensaje de error', async () => {
+        const { fixture, component } = await crearComponente();
+        fixture.componentRef.setInput('oferta', { ...mockOferta, estado_evaluacion: 'pendiente' } as any);
+        component.visible.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).toContain('PENDIENTE');
+        expect(fixture.nativeElement.textContent).not.toContain('85%');
+        expect(fixture.nativeElement.textContent).not.toContain('Compatibilidad estimada:');
+    });
+
     it('en modoDemo bloquea iniciarEdicionDescripcion, guardarDescripcion y solicitarReevaluacion', async () => {
         const { fixture, component } = await crearComponente();
         fixture.componentRef.setInput('oferta', mockOferta as any);
@@ -217,6 +261,8 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(texto).toContain('La evaluación no pudo completarse satisfactoriamente. Motivo: No se pudo interpretar la respuesta de DeepSeek');
         expect(texto).not.toContain('Última reevaluación no aplicada');
         expect(texto).not.toContain('Se conserva la evaluación anterior válida');
+        const alerta = fixture.nativeElement.querySelector('.alerta-desactualizada');
+        expect(alerta.closest('details')).withContext('S4,S7: el fallo técnico no se oculta en matching').toBeNull();
     });
 
     it('oferta con error técnico en estado pendiente muestra alerta de fallo técnico y no la de criterios modificados', async () => {
@@ -235,6 +281,8 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(texto).toContain('La evaluación no pudo completarse satisfactoriamente. Motivo: Fallo al conectar con el motor de IA (timeout)');
         expect(texto).not.toContain('Evaluación desactualizada — pendiente de reevaluación');
         expect(texto).not.toContain('La descripción o los criterios se modificaron');
+        expect(texto).not.toContain('85%');
+        expect(fixture.nativeElement.querySelector('.alerta-desactualizada').closest('details')).toBeNull();
     });
 
     it('oferta previamente aprobada con reevaluación fallida muestra la evaluación anterior y la alerta de fallo reciente', async () => {
@@ -255,6 +303,7 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(texto).toContain('Última reevaluación no aplicada');
         expect(texto).toContain('Se conserva la evaluación anterior válida. Motivo: Error 500: servicio no disponible al reevaluar');
         expect(texto).not.toContain('Evaluación desactualizada — pendiente de reevaluación');
+        expect(fixture.nativeElement.querySelector('.alerta-desactualizada').closest('details')).withContext('S4,S7: conservo visible el fallo de reevaluación').toBeNull();
     });
 
     it('renderiza Primera detección y no renderiza Última detección si no hay fecha_ultima_extraccion o es idéntica', async () => {
@@ -268,7 +317,13 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         component.visible.set(true);
         fixture.detectChanges();
 
-        const texto = fixture.nativeElement.textContent;
+        const metadatos = fixture.nativeElement.querySelector('.detalle-fechas')?.closest('details') as HTMLDetailsElement | null;
+        expect(metadatos).withContext('S6: las fechas secundarias se conservan en un plegable').not.toBeNull();
+        expect(metadatos?.open).toBeFalse();
+        metadatos?.querySelector('summary')?.click();
+        fixture.detectChanges();
+        expect(metadatos?.open).toBeTrue();
+        const texto = metadatos?.textContent ?? '';
         expect(texto).toContain('Primera detección:');
         expect(texto).toContain('01/04/2026');
         expect(texto).not.toContain('Última detección:');
@@ -286,7 +341,11 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         component.visible.set(true);
         fixture.detectChanges();
 
-        const texto = fixture.nativeElement.textContent;
+        const metadatos = fixture.nativeElement.querySelector('.detalle-fechas')?.closest('details') as HTMLDetailsElement | null;
+        expect(metadatos).not.toBeNull();
+        metadatos?.querySelector('summary')?.click();
+        fixture.detectChanges();
+        const texto = metadatos?.textContent ?? '';
         expect(texto).toContain('Primera detección:');
         expect(texto).toContain('Última detección:');
         expect(texto).toContain('01/04/2026');

@@ -236,8 +236,20 @@ export class DetalleOferta implements OnDestroy {
         // Si ya hay un elemento enfocado dentro del modal (ej. el dropdown de
         // p-select está abierto), no robar el foco. Esto evita que overlays
         // internos se cierren por un cambio de foco programático.
-        const activo = document.activeElement;
-        if (activo && this.elemento.nativeElement.contains(activo)) {
+        const activo = document.activeElement as HTMLElement | null;
+        if (activo?.closest('.p-dialog') || activo?.closest('.p-select-overlay')) {
+            return;
+        }
+
+        // Enfoco la cabecera sin desplazar el contenido hasta el selector de seguimiento.
+        const enlaceOriginal = this.elemento.nativeElement.querySelector('.enlace-original') as HTMLElement | null;
+        if (enlaceOriginal) {
+            enlaceOriginal.focus({ preventScroll: true });
+            return;
+        }
+        const cierre = this.elemento.nativeElement.querySelector('.p-dialog-header button') as HTMLElement | null;
+        if (cierre) {
+            cierre.focus({ preventScroll: true });
             return;
         }
 
@@ -261,6 +273,27 @@ export class DetalleOferta implements OnDestroy {
             this.elementoFocoPrevio.focus();
             this.elementoFocoPrevio = null;
         }
+    }
+
+    etiquetaEvaluacion(oferta: Oferta): string {
+        if (oferta.evaluacion_error_mensaje && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
+            && (oferta.estado_evaluacion === 'pendiente' || !oferta.firma_criterios_evaluacion)) {
+            return 'Error técnico';
+        }
+        return oferta.estado_evaluacion;
+    }
+
+    compatibilidadVigente(oferta: Oferta): boolean {
+        return oferta.porcentaje_match !== null && Number.isFinite(oferta.porcentaje_match)
+            && oferta.porcentaje_match >= 0 && oferta.porcentaje_match <= 100
+            && oferta.estado_evaluacion !== 'pendiente'
+            && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
+            && (!oferta.evaluacion_error_mensaje || !!oferta.firma_criterios_evaluacion);
+    }
+
+    resumenDescripcion(descripcion: string): string {
+        const texto = descripcion.replace(/\s+/g, ' ').trim();
+        return texto.length > 260 ? `${texto.slice(0, 260).trimEnd()}…` : texto;
     }
 
     // Determina el color del tag según el estado.

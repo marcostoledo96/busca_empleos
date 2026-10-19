@@ -1,5 +1,34 @@
 # Frontend — Busca Empleos
 
+## Detalle de oferta compacto — issue #50
+
+Recupero la jerarquía editorial del modal con los tokens y controles existentes:
+muestro título, empresa, ubicación, modalidad, estado real de evaluación y una sola
+compatibilidad válida en la cabecera. Mantengo la prioridad IA separada de la
+aprobación. El enlace **VER ORIGINAL** queda arriba, abre otra pestaña con
+`noopener noreferrer` y recibe el foco inicial sin desplazar el contenido hasta
+el selector de seguimiento. Conservo `focusTrap=false` y `focusOnShow=false` por
+el selector de PrimeNG que agrega su overlay a `body`; al cerrar restauro el foco
+al elemento de apertura. La navegación real con overlays requiere comprobación E2E.
+
+Dejo visibles el motivo principal, los conteos de requisitos y las advertencias
+críticas: exclusiones obligatorias incluso con score bajo, evaluación desactualizada,
+fallo técnico o reevaluación fallida. No repito el porcentaje ni la advertencia de
+vigencia. No presento un error técnico como rechazo ni un score anterior como vigente
+para una oferta pendiente. Si falló una reevaluación con firma válida previa, explico
+que conservo esa evaluación. **Ver desglose y evidencias del matching** abre un
+`details` nativo, inicialmente cerrado, con todos los requisitos, explicaciones y
+evidencias de oferta y perfil de #17.
+
+El seguimiento queda accesible sin abrir plegables: estado manual, fecha, nota y
+**Guardar seguimiento**, con sus mensajes y errores. No cambio guardado, validación,
+rollback, borradores por oferta ni revisiones de respuestas asíncronas. Para la
+descripción muestro procedencia y un extracto de hasta 260 caracteres; **Leer
+descripción completa** permite consultar el texto íntegro sin un segundo scroll
+interno. La edición permanece fuera del plegable y la reevaluación sigue siendo
+explícita. Agrupo plataforma, nivel, salario y fechas en **Datos del aviso y fechas**.
+Abrir el modal o expandir cualquiera de sus secciones no guarda datos ni llama a IA.
+
 ## Selección de DeepSeek por tarea — issue #26
 
 En Preferencias conservo selectores independientes **DeepSeek Flash**

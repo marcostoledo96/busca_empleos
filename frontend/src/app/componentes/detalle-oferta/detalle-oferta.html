@@ -4,10 +4,10 @@
     [modal]="true"
     [focusTrap]="false"
     [focusOnShow]="false"
-    [style]="{ width: 'min(720px, calc(100vw - 32px))', maxHeight: '90vh' }"
+    [style]="{ width: 'min(680px, calc(100vw - 32px))', maxHeight: '90dvh' }"
     [draggable]="false"
     [resizable]="false"
-    [breakpoints]="{ '768px': { width: '100vw', maxHeight: '100vh' } }"
+    [breakpoints]="{ '768px': { width: '100vw', maxHeight: '100dvh' } }"
     styleClass="dialogo-detalle"
     aria-labelledby="detalle-titulo">
 
@@ -16,11 +16,14 @@
         <ng-template #header>
             <div class="dialogo-cabecera">
                 <span class="dialogo-label">DETALLE_OFERTA</span>
-                <span class="dialogo-titulo" id="detalle-titulo">{{ o.titulo }}</span>
-            </div>
-        </ng-template>
-
-        <div class="detalle-contenido">
+                <h2 class="dialogo-titulo" id="detalle-titulo">{{ o.titulo }}</h2>
+                @if (o.url) {
+                    <a class="btn-accion-editorial enlace-original" [href]="o.url" target="_blank" rel="noopener noreferrer"
+                        aria-label="Abrir oferta en página original">
+                        <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                        VER ORIGINAL
+                    </a>
+                }
             <!-- Meta: empresa / ubicación / modalidad -->
             <div class="detalle-meta">
                 @if (o.empresa) {
@@ -45,24 +48,20 @@
 
             <!-- Tags -->
             <div class="detalle-tags">
-                <span class="tag-detalle">{{ o.plataforma | uppercase }}</span>
-                <span class="tag-detalle" [attr.data-estado]="o.estado_evaluacion">
-                    {{ o.estado_evaluacion | uppercase }}
+                <span class="tag-detalle" [attr.data-estado]="etiquetaEvaluacion(o) === 'Error técnico' ? 'error' : o.estado_evaluacion">
+                    {{ etiquetaEvaluacion(o) | uppercase }}
                 </span>
-                @if (o.porcentaje_match !== null && o.estado_evaluacion !== 'pendiente' && o.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA') {
+                @if (compatibilidadVigente(o)) {
                     <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
-                }
-                @if (o.nivel_requerido) {
-                    <span class="tag-detalle">{{ o.nivel_requerido | uppercase }}</span>
                 }
                 @if (o.prioridad_ia) {
                     <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
                 }
-                @if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
-                    <span class="tag-desactualizada" role="status">Evaluación desactualizada — pendiente de reevaluación</span>
-                }
             </div>
+            </div>
+        </ng-template>
 
+        <div class="detalle-contenido">
             <!-- Alerta cuando la evaluación está desactualizada o pendiente -->
             @if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
@@ -98,51 +97,49 @@
                 </div>
             }
 
-            <div class="detalle-separador"></div>
-
-            <!-- Salario -->
-            @if (o.salario_min || o.salario_max) {
-                <div class="detalle-seccion">
-                    <span class="seccion-label">SALARIO</span>
-                    <p class="detalle-salario">
-                        @if (o.salario_min && o.salario_max) {
-                            {{ o.moneda || '$' }} {{ o.salario_min }} — {{ o.salario_max }}
-                        } @else if (o.salario_min) {
-                            Desde {{ o.moneda || '$' }} {{ o.salario_min }}
-                        } @else {
-                            Hasta {{ o.moneda || '$' }} {{ o.salario_max }}
-                        }
-                    </p>
-                </div>
-            }
-
             <!-- Desglose de Matching y Evaluación -->
             <div class="detalle-seccion seccion-matching">
                 <div class="seccion-cabecera-matching">
                     <span class="seccion-label">EVALUACIÓN Y MATCHING</span>
-                    @if (o.porcentaje_match !== null && o.estado_evaluacion !== 'pendiente' && o.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA') {
-                        <span class="compatibilidad-destacada">
-                            Compatibilidad estimada: {{ o.porcentaje_match }}%
-                        </span>
-                    }
                 </div>
 
                 @if (o.razon_evaluacion) {
-                    <p class="detalle-razon">{{ o.razon_evaluacion }}</p>
+                    <p class="detalle-razon">
+                        @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                            <strong>Motivo de la evaluación anterior: </strong>
+                        }
+                        {{ o.razon_evaluacion }}
+                    </p>
                 }
 
                 @if (tieneDesglose(o)) {
-                    <!-- Advertencia si el score es alto pero fue rechazada por exclusión -->
-                    @if (o.estado_evaluacion === 'rechazada' && (o.porcentaje_match ?? 0) >= 70 && (o.explicacion_evaluacion?.exclusiones?.length ?? 0) > 0) {
+                    <p class="resumen-requisitos">
+                        {{ o.explicacion_evaluacion!.cumplidos.length }} a favor ·
+                        {{ o.explicacion_evaluacion!.no_cumplidos.length }} no cumplidos ·
+                        {{ o.explicacion_evaluacion!.exclusiones.length }} exclusiones ·
+                        {{ o.explicacion_evaluacion!.por_confirmar.length }} por confirmar
+                    </p>
+                    @if (o.explicacion_evaluacion!.exclusiones.length > 0) {
                         <div class="alerta-exclusion-score-alto" role="alert">
                             <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                             <div class="alerta-exclusion-texto">
-                                <strong>Atención: Compatibilidad estimada alta rechazada por exclusión</strong>
-                                <span>Aunque la compatibilidad estimada es del {{ o.porcentaje_match }}%, la oferta no es elegible porque incumple criterios excluyentes.</span>
+                                @if (o.estado_evaluacion === 'rechazada' && compatibilidadVigente(o) && (o.porcentaje_match ?? 0) >= 70) {
+                                    <strong>Atención: Compatibilidad estimada alta rechazada por exclusión</strong>
+                                } @else {
+                                    <strong>Exclusiones obligatorias detectadas</strong>
+                                }
+                                @for (item of o.explicacion_evaluacion!.exclusiones; track item.requisito) {
+                                    <span>{{ item.requisito }}{{ item.explicacion ? ': ' + item.explicacion : '' }}</span>
+                                }
+                                @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                                    <span>Exclusiones de la evaluación anterior; pendientes de reevaluación.</span>
+                                }
                             </div>
                         </div>
                     }
 
+                    <details class="detalle-plegable">
+                        <summary>Ver desglose y evidencias del matching</summary>
                     <!-- A favor del match -->
                     @if (o.explicacion_evaluacion!.cumplidos.length > 0) {
                         <div class="bloque-desglose desglose-cumplidos">
@@ -295,6 +292,7 @@
                             </ul>
                         </div>
                     }
+                    </details>
                 } @else {
                     <!-- Fallback sin desglose estructurado -->
                     <div class="aviso-historico-sin-desglose">
@@ -398,16 +396,14 @@
                     }
                 </div>
 
-                @if (o.descripcion_modificada_en) {
-                    <span class="descripcion-modificada-en">
-                        Modificada: {{ o.descripcion_modificada_en | date:'dd/MM/yyyy HH:mm' }}
-                    </span>
-                }
-
                 <!-- Modo visualización de la descripción -->
                 @if (!modoEdicionDescripcion()) {
                     @if (o.descripcion) {
-                        <div class="detalle-descripcion">{{ o.descripcion }}</div>
+                        <p class="descripcion-resumen">{{ resumenDescripcion(o.descripcion) }}</p>
+                        <details class="detalle-plegable">
+                            <summary>Leer descripción completa</summary>
+                            <div class="detalle-descripcion">{{ o.descripcion }}</div>
+                        </details>
                     } @else {
                         <div class="detalle-descripcion descripcion-vacia">
                             Sin descripción registrada. Podés completarla manualmente haciendo clic en "Completar descripción".
@@ -463,8 +459,31 @@
                 }
             </div>
 
-            <!-- Fechas -->
-            <div class="detalle-separador"></div>
+            <details class="detalle-plegable metadatos-oferta">
+                <summary>Datos del aviso y fechas</summary>
+                @if (o.descripcion_modificada_en) {
+                    <p class="descripcion-modificada-en">
+                        Descripción modificada: {{ o.descripcion_modificada_en | date:'dd/MM/yyyy HH:mm' }}
+                    </p>
+                }
+                <div class="detalle-tags">
+                    <span class="tag-detalle">{{ o.plataforma | uppercase }}</span>
+                    @if (o.nivel_requerido) {
+                        <span class="tag-detalle">{{ o.nivel_requerido | uppercase }}</span>
+                    }
+                </div>
+                @if (o.salario_min || o.salario_max) {
+                    <p class="detalle-salario">
+                        Salario: {{ o.moneda || '$' }}
+                        @if (o.salario_min && o.salario_max) {
+                            {{ o.salario_min }} — {{ o.salario_max }}
+                        } @else if (o.salario_min) {
+                            Desde {{ o.salario_min }}
+                        } @else {
+                            Hasta {{ o.salario_max }}
+                        }
+                    </p>
+                }
             <div class="detalle-fechas">
                 <span class="fecha-item">
                     <span class="material-symbols-outlined" aria-hidden="true">calendar_today</span>
@@ -488,16 +507,13 @@
                     </span>
                 }
             </div>
+            </details>
         </div>
 
         <!-- Footer del diálogo -->
         <ng-template #footer>
             <button class="btn-detalle-secundario" (click)="visible.set(false)" aria-label="Cerrar detalle de oferta">
                 CERRAR
-            </button>
-            <button class="btn-detalle-primario" (click)="abrirEnPagina()" aria-label="Abrir oferta en página original">
-                <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
-                VER ORIGINAL
             </button>
         </ng-template>
     }
