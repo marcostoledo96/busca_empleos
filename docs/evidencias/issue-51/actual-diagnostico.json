@@ -1,0 +1,37 @@
+{
+  "alcance": "Angular integrado HTTP sintético existente; sólo diagnóstico previo. Recursos externos bloqueados.",
+  "datos": [
+    {
+      "viewport": [
+        1440,
+        900
+      ],
+      "ancho": 1440,
+      "scroll": 1440,
+      "alturas": [
+        136.953125,
+        136.953125
+      ]
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "ancho": 390,
+      "scroll": 390,
+      "alturas": [
+        264.15625,
+        265.15625
+      ]
+    }
+  ],
+  "foco": {
+    "etiqueta": "ARTICLE",
+    "clases": "card-oferta ng-star-inserted",
+    "vuelveATarjeta": true
+  },
+  "pendiente": [
+    " Seleccionar para acciones Frontend Angular junior · oferta sintéticaLaboratorio sintético del Sur 97%IAlocation_on Buenos Aires, Argentina LINKEDIN 14/01/26 (Reap: 15/01/26)  PENDIENTE Sin evaluaciónNo postulado"
+  ]
+}
