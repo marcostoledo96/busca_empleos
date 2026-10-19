@@ -231,16 +231,40 @@ export class DetalleOferta implements OnDestroy {
         }
     }
 
-    // Mueve el foco al primer elemento interactivo dentro del modal.
+    cancelarFocoInicial(): void {
+        this.limpiarTimeoutFoco();
+    }
+
+    mantenerFocoEnDialogo(evento: KeyboardEvent): void {
+        this.cancelarFocoInicial();
+        if (evento.key !== 'Tab' || evento.defaultPrevented || evento.altKey || evento.ctrlKey || evento.metaKey) return;
+        const dialogo = (evento.target as HTMLElement).closest<HTMLElement>('.p-dialog');
+        // Dejo al selector manejar sus teclas y el overlay que agrega a body.
+        if (!dialogo || dialogo.querySelector('[role="combobox"][aria-expanded="true"]')) return;
+        const controles = Array.from(dialogo.querySelectorAll<HTMLElement>(
+            'a[href], button, input, select, textarea, summary, [tabindex]'
+        )).filter(control => control.tabIndex >= 0 && !control.matches(':disabled')
+            && !control.closest('[inert], [aria-hidden="true"]') && control.getClientRects().length > 0
+            && !['hidden', 'collapse'].includes(getComputedStyle(control).visibility));
+        const primero = controles[0];
+        const ultimo = controles[controles.length - 1];
+        const destino = evento.shiftKey && document.activeElement === primero ? ultimo
+            : !evento.shiftKey && document.activeElement === ultimo ? primero : null;
+        if (destino) {
+            evento.preventDefault();
+            destino.focus();
+        }
+    }
+
+    // Corrijo el autofocus interno sin interferir con quien ya usó teclado o puntero.
     private moverFocoAlModal(): void {
-        // Si ya hay un elemento enfocado dentro del modal (ej. el dropdown de
-        // p-select está abierto), no robar el foco. Esto evita que overlays
-        // internos se cierren por un cambio de foco programático.
         const activo = document.activeElement as HTMLElement | null;
-        if (activo?.closest('.p-dialog') || activo?.closest('.p-select-overlay')) {
+        if (activo?.closest('.p-select-overlay') || activo?.getAttribute('aria-expanded') === 'true') {
             return;
         }
 
+        const dialogContent = this.elemento.nativeElement.querySelector('.p-dialog-content') as HTMLElement | null;
+        if (dialogContent) dialogContent.scrollTop = 0;
         // Enfoco la cabecera sin desplazar el contenido hasta el selector de seguimiento.
         const enlaceOriginal = this.elemento.nativeElement.querySelector('.enlace-original') as HTMLElement | null;
         if (enlaceOriginal) {
@@ -253,8 +277,6 @@ export class DetalleOferta implements OnDestroy {
             return;
         }
 
-        const dialogContent = this.elemento.nativeElement.querySelector('.p-dialog-content') as HTMLElement
-            ?? this.elemento.nativeElement.querySelector('.dialogo-cabecera') as HTMLElement;
         if (dialogContent) {
             const primerInteractivo = dialogContent.querySelector(
                 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'

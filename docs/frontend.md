@@ -4,12 +4,22 @@
 
 Recupero la jerarquía editorial del modal con los tokens y controles existentes:
 muestro título, empresa, ubicación, modalidad, estado real de evaluación y una sola
-compatibilidad válida en la cabecera. Mantengo la prioridad IA separada de la
-aprobación. El enlace **VER ORIGINAL** queda arriba, abre otra pestaña con
-`noopener noreferrer` y recibe el foco inicial sin desplazar el contenido hasta
-el selector de seguimiento. Conservo `focusTrap=false` y `focusOnShow=false` por
-el selector de PrimeNG que agrega su overlay a `body`; al cerrar restauro el foco
-al elemento de apertura. La navegación real con overlays requiere comprobación E2E.
+compatibilidad válida al comienzo del contenido desplazable. Mantengo la prioridad IA
+separada de la aprobación. La barra fija contiene sólo el rótulo y **VER ORIGINAL**:
+los títulos y metadatos largos recorren el mismo scroll interno que el resto del detalle,
+sin recortes ni otro panel desplazable, y no empujan el footer fuera del modal.
+El enlace abre otra pestaña con `noopener noreferrer` y recibe el foco inicial arriba.
+Corrijo el autofocus interno y vuelvo al inicio del contenido sólo durante esa apertura;
+si ya usé teclado o puntero, cancelo ese foco programado para no interrumpir la interacción.
+
+Conservo `focusTrap=false`, `focusOnShow=false` y el overlay del selector en `body`.
+Un manejador local de Tab/Shift+Tab consulta los controles renderizados, habilitados y
+visibles y envuelve únicamente el primer y último control. No agrega listeners globales
+ni interviene mientras el selector está expandido: sus teclas y Escape siguen siendo
+nativos. Al cerrar restauro el foco al elemento de apertura. Las pruebas focales incluyen
+los límites en ambos sentidos, Escape del selector antes del diálogo y footer/título
+largo a 320 px en ambos temas; el GREEN posterior a esta corrección sigue pendiente
+de ejecución por el padre, no se anticipa con esta descripción.
 
 Dejo visibles el motivo principal, los conteos de requisitos y las advertencias
 críticas: exclusiones obligatorias incluso con score bajo, evaluación desactualizada,

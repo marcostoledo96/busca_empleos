@@ -61,6 +61,11 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
 
 export function crearHttpDetalle(ofertas: Oferta[], parametros: URLSearchParams) {
     // Nunca comparto referencias con el Dashboard: su actualización optimista no altera el servidor.
+    // Variante optativa: preservo intacta la fixture v1 usada en las comparaciones históricas.
+    if (parametros.get('extremosDetalle') === '1') {
+        ofertas[0].url = `https://example.invalid/${'RutaSinEspacios'.repeat(200)}`;
+        ofertas[0].nota_postulacion = 'NotaSinEspacios'.repeat(200);
+    }
     const guardadas = structuredClone(ofertas);
     const errores = new Set((parametros.get('errorDetalle') || '').split(','));
     const demoras = (parametros.get('demoraDetalle') || '0').split(',').map(Number);

@@ -4,6 +4,8 @@
     [modal]="true"
     [focusTrap]="false"
     [focusOnShow]="false"
+    (keydown)="mantenerFocoEnDialogo($event)"
+    (pointerdown)="cancelarFocoInicial()"
     [style]="{ width: 'min(680px, calc(100vw - 32px))', maxHeight: '90dvh' }"
     [draggable]="false"
     [resizable]="false"
@@ -14,9 +16,8 @@
     @if (oferta(); as o) {
         <!-- Header propio dentro del dialog -->
         <ng-template #header>
-            <div class="dialogo-cabecera">
+            <div class="dialogo-barra">
                 <span class="dialogo-label">DETALLE_OFERTA</span>
-                <h2 class="dialogo-titulo" id="detalle-titulo">{{ o.titulo }}</h2>
                 @if (o.url) {
                     <a class="btn-accion-editorial enlace-original" [href]="o.url" target="_blank" rel="noopener noreferrer"
                         aria-label="Abrir oferta en página original">
@@ -24,44 +25,47 @@
                         VER ORIGINAL
                     </a>
                 }
-            <!-- Meta: empresa / ubicación / modalidad -->
-            <div class="detalle-meta">
-                @if (o.empresa) {
-                    <span class="meta-item">
-                        <span class="material-symbols-outlined" aria-hidden="true">business</span>
-                        {{ o.empresa }}
-                    </span>
-                }
-                @if (o.ubicacion) {
-                    <span class="meta-item">
-                        <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
-                        {{ o.ubicacion }}
-                    </span>
-                }
-                @if (o.modalidad) {
-                    <span class="meta-item">
-                        <span class="material-symbols-outlined" aria-hidden="true">computer</span>
-                        {{ o.modalidad }}
-                    </span>
-                }
-            </div>
-
-            <!-- Tags -->
-            <div class="detalle-tags">
-                <span class="tag-detalle" [attr.data-estado]="etiquetaEvaluacion(o) === 'Error técnico' ? 'error' : o.estado_evaluacion">
-                    {{ etiquetaEvaluacion(o) | uppercase }}
-                </span>
-                @if (compatibilidadVigente(o)) {
-                    <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
-                }
-                @if (o.prioridad_ia) {
-                    <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
-                }
-            </div>
             </div>
         </ng-template>
 
         <div class="detalle-contenido">
+            <div class="dialogo-cabecera">
+                <h2 class="dialogo-titulo" id="detalle-titulo">{{ o.titulo }}</h2>
+                <!-- Meta: empresa / ubicación / modalidad -->
+                <div class="detalle-meta">
+                    @if (o.empresa) {
+                        <span class="meta-item">
+                            <span class="material-symbols-outlined" aria-hidden="true">business</span>
+                            {{ o.empresa }}
+                        </span>
+                    }
+                    @if (o.ubicacion) {
+                        <span class="meta-item">
+                            <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                            {{ o.ubicacion }}
+                        </span>
+                    }
+                    @if (o.modalidad) {
+                        <span class="meta-item">
+                            <span class="material-symbols-outlined" aria-hidden="true">computer</span>
+                            {{ o.modalidad }}
+                        </span>
+                    }
+                </div>
+
+                <!-- Tags -->
+                <div class="detalle-tags">
+                    <span class="tag-detalle" [attr.data-estado]="etiquetaEvaluacion(o) === 'Error técnico' ? 'error' : o.estado_evaluacion">
+                        {{ etiquetaEvaluacion(o) | uppercase }}
+                    </span>
+                    @if (compatibilidadVigente(o)) {
+                        <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
+                    }
+                    @if (o.prioridad_ia) {
+                        <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
+                    }
+                </div>
+            </div>
             <!-- Alerta cuando la evaluación está desactualizada o pendiente -->
             @if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">

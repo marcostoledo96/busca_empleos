@@ -2,7 +2,9 @@
 
 ## Estado de esta entrega
 
-Preparé datos y pruebas, **no modifiqué el modal ni ejecuté capturas desde el worker**. El padre informó el resultado real de job7: **88 passed, 11 failed** (10 capturas de postulada y su smoke). Los fallos fueron timeouts de `locator.click`: el helper buscaba la oferta 501 en APROBADAS, pero ese escenario requiere la pestaña POSTULADAS. Corregí únicamente esa navegación sintética; no es un defecto de UI ni de fixture. El padre reejecutará sólo los casos postulada faltantes, preservando las 80 capturas ANTES existentes. Todavía no afirmo GREEN de la corrección.
+El padre informó ejecuciones reales: histórico **90/90** (job8); ANTES job7 **88 passed, 11 failed**, por el helper que buscaba la oferta postulada en APROBADAS. Tras corregir sólo esa navegación, job9 **11/11** completó las capturas y smoke faltantes. Job11 consolidó ANTES **90/90** sin reemplazar los PNG originales. Job4 expiró por un environment local ignorado ausente: fue un fallo ambiental, no RED funcional. No oculto esos fallos.
+
+El modal actual quedó implementado en `79e566c79719ee3d92e2c054d1a4fe446d8d30e5`; el padre informó RED focal **8 fallos/24 éxitos** y GREEN **32/32**. En T3 agregué pruebas funcionales y assertions geométricas para DESPUÉS, **sin ejecutar Playwright, suite Angular ni build desde este worker**. La primera ejecución del padre (job15, exit 1) dio **110 éxitos / 2 fallos**: metadatos con texto de icono incluido y un filtro `has` mal acotado para el desglose. Leí ambos fallos en el log; corregí los selectores manteniendo las comprobaciones exactas y todas las evidencias. Ese resultado no demuestra que la geometría ni el foco sean correctos: el MCP del padre reprodujo defectos adicionales descritos abajo.
 
 Base inspeccionada: `a178393ffffc722796b65c6c6b2c452221d577f4` (#52/#53 presentes). El único archivo ajeno inicialmente sin seguimiento era `odd/tasks/issue-50-detalle-oferta-ui.md`; lo preservé.
 
@@ -17,16 +19,30 @@ npx --no-install ng serve --configuration e2e --host 127.0.0.1 --port 4350
 # Smoke aislado. El runner existente también puede iniciar el servidor.
 npm run test:e2e -- e2e/detalle-harness.spec.ts
 
-# Captura explícita ANTES: ejecutar ANTES de modificar el modal.
-EVIDENCIA50=antes npm run test:e2e -- e2e/detalle-capturas.spec.ts
+# Recorridos funcionales focales (sin capturas de la matriz).
+npm run test:e2e -- e2e/detalle-ui.spec.ts
 
-# Después de T2, misma matriz y mismos datos.
+# RED focal de límites de teclado y geometría (antes de corregir producción).
+npm run test:e2e -- e2e/detalle-ui.spec.ts --grep '@detalle-red'
+
+# Revalidar los dos selectores corregidos.
+npm run test:e2e -- e2e/detalle-ui.spec.ts --grep 'cabecera inicial|exclusión crítica'
+
+# DESPUÉS, misma matriz y mismos datos.
 EVIDENCIA50=despues npm run test:e2e -- e2e/detalle-capturas.spec.ts
 ```
 
-La suite ordinaria utiliza `despues` para no sobrescribir el ANTES por accidente. Capturar `antes` nuevamente sí sobrescribe esos archivos: conservar la primera ejecución antes de avanzar a T2.
+La suite utiliza `despues` y ahora rechaza cualquier otra fase: **no vuelve a escribir ANTES ni histórico**. Ambos están preservados como evidencia ya capturada.
 
 El runner existente usa `.angular/` y `frontend/test-results/`. No ejecuté tests ni capturas desde el worker por indicación del padre. El padre informó que el primer intento expiró por un environment ignorado faltante: no cuenta como RED. También detectó con navegador real que el orden descendente coloca 502 antes de 501: corregí ambos specs para identificar el título único de 501, sin depender del orden. No afirmo RED/GREEN de navegador.
+
+## Defectos reproducidos y RED pendiente
+
+El padre reprodujo con MCP, a 320×844 y título largo, cabecera de aproximadamente **699,95 px**, contenido de **48 px** y footer inferior en **867,75 px**, fuera del viewport (844 px) y del diálogo (borde inferior ≈801,8 px). La matriz anterior comprobaba el diálogo, pero no los límites completos del footer: sus 90 éxitos no cubrían ese defecto. También reprodujo `Shift+Tab` desde el enlace original hacia el fondo (Jobs by Adzuna).
+
+Agregué **siete casos focales `@detalle-red`**, sin editar producción: dos sentidos de cruce entre primer/último control; selector operado con teclado y Escape del overlay separado del Escape del diálogo; footer completo dentro de diálogo/viewport y área útil de contenido a 320 px en ambos temas; lectura del comienzo/final del título largo mediante scroll interno en ambos temas, verificando clipping de sus ancestros y sin desplazar el fondo. El helper común ahora exige footer completamente contenido y al menos **160 px de contenido útil**, en vez de aceptar cualquier altura positiva. Es un umbral funcional explícito de esta prueba, no una métrica WCAG.
+
+Conservo los 22 casos anteriores y sus evidencias. No ejecuté estos nuevos casos: el padre debe observar RED antes de la corrección productiva. Una futura solución debe respetar el overlay del selector; no cambié `focusTrap` ni agregué un workaround en el harness. El padre informó además job16 Angular **547 éxitos / 4 skips preexistentes** y job17 build **exit 0**, con advertencia de presupuesto Preferencias **15,61 kB**; esos resultados son anteriores a esta ampliación de pruebas y no son GREEN de los nuevos casos.
 
 ## Datos y selectores
 
@@ -61,7 +77,7 @@ await page.getByText('Registro del fixture', { exact: true }).click();
 const llamadas = page.getByLabel('Llamadas simuladas');
 ```
 
-Las capturas usan reloj fijo `2026-01-15T18:00:00.000Z`, fuentes locales del harness y animaciones desactivadas. Matriz: los nueve escenarios × claro/oscuro × 1440×900, 1024×768, 768×900, 390×844, 320×844 (90 casos). Todos los PNG quedan en `frontend/.angular/evidencia-50/<fase>/`, ignorado. Sólo copio cuatro imágenes representativas por fase a `docs/evidencias/issue-50/<fase>/`: aprobada desktop 1440 claro/oscuro, aprobada móvil 390 claro y rechazada móvil 320 claro. Un único `matriz.json` por fase registra todos los casos capturados, HEAD, fixture, ofertaId 501, URL, tema, viewport y medidas; incluye cantidades esperada/capturada para evidenciar ejecuciones incompletas. No genero JSON por imagen. Son capturas del viewport inicial, no pruebas de que todo el contenido interno sea visible o navegable. T3 debe recorrer el scroll y los expandibles.
+Las capturas usan reloj fijo `2026-01-15T18:00:00.000Z`, fuentes locales del harness y animaciones desactivadas. Matriz: los nueve escenarios × claro/oscuro × 1440×900, 1024×768, 768×900, 390×844, 320×844 (90 casos). Todos los PNG quedan en `frontend/.angular/evidencia-50/<fase>/`, ignorado. Sólo copio cuatro imágenes representativas por fase a `docs/evidencias/issue-50/<fase>/`: aprobada desktop 1440 claro/oscuro, aprobada móvil 390 claro y rechazada móvil 320 claro. Un único `matriz.json` por fase registra todos los casos capturados, HEAD, fixture, ofertaId 501, URL, tema, viewport y medidas; incluye cantidades esperada/capturada para evidenciar ejecuciones incompletas. No genero JSON por imagen. Los PNG conservan el viewport inicial. Cada caso DESPUÉS exige scrollTop inicial cero, un solo score válido (ninguno en pendiente/error/desactualizada), modal dentro del viewport y ausencia de overflow horizontal. Luego abre todos los `details` por teclado, alcanza el final del scroll interno y comprueba geometría de contenido/footer y del botón de seguimiento. El JSON guarda medidas iniciales/finales y controles. La fusión por escenario/tema/viewport conserva filas de ejecuciones filtradas del mismo candidato; un fallo reemplaza la fila por `validado:false`. `casosCapturados` cuenta sólo filas validadas. Un candidato distinto (HEAD + huella del diff y spec funcional) se conserva en `ejecucionesAnteriores`, nunca se suma como éxito del actual.
 
 ## Mutaciones simuladas
 
@@ -75,16 +91,16 @@ No inicializo Firebase ni delego HTTP a la red. El interceptor existente registr
 - `demoraDetalle=900,50` demora la primera escritura 900 ms y las siguientes 50 ms, para comprobar revisiones concurrentes, cambio de oferta y borradores. Son demoras del servidor simulado, no sleeps del test.
 - Guardar descripción conserva la original, marca procedencia manual y evaluación pendiente. No evalúa automáticamente. La reevaluación explícita responde como inicio asíncrono, no inventa un resultado DeepSeek completado.
 
-## Histórico: compatibilidad y límite pendiente
+## Histórico: render completado
 
-Inspeccioné con `git show` el TS y HTML del modal de `73284da5463c916772274456a48ecedd19c9a608`. El modelo histórico consume un subconjunto de `Oferta`: puede recibir exactamente las mismas fixtures. Pero **no es un reemplazo directo del TS dentro del Dashboard actual**: le faltan los inputs `accionMasivaEnCurso` e `idsPostulacionPendiente` que hoy enlaza `dashboard.html` (líneas 271–272). No ejecuté un build histórico; esa incompatibilidad se deduce de los contratos, no es un error de compilador observado.
+El padre renderizó el modal original de `73284da5463c916772274456a48ecedd19c9a608` en un worktree histórico aislado, puerto **4351**, y completó **90/90** capturas. Conservó **TS, HTML, CSS del modal y estilos globales originales sin cambios**; copió los tipos actuales de modelo y usó un bootstrap diferente detrás del diálogo con los mismos valores de fixture v1. No se utilizó el fallback antes propuesto de TS actual con HTML antiguo.
 
-El fallback mínimo viable es conservar el TS actual y renderizar el HTML/CSS históricos con los estilos globales originales mediante reemplazos locales de build. Eso compara diseño histórico, no funcionalidad histórica completa. Preparar esos reemplazos exige una carpeta local ignorada y configuración alternativa fuera de las superficies delegadas: no la creé, ni toqué otro worktree. Tampoco agregué una etiqueta `historico` que pudiera hacer pasar el render actual por evidencia histórica.
-
-Para el padre: autorizar y preparar ese sandbox aislado antes de capturar la comparación histórica, o documentar explícitamente esta limitación si decide no ejecutarlo. No presento capturas históricas inventadas ni afirmo que el histórico sea imposible de ejecutar.
+La comparación es de renders reales del modal con datos sintéticos idénticos; el fondo/bootstrap histórico no es el Dashboard actual de 4350. No implica equivalencia funcional completa entre aplicaciones. La matriz histórica registra el HEAD histórico y las medidas; en este paso la preservé sin reescritura.
 
 ## Cobertura y siguientes fases
 
-Esta preparación contribuye a S1 (base/preservación), S2 (fixtures y captura ANTES preparada), S9 (harness real reutilizado), S11 (sin cambios productivos), S12 (matriz y metadatos preparados). No completa por sí sola S2/S12: faltan las ejecuciones reales y la verificación independiente del padre.
+T3 contribuye a S2 y S7–S12. Los smoke existentes conservan sus assertions. `detalle-ui.spec.ts` agrega los recorridos solicitados: cabecera/enlace sin navegar, evaluación y avisos únicos, evidencia completa por teclado, selector/overlay y rollback, fecha/nota con guardado explícito/carga/éxito, errores HTTP y validación, límites Unicode, borradores por oferta y revisiones durante guardado demorado, descripción completa/cancelar/validar/guardar y errores, metadatos, reevaluación explícita simulada y fallo, Escape/Cerrar/foco/Tab y textos extremos móviles claro/oscuro. El registro HTTP público verifica ausencia de escrituras al navegar y métodos/rutas exactos en acciones explícitas. No se inspecciona almacenamiento interno.
 
-Los smoke cubren apertura/cierre sin escrituras, nueve escenarios, ocultamiento del score pendiente, error técnico, evaluación anterior conservada y exclusión Java. T3 debe expandir a los 22 recorridos: rollback visible, guardado y errores, revisiones/borradores, edición/cancelación, límites, reevaluación, evidencias plegadas, foco/teclado/overlays y desplazamiento interno. No agregué skips ni afirmaciones de accesibilidad o métricas no observadas.
+`extremosDetalle=1` es una variante optativa con URL y nota sin espacios largas; no cambia la fixture v1 comparativa. Se combina con `textos-largos` sólo en los casos funcionales de 320/390 px. La matriz normal sigue siendo nueve escenarios × cinco tamaños × dos temas.
+
+No agregué skips ni debilitamiento de assertions previas. No afirmo conformidad WCAG ni métricas de accesibilidad. Quedan a cargo del padre la ejecución focal, matriz DESPUÉS, suite completa/build y verificación independiente (S10/S12); los resultados no están anticipados en este documento.

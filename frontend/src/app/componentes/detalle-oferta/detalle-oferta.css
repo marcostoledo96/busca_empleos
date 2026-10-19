@@ -11,7 +11,15 @@
     overflow-wrap: anywhere;
 }
 
-/* === Cabecera del dialog === */
+/* Mantengo la barra fija acotada; la identidad completa participa del scroll del contenido. */
+.dialogo-barra {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 0;
+}
+
 .dialogo-cabecera {
     display: flex;
     flex-direction: column;

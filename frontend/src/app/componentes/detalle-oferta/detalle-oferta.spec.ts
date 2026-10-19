@@ -146,6 +146,13 @@ describe('DetalleOferta — Accesibilidad de foco en modal', () => {
         expect(enlace?.rel).toContain('noopener');
         expect(enlace?.rel).toContain('noreferrer');
         expect(enlace?.closest('details')).toBeNull();
+        const contenido = fixture.nativeElement.querySelector('.p-dialog-content') as HTMLElement;
+        const cabecera = fixture.nativeElement.querySelector('.p-dialog-header') as HTMLElement;
+        expect(contenido.querySelector('#detalle-titulo')?.textContent).toBe(mockOferta.titulo);
+        expect(cabecera.querySelector('#detalle-titulo')).toBeNull();
+        expect(contenido.querySelector('.detalle-meta')?.textContent).toContain(mockOferta.empresa);
+        expect(contenido.querySelector('.detalle-tags')?.textContent).toContain('APROBADA');
+        expect(contenido.querySelectorAll('.tag-match').length).toBe(1);
         const activo = document.activeElement as HTMLElement;
         expect(activo.closest('.p-dialog-header')).withContext('El foco inicial permanece arriba, no en p-select').not.toBeNull();
         expect(fixture.nativeElement.querySelector('.p-dialog-content').scrollTop).toBe(0);
