@@ -2,7 +2,17 @@
 
 Recuperé la jerarquía y las superficies de The Silent Processor sin reemplazar el componente histórico sobre la lógica actual. Mantengo Busco Trabajo, el matching explicable, el seguimiento y la edición; separo el resumen inicial del desglose completo.
 
-**Estado:** E2E completo **172/172**, matriz visual final **90/90**, Angular **550 aprobados / 4 omitidos preexistentes** y build aprobados. La verificación independiente terminó **sin bloqueantes técnicos**. La entrega se completa únicamente con push, PR y estado de CI observados; no equivale a autorización de merge.
+**Estado:** E2E completo **172/172**, matriz visual final **90/90**, Angular **550 aprobados / 4 omitidos preexistentes** y build aprobados. La verificación independiente terminó **sin bloqueantes técnicos**. La rama fue publicada en la **[PR #54](https://github.com/marcostoledo96/busca_empleos/pull/54)** hacia `master`, con `Closes #50` y `type:bug`. El **[CI de publicación](https://github.com/marcostoledo96/busca_empleos/actions/runs/39262726814)** pasó para `d8ff060ff89236fd3f759200f14044daf9f1ab2a` (incluye los tres probes). Este registro posterior sólo modifica documentación; el estado del último HEAD de entrega se consulta en los checks de la PR. No hice merge, cierre manual de la issue ni deploy manual.
+
+## Entrega y CI
+
+- PR única: https://github.com/marcostoledo96/busca_empleos/pull/54, abierta y no draft.
+- BASE: `a178393ffffc722796b65c6c6b2c452221d577f4`, target `master`.
+- HEAD de publicación validado en CI: `d8ff060ff89236fd3f759200f14044daf9f1ab2a`.
+- Runtime/E2E probados: `7ea26bd0c7cddbd08da35071551528c0d05abec2`. Después sólo cambiaron pruebas unitarias y documentación/evidencia.
+- CI `39262726814`: `gh run watch --exit-status` terminó con **exit 0**; frontend, backend unitario y DB aprobados.
+- Advertencias del runner: deprecación de Node 20 en acciones y migración anunciada de `ubuntu-latest`. No cambié el workflow para resolver advertencias ajenas a #50.
+- Los commits posteriores de registro de entrega no alteran el runtime; el HEAD remoto exacto y sus checks son autoridad en la PR.
 
 ## Recorrido de revisión
 
