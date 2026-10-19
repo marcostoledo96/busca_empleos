@@ -79,6 +79,14 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "e2e": {
+              "browser": "e2e/main.ts",
+              "tsConfig": "tsconfig.e2e.json",
+              "outputPath": ".angular/e2e-build",
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
             }
           },
           "defaultConfiguration": "production"
@@ -91,6 +99,9 @@
             },
             "development": {
               "buildTarget": "frontend:build:development"
+            },
+            "e2e": {
+              "buildTarget": "frontend:build:e2e"
             }
           },
           "defaultConfiguration": "development"

@@ -108,6 +108,22 @@ describe('Dashboard', () => {
         componente = fixture.componentInstance;
     });
 
+    it('mantengo la falla visible y el payload técnico cerrado sin perder contadores', () => {
+        mockDemoService.esModoDemo.and.returnValue(true);
+        mockDemoService.obtenerOfertasDemo.and.returnValue([crearOferta(1, 80, 0)] as any);
+        componente.estadoOperativoSincronizacion.set({ estado: 'fallida', fecha_corte: '2026-01-15',
+            max_id: 48, total_inicial: 1, recibidos: 0, duplicados: 0 });
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const detalle = raiz.querySelector<HTMLDetailsElement>('.dashboard__sincronizacion details');
+        expect(detalle?.open).toBeFalse();
+        expect(raiz.querySelector('.dashboard__sincronizacion [role="alert"]')?.textContent).toContain('fallida');
+        expect(raiz.querySelector('[aria-labelledby="stat-label-total"]')?.textContent).toContain('1');
+        detalle!.open = true;
+        expect(detalle?.textContent).toContain('Máximo ID: 48');
+        expect(mockOfertasService.obtenerBloqueSincronizacion).not.toHaveBeenCalled();
+    });
+
     it('encola una sola recarga cuando la acción termina durante una sincronización', async () => {
         const bloque = new Subject<any>();
         mockOfertasService.obtenerBloqueSincronizacion.and.returnValues(bloque, of({

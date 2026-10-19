@@ -41,3 +41,9 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Evidencia sintética y privada de la issue 48
+/.angular/evidencia-48/
+/.angular/e2e-build/
+/test-results/
+/playwright-report/
