@@ -23,6 +23,43 @@ beforeAll(() => {
     contenidoMigrar = fs.readFileSync(rutaMigrar, 'utf-8');
 });
 
+describe('Conexión pública del runner', () => {
+    test.each([false, true])('reutilizo configuración compartida, DATABASE_URL presente: %s', async usaUrl => {
+        jest.resetModules();
+        const entorno = { ...process.env };
+        process.env.NODE_ENV = 'production_test';
+        delete process.env.DB_TEST_SINTETICA;
+        if (usaUrl) process.env.DATABASE_URL = 'postgresql://sintetico@127.0.0.1:55456/base_test';
+        else delete process.env.DATABASE_URL;
+        Object.assign(process.env, { PGHOST: '127.0.0.1', PGPORT: usaUrl ? '1' : '55456',
+            PGUSER: 'sintetico', PGDATABASE: 'base_test', PGSSLMODE: 'disable' });
+        const consulta = jest.fn(async sql => ({ rows: sql.startsWith('SELECT id') ? [] : [] }));
+        const cerrar = jest.fn(async () => {});
+        const constructor = jest.fn(() => ({ query: consulta, end: cerrar, on: jest.fn() }));
+        jest.doMock('pg', () => ({ Pool: constructor }));
+        jest.doMock('dotenv', () => ({ config: jest.fn() }));
+        const salida = jest.spyOn(console, 'log').mockImplementation(() => {});
+        try {
+            require(rutaMigrar);
+            for (let intento = 0; intento < 10 && !cerrar.mock.calls.length; intento++) {
+                await new Promise(resolve => setImmediate(resolve));
+            }
+            expect(constructor).toHaveBeenCalledTimes(1);
+            if (usaUrl) expect(constructor).toHaveBeenCalledWith({
+                connectionString: process.env.DATABASE_URL, ssl: { rejectUnauthorized: false },
+            });
+            else expect(constructor.mock.calls[0][0] || {}).toEqual({});
+            expect(cerrar).toHaveBeenCalledTimes(1);
+            expect(salida.mock.calls.flat().join('\n')).not.toContain('postgresql://');
+        } finally {
+            salida.mockRestore();
+            process.env = entorno;
+            jest.dontMock('pg');
+            jest.dontMock('dotenv');
+        }
+    });
+});
+
 describe('Migración 026 — seguimiento', () => {
     test('agrega campos nulos sin inventar fechas y limita notas de forma idempotente', () => {
         const sql = fs.readFileSync(path.join(sqlDir, 'migracion-026-seguimiento-postulacion.sql'), 'utf8');
@@ -82,7 +119,9 @@ describe('Runner de migraciones', () => {
         // pero el .env real está en backend/.env. Desde backend/scripts/,
         // el path correcto es ../.env (un nivel arriba, llega a backend/).
         // Verifico que el path resuelto apunte a backend/.env y NO a la raíz.
-        const dotenvLinea = contenidoMigrar
+        expect(contenidoMigrar).toContain("require('../src/config/base-datos')");
+        const configuracion = fs.readFileSync(path.resolve(__dirname, '../../src/config/base-datos.js'), 'utf8');
+        const dotenvLinea = configuracion
             .split('\n')
             .find(linea => linea.includes('dotenv') && linea.includes('config'));
 
@@ -91,7 +130,7 @@ describe('Runner de migraciones', () => {
         // El path relativo debe ser '../.env', no '../../.env'.
         // '../.env' desde backend/scripts/ → backend/.env ✓
         // '../../.env' desde backend/scripts/ → raíz del repo ✗
-        expect(contenidoMigrar).toContain("esEntornoTest ? '.env.test' : '.env'");
+        expect(configuracion).toContain("esEntornoTest ? '.env.test' : '.env'");
         expect(dotenvLinea).not.toContain("'../../.env'");
 
         // Verificación adicional: el path resuelto debe existir como archivo.

@@ -151,6 +151,14 @@ Hasta que PostgreSQL no arranque bien, el backend siempre va a fallar al conecta
 
 ## 4. Ejecutar las migraciones SQL
 
+> **Incidente #56 — producción existente:** sigo el
+> [diagnóstico y procedimiento de reconciliación](incidentes/issue-56-esquema-produccion.md),
+> no la instalación inicial de abajo. No aplico migraciones sin aprobación adicional,
+> respaldo completo y restauración ensayada. El runner `scripts/migrar.js` ahora
+> reutiliza la configuración de conexión de la app: prioriza `DATABASE_URL` válida,
+> conserva fallback PG* y la misma política SSL. Incluso sin `--apply` puede crear
+> el ledger; no lo uso para inspección productiva read-only. No agregué automigración.
+
 La base de datos arranca vacía. Hay que crear las tablas ejecutando los scripts SQL
 en este **orden obligatorio**:
 
