@@ -2,7 +2,7 @@
 
 Recuperé la jerarquía y las superficies de The Silent Processor sin reemplazar el componente histórico sobre la lógica actual. Mantengo Busco Trabajo, el matching explicable, el seguimiento y la edición; separo el resumen inicial del desglose completo.
 
-**Estado:** E2E completo **172/172**, matriz visual final **90/90**, Angular **547 aprobados / 4 omitidos preexistentes** y build aprobados. La verificación independiente sigue pendiente; no presento todavía este documento como aprobación final.
+**Estado:** E2E completo **172/172**, matriz visual final **90/90**, Angular **550 aprobados / 4 omitidos preexistentes** y build aprobados. La verificación independiente terminó **sin bloqueantes técnicos**. La entrega se completa únicamente con push, PR y estado de CI observados; no equivale a autorización de merge.
 
 ## Recorrido de revisión
 
@@ -72,10 +72,10 @@ No cambié backend, contratos, scoring, base de datos, estilos globales, Dashboa
 | GREEN focal Angular | 32/32; job13, exit 0 |
 | RED límites de foco/footer | 4 fallos / 3 éxitos; job18, exit 1 |
 | GREEN foco/footer y selectores | 9/9; job19, exit 0 |
-| Angular completo, candidato corregido | 547 aprobados, 4 omitidos preexistentes; job21, exit 0 |
+| Angular completo, candidato corregido | 547 aprobados / 4 omitidos antes de incorporar los probes (job21); **550 aprobados / 4 omitidos** con los tres probes incorporados (job23), exit 0 |
 | Build, candidato corregido | job22, exit 0; advertencia preexistente de presupuesto `preferencias.css` (15,61 kB frente a 15 kB) |
 | E2E completo y matriz DESPUÉS final | 172/172, incluidas 90 combinaciones visuales validadas; job20, exit 0 |
-| Verificación independiente Gentle AI | Pendiente |
+| Verificación independiente Gentle AI | Apto para publicar, sin bloqueantes técnicos; focales propios 32/32 y probes adicionales 3/3, ambos exit 0. [Informe](verificacion-independiente.md) |
 | `git diff --check` | Exit 0 en las comprobaciones realizadas; repetir antes de publicación |
 
 No agregué skips para ocultar fallos. Las cuatro omisiones de la suite Angular y la advertencia de Preferencias se informan; no se modifican pruebas ni estilos ajenos a #50 para ocultarlas.
@@ -93,7 +93,7 @@ RDD estaba desactivado por configuración del clon y no lo activé. ASSESS no pu
 ## Herramientas y skills utilizadas
 
 - Skills cargadas: `gentle-ai`, `gentle-ai-branch-pr`, `angular-developer`, `angular-component`, `angular-signals`, `angular-forms`, `redesign-existing-projects`, `frontend-design`, `ui-ux-pro-max`, `web-design-guidelines`, `playwright-best-practices`, `ponytail`, `cognitive-doc-design`; `audit-website` sólo para comprobar aplicabilidad/disponibilidad. Las tres skills Angular antiguas están marcadas como deprecadas: conservé los formularios y signals existentes, sin migrarlos.
-- Agentes: `gentle-ai-explore` y `gentle-ai-worker`; `gentle-ai-verify` pendiente en esta versión del informe.
+- Agentes: `gentle-ai-explore`, `gentle-ai-worker` y `gentle-ai-verify`, ejecutados.
 - MCP utilizados: Playwright, Chrome DevTools y Context7 (documentación oficial PrimeNG v20). Engram para continuidad; CodeGraph inicializado y utilizado en la exploración; GitHub consultado mediante `gh`, no mediante un MCP inventado.
 - No utilicé Antigravity, Tailwind, otro kit visual ni nuevas bibliotecas.
 

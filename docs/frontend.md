@@ -18,8 +18,9 @@ visibles y envuelve únicamente el primer y último control. No agrega listeners
 ni interviene mientras el selector está expandido: sus teclas y Escape siguen siendo
 nativos. Al cerrar restauro el foco al elemento de apertura. Las pruebas focales incluyen
 los límites en ambos sentidos, Escape del selector antes del diálogo y footer/título
-largo a 320 px en ambos temas; el GREEN posterior a esta corrección sigue pendiente
-de ejecución por el padre, no se anticipa con esta descripción.
+largo a 320 px en ambos temas. El GREEN focal pasó 9/9, el E2E completo 172/172 y
+la matriz final 90/90. La verificación independiente no encontró bloqueantes técnicos;
+los resultados y límites están en [la evidencia de #50](evidencias/issue-50/README.md).
 
 Dejo visibles el motivo principal, los conteos de requisitos y las advertencias
 críticas: exclusiones obligatorias incluso con score bajo, evaluación desactualizada,
