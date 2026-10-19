@@ -24,24 +24,8 @@
 
 const fs = require('fs');
 const path = require('path');
-const { Pool } = require('pg');
-
-// Cargo el archivo de entorno correspondiente antes de abrir la conexión.
-// En tests uso .env.test para no aplicar migraciones sobre la base remota.
-const esEntornoTest = process.env.NODE_ENV === 'test';
-const archivoEntorno = esEntornoTest ? '.env.test' : '.env';
-
-if (process.env.DB_TEST_SINTETICA === 'true') {
-    if (!esEntornoTest || process.env.PGHOST !== '127.0.0.1'
-        || !/^[0-9]+$/.test(process.env.PGPORT || '') || Number(process.env.PGPORT) < 1024 || Number(process.env.PGPORT) > 65535
-        || !(process.env.PGDATABASE || '').endsWith('_test') || !process.env.PGUSER || !process.env.PGPASSWORD
-        || process.env.DATABASE_URL || process.env.PGSERVICE || process.env.PGSERVICEFILE || process.env.PGSSLMODE !== 'disable') {
-        throw new Error('Configuración sintética de BD inválida.');
-    }
-} else {
-    if (esEntornoTest) delete process.env.DATABASE_URL;
-    require('dotenv').config({ path: path.resolve(__dirname, '..', archivoEntorno), override: esEntornoTest });
-}
+// Reutilizo la conexión de la aplicación: DATABASE_URL tiene prioridad sobre PG*.
+const pool = require('../src/config/base-datos');
 
 const sqlDir = path.resolve(__dirname, '..', 'sql');
 const modoApply = process.argv.includes('--apply');
@@ -65,8 +49,6 @@ async function asegurarTablaSchemaMigrations(pool) {
 }
 
 async function migrar() {
-    const pool = new Pool();
-
     try {
         // 1. Asegurar que schema_migrations existe antes de consultarla.
         // Si la tabla no existe, la creamos con el DDL de migracion-014.
