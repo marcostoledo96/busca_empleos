@@ -1,0 +1,8 @@
+{
+    "/api/**": {
+        "target": "http://127.0.0.1:3057",
+        "secure": false,
+        "changeOrigin": false,
+        "headers": { "Origin": "http://127.0.0.1:4200" }
+    }
+}

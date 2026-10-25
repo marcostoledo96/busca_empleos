@@ -106,6 +106,70 @@ jobs:
                   PGSSLMODE: disable
               run: npm run test:db
 
+    # Ejecuto una sola matriz focal real, separada de las suites sintéticas históricas.
+    integracion-issue57:
+        name: Issue 57 — Angular, Express y PostgreSQL
+        runs-on: ubuntu-latest
+        timeout-minutes: 15
+        env:
+            NODE_ENV: test
+            DB_TEST_SINTETICA: 'true'
+            PGHOST: 127.0.0.1
+            PGPORT: '55457'
+            PGDATABASE: busca_empleos_issue57_test
+            PGUSER: busca_empleos_test
+            PGPASSWORD: sintetica_issue57
+            PGSSLMODE: disable
+        services:
+            postgres:
+                image: postgres:15-alpine
+                env:
+                    POSTGRES_USER: busca_empleos_test
+                    POSTGRES_PASSWORD: sintetica_issue57
+                    POSTGRES_DB: busca_empleos_issue57_test
+                ports:
+                    - 55457:5432
+                options: >-
+                    --health-cmd "pg_isready -U busca_empleos_test -d busca_empleos_issue57_test"
+                    --health-interval 5s
+                    --health-timeout 5s
+                    --health-retries 10
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  persist-credentials: false
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: '22'
+                  cache: npm
+                  cache-dependency-path: |
+                      backend/package-lock.json
+                      frontend/package-lock.json
+            - name: Instalar dependencias bloqueadas
+              run: |
+                  npm --prefix backend ci
+                  npm --prefix frontend ci --include=dev
+            - name: Comprobar Chrome y preparar placeholders locales
+              run: |
+                  test -x /usr/bin/google-chrome
+                  npm --prefix frontend run prebuild
+                  mkdir -p frontend/e2e/integracion/salida
+            - name: Integración backend focal
+              shell: bash
+              run: npm --prefix backend run test:issue57 2>&1 | tee frontend/e2e/integracion/salida/backend-focal.log
+            - name: E2E real con API efímera aislada
+              shell: bash
+              run: npm --prefix frontend run test:e2e:integracion 2>&1 | tee frontend/e2e/integracion/salida/playwright.log
+            - name: Conservar capturas, trazas, SQL y logs incluso ante fallos
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: issue57-integracion-${{ github.run_id }}
+                  path: frontend/e2e/integracion/salida/
+                  if-no-files-found: warn
+                  include-hidden-files: true
+                  retention-days: 14
+
     # ── Frontend: build + headless tests ──
     frontend:
         name: Frontend build & test
