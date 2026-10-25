@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "test": "jest --verbose",
+    "test": "jest --verbose --testPathIgnorePatterns=tests/integracion/issue-57-backend.test.js$",
+    "test:issue57:contratos": "node scripts/test-issue-57-contratos.js",
     "test:issue57": "node scripts/test-issue-57.js",
     "test:issue57:api": "node scripts/test-issue-57.js --api",
     "test:vertical": "NODE_ENV=test BUSQUEDAS_VERTICAL=1 jest tests/integracion/busquedas-vertical.test.js --runInBand --verbose",

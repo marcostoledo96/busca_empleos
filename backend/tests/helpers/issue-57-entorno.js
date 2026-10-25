@@ -14,6 +14,7 @@ function validarEntorno(entorno = process.env, esquemaPropio) {
     const prohibidas = ['DATABASE_URL', 'PGSERVICE', 'PGSERVICEFILE', 'PGPASSFILE',
         'SMTP_HOST', 'SMTP_USER', 'SMTP_PASS', 'EMAIL_NOTIFICACION_DESTINO',
         'FIREBASE_PRIVATE_KEY', 'FIREBASE_SERVICE_ACCOUNT', 'GOOGLE_APPLICATION_CREDENTIALS',
+        'FIREBASE_SERVICE_ACCOUNT_JSON', 'FIREBASE_SERVICE_ACCOUNT_PATH',
         'INFOJOBS_CLIENT_SECRET'];
     const credenciales = ['APIFY_TOKEN', 'DEEPSEEK_API_KEY', 'JOOBLE_API_KEY', 'ADZUNA_APP_ID', 'ADZUNA_APP_KEY'];
     if (Object.entries(esperadas).some(([clave, valor]) => entorno[clave] !== valor)

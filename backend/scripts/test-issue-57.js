@@ -100,6 +100,7 @@ async function main() {
     }
     if (opcion) throw new Error('Opción desconocida; consulto --help.');
     const resultado = spawnSync(process.execPath, [require.resolve('jest/bin/jest'), '--runInBand',
+        '--cacheDirectory', path.resolve(__dirname, '../../.codegraph/issue57-correccion/jest-cache'),
         '--runTestsByPath', 'tests/integracion/issue-57-seguridad.test.js', 'tests/integracion/issue-57-backend.test.js'],
     { cwd: path.resolve(__dirname, '..'), env: process.env, stdio: 'inherit' });
     if (resultado.error) throw resultado.error;

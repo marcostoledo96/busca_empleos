@@ -129,6 +129,50 @@ describe('Issue #57 — Express, servicios y PostgreSQL reales', () => {
         expect((await historial())[0].estado).toBe('completada');
     });
 
+    test.each([0, -1, 1.5, 501, '2', null])('rechazo maxResultados=%p sin alterar ninguna tabla ni contador', async maxResultados => {
+        const { createHash } = require('node:crypto');
+        const capturar = async () => {
+            const relaciones = (await pool.query(`SELECT tablename AS nombre FROM pg_tables WHERE schemaname=current_schema()
+                UNION SELECT sequencename AS nombre FROM pg_sequences WHERE schemaname=current_schema() ORDER BY nombre`)).rows;
+            const contenido = {};
+            for (const { nombre } of relaciones) {
+                const identificador = `"${nombre.replace(/"/g, '""')}"`;
+                contenido[nombre] = (await pool.query(`SELECT * FROM ${identificador}`)).rows
+                    .map(fila => JSON.stringify(fila)).sort();
+            }
+            return { contenido, sha256: createHash('sha256').update(JSON.stringify(contenido)).digest('hex') };
+        };
+        const antes = await capturar();
+        const respuesta = await buscar({ maxResultados });
+        expect(respuesta.status).toBe(400);
+        expect(respuesta.body).toEqual({ exito: false, error: 'maxResultados debe ser un entero entre 1 y 500.' });
+        expect(await capturar()).toEqual(antes);
+        expect(proveedores.llamadas).toEqual([]);
+        expect(await filas()).toEqual([]);
+        expect(await historial()).toEqual([]);
+    });
+
+    test('acepto 202 pero informo error terminal si falla el inicio SQL y recupero un ciclo vacío durable', async () => {
+        await controles.fallo('historial_inicio');
+        const aceptado = await enviar('/api/automatizacion/ejecutar');
+        expect(aceptado.status).toBe(202);
+        await terminal();
+        expect((await obtener('/api/automatizacion/estado')).body.datos.ultimoResultado).toMatchObject({ exito: false, estado: 'error' });
+        expect(await filas()).toEqual([]);
+        expect(await historial()).toEqual([]);
+        expect(proveedores.llamadas).toEqual([]);
+        await controles.fallo('ninguno');
+        proveedores.cambiar('vacio');
+        expect((await enviar('/api/automatizacion/ejecutar')).status).toBe(202);
+        await terminal();
+        expect((await obtener('/api/automatizacion/estado')).body.datos.ultimoResultado.estado).toBe('sin_resultados');
+        expect(await filas()).toEqual([]);
+        expect(await historial()).toHaveLength(1);
+        expect((await controles.evidencia()).historial).toEqual([
+            expect.objectContaining({ tipo: 'ciclo_manual', estado: 'sin_resultados', fin: expect.any(Date) }),
+        ]);
+    });
+
     test('rechazo opciones inválidas y conservo el contrato de fuente deshabilitada sin llamar proveedores', async () => {
         const antes = await controles.evidencia();
         const invalida = await buscar({ maxResultados: 0 });

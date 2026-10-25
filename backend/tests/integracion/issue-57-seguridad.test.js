@@ -16,6 +16,8 @@ describe('Issue #57 — cierro el acceso antes de cualquier escritura', () => {
         ['PGPASSWORD', 'otra'], ['PGSSLMODE', 'require'], ['DATABASE_URL', 'postgres://prohibida.invalid'],
         ['PGSERVICE', 'servicio'], ['PGSERVICEFILE', '/prohibido'], ['PGOPTIONS', '-c search_path=public'],
         ['APIFY_TOKEN', 'credencial-no-sintetica'], ['SMTP_PASS', 'prohibida'],
+        ['FIREBASE_SERVICE_ACCOUNT_JSON', '{"project_id":"proyecto-ficticio"}'],
+        ['FIREBASE_SERVICE_ACCOUNT_PATH', '/ficticio/cuenta-inexistente.json'],
     ])('rechazo %s sin modificar las variables heredadas', (clave, valor) => {
         const candidato = { ...entorno, [clave]: valor };
         const antes = { ...candidato };

@@ -1,4 +1,4 @@
-# Integración sintética de la issue #57 — T1 y T2
+# Integración sintética de la issue #57 — T1, T2 y corrección acotada T3
 
 ## Estado observado
 
@@ -15,6 +15,73 @@ sin token, búsqueda LinkedIn, normalización de tres filas crudas a dos identid
 consulta SQL de las dos ofertas persistidas. Repetí una vez ese smoke y una vez la
 suite focal en el lote acotado de corrección; ambos finalizaron con exit 0. La regresión
 acotada de #20 aprobó sus tres pruebas en el lote anterior; no la repetí en este lote.
+
+## T3 — Corrección acotada de tres bloqueos reproducidos
+
+BASE de la tarea: `1e00fb24`; candidato recibido: `d195cdb5`. Corrijo sólo pruebas,
+runner y CI, sin cambiar producción, dependencias, migraciones ni otras suites.
+La verificación independiente anterior fue parcial; estos resultados locales no
+sustituyen los pendientes globales ni demuestran un CI remoto aprobado.
+
+- **B1:** `npm test` excluye únicamente `tests/integracion/issue-57-backend.test.js`.
+  No agrego `SKIP`: la focal explícita `test:issue57` sigue ejecutándolo y
+  `test:integracion` conserva su selección completa, incluida esta suite SQL. Esta
+  última requiere intencionalmente los guards de todas las integraciones que seleccione.
+  `npm --prefix backend run test:issue57:contratos` compara `--listTests` ordinario
+  contra Jest sin filtro y exige que falte exactamente ese archivo, conservando los guards.
+- **B2:** rechazo también `FIREBASE_SERVICE_ACCOUNT_JSON` y
+  `FIREBASE_SERVICE_ACCOUNT_PATH`, nombres reales de configuración. Los dos casos
+  usan JSON/ruta ficticios, comprueban el error exacto y el objeto de entrada intacto,
+  sin invocar SQL ni abrir archivos de credenciales.
+- **B3:** ambos pasos `npm | tee` de `integracion-issue57` declaran `shell: bash`.
+  La comprobación ejecutable lee los comandos y shell reales de esos dos pasos,
+  reproduce el template de Actions (`bash --noprofile --norc -e -o pipefail`),
+  sustituye npm por una función que imprime una línea y retorna 23 y exige tanto
+  exit **23** como el contenido exacto creado por tee. Los demás jobs no cambian.
+
+Agrego seis casos HTTP reales para `maxResultados` igual a
+`0`, `-1`, `1.5`, `501`, `'2'` y `null`: HTTP 400, mensaje exacto, cero llamadas
+al proveedor y contenido completo de todas las tablas y secuencias del esquema,
+ordenado y con SHA256, sin cambios. También compruebo un ciclo aceptado con 202
+que falla por el trigger real de inicio de historial: terminal `error`, ninguna
+oferta ni historial ni llamada a proveedor. Al desactivar el fallo, otro 202 alcanza
+`sin_resultados` y persiste una fila de historial con `fin` no nulo. No comparo todos
+los campos después de una evaluación legítima.
+
+### Evidencia local de la corrección
+
+Antes de ejecutar verifiqué que no había variables PG/DB/Firebase heredadas;
+no imprimí valores ni leí `.env`. Todos los logs completos stdout/stderr y exits
+están en `.codegraph/issue57-correccion/`. La caché Jest también queda allí.
+
+Prefijo exacto SQL utilizado (abreviado como `SQL` sólo en la tabla):
+
+```sh
+env -i PATH="$PATH" HOME="$HOME" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable
+```
+
+| Comando desde raíz | Resultado observado / log |
+| --- | --- |
+| `node backend/scripts/test-issue-57-contratos.js` antes de corregir | RED exit 1, descubrimiento incluye SQL y ambos pipelines devuelven 0 en lugar de 23; `red-contratos.log` |
+| `env -i PATH="$PATH" HOME="$HOME" NODE_ENV=test node backend/node_modules/jest/bin/jest.js --rootDir backend --runInBand --cacheDirectory "$PWD/.codegraph/issue57-correccion/jest-cache" --runTestsByPath backend/tests/integracion/issue-57-seguridad.test.js` | RED exit 1: dos variables Firebase aceptadas, 15 guards previos aprobados; `red-guards.log` |
+| `node backend/scripts/test-issue-57-contratos.js` después de corregir | GREEN exit 0, tres comprobaciones aprobadas; `green-contratos.log`, `shell-backend.log`, `shell-e2e.log` |
+| `SQL node backend/node_modules/jest/bin/jest.js --rootDir backend --runInBand --cacheDirectory "$PWD/.codegraph/issue57-correccion/jest-cache" --runTestsByPath backend/tests/integracion/issue-57-seguridad.test.js backend/tests/integracion/issue-57-backend.test.js --testNamePattern='cierro el acceso\|maxResultados=\|acepto 202 pero'` | Primera exit 1: 6 fallos del snapshot de secuencias (`relation ... does not have a composite type`); corrección única a `SELECT *` y serialización ordenada, luego exit 0: 24 aprobadas, 16 fuera del filtro; `green-afectadas.log`, `green-afectadas-correccion.log` |
+| `SQL npm --prefix backend run test:issue57` | Una corrida final exit 0: **40/40**, dos suites, ninguna omitida; `final-focal.log` |
+| `env -i PATH="$PATH" HOME="$HOME" NODE_ENV=test npm --prefix backend test -- --runInBand --cacheDirectory "$PWD/.codegraph/issue57-correccion/jest-cache"` | Una corrida final exit 0: **2599 aprobadas, 159 omitidas preexistentes**, 79 suites aprobadas; `final-ordinaria.log` |
+
+Uso `--runInBand` para acotar procesos y `--cacheDirectory` para no generar scratch
+fuera del directorio autorizado. Los casos suplementarios son regresiones de
+contratos existentes, no defectos productivos nuevos: no fabrico RED funcional.
+El RED de su primera ejecución fue exclusivamente un error del snapshot del test.
+
+Cobertura de esta corrección: **S5/S13** guards y entorno, **S8/S10** fallo terminal
+y recuperación, **S14/S16** RED/GREEN y regresiones afectadas, **S17** evidencia y
+límites documentados. No cierro la aceptación global de S1–S19 ni la entrega de S17.
+No repetí navegador, Angular ni build porque no cambiaron. `test:integracion` y
+`test:db` completos siguen pendientes: la regresión DB anterior chocó con la
+migración 005 en esquemas sintéticos acumulados; el padre provisionará una base
+sintética separada fresca. No modifiqué esa migración ni presento el bloqueo como
+un resultado aprobado. No ejecuté revisiones nuevas, CI remoto, commits o deploy.
 
 ## Aislamiento obligatorio
 
