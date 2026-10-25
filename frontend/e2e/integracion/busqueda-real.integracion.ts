@@ -155,7 +155,20 @@ for (const caso of [
         expect(fallo.status()).toBe(503);
         expect((await fallo.json()).exito).toBe(false);
         await expect(page.getByRole('dialog', { name: 'Carga en progreso' })).toBeHidden();
-        await expect(page.getByRole('alert').filter({ hasText: /historial/i }).first()).toBeVisible();
+        const aviso503 = page.getByRole('alert').filter({ hasText: /historial/i }).first();
+        await expect(aviso503).toBeVisible();
+        await expect(aviso503).toContainText('Error en LinkedIn');
+        await expect(aviso503).toContainText('No pude iniciar el historial de la ejecución.');
+        const limitesAviso = await aviso503.evaluate(elemento => {
+            const { left, right, width } = elemento.getBoundingClientRect();
+            return { left, right, width, viewport: innerWidth };
+        });
+        await testInfo.attach('geometria-error503', { body: JSON.stringify(limitesAviso, null, 4), contentType: 'application/json' });
+        await page.screenshot({ path: testInfo.outputPath('error503.png'), fullPage: true });
+        await testInfo.attach('error503.png', { path: testInfo.outputPath('error503.png'), contentType: 'image/png' });
+        expect(limitesAviso.left).toBeGreaterThanOrEqual(0);
+        expect(limitesAviso.right).toBeLessThanOrEqual(limitesAviso.viewport);
+        if (caso.width === 1440) expect(limitesAviso.width).toBe(400);
         const rechazada = await evidencia(request);
         expect(rechazada.ofertas).toEqual(despues.ofertas);
         expect(rechazada.historial).toEqual(despues.historial);

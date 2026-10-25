@@ -1,18 +1,25 @@
-# Integración sintética de la issue #57 — T1, T2 y corrección acotada T3
+# Integración sintética de la issue #57 — T1, T2, T3 y corrección acotada T6
 
 ## Resultado final local
 
 Verifiqué búsqueda, listado, sincronización e historial con **Angular → Express →
 PostgreSQL reales de prueba**, incluidos errores visibles, resultados parciales y
 recuperación. La revisión independiente confirmó los recorridos y cerró los tres
-bloqueos iniciales con un recheck de **40/40 pruebas**, sin omisiones. No modifiqué
-código productivo ni afirmo que Buscar funcione en producción.
+bloqueos iniciales con un recheck de **40/40 pruebas**, sin omisiones. En T6 agregué
+una única corrección CSS productiva compartida: el ancho máximo responsive de los
+toasts, con regresión integrada RED→GREEN. No afirmo que Buscar funcione en producción;
+las regresiones frontend afectadas y la revisión independiente de T6 ya aprobaron.
+El resultado y los artefactos del CI del nuevo HEAD se registran en la PR una vez observados.
 
-BASE: `1e00fb24ac35df078ba2a233e233452240d9e680`. Candidato de código verificado:
-`f773170c4fe4f20a74829a41512d4edd8e947da2`; el commit posterior sólo consolida esta
-evidencia. Consulto el HEAD entregado y el CI en la PR, no invento un SHA autorreferente.
+BASE: `1e00fb24ac35df078ba2a233e233452240d9e680`. La verificación inicial de backend
+corresponde a `f773170c4fe4f20a74829a41512d4edd8e947da2`; la entrega anterior se consolidó
+en `2ffda0c3a2155b5e7b67fcc66c7d30ab42b804fa`. T6 añade la corrección CSS y su prueba;
+consulto el HEAD entregado y su CI en la PR, sin inventar un SHA autorreferente.
 
-| Comprobación | Resultado final local |
+La siguiente tabla conserva las verificaciones anteriores a T6 (HEAD entregado
+`2ffda0c3a2155b5e7b67fcc66c7d30ab42b804fa`); no acredita los nuevos bytes CSS.
+
+| Comprobación | Resultado histórico anterior a T6 |
 | --- | --- |
 | `npm --prefix backend run test:issue57` | **40/40**, 2 suites, sin omisiones; repetida por verificador independiente |
 | `npm --prefix backend run test:issue57:contratos` | **3 comprobaciones**: descubrimiento exacto y dos pipelines que conservan exit 23 |
@@ -34,10 +41,14 @@ Mantengo `NODE_ENV=test`, `DB_TEST_SINTETICA=true`, `PGSSLMODE=disable` y ausenc
 esquemas de la focal; **no ejecuté migraciones productivas ni cambié la migración 005**.
 Los demás procesos se lanzaron con `env -i` y sólo PATH/HOME y variables de prueba.
 
-La inspección interactiva **MCP no estuvo disponible**: Playwright MCP no inició por
-longitud del socket temporal y Chrome DevTools MCP agotó su timeout. No la doy por
-aprobada ni la confundo con los E2E automáticos, que sí renderizaron Chromium y
-produjeron nueve capturas con adjuntos SQL. Detuve los servidores temporales al terminar.
+La inspección interactiva **MCP inicialmente no estuvo disponible**: Playwright MCP
+no inició por longitud del socket temporal y Chrome DevTools MCP agotó su timeout.
+Tras la recarga, la continuación MCP verificó los recorridos funcionales, pero encontró
+un toast de 400 px recortado a la izquierda en móviles de 390 y 320 px. `scrollWidth`
+y `isVisible` no detectaban ese defecto. No considero aprobada aquella visibilidad
+móvil ni confundo la inspección interactiva con los E2E automáticos. T6 reproduce y
+corrige el recorte con geometría real del aviso; no medí geometría en producción,
+cuyo shell difiere del integrado. Los servidores temporales fueron detenidos.
 
 **Límites:** Firebase/identidad, Apify y HTTP remoto/DeepSeek son simulados; el envío de
 correo y cron están prohibidos. No pruebo Firebase criptográfico, CORS entre orígenes,
@@ -46,6 +57,73 @@ iconos Material aparecen como texto. Las omisiones indicadas son anteriores, no 
 SKIP. Los resultados históricos siguientes se conservan para auditar RED/correcciones;
 esta sección los sustituye como estado vigente. El CI remoto y sus artefactos se
 registran por URL en la PR una vez publicados.
+
+## T6 — Toast responsive, regresión acotada S12/S15/S20
+
+Sobre HEAD `2ffda0c3a2155b5e7b67fcc66c7d30ab42b804fa` reproduje el recorte antes
+de corregirlo. Agregué únicamente `.p-toast { max-width: calc(100vw - 40px); }` a
+`frontend/src/styles.css`: conservo los márgenes existentes de 20 px, los 400 px de
+escritorio, posiciones, tema y agrupación de avisos de #58. El estilo es compartido
+por integración y producción; alcanza los outlets de PanelControl, Dashboard y
+Preferencias. No cambié componentes, proveedores, autenticación, SQL ni migraciones.
+
+En el mismo recorrido real existente, después del 503 inyectado, exijo que el mismo
+`role="alert"` de historial contenga `Error en LinkedIn` y el texto completo
+`No pude iniciar el historial de la ejecución.`. Mido su `getBoundingClientRect()`:
+`left >= 0` y `right <= innerWidth`, sin tolerancia. En escritorio también exijo ancho
+exacto de 400 px. Conservo todas las aserciones anteriores, incluida la consola con
+el 503 esperado y rechazo de cualquier error adicional, los efectos SQL, recuperación,
+202 parcial y segundo ciclo. No agregué casos ni amplié la matriz.
+
+Ejecuté dos veces este comando exacto, primero sin corregir CSS y luego una vez con
+la corrección; cada ejecución inició y cerró sus propios servidores de loopback:
+
+```sh
+env -i PATH="$PATH" HOME="$HOME" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable npm --prefix frontend run test:e2e:integracion
+```
+
+| Etapa | Resultado observado |
+| --- | --- |
+| RED | Exit 1, **1 aprobada / 2 fallidas**, 31,0 s; escritorio pasa, 390 falla con `left=-30`, 320 con `left=-100`; sin fallos de preparación |
+| GREEN | Exit 0, **3/3 aprobadas**, 55,6 s; 1440 claro, 390 oscuro, 320 claro; cero retries, omisiones o flaky |
+| Geometría GREEN (left/right/width) | 1440: **1020/1420/400**, igual al RED; 390: **20/370/350**; 320: **20/300/280** |
+| `frontend/node_modules/.bin/tsc --project frontend/tsconfig.integracion.json --noEmit` | Exit 0 |
+| `frontend/node_modules/.bin/tsc --noEmit --skipLibCheck --target ES2022 --module commonjs --esModuleInterop --strict --typeRoots frontend/node_modules/@types --types node frontend/playwright.integracion.config.ts frontend/e2e/integracion/busqueda-real.integracion.ts` | Exit 0; compruebo también el spec, fuera del tsconfig de bootstrap |
+
+Conservo stdout, stderr y exit de cada comando en `.codegraph/issue57-toast/`, junto
+con copias separadas de resultados RED y GREEN. Los errores HTTP 503/500 de stderr
+son los fallos inyectados ya exigidos por el recorrido, no errores silenciados.
+Cada viewport adjunta ahora `error503.png` y `geometria-error503` además de las capturas
+y SQL existentes: **12 capturas originales** en GREEN. Inspeccioné la captura de
+320 px y el mensaje completo permanece dentro de pantalla.
+
+**Veredicto acotado:** S12 visibilidad horizontal del error comprobada en los tres
+viewports; S15 corrección mínima de fallo reproducido, sin rediseño ni revertir #58;
+S20 implementación y regresión cumplidas, pero entrega en la misma PR #64 aún pendiente.
+El CI exitoso `40215458021` pertenece a los bytes anteriores y no verifica este cambio.
+La continuación del padre completó las verificaciones afectadas, sin repetir backend:
+
+| Verificación posterior de T6 | Resultado observado |
+| --- | --- |
+| Revisión independiente de fuente y E2E integrado en copia aislada autorizada | **PASS, 3/3**, 62,365 s; cero inesperadas, omisiones o flaky; inspeccionó las tres capturas 503 y confirmó las geometrías anteriores |
+| `npm --prefix frontend test -- --watch=false --browsers=ChromeHeadless` | **562 aprobadas y 4 omisiones preexistentes**, exit 0 |
+| `npm --prefix frontend run test:e2e` | **202/202**, exit 0 |
+| `npm --prefix frontend run build` | Exit 0; aviso CSS de preferencias preexistente, sin cambio de presupuesto |
+| MCP Playwright activo, aviso 503 sintético en 320/390 oscuro y 1440 claro | Texto completo dentro del viewport; anchos **280/350/400 px**; sin ofertas/historiales nuevos, operaciones externas ni cron |
+| TypeScript y `git diff --check` | Exit 0 |
+
+El MCP headed midió left/right **16/296**, **16/366** y **1016/1416**; la diferencia
+con headless por la barra de scroll no cambia la prueba: todas las cajas están dentro
+del viewport y escritorio conserva 400 px. Guardé capturas locales `mcp-*-error503.png`
+en `.codegraph/issue57-toast/`; cerré el navegador y los servidores al terminar.
+La copia independiente preservó los hashes de 617 archivos y no modificó el original.
+Una tentativa anterior de revisión exclusivamente de fuente quedó no disponible por la
+política de aislamiento del rol; sólo cuento como PASS la revisión runtime posterior
+a la autorización humana específica. Sus resultados no sustituyen el nuevo CI.
+
+No medí geometría productiva, ejecuté suites backend locales adicionales ni hice merge,
+cierre de la issue o deploy manual. Commit/push y CI del nuevo HEAD se documentan en
+la PR; el CI anterior se conserva únicamente como evidencia histórica.
 
 ## Registro histórico T1
 

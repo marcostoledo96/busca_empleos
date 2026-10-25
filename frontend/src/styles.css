@@ -357,6 +357,10 @@ body {
 }
 
 /* --- Toast --- */
+.p-toast {
+    max-width: calc(100vw - 40px);
+}
+
 .p-toast .p-toast-message {
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--outline-variant) !important;
