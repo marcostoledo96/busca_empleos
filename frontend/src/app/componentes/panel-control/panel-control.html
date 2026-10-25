@@ -229,23 +229,53 @@
             </div>
         </div>
         <section class="panel-estado" aria-label="Estado operativo de búsquedas" aria-live="polite">
+            @if (previsualizacion().length && !errorPrevisualizacion()) {
+                <p>Fuentes configuradas: {{ previsualizacion().length }}. No garantiza disponibilidad del proveedor.</p>
+            }
+            @if (configuracionCiclo().length) {
+                <p>Fuentes omitidas en el snapshot del ciclo: {{ fuentesOmitidasCiclo() }}.</p>
+            }
             @if (cargandoPrevisualizacion()) { <p role="status">Consultando configuración guardada...</p> }
             @if (errorPrevisualizacion(); as error) { <p role="alert">{{ error }}</p> }
             @if (cargandoHistorial()) { <p role="status">Consultando historial...</p> }
             @if (errorHistorial(); as error) { <p role="alert">{{ error }}</p> }
+            @if (ejecutandoCiclo()) {
+                <p role="status">Último ciclo: En curso. La aceptación de la solicitud no confirma su finalización.</p>
+                @if (resultadoCiclo(); as anterior) {
+                    <p>Resultado anterior conservado: {{ etiquetaEstado(anterior.estado) }}.</p>
+                }
+            } @else if (!resultadoCiclo()) {
+                <p>Último ciclo: Sin ejecuciones.</p>
+            }
             @if (resultadoCiclo(); as resultado) {
-                <p>Último ciclo: {{ etiquetaEstado(resultado.estado) }} · Scraping: {{ etiquetaEstado(resultado.estadoScraping) }} · Evaluación: {{ etiquetaEstado(resultado.estadoEvaluacion) }} (global de pendientes).</p>
+                @if (!ejecutandoCiclo()) {
+                    <p [attr.role]="['error', 'timeout', 'interrumpida'].includes(resultado.estado || '') ? 'alert' : 'status'">Último ciclo: {{ etiquetaEstado(resultado.estado) }} · Scraping: {{ etiquetaEstado(resultado.estadoScraping) }} · Evaluación: {{ etiquetaEstado(resultado.estadoEvaluacion) }} (global de pendientes).</p>
+                }
                 @if (resultado.errorHistorial || resultado.historial?.guardado === false) {
                     <p role="alert">{{ resultado.errorHistorial || resultado.historial?.error }}</p>
                 }
             }
-            @for (error of erroresOperativos(); track error) { <p role="alert">{{ error }}</p> }
+            @for (error of erroresOperativos(); track $index) {
+                <p [attr.role]="error.bloqueante ? 'alert' : 'status'">{{ error.mensaje }}</p>
+            }
+            @if (erroresOperativos().length && !ejecutandoCiclo()) {
+                <p>Conservo los resultados disponibles. Podés consultar el detalle y volver a intentar la búsqueda cuando la fuente esté disponible.</p>
+            }
         </section>
         <div class="panel-diagnosticos">
             <details class="busqueda-resumen" aria-label="Avisos operativos de búsquedas">
                 <summary>Avisos de búsquedas</summary>
                 <p id="disponibilidad-getonbrd">{{ getonbrdDisponible() && !modoDemo() ? 'GetOnBrd: disponible según la configuración del backend.' : motivoGetonbrd() }}</p>
-                @for (aviso of avisosOperativos(); track aviso) { <p>{{ aviso }}</p> }
+                @for (grupo of gruposAvisos(); track grupo.nombre) {
+                    <section [attr.aria-label]="'Avisos de ' + grupo.nombre">
+                        <strong>{{ grupo.nombre }}</strong>
+                        @for (mensaje of grupo.mensajes; track mensaje) {
+                            @if (grupo.nombre !== 'GetOnBrd' || getonbrdDisponible() || !motivoGetonbrd()?.includes(mensaje)) {
+                                <p>{{ mensaje }}</p>
+                            }
+                        }
+                    </section>
+                }
             </details>
             <details class="busqueda-resumen" aria-label="Configuración efectiva de búsquedas">
                 <summary>Configuración efectiva de búsquedas</summary>

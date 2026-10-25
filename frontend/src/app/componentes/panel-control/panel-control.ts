@@ -14,8 +14,10 @@ import { MessageService } from 'primeng/api';
 import { ScrapingService } from '../../servicios/scraping.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { AutomatizacionService } from '../../servicios/automatizacion.service';
-import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping, InicioEvaluacion, ResultadoFuente, ResultadoBusqueda, EjecucionBusqueda, EstadoAutomatizacion } from '../../modelos/respuesta-api.model';
+import { ProgresoAutomatizacion, ProgresoEvaluacion, ResumenBusqueda, RespuestaApi, RespuestaScraping, InicioEvaluacion, ResultadoFuente, ResultadoBusqueda, EjecucionBusqueda, EstadoAutomatizacion, ErrorFuente } from '../../modelos/respuesta-api.model';
 import { obtenerOpcionesScrapingPlataforma, PLATAFORMAS_ACTIVAS, PLATAFORMAS } from '../../config/plataformas';
+
+type ErrorConConsulta = ErrorFuente & { consulta?: string | null };
 
 @Component({
     selector: 'app-panel-control',
@@ -101,28 +103,55 @@ export class PanelControl implements OnInit, OnDestroy {
         if (!resumen) return 'No pude confirmar la disponibilidad de GetOnBrd. Actualizá la configuración guardada.';
         return resumen.advertencias.join(' ') || 'GetOnBrd no está disponible según la configuración del backend.';
     });
+    readonly fuentesOmitidasCiclo = computed(() => this.configuracionCiclo().filter(resumen => !!resumen.motivoOmision).length);
     readonly gruposResumen = computed(() => [
         { titulo: 'Configuración guardada actual', resumenes: this.previsualizacion() },
         { titulo: 'Configuración de la última búsqueda individual', resumenes: this.configuracionIndividual() ? [this.configuracionIndividual()!] : [] },
         { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo(), esCiclo: true },
     ]);
 
-    // Agrupo los avisos técnicos sin ocultar los errores de las ejecuciones.
+    // Conservo el contexto de cada evento; compartir plataforma no implica duplicación.
     readonly erroresOperativos = computed(() => {
-        const avisos = new Set<string>();
-        const fuentes = [...(this.resultadoCiclo()?.fuentes ?? [])];
+        const avisos: { mensaje: string; bloqueante: boolean }[] = [];
+        const fuentes = (this.resultadoCiclo()?.fuentes ?? []).map(fuente => ({ fuente,
+            contexto: this.ejecutandoCiclo() ? 'Ciclo anterior conservado' : 'Ciclo' }));
         const individual = this.resultadoIndividual();
-        if (individual) fuentes.unshift(individual);
-        for (const fuente of fuentes) {
-            const errores = [...(fuente.errores ?? []), ...(fuente.resultadosConsultas ?? []).flatMap(consulta => consulta.errores)];
-            if (!['error', 'timeout', 'parcial'].includes(fuente.estado) && !errores.length) continue;
+        if (individual) fuentes.unshift({ fuente: individual, contexto: 'Búsqueda individual' });
+        for (const { fuente, contexto } of fuentes) {
+            const identidad = (error: ErrorConConsulta) => JSON.stringify({
+                tipo: error.tipo, mensaje: error.mensaje, codigoHttp: error.codigoHttp, consulta: error.consulta,
+            });
+            const agregados = [...(fuente.errores ?? [])] as ErrorConConsulta[];
+            const consultas = (fuente.resultadosConsultas ?? []).flatMap(consulta => consulta.errores.map(error => ({
+                error: error as ErrorConConsulta, consulta: consulta.consulta,
+            })));
+            const errores = consultas.filter(({ error, consulta }) => {
+                // Apify replica un error global sin atribución en todas las consultas.
+                if (error.consulta === undefined && agregados.some(agregado => agregado.consulta === undefined
+                    && identidad(agregado) === identidad(error))) return false;
+                const indice = agregados.findIndex(agregado => identidad(agregado) === identidad({ ...error,
+                    consulta: error.consulta === undefined ? consulta : error.consulta }));
+                // Consumo una sola representación agregada por evento; conservo repeticiones reales.
+                if (indice !== -1) agregados.splice(indice, 1);
+                return true;
+            }).map(({ error, consulta }) => ({ error, consulta: ` · Consulta: ${consulta ?? 'No informada'}` }));
+            errores.unshift(...agregados.map(error => {
+                const afectadas = error.consulta !== undefined ? [error.consulta]
+                    : consultas.filter(consulta => identidad(consulta.error) === identidad(error)).map(consulta => consulta.consulta);
+                const nombres = [...new Set(afectadas.map(consulta => consulta ?? 'No informada'))];
+                return { error, consulta: nombres.length ? ` · ${nombres.length === 1 ? 'Consulta' : 'Consultas'}: ${nombres.join(', ')}` : '' };
+            }));
+            if (!['error', 'timeout', 'parcial', 'interrumpida'].includes(fuente.estado) && !errores.length) continue;
             const nombre = fuente.nombre || this.etiquetasPorPlataforma[fuente.plataforma] || fuente.plataforma;
-            avisos.add(`${nombre}: ${etiquetaEstado(fuente.estado)}${fuente.motivoFinalizacion ? ' · ' + fuente.motivoFinalizacion : ''}`);
-            for (const error of errores) {
-                avisos.add(`${nombre}: ${error.tipo}${error.codigoHttp ? ' ' + error.codigoHttp : ''}${error.mensaje ? ' · ' + error.mensaje : ''}`);
+            const prefijo = `${nombre} · ${contexto}${fuente.run_id ? ' · ' + fuente.run_id : ''}`;
+            const bloqueante = ['error', 'timeout', 'interrumpida'].includes(fuente.estado)
+                && contexto !== 'Ciclo anterior conservado';
+            avisos.push({ bloqueante, mensaje: `${prefijo}: ${etiquetaEstado(fuente.estado)}${fuente.motivoFinalizacion ? ' · ' + fuente.motivoFinalizacion : ''}` });
+            for (const { error, consulta } of errores) {
+                avisos.push({ bloqueante, mensaje: `${prefijo}${consulta}: ${error.tipo}${error.codigoHttp ? ' ' + error.codigoHttp : ''}${error.mensaje ? ' · ' + error.mensaje : ''}` });
             }
         }
-        return [...avisos];
+        return avisos;
     });
 
     readonly avisosOperativos = computed(() => {
@@ -140,17 +169,19 @@ export class PanelControl implements OnInit, OnDestroy {
                 }
             }
         }
-        const fuentes = [...(this.resultadoCiclo()?.fuentes ?? [])];
-        const individual = this.resultadoIndividual();
-        if (individual) fuentes.unshift(individual);
-        for (const fuente of fuentes) {
-            const nombre = fuente.nombre || this.etiquetasPorPlataforma[fuente.plataforma] || fuente.plataforma;
-            avisos.add(`${nombre}: ${etiquetaEstado(fuente.estado)}${fuente.motivoFinalizacion ? ' · ' + fuente.motivoFinalizacion : ''}`);
-            for (const error of [...(fuente.errores ?? []), ...(fuente.resultadosConsultas ?? []).flatMap(consulta => consulta.errores)]) {
-                avisos.add(`${nombre}: ${error.tipo}${error.codigoHttp ? ' ' + error.codigoHttp : ''}${error.mensaje ? ' · ' + error.mensaje : ''}`);
-            }
-        }
         return [...avisos];
+    });
+
+    readonly gruposAvisos = computed(() => {
+        const grupos = new Map<string, string[]>();
+        for (const aviso of this.avisosOperativos()) {
+            const separador = aviso.indexOf(': ');
+            const nombre = aviso.slice(0, separador);
+            const mensajes = grupos.get(nombre) ?? [];
+            mensajes.push(aviso.slice(separador + 2));
+            grupos.set(nombre, mensajes);
+        }
+        return [...grupos].map(([nombre, mensajes]) => ({ nombre, mensajes }));
     });
 
     formatearConsultas(consultas: unknown): string {

@@ -12,12 +12,15 @@ import { OFERTAS_DEMO } from '../src/app/datos/ofertas-demo';
 import { ResumenBusqueda, ResultadoFuente } from '../src/app/modelos/respuesta-api.model';
 import { crearOfertasDetalle, crearHttpDetalle } from './detalle-fixture';
 import { crearOfertasTabla, crearHttpTabla } from './tabla-fixture';
+import { crearHttpIssue58 } from './fixtures/issue-58';
 
 // Aíslo el fixture: no inicializo Firebase, no guardo datos ni uso el interceptor productivo.
 const parametros = new URLSearchParams(location.search);
 const escenario = parametros.get('estado') || 'parcial';
 const detalle = parametros.get('detalle');
 const tabla = parametros.has('tabla');
+const issue58 = parametros.get('issue58');
+const httpIssue58 = issue58 ? crearHttpIssue58(issue58) : null;
 const llamadas = signal<string[]>([]);
 const cuerpos = signal<{ metodo: string; ruta: string; cuerpo: unknown }[]>([]);
 const ofertas = tabla ? crearOfertasTabla() : detalle ? crearOfertasDetalle(detalle) : escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
@@ -52,6 +55,8 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
     llamadas.update(actuales => [...actuales, `${solicitud.method} ${ruta}`]);
     if (['POST', 'PATCH'].includes(solicitud.method)) cuerpos.update(actuales => [...actuales,
         { metodo: solicitud.method, ruta, cuerpo: structuredClone(solicitud.body) }]);
+    const respuestaIssue58 = httpIssue58?.(solicitud, ruta);
+    if (respuestaIssue58) return respuestaIssue58;
     const respuestaDetalle = httpDetalle?.(solicitud, ruta);
     if (respuestaDetalle) return respuestaDetalle;
     if (escenario === 'error' && /ofertas|historial|previsualizacion/.test(ruta)) {
@@ -95,7 +100,7 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
     template: `<header>Busco Trabajo · Entorno sintético E2E</header><app-dashboard />
         <details><summary>Registro del fixture</summary><output aria-label="Llamadas simuladas">{{ llamadas().join('\n') }}</output>
         <output aria-label="Cuerpos simulados">{{ cuerposJson() }}</output></details>
-        @if (tabla) {
+        @if (tabla || issue58) {
             <button type="button" (click)="refrescar()">Refrescar datos sintéticos</button>
             <button type="button" (click)="recortar()">Reducir datos sintéticos a 15</button>
         }`,
@@ -107,6 +112,7 @@ const fixtureHttp: HttpInterceptorFn = solicitud => {
 class EscenarioDashboard {
     readonly llamadas = llamadas;
     readonly tabla = tabla;
+    readonly issue58 = issue58;
     readonly dashboard = viewChild.required(Dashboard);
     cuerposJson(): string { return JSON.stringify(cuerpos()); }
     refrescar(): void { this.dashboard().cargarDatos(); }
@@ -119,11 +125,12 @@ if (['/preferencias', '/salida', '/cv'].includes(location.pathname)) {
 document.documentElement.classList.toggle('dark', parametros.get('tema') === 'oscuro');
 bootstrapApplication(EscenarioDashboard, { providers: [
     provideNoopAnimations(),
-    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: detalle || tabla ? '.dark' : 'none' } } }),
+    providePrimeNG({ theme: { preset: Aura, options: { darkModeSelector: detalle || tabla || issue58 ? '.dark' : 'none' } } }),
     provideHttpClient(withInterceptors([fixtureHttp])),
     { provide: DemoService, useValue: { esModoDemo: signal(false) } },
     { provide: PersistenciaDashboardService, useValue: {
-        leerCache: () => null, guardarCache: () => {},
+        leerCache: () => issue58 ? { ofertas: structuredClone(ofertas), estadisticas: null,
+            fechaGuardado: '2026-01-15T18:00:00Z', version: 1 } : null, guardarCache: () => {},
         limpiarSincronizacion: async () => { bloqueGuardado = []; },
         guardarBloqueSincronizacion: async (bloque: typeof ofertas) => {
             bloqueGuardado = bloque; return { fallback: false, total: bloque.length };

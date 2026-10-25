@@ -45,7 +45,12 @@
         </div>
         @if (estadoOperativoSincronizacion(); as estado) {
             <div class="dashboard__sincronizacion">
-                <p [attr.role]="estado.estado === 'fallida' ? 'alert' : 'status'">Estado de sincronización: {{ estado.estado }}.</p>
+                @if (estado.estado === 'fallida' && !sincronizacionRecuperada()) {
+                    <p role="alert">Estado de sincronización: fallida. {{ causaErrorSincronizacion() }} Conservo los datos disponibles, sin confirmar su actualización. Podés volver a intentar.</p>
+                    <button type="button" (click)="cargarDatos()" [disabled]="sincronizando()">REINTENTAR</button>
+                } @else {
+                    <p role="status">{{ sincronizacionRecuperada() ? 'Carga recuperada mediante vía alternativa; sincronización falló.' : 'Estado de sincronización: ' + estado.estado + '.' }}</p>
+                }
                 @if (estado.estado === 'cancelada') {
                     <button type="button" (click)="cargarDatos()">REANUDAR</button>
                 }
