@@ -8,7 +8,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:e2e:integracion": "playwright test --config playwright.integracion.config.ts"
   },
   "prettier": {
     "printWidth": 100,

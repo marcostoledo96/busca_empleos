@@ -1,4 +1,4 @@
-# Integración sintética de la issue #57 — T1
+# Integración sintética de la issue #57 — T1 y T2
 
 ## Estado observado
 
@@ -6,7 +6,8 @@ Implementé un arnés focal con Express, controladores, configuración efectiva,
 normalización, ingreso, modelos, mutex y PostgreSQL reales. **T1 queda verde en su
 verificación focal:** la última suite obtuvo **31 pruebas aprobadas de 31**, en dos
 suites, sin fallos ni pruebas omitidas. La aceptación completa de la issue sigue
-pendiente de T2 y de la verificación independiente del padre. No afirmo cobertura
+pendiente de la verificación independiente del padre; más abajo registro el navegador T2.
+No afirmo cobertura
 productiva real. No modifiqué código productivo.
 
 El servidor separado pasó su comprobación funcional: bind en loopback, rechazo de acceso
@@ -152,8 +153,9 @@ el mismo middleware real y el token ficticio:
 - `SIGINT`/`SIGTERM` cierran servidor y pool; cierro después del estado terminal.
 
 La comprobación autocontenida del runner usa `--comprobar-api`, puerto efímero y el
-mismo recorrido real. T2 todavía debe integrar Angular sin el interceptor de API
-sintético, resolver login ficticio solo en su build de prueba y ejecutar Playwright.
+mismo recorrido real. Al cerrar T1 quedaba pendiente integrar Angular sin el interceptor
+de API sintético, resolver la identidad ficticia sólo en su entrada de prueba y ejecutar
+Playwright; registro la implementación y los resultados de T2 más abajo.
 El ciclo completo ya aprobó el recorrido backend, incluida recuperación y cancelación,
 con el destino Computrabajo acotado en el fixture. Mantengo intacta la política cerrada
 para destinos desconocidos.
@@ -229,5 +231,159 @@ foreground de la sesión, sin redirección ni un nuevo archivo de log.
 | S15 | Solo tests/helpers/runner/package/docs, sin dependencias nuevas ni cambios globales |
 | S19 | Errores SQL/HTTP ante esquema incompleto y recuperación posterior comprobados |
 
-No ejecuté suites completas, builds, navegador ni verificación productiva: pertenecen
-a T2/T3 o al padre. No hice commits, push, PR, revisión ni despliegue.
+Durante T1 no ejecuté suites completas, builds, navegador ni verificación productiva.
+No hice commits, push, PR, revisión ni despliegue.
+
+## T2 — Navegador real, ejecución focal aprobada
+
+Ejecuté **3/3 recorridos aprobados, sin omisiones ni retries**, en 57,2 segundos:
+1440×900 claro, 390×844 oscuro y 320×844 claro. En los tres participaron Angular 20,
+`/usr/bin/google-chrome`, Express de T1 y PostgreSQL 15 reales. No afirmo que Buscar
+funcione en producción ni doy por terminada la aceptación global antes de T3.
+
+### Entrada separada y fronteras
+
+- Reutilizo Dashboard, PanelControl, tabla/tarjetas, detalle, servicios, caché,
+  IndexedDB y `authInterceptor` productivos. **No genero respuestas API mediante
+  interceptores ni `route.fulfill`.** Sustituyo solamente `AuthService` por la identidad
+  y token ficticios en `e2e/main-integracion.ts`; no inicializo Firebase externo.
+- El target independiente `frontend:integracion` no es una configuración de
+  `frontend:build`. El build por defecto sigue siendo `production`, con `src/main.ts`
+  y su reemplazo productivo habitual. La entrada de integración además rechaza cualquier
+  origen distinto de `http://127.0.0.1:4357`. Su salida explícita se llama
+  `e2e/integracion/salida/build-no-publicar`; no debe publicarse.
+- `serve:integracion` usa un índice local sin Google Fonts y un proxy hacia
+  `127.0.0.1:3057`. El proxy presenta `Origin: http://127.0.0.1:4200`, ya autorizado
+  por T1. Este recorrido comprueba HTTP y autenticación, **no CORS entre orígenes**.
+  Las capturas usan fuentes de sistema; los iconos Material externos aparecen como texto.
+- Conservo `e2e/main.ts`, `playwright.config.ts` y las suites anteriores sin cambios.
+  El archivo nuevo termina en `.integracion.ts`, fuera del patrón `.spec/.test` de la
+  suite histórica. Sólo lo selecciona `playwright.integracion.config.ts`.
+- Playwright inicia ambos servidores en loopback, rechaza reutilizar servidores previos
+  y los cierra con SIGTERM. Los procesos hijos reciben un entorno mínimo; el runner API
+  recibe únicamente las ocho variables sintéticas validadas. No leo `.env` personal.
+  Cada recorrido tiene contexto navegador nuevo y reset SQL; no ejecuto casos en paralelo.
+  El servicio de automatización vive durante la suite: su último resultado en memoria
+  puede seguir visible al iniciar el siguiente caso, pero ningún caso lo toma como
+  evidencia de su ciclo nuevo: exige su propio POST, polling y fila SQL terminal.
+- El navegador bloquea y registra destinos fuera del servidor local. Las tres
+  aserciones finales obtuvieron **cero destinos externos**, cero `pageerror` y cero
+  solicitudes fallidas de transporte. El backend también mantuvo `inesperadas=[]`
+  y ninguna fila de cron activa. Proveedores, DeepSeek y verificador Firebase siguen
+  siendo los fixtures externos de T1; no hago scraping pago, correos ni postulaciones.
+
+### Recorrido y evidencia SQL
+
+En cada viewport creo una oferta inicial por el endpoint real. Consulto configuración
+mediante el botón del panel y verifico `terminos=['desarrollo junior']` con origen
+`preferencias`. Selecciono LinkedIn en móvil o su botón en escritorio; la búsqueda
+real deja **dos ofertas únicas** y **dos historiales individuales finalizados**.
+Conservo ID y primera fecha de la oferta previa; verifico también las keywords que
+recibió el adaptador. El endpoint `/api/ofertas` devuelve esos mismos IDs.
+
+Retengo brevemente el **envío** del POST, sin sustituir su respuesta, para observar
+el overlay y ambos controles deshabilitados. Compruebo exactamente un POST por acción.
+Filtro LinkedIn, abro el detalle desde botón o tarjeta según el viewport, cierro con
+Escape y consulto historial. No duplico componentes ni agrego botones al código
+productivo: la entrada de prueba sólo añade un botón que llama a `Dashboard.cargarDatos()`.
+
+Inyecto dos fallos reales:
+
+1. El control T1 activa el trigger `historial_inicio`: la búsqueda devuelve **503**,
+   `exito=false` y un aviso visible de historial. Ofertas, historial y llamadas al
+   proveedor quedan exactamente iguales. Desactivo el fallo y repito: **200**, sin
+   duplicados y con listado actualizado.
+2. Verifico por SQL base, usuario, versión 15 y esquema propio antes de renombrar
+   temporalmente `fecha_ultima_extraccion`. El GET de sincronización devuelve **500**;
+   Dashboard intenta su fallback `/api/ofertas`, que también devuelve **500**. Espero
+   ambos y el texto exacto que informa conservación de datos no actualizados. Las dos
+   ofertas siguen visibles. Restauro la columna en `finally`, vuelvo a actualizar y
+   exijo **200**, sincronización completada y las mismas dos ofertas.
+
+Después ejecuto el ciclo manual por UI: observo **202**, overlay y botón deshabilitado,
+pero no lo considero terminado. Espero el polling **200** con `activo=false` y
+`porcentaje=100`; verifico estado global **parcial**, LinkedIn completada, Indeed en
+error y Google Jobs deshabilitada/omitida. La UI muestra Parcial y avisos visibles,
+no éxito total. La consulta SQL de T1 devuelve la ejecución `ciclo_manual`, `fin`
+no nulo y las dos ofertas útiles. Otro ciclo vacío vuelve a terminar, ahora
+`sin_resultados`, conservando ofertas. Cada caso termina con **dos ofertas y cinco
+historiales**, último ciclo finalizado. Exijo exactamente tres POST individuales y
+dos POST de ciclo desde el navegador.
+
+No agregué un segundo caso navegador de notas/estado manual: T1 ya verifica ese contrato
+por HTTP y SQL. Tampoco repito en navegador toda su matriz 429/timeout/cancelación/cursor;
+T2 agrega el cruce real de capas y la recuperación renderizada. No son omisiones de T1.
+
+### Consola y capturas
+
+No suprimo errores genéricos. Exijo exactamente estos tres HTTP fallidos, en orden:
+`POST /api/scraping/linkedin → 503`, `GET /api/ofertas/sincronizacion → 500`,
+`GET /api/ofertas → 500`. También exijo los tres mensajes de recurso HTTP de Chrome
+con su URL/estado exactos y los dos diagnósticos Angular:
+`Error al sincronizar dashboard: HttpErrorResponse` y
+`Error al cargar dashboard: HttpErrorResponse`, ambos desde `main.js`.
+Cualquier error adicional hace fallar el test. Compruebo ausencia de desborde horizontal
+con configuración abierta, detalle abierto, resultado parcial y recuperación.
+
+Las **nueve capturas originales** son `detalle.png`, `ciclo-parcial.png` y
+`dashboard-recuperado.png` en cada directorio de
+`frontend/e2e/integracion/salida/resultados/busqueda-real.integracion.*`.
+Son datos ficticios, sin información personal. Playwright las adjunta a su reporte,
+junto con JSON de evidencia SQL después de Buscar, después del ciclo terminal y al
+final. El directorio dedicado también contiene `api.log`, `angular.log` y
+`resultados.json`; las trazas y capturas de fallo se conservan cuando un caso falla.
+`salida/` está ignorado por Git.
+
+El job nuevo `integracion-issue57` ejecuta una vez la suite backend focal y esta suite
+navegador, con PostgreSQL 15 y **puerto, base, usuario, contraseña y flags exactamente
+iguales al guard**. Conserva logs, capturas, SQL y trazas con `if: always()`. No cambia
+los jobs anteriores ni instala dependencias nuevas. Su CI remoto todavía no se ejecutó
+ni se verificó en esta tarea.
+
+### Comandos T2 y resultados observados
+
+Ejecuté desde la raíz, sin variables personales heredadas:
+
+```sh
+env -i PATH="$PATH" npm --prefix frontend run prebuild
+frontend/node_modules/.bin/tsc --project frontend/tsconfig.integracion.json --noEmit
+
+env -i PATH="$PATH" NODE_ENV=test DB_TEST_SINTETICA=true \
+PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test \
+PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable \
+npm --prefix frontend run test:e2e:integracion
+```
+
+| Comprobación | Evidencia observada |
+| --- | --- |
+| RED antes de crear la entrada Angular | `env -i` con las mismas ocho variables y `npm --prefix frontend exec -- playwright test --config frontend/playwright.integracion.config.ts`: exit 1; `Configuration 'integracion' for target 'serve' ... is not set` |
+| `npm --prefix frontend run prebuild` con `env -i PATH` | exit 0; placeholders ignorados generados desde ejemplos, sin copiar `.env` |
+| `tsc --project frontend/tsconfig.integracion.json --noEmit` | exit 0 antes y después de la corrida focal |
+| Primera corrida del script focal | exit 1; 0/3. Escritorio llegó al cierre y reveló el fallback 500 no contabilizado; móvil esperaba el nombre accesible equivocado |
+| Primera corrección y segunda corrida | exit 1; 0/3. Escritorio capturó un 200 de sincronización anterior todavía en vuelo; móvil usa tarjetas y no botones de detalle |
+| Segunda corrección y corrida final | **exit 0; 3/3 aprobadas, 57,2 s**, sin retries ni omisiones |
+| Chequeo TypeScript explícito de config/spec desde raíz | primera invocación sin `typeRoots`: exit 2, no resolvía `node:module`/`process`; corregí sólo el comando a `frontend/node_modules/.bin/tsc --noEmit --skipLibCheck --target ES2022 --module commonjs --esModuleInterop --strict --typeRoots frontend/node_modules/@types --types node frontend/playwright.integracion.config.ts frontend/e2e/integracion/busqueda-real.integracion.ts`: exit 0, sin instalar nada |
+| `ss -ltn '( sport = :3057 or sport = :4357 )'` | exit 0, sin sockets escuchando después de Playwright |
+| Inspección estructural con `node` + `assert/strict` sobre `angular.json` y sufijo del spec | exit 0; build productivo, entrada sintética y entrada integrada separados |
+| `git diff --check` | exit 0, sin salida |
+
+La salida stdout/stderr de las corridas está registrada en las llamadas foreground de
+esta sesión. Los logs de los servidores y el JSON local reflejan la última corrida;
+la tabla conserva los fallos anteriores y sus causas, sin presentarlos como aprobados.
+No ejecuté suites amplias ni build productivo: corresponden a T3. No hice commits,
+push, PR, revisión independiente ni despliegue.
+
+### Cobertura de Specs de T2
+
+| Spec | Veredicto focal |
+| --- | --- |
+| S3 | Nivel C aprobado con Angular → Express → PostgreSQL reales; nivel B heredado de T1 |
+| S6 | AuthService ficticio sólo en bootstrap aislado; interceptor y middleware reales; rechazos 401/403 ya comprobados por T1 |
+| S7 | Configuración/preferencias, POST, persistencia SQL, refresco, listado, detalle e historial aprobados en los tres viewports |
+| S8 | 202, polling terminal, estados de fuentes, parcial útil, historial durable y segundo ciclo sin resultados aprobados |
+| S9 | Carga previa, nuevas ofertas, IDs únicos, primera fecha conservada, sincronización fallida con datos retenidos y recuperación renderizada aprobados; cursor y seguimiento manual quedan en T1 |
+| S10 | 503 SQL, conservación exacta, reintento y parcial aprobados en UI; resto de la matriz se mantiene en T1 |
+| S11 | Entrada/config separadas y tres viewports con claro/oscuro representativos; suite sintética anterior intacta |
+| S12 | Acciones, carga/disabled, filtro, detalle/regreso, historial, ciclos, errores exactos, cero solicitudes duplicadas y cero overflow aprobados |
+| S13 | Guards intactos, loopback, entornos mínimos, sin destinos externos ni cron; APIs pagas/Firebase/email siguen simulados |
+| S15 | Sólo superficies autorizadas de pruebas, configuración, CI y documentación; sin cambios productivos ni dependencias nuevas |
