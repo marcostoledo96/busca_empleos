@@ -1,14 +1,57 @@
 # Integración sintética de la issue #57 — T1, T2 y corrección acotada T3
 
-## Estado observado
+## Resultado final local
+
+Verifiqué búsqueda, listado, sincronización e historial con **Angular → Express →
+PostgreSQL reales de prueba**, incluidos errores visibles, resultados parciales y
+recuperación. La revisión independiente confirmó los recorridos y cerró los tres
+bloqueos iniciales con un recheck de **40/40 pruebas**, sin omisiones. No modifiqué
+código productivo ni afirmo que Buscar funcione en producción.
+
+BASE: `1e00fb24ac35df078ba2a233e233452240d9e680`. Candidato de código verificado:
+`f773170c4fe4f20a74829a41512d4edd8e947da2`; el commit posterior sólo consolida esta
+evidencia. Consulto el HEAD entregado y el CI en la PR, no invento un SHA autorreferente.
+
+| Comprobación | Resultado final local |
+| --- | --- |
+| `npm --prefix backend run test:issue57` | **40/40**, 2 suites, sin omisiones; repetida por verificador independiente |
+| `npm --prefix backend run test:issue57:contratos` | **3 comprobaciones**: descubrimiento exacto y dos pipelines que conservan exit 23 |
+| `npm --prefix backend run test:integracion` | **76 aprobadas, 7 omisiones preexistentes** de suites opt-in; no cuento esas omisiones como SQL verificado |
+| `npm --prefix backend run test:db` | **211/211**, 16 suites, sin omisiones, base sintética fresca |
+| `npm --prefix backend test -- --runInBand` | **2599 aprobadas, 159 omisiones preexistentes**; sin PostgreSQL requerido |
+| `npm --prefix frontend test -- --watch=false --browsers=ChromeHeadless` | **562 aprobadas, 4 omisiones preexistentes** |
+| `npm --prefix frontend run test:e2e:integracion` | **3/3**: 1440×900 claro, 390×844 oscuro y 320×844 claro; confirmado independientemente |
+| `npm --prefix frontend run test:e2e` | **202/202**, suite sintética histórica intacta |
+| `npm --prefix frontend run build` | **Exit 0**; aviso preexistente: preferencias.css 15,61 kB frente al presupuesto de 15 kB |
+| `git diff --check` y TypeScript de integración | **Exit 0** |
+
+Para `test:integracion` y la focal uso las ocho variables sintéticas documentadas más
+abajo. Para las suites DB antiguas creé otra base **vacía**,
+`busca_empleos_regresion_test`, en el mismo contenedor autorizado (`127.0.0.1:55457`,
+mismo usuario/clave sintéticos), y apliqué allí `db:migrate:apply` antes de `test:db`.
+Mantengo `NODE_ENV=test`, `DB_TEST_SINTETICA=true`, `PGSSLMODE=disable` y ausencia de
+`DATABASE_URL`. Esto evita la colisión preexistente de guards legacy al reutilizar los
+esquemas de la focal; **no ejecuté migraciones productivas ni cambié la migración 005**.
+Los demás procesos se lanzaron con `env -i` y sólo PATH/HOME y variables de prueba.
+
+La inspección interactiva **MCP no estuvo disponible**: Playwright MCP no inició por
+longitud del socket temporal y Chrome DevTools MCP agotó su timeout. No la doy por
+aprobada ni la confundo con los E2E automáticos, que sí renderizaron Chromium y
+produjeron nueve capturas con adjuntos SQL. Detuve los servidores temporales al terminar.
+
+**Límites:** Firebase/identidad, Apify y HTTP remoto/DeepSeek son simulados; el envío de
+correo y cron están prohibidos. No pruebo Firebase criptográfico, CORS entre orígenes,
+proveedores pagos, producción ni nuevas postulaciones externas. Sin Google Fonts los
+iconos Material aparecen como texto. Las omisiones indicadas son anteriores, no añadí
+SKIP. Los resultados históricos siguientes se conservan para auditar RED/correcciones;
+esta sección los sustituye como estado vigente. El CI remoto y sus artefactos se
+registran por URL en la PR una vez publicados.
+
+## Registro histórico T1
 
 Implementé un arnés focal con Express, controladores, configuración efectiva, scrapers,
-normalización, ingreso, modelos, mutex y PostgreSQL reales. **T1 queda verde en su
-verificación focal:** la última suite obtuvo **31 pruebas aprobadas de 31**, en dos
-suites, sin fallos ni pruebas omitidas. La aceptación completa de la issue sigue
-pendiente de la verificación independiente del padre; más abajo registro el navegador T2.
-No afirmo cobertura
-productiva real. No modifiqué código productivo.
+normalización, ingreso, modelos, mutex y PostgreSQL reales. Al cerrar T1 obtuve
+**31/31 pruebas**, antes de agregar las regresiones del recheck T3 (40/40 final).
 
 El servidor separado pasó su comprobación funcional: bind en loopback, rechazo de acceso
 sin token, búsqueda LinkedIn, normalización de tres filas crudas a dos identidades y
