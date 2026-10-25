@@ -121,12 +121,28 @@ test('acciones primero y diagnósticos cerrados @regresion', async ({ page }) =>
     expect(accion!.y).toBeLessThan(diagnostico!.y);
 });
 
-test('resumen crítico visible sin abrir detalles @regresion', async ({ page }) => {
+test('errores visibles y avisos de configuración plegables @regresion', async ({ page }) => {
     await page.goto('/');
-    await expect(page.getByText('Cuota del proveedor agotada', { exact: false }).first()).toBeVisible();
-    await expect(page.getByText('Límite de peticiones alcanzado', { exact: false }).first()).toBeVisible();
-    await expect(page.getByText('Falta la clave del proveedor; no puedo ejecutar esta fuente.', { exact: false }).first()).toBeVisible();
-    await expect(page.getByText('Último ciclo: Parcial', { exact: false }).first()).toBeVisible();
+    const estado = page.getByRole('region', { name: 'Estado operativo de búsquedas', exact: true });
+    const avisos = page.getByRole('group', { name: 'Avisos operativos de búsquedas', exact: true });
+    const aviso = avisos.getByText('Falta la clave del proveedor; no puedo ejecutar esta fuente.', { exact: false });
+    await expect(estado.getByText('Cuota del proveedor agotada', { exact: false })).toBeVisible();
+    await expect(estado.getByText('Límite de peticiones alcanzado', { exact: false })).toBeVisible();
+    await expect(estado.getByText('Último ciclo: Parcial', { exact: false })).toBeVisible();
+    await expect(avisos).not.toHaveAttribute('open', '');
+    await expect(aviso).toHaveCount(1);
+    await expect(aviso).toBeHidden();
+    await avisos.getByText('Avisos de búsquedas', { exact: true }).click();
+    await expect(avisos).toHaveAttribute('open', '');
+    await expect(aviso).toBeVisible();
+    await avisos.getByText('Avisos de búsquedas', { exact: true }).click();
+    await expect(avisos).not.toHaveAttribute('open', '');
+    await expect(aviso).toBeHidden();
+    await expect(estado.getByText('Cuota del proveedor agotada', { exact: false })).toBeVisible();
+    await expect(estado.getByText('Límite de peticiones alcanzado', { exact: false })).toBeVisible();
+    await expect(estado.getByText('Último ciclo: Parcial', { exact: false })).toBeVisible();
+    await expect(page.getByLabel('Llamadas simuladas')).not.toContainText('POST');
+    await expect(page.getByLabel('Llamadas simuladas')).not.toContainText('PATCH');
 });
 
 test('divulgación por teclado no ejecuta operaciones @preservar', async ({ page }) => {
