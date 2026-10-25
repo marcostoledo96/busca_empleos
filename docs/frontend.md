@@ -1,5 +1,25 @@
 # Frontend — Busca Empleos
 
+## Avisos operativos y sincronización móvil — issue #58
+
+Agrupo avisos informativos por fuente dentro del desplegable existente, inicialmente
+cerrado. Mantengo por separado los snapshots de configuración y no repito errores
+de ejecución entre avisos y estado visible. Conservo eventos diferentes indicando
+ciclo, búsqueda individual, ejecución y consulta. Los parciales informan resultados
+aprovechables; los fallos bloqueantes permanecen como alertas fuera de los detalles.
+
+Distingo ausencia de ciclos, ejecución en curso y resultado anterior conservado,
+sin interpretar un HTTP 202 como finalización. Cuento configuración recibida y
+omisiones explícitas del snapshot, sin inferir disponibilidad por habilitación.
+Ante un fallo de sincronización muestro causa y reintento; si el listado alternativo
+se recupera, explico la vía alternativa como estado informativo y limpio la causa
+en la siguiente sincronización exitosa. Mantengo ofertas e historial ante fallos.
+
+Conservo estilos, foco, objetivos táctiles y corrección previa del toast. Verifico
+los catorce escenarios sintéticos, los cinco tamaños pedidos y muestras claro/oscuro.
+Resultados, capturas ANTES/DESPUÉS y límite sin migraciones para la integración #57:
+[Informe de #58](issue-58-avisos-operativos-mobile.md).
+
 ## Tabla y tarjetas responsive — issue #51
 
 Conservo PrimeNG, la marca Busco Trabajo y los tokens editoriales existentes.

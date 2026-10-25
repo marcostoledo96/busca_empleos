@@ -145,6 +145,131 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(resumen.querySelector('[role="alert"]')?.textContent).toContain('No pude consultar la configuración');
     });
 
+    it('issue58: no duplico errores en avisos ni fusiono consultas o ejecuciones diferentes', () => {
+        const fuente: ResultadoFuente = { plataforma: 'linkedin', estado: 'parcial', run_id: 'ciclo-58',
+            errores: [{ tipo: 'proveedor', mensaje: 'Cuota agotada' }],
+            resultadosConsultas: ['Angular', 'React'].map(consulta => ({ consulta, estado: 'error',
+                peticionesRealizadas: 1, totalCrudos: 0,
+                errores: [{ tipo: 'proveedor', mensaje: 'Servicio no disponible' }] })) };
+        component.resultadoCiclo.set({ estado: 'parcial', fuentes: [fuente] });
+        component.resultadoIndividual.set({ ...fuente, run_id: 'individual-58', resultadosConsultas: [] });
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const estado = raiz.querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        const avisos = raiz.querySelector('details[aria-label="Avisos operativos de búsquedas"]')!;
+        expect(avisos.textContent).not.toContain('Cuota agotada');
+        expect(avisos.textContent).not.toContain('Servicio no disponible');
+        expect(estado.textContent).toContain('Angular');
+        expect(estado.textContent).toContain('React');
+        expect(estado.textContent).toContain('ciclo-58');
+        expect(estado.textContent).toContain('individual-58');
+        expect(estado.querySelectorAll('[role="alert"]').length).toBe(0);
+    });
+
+    it('issue58 B1: muestro dos eventos de consulta aunque el backend también los agregue en la fuente', () => {
+        const consultas = ['Angular', 'React'].map(consulta => ({ consulta, estado: 'error' as const,
+            peticionesRealizadas: 1, totalCrudos: 0,
+            errores: [{ tipo: 'http', codigoHttp: 503, mensaje: 'El proveedor rechazó la petición.', consulta }],
+        }));
+        const global = { tipo: 'red', mensaje: 'Fallo global sin consulta' };
+        component.resultadoCiclo.set({ estado: 'parcial', fuentes: [{ plataforma: 'linkedin',
+            estado: 'parcial', run_id: 'ciclo-B1', resultadosConsultas: structuredClone(consultas),
+            errores: [...structuredClone(consultas.flatMap(consulta => consulta.errores)), global, { ...global }],
+        }] });
+        fixture.detectChanges();
+        const estado = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        const mensajes = [...estado.querySelectorAll('p')].map(nodo => nodo.textContent || '');
+        const eventos = mensajes.filter(mensaje => mensaje.includes('El proveedor rechazó la petición.'));
+        expect(eventos.length).toBe(2);
+        expect(eventos.filter(mensaje => mensaje.includes('Consulta: Angular')).length).toBe(1);
+        expect(eventos.filter(mensaje => mensaje.includes('Consulta: React')).length).toBe(1);
+        expect(mensajes.filter(mensaje => mensaje.includes('Fallo global sin consulta')).length).toBe(2);
+    });
+
+    it('issue58 B1: muestro una vez el error global de Apify compartido entre consultas', () => {
+        const global = { tipo: 'actor', mensaje: 'El Actor no finalizó correctamente.' };
+        component.resultadoIndividual.set({ plataforma: 'linkedin', estado: 'error', run_id: 'actor-B1',
+            errores: [{ ...global }], resultadosConsultas: ['Angular', 'React'].map(consulta => ({
+                consulta, estado: 'error', peticionesRealizadas: null, totalCrudos: null,
+                errores: [{ ...global }],
+            })),
+        });
+        fixture.detectChanges();
+        const estado = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        const eventos = [...estado.querySelectorAll('p')].filter(nodo => nodo.textContent?.includes(global.mensaje));
+        expect(eventos.length).toBe(1);
+        expect(eventos[0]?.textContent).toContain('Angular');
+        expect(eventos[0]?.textContent).toContain('React');
+        expect(eventos[0]?.getAttribute('role')).toBe('alert');
+    });
+
+    it('issue58: distingo ausencia, curso y resultado anterior conservado', () => {
+        const estado = () => (fixture.nativeElement as HTMLElement)
+            .querySelector('[aria-label="Estado operativo de búsquedas"]')!.textContent;
+        expect(estado()).toContain('Último ciclo: Sin ejecuciones');
+        component.resultadoCiclo.set({ estado: 'completada', fuentes: [] });
+        component.ejecutandoCiclo.set(true);
+        fixture.detectChanges();
+        expect(estado()).toContain('Último ciclo: En curso');
+        expect(estado()).toContain('Resultado anterior conservado: Completada');
+        expect(estado()).not.toContain('Último ciclo: Completada');
+        component.ejecutandoCiclo.set(false);
+        fixture.detectChanges();
+        expect(estado()).toContain('Último ciclo: Completada');
+    });
+
+    it('issue58: conservo snapshots distintos y no convierto sin resultados en error', () => {
+        const configuracion: ResumenBusqueda = { plataforma: 'bumeran', nombre: 'Bumeran',
+            habilitada: true, ejecutable: true, terminos: ['Angular'], ubicacion: ['Argentina'],
+            maxResultados: null, ventanaDias: 30, filtros: {},
+            advertencias: ['No aplico maxResultados', 'Ubicación fija'],
+            origen: { terminos: 'preferencias', ubicacion: 'fijo' } };
+        component.previsualizacion.set([configuracion]);
+        component.configuracionIndividual.set({ ...configuracion, terminos: ['React'],
+            advertencias: ['No aplico maxResultados', 'Otro aviso de la ejecución'] });
+        component.resultadoIndividual.set({ plataforma: 'bumeran', estado: 'sin_resultados', nuevas: 0 });
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const avisos = raiz.querySelector('details[aria-label="Avisos operativos de búsquedas"]')!;
+        expect(avisos.querySelectorAll('section').length).toBe(1);
+        expect(avisos.textContent?.split('No aplico maxResultados').length).toBe(2);
+        expect(avisos.textContent).toContain('Ubicación fija');
+        expect(avisos.textContent).toContain('Otro aviso de la ejecución');
+        const diagnostico = raiz.querySelector('details[aria-label="Configuración efectiva de búsquedas"]')!;
+        expect(diagnostico.textContent).toContain('Angular');
+        expect(diagnostico.textContent).toContain('React');
+        expect(raiz.querySelector('[aria-label="Estado operativo de búsquedas"] [role="alert"]')).toBeNull();
+    });
+
+    it('issue58: retiro alertas de una fuente recuperada sin borrar sus diagnósticos', () => {
+        component.resultadoIndividual.set({ plataforma: 'linkedin', estado: 'error',
+            errores: [{ tipo: 'red', mensaje: 'Fallo anterior' }] });
+        fixture.detectChanges();
+        const estado = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        expect(estado.querySelector('[role="alert"]')).not.toBeNull();
+        component.resultadoIndividual.set({ plataforma: 'linkedin', estado: 'completada', nuevas: 2 });
+        fixture.detectChanges();
+        expect(estado.querySelector('[role="alert"]')).toBeNull();
+        expect(estado.textContent).not.toContain('Fallo anterior');
+        expect(fixture.nativeElement.textContent).toContain('Nuevas: 2');
+    });
+
+    it('issue58: cuento configuración y omisiones explícitas sin afirmar fuentes operativas', () => {
+        const fuente: ResumenBusqueda = { plataforma: 'jooble', nombre: 'Jooble', habilitada: true,
+            ejecutable: false, terminos: [], ubicacion: [], ventanaDias: 30, maxResultados: 40,
+            filtros: {}, advertencias: [], origen: { terminos: 'preferencias', ubicacion: 'fijo' } };
+        component.previsualizacion.set([fuente]);
+        component.configuracionCiclo.set([{ ...fuente, motivoOmision: 'Consulta incompatible' }]);
+        fixture.detectChanges();
+        const estado = (fixture.nativeElement as HTMLElement).querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        expect(estado.textContent).toContain('Fuentes configuradas: 1');
+        expect(estado.textContent).toContain('Fuentes omitidas en el snapshot del ciclo: 1');
+        expect(estado.textContent).not.toContain('operativas');
+        component.configuracionCiclo.set([{ ...fuente }]);
+        fixture.detectChanges();
+        expect(estado.textContent).toContain('Fuentes omitidas en el snapshot del ciclo: 0');
+    });
+
     const resumenGetonbrd: ResumenBusqueda = {
         plataforma: 'getonbrd', nombre: 'GetOnBrd', habilitada: true, ejecutable: true,
         terminos: ['junior'], ubicacion: [], ventanaDias: 30, maxResultados: 40,

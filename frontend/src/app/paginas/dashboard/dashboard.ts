@@ -72,6 +72,8 @@ export class Dashboard implements OnInit, OnDestroy {
     readonly sincronizando = signal(false);
     readonly progresoSincronizacion = signal(0);
     readonly fallbackSincronizacion = signal(false);
+    readonly sincronizacionRecuperada = signal(false);
+    readonly causaErrorSincronizacion = signal<string | null>(null);
     readonly estadoOperativoSincronizacion = signal<EstadoOperativoSincronizacion | null>(null);
     readonly priorizarOfertasIa = signal(false);
     private readonly bonusMaximoPrioridadIa = signal(0);
@@ -246,6 +248,9 @@ export class Dashboard implements OnInit, OnDestroy {
 
     private async sincronizarOfertas(): Promise<void> {
         this.sincronizando.set(true);
+        this.sincronizacionRecuperada.set(false);
+        if (this.causaErrorSincronizacion()) this.mensajeEstado.set(null);
+        this.causaErrorSincronizacion.set(null);
         const versiones = this.capturarPostulaciones();
         const ofertasAnteriores = this.ofertas().map(oferta => ({ ...oferta }));
         this.cancelarSincronizacionSolicitada = false;
@@ -330,6 +335,8 @@ export class Dashboard implements OnInit, OnDestroy {
                 return;
             }
             console.error('Error al sincronizar dashboard:', error);
+            const fallo = error as { error?: { error?: string }; message?: string };
+            this.causaErrorSincronizacion.set(fallo?.error?.error || fallo?.message || 'No pude comunicarme con el servicio de sincronización.');
             this.estadoOperativoSincronizacion.update(estado => estado && { ...estado, estado: 'fallida' });
             this.aplicarOfertas(ofertasAnteriores, versiones);
             await this.cargarDatosLegacy(versiones);
@@ -353,7 +360,8 @@ export class Dashboard implements OnInit, OnDestroy {
             this.aplicarOfertas(respuesta.datos, versiones);
             this.guardarCacheActual();
             this.datosDesdeCache.set(false);
-            this.mensajeEstado.set(null);
+            this.sincronizacionRecuperada.set(true);
+            this.mensajeEstado.set(`Ofertas actualizadas mediante vía alternativa; sincronización falló. ${this.causaErrorSincronizacion() || ''}`);
         } catch (error) {
             if (!this.destruido) {
                 console.error('Error al cargar dashboard:', error);

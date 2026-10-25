@@ -124,6 +124,56 @@ describe('Dashboard', () => {
         expect(mockOfertasService.obtenerBloqueSincronizacion).not.toHaveBeenCalled();
     });
 
+    it('issue58: informo la recuperación alternativa y limpio la falla al sincronizar nuevamente', async () => {
+        mockDemoService.esModoDemo.and.returnValue(true);
+        fixture.detectChanges();
+        mockDemoService.esModoDemo.and.returnValue(false);
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(throwError(() => ({
+            status: 500, error: { error: 'Servicio temporalmente no disponible' },
+        })));
+        mockOfertasService.obtenerOfertas.and.returnValue(of({ exito: true, datos: [crearOferta(58, 80, 0)] }) as any);
+        componente.cargarDatos();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        expect(componente.ofertas().map(oferta => oferta.id)).toEqual([58]);
+        expect(componente.mensajeEstado()).toContain('vía alternativa');
+        expect(componente.mensajeEstado()).toContain('Servicio temporalmente no disponible');
+        // Renderizo sin inicializar peticiones de los hijos.
+        mockDemoService.esModoDemo.and.returnValue(true);
+        mockDemoService.obtenerOfertasDemo.and.returnValue(componente.ofertas() as any);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.querySelector('.dashboard__sincronizacion [role="alert"]')).toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('sincronización falló');
+        mockDemoService.esModoDemo.and.returnValue(false);
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(of({ exito: true, datos: [],
+            completada: true, total_inicial: 0, fecha_corte: '', max_id: 0, cursor_siguiente: null }));
+        componente.cargarDatos();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        expect(componente.estadoOperativoSincronizacion()?.estado).toBe('completada');
+        expect(componente.mensajeEstado()).toBeNull();
+    });
+
+    it('issue58: conservo datos y causa visible cuando fallan sincronización y alternativa', async () => {
+        mockDemoService.esModoDemo.and.returnValue(true);
+        fixture.detectChanges();
+        mockDemoService.esModoDemo.and.returnValue(false);
+        componente.ofertas.set([crearOferta(58, 80, 0)]);
+        mockOfertasService.obtenerBloqueSincronizacion.and.returnValue(throwError(() => ({
+            status: 500, error: { error: 'No pude consultar el bloque de ofertas' },
+        })));
+        mockOfertasService.obtenerOfertas.and.returnValue(throwError(() => new Error('Listado no disponible')));
+        componente.cargarDatos();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+        mockDemoService.esModoDemo.and.returnValue(true);
+        mockDemoService.obtenerOfertasDemo.and.returnValue(componente.ofertas() as any);
+        fixture.detectChanges();
+        const alerta = fixture.nativeElement.querySelector('.dashboard__sincronizacion [role="alert"]');
+        expect(alerta?.textContent).toContain('No pude consultar el bloque de ofertas');
+        expect(alerta?.closest('details')).toBeNull();
+        expect(fixture.nativeElement.textContent).toContain('REINTENTAR');
+        expect(componente.ofertas().map(oferta => oferta.id)).toEqual([58]);
+        expect(componente.datosDesdeCache()).toBeTrue();
+    });
+
     it('encola una sola recarga cuando la acción termina durante una sincronización', async () => {
         const bloque = new Subject<any>();
         mockOfertasService.obtenerBloqueSincronizacion.and.returnValues(bloque, of({
