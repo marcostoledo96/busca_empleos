@@ -107,7 +107,24 @@ export class PanelControl implements OnInit, OnDestroy {
         { titulo: 'Configuración del ciclo (snapshot ejecutado)', resumenes: this.configuracionCiclo(), esCiclo: true },
     ]);
 
-    // Conservo los avisos operativos a la vista aunque cierre el detalle técnico.
+    // Agrupo los avisos técnicos sin ocultar los errores de las ejecuciones.
+    readonly erroresOperativos = computed(() => {
+        const avisos = new Set<string>();
+        const fuentes = [...(this.resultadoCiclo()?.fuentes ?? [])];
+        const individual = this.resultadoIndividual();
+        if (individual) fuentes.unshift(individual);
+        for (const fuente of fuentes) {
+            const errores = [...(fuente.errores ?? []), ...(fuente.resultadosConsultas ?? []).flatMap(consulta => consulta.errores)];
+            if (!['error', 'timeout', 'parcial'].includes(fuente.estado) && !errores.length) continue;
+            const nombre = fuente.nombre || this.etiquetasPorPlataforma[fuente.plataforma] || fuente.plataforma;
+            avisos.add(`${nombre}: ${etiquetaEstado(fuente.estado)}${fuente.motivoFinalizacion ? ' · ' + fuente.motivoFinalizacion : ''}`);
+            for (const error of errores) {
+                avisos.add(`${nombre}: ${error.tipo}${error.codigoHttp ? ' ' + error.codigoHttp : ''}${error.mensaje ? ' · ' + error.mensaje : ''}`);
+            }
+        }
+        return [...avisos];
+    });
+
     readonly avisosOperativos = computed(() => {
         const avisos = new Set<string>();
         for (const grupo of this.gruposResumen()) {

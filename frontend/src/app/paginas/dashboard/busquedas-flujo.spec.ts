@@ -246,8 +246,8 @@ describe('Búsquedas — panel y dashboard con HTTP', () => {
                 ejecutable: false, maxResultados: null, advertencias: ['Destino bloqueado'] },
         ] } });
         fixture.detectChanges();
-        fixture.nativeElement.querySelector('.busqueda-resumen summary').click();
-        const texto = fixture.nativeElement.querySelector('.busqueda-resumen').textContent;
+        fixture.nativeElement.querySelector('[aria-label="Configuración efectiva de búsquedas"] summary').click();
+        const texto = fixture.nativeElement.querySelector('[aria-label="Configuración efectiva de búsquedas"]').textContent;
         expect(texto).toContain(advertencia);
         expect(texto).toContain('support');
         expect(texto).toContain('No aplica');

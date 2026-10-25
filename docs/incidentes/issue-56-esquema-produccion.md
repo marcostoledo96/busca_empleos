@@ -1,8 +1,37 @@
 # Issue #56 — Esquema productivo atrasado
 
-## Estado y diagnóstico
+## Estado operativo posterior: recuperación de #63 verificada
 
-**Producción NO reparada.** Preparé una corrección del runner y una reproducción
+El 25/10/2026 confirmé la recuperación operativa de #63. No la atribuyo al merge
+de #62: Marcos ejecutó posteriormente el runner original y verifiqué el resultado.
+
+- El operador aplicó los nueve archivos pendientes sin editar runner, SQL o ledger.
+  El control posterior registró **30 migraciones exitosas y 0 fallidas**, esquema
+  esperado, ningún objeto inválido y ninguna configuración de cron activa.
+- Correlacioné tres conexiones del proceso real del backend con PostgreSQL:
+  todas usaron **TLS 1.3**. Las 522 correlaciones son muestras repetidas, no
+  conexiones distintas. Esto no acredita validación estricta del certificado:
+  `rejectUnauthorized:false` sigue siendo una limitación preexistente.
+- Los GET autenticados de sincronización, historial y preferencias respondieron
+  200/304. El **GET literal `/api/ofertas` respondió 200 el 25/10/2026 a las
+  12:39:41 UTC**, corroborado en Chrome y en los registros HTTP del backend.
+  Conservé la autenticación real de Firebase, sin publicar credenciales ni datos.
+- No inicié scraping, DeepSeek, correos ni cron para demostrar la recuperación.
+
+**Decisión humana alternativa de preservación:** Marcos eligió expresamente
+“Migración manual directa”: aplicar sin un respaldo cifrado nuevo, restauración
+final de ensayo ni pausa controlada, aceptando cambios parciales y posible pérdida
+de datos. Por eso **no certifico preservación integral ni cero pérdidas**. Esta
+excepción se limita a esa intervención; no convierte los pasos de seguridad
+que siguen en recomendaciones opcionales para futuras operaciones.
+
+Conservo la evidencia detallada en almacenamiento privado. La entrega de avisos
+plegables incluye regresiones locales: 562 tests aprobados y 4 omitidos. La
+publicación y el cierre de #63 fueron autorizados posteriormente por Marcos.
+
+## Diagnóstico inicial de #56 (histórico, 19/10/2026)
+
+**Producción NO reparada en aquella inspección.** Preparé una corrección del runner y una reproducción
 local; no ejecuté migraciones, escrituras, scraping, DeepSeek, cron ni despliegues
 productivos. La reparación requiere una aprobación adicional de Marcos.
 

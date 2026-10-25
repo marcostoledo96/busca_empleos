@@ -389,9 +389,14 @@ Conservo todos los campos, resultados por fuente e historial de hasta 20 ejecuci
 Con Tab y Shift+Tab recorro controles; Enter abre o cierra los resúmenes. Escape sigue
 cerrando el diálogo de oferta y los selectores de PrimeNG, no un `details` nativo.
 
+Agrupo los avisos técnicos de configuración, disponibilidad, límites y omisiones en
+**Avisos de búsquedas**, un `details` cerrado al entrar. Abrirlo o cerrarlo no ejecuta
+operaciones ni habilita fuentes. Conservo los motivos de indisponibilidad y la
+configuración completa dentro de los diagnósticos.
+
 Fuera de los desplegables mantengo fallas de carga/sincronización, previsualización,
-historial, evaluación y cron; estado del último ciclo, estados y errores de fuentes
-(incluidas sus consultas), bloqueos, advertencias, límites y omisiones por presupuesto.
+historial, evaluación y cron; el estado del último ciclo y los errores, tiempos de
+espera agotados y resultados parciales de fuentes (incluidas sus consultas).
 El progreso y la cancelación existentes no dependen de abrir los diagnósticos.
 
 ### E2E aislado y reproducible

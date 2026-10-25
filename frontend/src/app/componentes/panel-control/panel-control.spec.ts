@@ -87,7 +87,42 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(raiz.querySelector<HTMLDetailsElement>('details[aria-label="Resultados e historial"]')?.open).toBeFalse();
     });
 
-    it('mantengo errores, límites y fuentes bloqueadas visibles fuera de los detalles', () => {
+    it('agrupo avisos técnicos en un desplegable cerrado sin ejecutar operaciones', () => {
+        const extraer = spyOn(mockScrapingService, 'scrapearGetonbrd').and.callThrough();
+        const cron = spyOn(mockAutomatizacionService, 'iniciarCron').and.callThrough();
+        const evaluar = spyOn(mockEvaluacionService, 'ejecutarEvaluacion').and.callThrough();
+        const previsualizar = spyOn(mockScrapingService, 'obtenerPrevisualizacion').and.callThrough();
+        component.previsualizacion.set([{ plataforma: 'getonbrd', nombre: 'GetOnBrd', habilitada: false,
+            ejecutable: false, terminos: [], ubicacion: [], ventanaDias: 30, maxResultados: 40,
+            advertencias: ['GetOnBrd requiere habilitación explícita mediante GETONBRD_ENABLED=true.',
+                'No aplico ubicación ni zonas preferidas: esta integración conserva su ubicación fija.'],
+            filtros: {}, origen: { terminos: 'preferencias', ubicacion: 'defecto' } }]);
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const detalles = raiz.querySelector<HTMLDetailsElement>('details[aria-label="Avisos operativos de búsquedas"]');
+        expect(detalles).not.toBeNull();
+        if (!detalles) return;
+        const resumen = detalles.querySelector('summary')!;
+        const estado = raiz.querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        expect(detalles.open).toBeFalse();
+        expect(resumen.textContent).toContain('Avisos de búsquedas');
+        expect(resumen.textContent).not.toContain('GETONBRD_ENABLED');
+        expect(detalles.textContent).toContain('GETONBRD_ENABLED=true');
+        expect(detalles.textContent).toContain('No aplico ubicación ni zonas preferidas');
+        expect(estado.textContent).not.toContain('GETONBRD_ENABLED');
+        expect(estado.textContent).not.toContain('No aplico ubicación ni zonas preferidas');
+        resumen.click();
+        expect(detalles.open).toBeTrue();
+        resumen.click();
+        expect(detalles.open).toBeFalse();
+        expect(raiz.querySelector<HTMLButtonElement>('[aria-label="Scrapear GetOnBrd"]')!.disabled).toBeTrue();
+        expect(extraer).not.toHaveBeenCalled();
+        expect(cron).not.toHaveBeenCalled();
+        expect(evaluar).not.toHaveBeenCalled();
+        expect(previsualizar).not.toHaveBeenCalled();
+    });
+
+    it('mantengo los errores reales visibles y agrupo la configuración fuera del estado', () => {
         component.previsualizacion.set([{ plataforma: 'jooble', nombre: 'Jooble', habilitada: true,
             ejecutable: false, terminos: [], ubicacion: [], ventanaDias: 30, maxResultados: 40,
             advertencias: ['Falta la clave del proveedor'], filtros: {},
@@ -100,9 +135,14 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(resumen).not.toBeNull();
         expect(resumen.textContent).toContain('Cuota agotada');
         expect(resumen.textContent).toContain('Límite de peticiones');
-        expect(resumen.textContent).toContain('Falta la clave del proveedor');
+        expect(resumen.textContent).not.toContain('Falta la clave del proveedor');
         expect(resumen.textContent).toContain('No pude leer el historial');
         expect(resumen.closest('details')).toBeNull();
+        const avisos = fixture.nativeElement.querySelector('details[aria-label="Avisos operativos de búsquedas"]');
+        expect(avisos?.textContent).toContain('Falta la clave del proveedor');
+        component.errorPrevisualizacion.set('No pude consultar la configuración');
+        fixture.detectChanges();
+        expect(resumen.querySelector('[role="alert"]')?.textContent).toContain('No pude consultar la configuración');
     });
 
     const resumenGetonbrd: ResumenBusqueda = {

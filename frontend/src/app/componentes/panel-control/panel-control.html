@@ -229,7 +229,6 @@
             </div>
         </div>
         <section class="panel-estado" aria-label="Estado operativo de búsquedas" aria-live="polite">
-            <p id="disponibilidad-getonbrd">{{ getonbrdDisponible() && !modoDemo() ? 'GetOnBrd: disponible según la configuración del backend.' : motivoGetonbrd() }}</p>
             @if (cargandoPrevisualizacion()) { <p role="status">Consultando configuración guardada...</p> }
             @if (errorPrevisualizacion(); as error) { <p role="alert">{{ error }}</p> }
             @if (cargandoHistorial()) { <p role="status">Consultando historial...</p> }
@@ -240,9 +239,14 @@
                     <p role="alert">{{ resultado.errorHistorial || resultado.historial?.error }}</p>
                 }
             }
-            @for (aviso of avisosOperativos(); track aviso) { <p>{{ aviso }}</p> }
+            @for (error of erroresOperativos(); track error) { <p role="alert">{{ error }}</p> }
         </section>
         <div class="panel-diagnosticos">
+            <details class="busqueda-resumen" aria-label="Avisos operativos de búsquedas">
+                <summary>Avisos de búsquedas</summary>
+                <p id="disponibilidad-getonbrd">{{ getonbrdDisponible() && !modoDemo() ? 'GetOnBrd: disponible según la configuración del backend.' : motivoGetonbrd() }}</p>
+                @for (aviso of avisosOperativos(); track aviso) { <p>{{ aviso }}</p> }
+            </details>
             <details class="busqueda-resumen" aria-label="Configuración efectiva de búsquedas">
                 <summary>Configuración efectiva de búsquedas</summary>
                 @if (modoDemo()) {
