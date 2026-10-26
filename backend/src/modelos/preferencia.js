@@ -26,11 +26,12 @@ const ID_PREFERENCIAS = 1;
 /**
  * Obtengo las preferencias actuales del usuario.
  * Si la tabla está vacía, llamo a crearPreferenciasPorDefecto() para
- * garantizar que siempre haya una fila con id = 1.
+ * garantizar que siempre haya una fila con id = 1, salvo en lecturas auditadas.
  *
+ * @param {Object} opciones - Con soloLectura=true rechazo la ausencia sin crear datos.
  * @returns {Object} Las preferencias del usuario.
  */
-async function obtenerPreferencias() {
+async function obtenerPreferencias({ soloLectura = false } = {}) {
     const resultado = await pool.query(
         'SELECT * FROM preferencias WHERE id = $1',
         [ID_PREFERENCIAS]
@@ -40,6 +41,9 @@ async function obtenerPreferencias() {
         return normalizarModelosPreferencias(resultado.rows[0]);
     }
 
+    if (soloLectura) {
+        throw Object.assign(new Error('No pude leer las preferencias requeridas. No modifiqué datos.'), { statusCode: 503 });
+    }
     return crearPreferenciasPorDefecto();
 }
 

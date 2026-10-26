@@ -290,19 +290,23 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     };
 }
 
-async function leerPreferenciasBusqueda() {
+async function leerPreferenciasBusqueda({ requeridas = false } = {}) {
+    let resultado;
     try {
         // Evito obtenerPreferencias(): crea una fila cuando falta, incompatible con preview read-only.
-        const resultado = await pool.query('SELECT * FROM preferencias WHERE id = $1', [1]);
-        return resultado.rows[0] || {};
-    } catch (error) {
+        resultado = await pool.query('SELECT * FROM preferencias WHERE id = $1', [1]);
+    } catch {
         throw errorConfiguracion('No pude leer las preferencias de búsqueda. No ejecuté proveedores.', 503);
     }
+    if (requeridas && !resultado.rows[0]) {
+        throw errorConfiguracion('No pude leer las preferencias requeridas. No modifiqué datos.', 503);
+    }
+    return resultado.rows[0] || {};
 }
 
 async function resolverConfiguraciones(opciones = {}, modo = {}) {
     validarOpciones(opciones);
-    const preferencias = await leerPreferenciasBusqueda();
+    const preferencias = await leerPreferenciasBusqueda({ requeridas: modo.previsualizacion === true });
     return Object.fromEntries(Object.keys(PLATAFORMAS).map(id => [id, resolverConfiguracion(id, opciones, preferencias, modo)]));
 }
 

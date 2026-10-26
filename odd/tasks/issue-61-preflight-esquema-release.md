@@ -22,8 +22,8 @@ Rama: ci/issue-61-preflight-esquema-release. Base: 7cdc6bc62898b3b5f9d1b8b090e3e
 - S17: "Creá **una única PR hacia master**, utilizando: Closes #61". "Documentá el motivo de los cambios, evidencia de pruebas y costo de CI." "**No hagas merge, no cierres la issue y no despliegues manualmente.**" "Dejá la PR abierta para auditoría externa independiente." Informe: "URL de la PR", "BASE y HEAD exactos", "Qué comprueba el nuevo preflight", "Cómo identifica migraciones faltantes", "Cómo se garantiza que sea read-only", "Resultados de pruebas con esquema completo y desactualizado", "Cambios en GitHub Actions", "Impacto estimado y medido en tiempos de CI", "Resultado del smoke read-only sintético", "Qué se verificó realmente en producción, si hubo acceso", "Qué no pudo verificarse y por qué", "Tests backend y PostgreSQL", "Estado de CI", "Dictamen independiente de Gentle AI", "Riesgos y limitaciones restantes".
 
 ## Tasks
-- T1 | S1-S7,S14-S16 | delegated gentle-ai-worker | in_progress | Preflight y pruebas PostgreSQL sintéticas | commit: pendiente
-- T2 | S8-S15 | delegated gentle-ai-worker | pending | Smoke seguro, integración CI y guía de release | commit: pendiente
+- T1 | S1-S7,S14-S16 | delegated gentle-ai-worker | done | Preflight y pruebas PostgreSQL sintéticas | commit: cf71b143166bc8957e3a6bac4a1f710598edda29; focal30, SQL28, config26 PASS; snapshots iguales; parent focal30 PASS
+- T2 | S8-S15 | delegated gentle-ai-worker | in_progress | Smoke seguro, integración CI y guía de release | commit: pendiente
 - T3 | S1-S17 | delegated gentle-ai-verify + parent | pending | Verificación independiente, correcciones reproducibles, pruebas y evidencia | commit: pendiente
 - T4 | S17 | parent | pending | Publicar PR única y observar CI | commit: pendiente
 
