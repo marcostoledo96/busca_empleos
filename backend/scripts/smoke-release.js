@@ -22,7 +22,7 @@ const contratos = [
         && ['individual', 'ciclo_manual', 'cron'].includes(fila.tipo)
         && fecha(fila.inicio) && (fila.fin === null || fecha(fila.fin) && Date.parse(fila.fin) >= Date.parse(fila.inicio))
         && ['ejecutando', 'completada', 'sin_resultados', 'parcial', 'error', 'timeout', 'sin_credenciales',
-            'deshabilitada', 'omitida', 'cancelada'].includes(fila.estado))],
+            'deshabilitada', 'omitida', 'cancelada', 'interrumpida'].includes(fila.estado))],
     ['/api/scraping/previsualizacion', cuerpo => objeto(cuerpo.datos) && Array.isArray(cuerpo.datos.plataformas)
         && cuerpo.datos.plataformas.length > 0 && cuerpo.datos.plataformas.every(fila => objeto(fila)
             && texto(fila.plataforma) && texto(fila.nombre) && typeof fila.habilitada === 'boolean'

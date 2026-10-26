@@ -23,9 +23,9 @@ Rama: ci/issue-61-preflight-esquema-release. Base: 7cdc6bc62898b3b5f9d1b8b090e3e
 
 ## Tasks
 - T1 | S1-S7,S14-S16 | delegated gentle-ai-worker | done | Preflight y pruebas PostgreSQL sintéticas | commit: cf71b143166bc8957e3a6bac4a1f710598edda29; focal30, SQL28, config26 PASS; snapshots iguales; parent focal30 PASS
-- T2 | S8-S15 | delegated gentle-ai-worker | in_progress | Smoke seguro, integración CI y guía de release | commit: pendiente
-- T3 | S1-S17 | delegated gentle-ai-verify + parent | pending | Verificación independiente, correcciones reproducibles, pruebas y evidencia | commit: pendiente
-- T4 | S17 | parent | pending | Publicar PR única y observar CI | commit: pendiente
+- T2 | S8-S15 | delegated gentle-ai-worker | done | Smoke seguro, integración CI y guía de release | commit: 073db50c843c7e3fd8be0f2a6a3b4a8b848ca1f5; focal276 y SQL/HTTP32 PASS; parent focal53 PASS
+- T3 | S1-S17 | delegated gentle-ai-verify + parent | done | Verificación independiente y correcciones; writer full2921PASS/7optin, DB211PASS, integración62PASS, SQL57/59PASS; verifier81focal+32SQLHTTP+77probes propios PASS | commit: incluido en unidad T3 (identidad se registra después)
+- T4 | S17 | parent | in_progress | Publicar PR única y observar CI | commit: pendiente
 
 ## Log
 - L1 — Pedido original: "Actuá como desarrollador responsable y auditor técnico de **Busco Trabajo**, utilizando **Gentle Shell de Pi y la metodología Gentle AI instalada**.
@@ -34,3 +34,5 @@ Implementá completamente la **issue #61**, incorporando verificaciones de compa
 - L2 — 2026-10-26: Issue GitHub #61 completa leída, sin comentarios. origin/master coincide con BASE solicitada. Worktree original con cambios ajenos preservado. Nuevo worktree hermano autorizado creado y registrado. RDD off por clone_local; no habilitar.
 - L3 — Exploración gentle-ai-explore mvpdqn99-1-y0eu: runner migra crea ledger sin --apply; comparar basename exacto de ambos directorios. GET preferencias/ofertas/sync pueden crear preferencias ausentes. No reabrir #56. CodeGraph inicializado y consultado en worktree. Docker disponible; PostgreSQL local v18 disponible, CI conserva v15.
 - L4 — Estimación inicial: ~700-1100 líneas incluidas pruebas/evidencia; una única PR por decisión expresa del usuario, sin inventar requisitos de labels/approval de Gentle AI para este repositorio. Priorizar claridad y pruebas, no comprimir para presupuesto. Implementación delegada por pedido explícito; dos unidades seriales para mantener contexto y evitar conflictos. Riesgo: seguridad, concurrencia/aislamiento de pruebas y CI (items 2,4,5); verificador independiente obligatorio.
+
+- L5 — Usuario autorizó en UI scratch exclusivo /tmp/busca-empleos-issue61-verificacion sin .git/.env/credenciales reales/symlinks; sólo PG sintético. Verificador mvpgpz9d-5-ox90 completó estructura sin probes por conflicto previo; detectó omisión de estado válido interrumpida en smoke, pendiente reproducción/corrección. No acredita GREEN aún.

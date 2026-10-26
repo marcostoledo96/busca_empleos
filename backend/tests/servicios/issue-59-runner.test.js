@@ -1,6 +1,8 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
+const yaml = require('js-yaml');
+const rutasArtifact = paso => paso.with.path.split('\n').map(ruta => ruta.trim()).filter(Boolean);
 
 const backend = path.resolve(__dirname, '../..');
 const runtime = path.resolve(backend, '../docs/evidencias/issue-59/runtime/pr66-review');
@@ -26,7 +28,17 @@ test('CI ejecuta SQL59 en el job aislado y conserva identidad, salida y exit inc
     expect(comando).toContain('git rev-parse HEAD');
     expect(comando).toContain('git rev-parse HEAD^{tree}');
     expect(comando).not.toContain('GITHUB_SHA');
-    expect(job).toMatch(/if: always\(\)[\s\S]*uses: actions\/upload-artifact@v4[\s\S]*path: frontend\/e2e\/integracion\/salida\//);
+    expect(comando).toContain('2>&1 | tee frontend/e2e/integracion/salida/issue59-sql.log');
+    const jobYaml = yaml.load(workflow).jobs['integracion-issue57'];
+    expect(Object.keys(jobYaml.services)).toEqual(['postgres']);
+    expect(jobYaml.services.postgres.image).toBe('postgres:15-alpine');
+    expect(jobYaml.services.postgres.ports).toEqual(['55457:5432']);
+    const artifact = jobYaml.steps.find(paso => paso.uses === 'actions/upload-artifact@v4');
+    expect(artifact.if).toBe('always()');
+    expect(rutasArtifact(artifact)).toEqual([
+        'frontend/e2e/integracion/salida/',
+        'docs/evidencias/issue-61/runtime/*.json',
+    ]);
     fs.mkdirSync(runtime, { recursive: true });
     for (const codigo of [42, 0]) {
         const log = path.join(runtime, `pipeline-${codigo}.log`);
@@ -46,6 +58,14 @@ test('CI ejecuta SQL59 en el job aislado y conserva identidad, salida y exit inc
         }
         expect(resultado.stdout).toContain(`npm simulado: --prefix backend run test:issue59\nstderr simulado\nExit SQL59: ${codigo}\n`);
     }
+});
+
+test.each([
+    ['escalar previo', 'path: frontend/e2e/integracion/salida/', ['frontend/e2e/integracion/salida/']],
+    ['bloque actual', 'path: |\n  frontend/e2e/integracion/salida/\n  docs/evidencias/issue-61/runtime/*.json\n',
+        ['frontend/e2e/integracion/salida/', 'docs/evidencias/issue-61/runtime/*.json']],
+])('interpreto las rutas del artifact YAML %s', (nombre, contenido, esperadas) => {
+    expect(rutasArtifact({ with: yaml.load(contenido) })).toEqual(esperadas);
 });
 
 // La enumeración no carga adaptadores ni abre sockets; no heredo PG, credenciales ni NODE_OPTIONS.

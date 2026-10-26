@@ -14,9 +14,10 @@ const cuerpos = {
     '/api/preferencias': { exito: true, datos: { id: 1, terminos_busqueda: [], reglas_exclusion: [],
         stack_tecnologico: [], perfil_efectivo: {} }, firma_criterios_evaluacion: 'firma' },
 };
-let servidor, cambiar, llamadas;
+let servidor, cambiar, llamadas = [], llamadasAjenas = [];
 async function cli(entorno = {}, args = []) {
-    return new Promise(resolve => {
+    const inicio = llamadas.length;
+    const resultado = await new Promise(resolve => {
         const proceso = spawn(process.execPath, [path.resolve(__dirname, '../../scripts/smoke-release.js'), ...args], {
             env: { PATH: process.env.PATH, NODE_ENV: 'test', DB_TEST_SINTETICA: 'true',
                 RELEASE_URL: `http://127.0.0.1:${servidor.address().port}`, RELEASE_TOKEN: TOKEN, ...entorno },
@@ -27,19 +28,48 @@ async function cli(entorno = {}, args = []) {
         proceso.stderr.on('data', data => { stderr += data; });
         proceso.on('close', status => resolve({ status, stdout, stderr }));
     });
+    const propias = llamadas.slice(inicio);
+    if (resultado.stdout.startsWith('GET ')) {
+        expect(propias).toHaveLength(6);
+        const urls = propias.map(llamada => new URL(llamada.url, 'http://localhost'));
+        const nonce = urls[0].searchParams.get('_smoke');
+        expect(nonce).toMatch(/^[a-f0-9]{24}$/);
+        expect(urls.map(url => url.searchParams.getAll('_smoke'))).toEqual(Array(6).fill([nonce]));
+        expect(urls.map(url => {
+            url.searchParams.delete('_smoke');
+            return `${url.pathname}${url.search}`;
+        })).toEqual(Object.keys(cuerpos).map(ruta => ruta.endsWith('sincronizacion') ? `${ruta}?limite=100` : ruta));
+        for (const [i, llamada] of propias.entries()) {
+            expect(llamada.method).toBe('GET');
+            const token = entorno.RELEASE_TOKEN ?? TOKEN;
+            expect(llamada.headers.authorization).toBe(i && token ? `Bearer ${token}` : undefined);
+        }
+    } else {
+        expect(propias).toEqual([]);
+    }
+    return resultado;
 }
 beforeAll(async () => {
     servidor = await new Promise(resolve => {
         const s = http.createServer((req, res) => {
-            llamadas.push({ url: req.url, headers: req.headers, method: req.method });
-            const ruta = new URL(req.url, 'http://localhost').pathname;
+            const url = new URL(req.url, 'http://localhost');
+            const llamada = { url: req.url, headers: req.headers, method: req.method };
             res.setHeader('Content-Type', 'application/json');
+            if (!url.searchParams.has('_smoke') && !req.headers.authorization) {
+                llamadasAjenas.push({ ...llamada, estado: 404 });
+                res.writeHead(404).end();
+                return;
+            }
+            // Registro también nonce inválido, auth inesperada y rutas ajenas al contrato para que fallen las assertions.
+            llamadas.push(llamada);
+            const ruta = url.pathname;
+            if (!Object.hasOwn(cuerpos, ruta)) { res.writeHead(404).end(); return; }
             if (cambiar?.(ruta, req, res)) return;
             res.end(JSON.stringify(cuerpos[ruta]));
         }).listen(0, '127.0.0.1', () => resolve(s));
     });
 });
-beforeEach(() => { llamadas = []; cambiar = null; });
+beforeEach(() => { llamadas = []; llamadasAjenas = []; cambiar = null; });
 afterAll(async () => { await new Promise(resolve => servidor.close(resolve)); });
 function salidaSegura(resultado, status = 1) {
     expect(resultado.status).toBe(status);
@@ -75,6 +105,32 @@ test('PASS requiere los seis GET efectivos; no envía token al health, exige no-
         expect(llamada.headers.authorization).toBe(i ? `Bearer ${TOKEN}` : undefined);
     }
 });
+test('separo un GET raíz ajeno sin contaminar los seis GET del CLI', async () => {
+    const estadoAjeno = await new Promise((resolve, reject) => {
+        const req = http.get({ host: '127.0.0.1', port: servidor.address().port, path: '/',
+            headers: { 'X-Prueba-Ajena': 'inyeccion-local' } }, res => {
+            res.resume();
+            res.on('end', () => resolve(res.statusCode));
+        });
+        req.on('error', reject);
+    });
+    const resultado = await cli();
+    expect(llamadas).toHaveLength(6);
+    expect(estadoAjeno).toBe(404);
+    expect(llamadasAjenas).toContainEqual(expect.objectContaining({ url: '/', method: 'GET', estado: 404,
+        headers: expect.objectContaining({ 'x-prueba-ajena': 'inyeccion-local' }) }));
+    expect(resultado.status).toBe(0);
+    expect(resultado.stderr).toBe('');
+    expect(resultado.stdout).not.toContain(TOKEN);
+    expect(resultado.stdout).not.toContain('contenido-privado');
+    expect(resultado.stdout.replace(/\d+ms/g, '<tiempo>ms')).toBe(
+        Object.keys(cuerpos).map(ruta => {
+            const endpoint = ruta.endsWith('sincronizacion') ? `${ruta}?limite=100` : ruta;
+            return `GET ${endpoint} HTTP 200 <tiempo>ms OK\n`;
+        }).join('') + 'SMOKE: OK\n',
+    );
+});
+
 test('acepto empresa NULL: el contrato SQL permite ofertas sin empresa conocida', async () => {
     cambiar = (ruta, req, res) => {
         if (ruta !== '/api/ofertas') return false;
@@ -86,6 +142,36 @@ test('acepto empresa NULL: el contrato SQL permite ofertas sin empresa conocida'
     expect(resultado.status).toBe(0);
     expect(resultado.stderr).toBe('');
     expect(resultado.stdout).not.toContain('contenido-privado');
+});
+
+test.each([
+    'ejecutando', 'completada', 'sin_resultados', 'parcial', 'error', 'timeout',
+    'sin_credenciales', 'deshabilitada', 'omitida', 'cancelada', 'interrumpida',
+    'desconocida', null, '',
+])('valido el estado de historial %s sin exponer contenido privado', async estado => {
+    cambiar = (ruta, req, res) => {
+        if (ruta !== '/api/automatizacion/historial') return false;
+        res.end(JSON.stringify({ exito: true, datos: [{ id: '1', tipo: 'individual',
+            inicio: '2026-10-26T00:00:00.000Z', fin: null, estado,
+            resumen: { detalle: 'contenido-privado' } }] }));
+        return true;
+    };
+    const valido = !['desconocida', null, ''].includes(estado);
+    const resultado = await cli();
+    expect(resultado.status).toBe(valido ? 0 : 1);
+    expect(resultado.stderr).toBe('');
+    expect(resultado.stdout).not.toContain(TOKEN);
+    expect(resultado.stdout).not.toContain('contenido-privado');
+    expect(resultado.stdout.replace(/\d+ms/g, '<tiempo>ms')).toBe(
+        Object.keys(cuerpos).map(ruta => {
+            const endpoint = ruta.endsWith('sincronizacion') ? `${ruta}?limite=100` : ruta;
+            const estadoContrato = !valido && ruta === '/api/automatizacion/historial'
+                ? 'FALLO contrato inválido' : 'OK';
+            return `GET ${endpoint} HTTP 200 <tiempo>ms ${estadoContrato}\n`;
+        }).join('') + `SMOKE: ${valido ? 'OK' : 'FALLO'}\n`,
+    );
+    expect(llamadas).toHaveLength(6);
+    expect(llamadas.every(llamada => llamada.method === 'GET')).toBe(true);
 });
 
 test.each(Object.keys(cuerpos))('rechazo contrato vacío de %s', async ruta => {
