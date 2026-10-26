@@ -24,7 +24,7 @@ Rama: ci/issue-61-preflight-esquema-release. Base: 7cdc6bc62898b3b5f9d1b8b090e3e
 ## Tasks
 - T1 | S1-S7,S14-S16 | delegated gentle-ai-worker | done | Preflight y pruebas PostgreSQL sintéticas | commit: cf71b143166bc8957e3a6bac4a1f710598edda29; focal30, SQL28, config26 PASS; snapshots iguales; parent focal30 PASS
 - T2 | S8-S15 | delegated gentle-ai-worker | done | Smoke seguro, integración CI y guía de release | commit: 073db50c843c7e3fd8be0f2a6a3b4a8b848ca1f5; focal276 y SQL/HTTP32 PASS; parent focal53 PASS
-- T3 | S1-S17 | delegated gentle-ai-verify + parent | done | Verificación independiente y correcciones; writer full2921PASS/7optin, DB211PASS, integración62PASS, SQL57/59PASS; verifier81focal+32SQLHTTP+77probes propios PASS | commit: incluido en unidad T3 (identidad se registra después)
+- T3 | S1-S17 | delegated gentle-ai-verify + parent | done | Verificación independiente y correcciones; writer full2921PASS/7optin, DB211PASS, integración62PASS, SQL57/59PASS; verifier81focal+32SQLHTTP+77probes propios PASS | commit: 7a236d9e56c5e217ae17b7858c8630e02054a7d9; cmp de tres archivos de código/test con scratch independiente PASS
 - T4 | S17 | parent | in_progress | Publicar PR única y observar CI | commit: pendiente
 
 ## Log
