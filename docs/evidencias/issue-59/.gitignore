@@ -1,0 +1,4 @@
+# Conservo los caches locales de los runners fuera de la evidencia versionable.
+runtime/
+# Conservo salida cruda local; el informe versionable registra comandos, exits y conteos.
+*.log
