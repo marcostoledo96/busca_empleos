@@ -195,6 +195,14 @@ constraints reales ni durabilidad tras reinicios. El filtro de fecha no se repro
 porque todas las fixtures son recientes; la firma del snapshot es una serialización
 en memoria, no `md5(string_agg(...))`. **PostgreSQL real y proveedores reales: NOT RUN.**
 
+### Contratos #59: suite ordinaria y SQL explícito
+
+`cd backend && npm test -- --runInBand` y `npm run test:integracion` no requieren PostgreSQL ni preload heredado. Excluyo explícitamente los recorridos SQL #57 y #59 de ambos comandos; no agrego SKIP dentro de esas pruebas.
+
+Para ejecutar Express → Glassdoor real con transporte simulado → PostgreSQL15 aislado, uso `cd backend && npm run test:issue59`. Exijo el entorno sintético validado de #57 (loopback 55457 y base/usuario de test); el runner carga su propio guard de privacidad/red y el test valida la identidad de PostgreSQL antes de migrar. `npm run test:issue59 -- --help` informa uso y restricciones. Sin el entorno correcto termino con error antes de conectar. Mantengo `npm run test:issue57` para el recorrido existente.
+
+La prueba unitaria del guard usa un subprocess con preload explícito, sin modificar los sockets del proceso de Jest. La evidencia y los comandos completos están en `docs/evidencias/issue-59/README.md`.
+
 ## Qué es y por qué se usa Apify
 
 Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) en sus servidores. En vez de hacer scraping directo desde nuestra PC (arriesgándonos a bloqueos de IP), le mandamos la orden a Apify, sus servidores ejecutan el scraping, y nosotros recibimos los resultados en JSON.
@@ -441,12 +449,10 @@ Opciones configurables: `maxResultados` (default: 100), `terminos`.
 
 ```
 1. Construir URLs de búsqueda (7 URLs de bumeran.com.ar)
-2. Llamar al actor web-scraper genérico con .call()
-   - Parámetros: startUrls, pageFunction (scraping con jQuery), proxyConfiguration
-   - web-scraper usa Puppeteer (Chrome headless) — NECESARIO porque Bumeran
-     es una SPA React que requiere JavaScript para renderizar las tarjetas.
-   - jQuery se inyecta automáticamente (injectJQuery: true por default).
-   - Espera a networkidle2 antes de ejecutar la pageFunction.
+2. Llamar al actor apify/puppeteer-scraper con .call()
+   - Parámetros: startUrls, pageFunction, proxyConfiguration y linkSelector vacío.
+   - Puppeteer ejecuta Chrome headless porque Bumeran es una SPA React.
+   - La pageFunction corre en Node.js y accede al DOM con context.page.evaluate().
 3. La pageFunction extrae datos de las tarjetas usando selectores semánticos
    (aria-label, IDs con patrón, tags h2/h3) porque las clases CSS de Bumeran
    son hashes de styled-components que cambian en cada deploy.
@@ -456,13 +462,13 @@ Opciones configurables: `maxResultados` (default: 100), `terminos`.
 7. Retornar ofertas normalizadas
 ```
 
-Opciones configurables: `terminos`.
+Opciones configurables: `terminos`, `maxResultados` (predeterminado del resolver: 50). Aplico el máximo local después de normalizar y deduplicar; no envío ese límite al actor ni prometo un techo de costo por truncar el resultado. La preview informa el mismo máximo local.
 
-**Nota sobre Bumeran:** Se usa `apify/web-scraper` (actor genérico con Puppeteer) porque:
+**Nota sobre Bumeran:** Uso `apify/puppeteer-scraper` porque:
 1. No existe un actor dedicado para Bumeran.
 2. Bumeran es una SPA React — el HTML del servidor es un `<div id="root">` vacío que necesita JavaScript para renderizar las ofertas.
 3. `cheerio-scraper` (HTTP puro sin JS) NO funciona porque recibe el HTML sin renderizar.
-4. `web-scraper` abre un Chrome headless, ejecuta JavaScript, espera a que React renderice, y recién ahí corre la pageFunction con jQuery.
+4. `puppeteer-scraper` abre Chrome headless, ejecuta JavaScript y permite leer el DOM renderizado mediante `page.evaluate()`.
 
 El scraping se hace en un solo paso desde las tarjetas de la página de resultados, sin visitar cada oferta individual. Las tarjetas tienen toda la info necesaria (título, empresa, ubicación, modalidad, descripción).
 
@@ -472,7 +478,7 @@ El scraping se hace en un solo paso desde las tarjetas de la página de resultad
 1. Llamar al actor de Apify con .call()
    - Parámetros: keywords (array), location: 'Buenos Aires', country: 'Argentina',
      maxItems, saveOnlyUniqueItems: true, includeNoSalaryJob: true, datePosted: '14'
-   - El actor maneja la deduplicación nativa (saveOnlyUniqueItems)
+   - Solicito deduplicación nativa (saveOnlyUniqueItems), pero también deduplico y consolido por identidad local antes del cupo.
    - datePosted: '14' = últimos 14 días
 2. Obtener items del dataset de la ejecución
 3. Normalizar al formato de nuestra tabla

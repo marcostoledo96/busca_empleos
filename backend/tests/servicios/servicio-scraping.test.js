@@ -416,6 +416,28 @@ describe('Servicio de scraping', () => {
             expect(resultado.metricas.estado).toBe('error');
         });
 
+        test.each(['<html><body></body></html>', '<article class="box_offer"><h2>Sin enlace</h2></article>', '<html><div class="layout-nuevo">Sin tarjetas reconocibles'])('issue59: HTML incompleto o distinto termina sin detalles ni costo Apify: %s', async html => {
+            global.fetch.mockResolvedValue({ ok: true, text: async () => html });
+            const resultado = await ejecutarScrapingComputrabajo({ terminos: ['QA'], maxPaginasPorTermino: 1 });
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas).toMatchObject({ estado: 'sin_resultados', totalElegibles: 0, peticionesRealizadas: 1 });
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+            expect(clienteApify.actor).not.toHaveBeenCalled();
+        });
+
+        test('issue59: fecha relativa del HTML real permanece a tres días y conserva descripción', async () => {
+            const inicio = Date.now();
+            global.fetch.mockResolvedValueOnce({ ok: true, text: async () => htmlListadoFalso })
+                .mockResolvedValue({ ok: true, text: async () => htmlDetalleFalso });
+            const resultado = await ejecutarScrapingComputrabajo({ terminos: ['QA'], maxResultados: 1 });
+            expect(resultado).toHaveLength(1);
+            expect(resultado[0].descripcion).toContain('JavaScript');
+            const antiguedad = inicio - resultado[0].fecha_publicacion.getTime();
+            expect(antiguedad).toBeGreaterThanOrEqual(3 * 86400000 - 1000);
+            expect(antiguedad).toBeLessThanOrEqual(3 * 86400000 + 1000);
+            expect(resultado.metricas.peticionesRealizadas).toBe(2);
+        });
+
         test('deduplica tempranamente con Set evitando llamadas redundantes de detalle', async () => {
             const htmlConDuplicadas = `
                 <html><body>
@@ -1661,6 +1683,22 @@ describe('Servicio de scraping', () => {
             expect(resultado[0].modalidad).toBe('remoto');
         });
 
+        test('issue59: deduplico por identidad antes del cupo y conservo el aviso distinto posterior', async () => {
+            clienteApify.actor().call.mockResolvedValue({ defaultDatasetId: 'dataset-glassdoor-59' });
+            const oferta = itemsGlassdoorFalsos[0];
+            clienteApify.dataset().listItems.mockResolvedValue({ items: [
+                oferta, { ...oferta, description_text: `${oferta.description_text} Capacitación y acompañamiento.` },
+                { ...oferta, jobUrl: oferta.jobUrl.replace('9999999', '9999959'), title: 'QA Junior' },
+            ] });
+            const resultado = await ejecutarScrapingGlassdoor({ terminos: ['QA'], maxResultados: 2 });
+            expect(resultado.map(item => item.titulo)).toEqual(['Frontend Developer Junior', 'QA Junior']);
+            expect(resultado[0].descripcion).toContain('Capacitación');
+            expect(resultado.metricas).toMatchObject({ estado: 'completada', totalCrudos: 3,
+                totalElegibles: 2, duplicadasDescartadas: 1, motivoFinalizacion: 'limite_resultados',
+                peticionesRealizadas: null });
+            expect(clienteApify.actor().call).toHaveBeenCalledTimes(1);
+        });
+
         test('pasa keywords, location y maxItems al actor', async () => {
             const mockCall = clienteApify.actor().call;
             mockCall.mockResolvedValue({ defaultDatasetId: 'dataset-glassdoor-123' });
@@ -1938,6 +1976,15 @@ describe('Servicio de scraping', () => {
             expect(resultado.length).toBe(50);
             expect(resultado.metricas.maxResultados).toBe(50);
             expect(resultado.metricas.motivoFinalizacion).toBe('limite_resultados');
+        });
+
+        test('issue59: el override de una página consulta solo página 1 aunque el proveedor informe más resultados', async () => {
+            global.fetch.mockResolvedValue({ ok: true, json: async () => ({ ...respuestaJoobleFalsa, totalCount: 100 }) });
+            const resultado = await ejecutarScrapingJooble({ terminos: ['QA'], maxResultados: 10, maxPaginasPorTermino: 1 });
+            expect(resultado).toHaveLength(1);
+            expect(global.fetch).toHaveBeenCalledTimes(1);
+            expect(JSON.parse(global.fetch.mock.calls[0][1].body).page).toBe(1);
+            expect(resultado.metricas).toMatchObject({ totalElegibles: 1, motivoFinalizacion: 'limite_paginas' });
         });
 
         test('round-robin multi-término: consulta tester, soporte y angular equitativamente', async () => {
@@ -3239,3 +3286,247 @@ describe('Servicio de scraping', () => {
     });
 
 }); // fin describe('Servicio de scraping')
+
+// Completo brechas del inventario sin sustituir adaptadores ni normalizarLote.
+describe('Issue59 — contratos HTTP reales con transporte cerrado', () => {
+    const { respuestas } = require('../fixtures/issue-59/respuestas');
+    const proveedores = [
+        ['remotive', ejecutarScrapingRemotive, 'remotive.com', 'jobs'],
+        ['remoteok', ejecutarScrapingRemoteOK, 'remoteok.com', null],
+        ['jooble', ejecutarScrapingJooble, 'jooble.org', 'jobs'],
+        ['adzuna', ejecutarScrapingAdzuna, 'api.adzuna.com', 'results'],
+    ];
+    let fetchAnterior;
+    beforeEach(() => {
+        fetchAnterior = global.fetch;
+        process.env.JOOBLE_API_KEY = 'sintetica';
+        process.env.ADZUNA_APP_ID = 'sintetica';
+        process.env.ADZUNA_APP_KEY = 'sintetica';
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        const temporizar = global.setTimeout;
+        jest.spyOn(global, 'setTimeout').mockImplementation((fn, ms, ...args) => {
+            if (ms === 2500) { queueMicrotask(fn); return 0; }
+            return temporizar(fn, ms, ...args);
+        });
+    });
+    afterEach(() => {
+        global.fetch = fetchAnterior;
+        delete process.env.JOOBLE_API_KEY;
+        delete process.env.ADZUNA_APP_ID;
+        delete process.env.ADZUNA_APP_KEY;
+        jest.restoreAllMocks();
+    });
+    test.each(proveedores)('%s: vacío válido, consulta y peticiones reales medibles', async (id, ejecutar, host, campo) => {
+        global.fetch = jest.fn(async destino => {
+            expect(new URL(destino).hostname).toBe(host);
+            return { ok: true, json: async () => campo ? { [campo]: [] } : [{}] };
+        });
+        const resultado = await ejecutar({ terminos: ['Angular'], maxResultados: 2 });
+        expect(resultado).toEqual([]);
+        expect(resultado.metricas).toMatchObject({ estado: 'sin_resultados', totalCrudos: 0,
+            totalElegibles: 0, peticionesRealizadas: global.fetch.mock.calls.length, errores: [] });
+        expect(resultado.metricas.consultasEjecutadas).toBeGreaterThan(0);
+        expect(resultado.metricas.duracionMs).toBeGreaterThanOrEqual(0);
+    });
+    test.each(proveedores)('%s: duplicados no consumen el cupo de un aviso posterior', async (id, ejecutar, host, campo) => {
+        const oferta = respuestas()[id];
+        const distinta = JSON.parse(JSON.stringify(oferta).replaceAll('5901', '5902'));
+        const datos = [oferta, oferta, distinta];
+        global.fetch = jest.fn(async destino => {
+            expect(new URL(destino).hostname).toBe(host);
+            return { ok: true, json: async () => campo ? { [campo]: datos } : [{ legal: 'fixture' }, ...datos] };
+        });
+        const resultado = await ejecutar({ terminos: ['Angular'], maxResultados: 2 });
+        expect(resultado).toHaveLength(2);
+        expect(new Set(resultado.map(item => item.url)).size).toBe(2);
+        expect(resultado[0]).toMatchObject({ plataforma: id, modalidad: id === 'jooble' ? null : 'remoto' });
+        expect(resultado.metricas).toMatchObject({ estado: 'completada', totalCrudos: 3,
+            totalElegibles: 2, duplicadasDescartadas: 1, motivoFinalizacion: 'limite_resultados' });
+        if (id === 'adzuna') {
+            expect(resultado[0]).toMatchObject({ salario_min: '20000', salario_max: '30000', moneda: 'EUR' });
+            expect(new URL(global.fetch.mock.calls[0][0]).pathname).toBe('/v1/api/jobs/es/search/1');
+        }
+    });
+    test.each([false, true])('Adzuna: antiguos y descartados no bloquean la siguiente consulta (misma identidad: %s)', async mismaIdentidad => {
+        const oferta = respuestas().adzuna;
+        global.fetch = jest.fn(async destino => {
+            const url = new URL(destino);
+            expect(url.hostname).toBe('api.adzuna.com');
+            const anteriores = url.searchParams.get('what') === 'remote QA';
+            return { ok: true, json: async () => ({ results: anteriores
+                ? [{ ...oferta, id: mismaIdentidad ? oferta.id : '5899', redirect_url: mismaIdentidad ? oferta.redirect_url : oferta.redirect_url.replace('5901', '5899'), created: '2000-01-01' }, { ...oferta, redirect_url: null }]
+                : [oferta] }) };
+        });
+        const resultado = await ejecutarScrapingAdzuna({ terminos: ['QA', 'Angular'], maxResultados: 1 });
+        expect(resultado).toHaveLength(1);
+        expect(resultado[0].fecha_publicacion.getFullYear()).toBe(new Date().getFullYear());
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+        expect(resultado.metricas).toMatchObject({ totalCrudos: 3, antiguasDescartadas: 1, totalElegibles: 1 });
+    });
+    test.each(proveedores)('%s: HTTP 429/503 y JSON inválido no se convierten en sin_resultados', async (id, ejecutar, host) => {
+        for (const fallo of [429, 503, 'json']) {
+            global.fetch = jest.fn(async destino => {
+                expect(new URL(destino).hostname).toBe(host);
+                return fallo === 'json' ? { ok: true, json: async () => { throw new SyntaxError('JSON sintético inválido'); } }
+                    : { ok: false, status: fallo };
+            });
+            const resultado = await ejecutar({ terminos: ['Angular'], maxResultados: 2 });
+            expect(resultado).toEqual([]);
+            expect(resultado.metricas).toMatchObject({ estado: 'error', totalElegibles: 0,
+                errores: expect.arrayContaining([expect.objectContaining({ tipo: fallo === 'json' ? 'respuesta_invalida'
+                    : fallo === 429 ? 'limite_solicitudes' : 'http' })]) });
+        }
+    });
+    test.each(proveedores)('%s: cancelación previa no llama al transporte', async (id, ejecutar) => {
+        global.fetch = jest.fn(() => { throw new Error('Transporte inesperado'); });
+        const abortador = new AbortController();
+        abortador.abort();
+        const resultado = await ejecutar({ terminos: ['Angular'], signal: abortador.signal });
+        expect(resultado).toEqual([]);
+        expect(resultado.metricas).toMatchObject({ motivoFinalizacion: 'cancelacion', peticionesRealizadas: 0 });
+        expect(global.fetch).not.toHaveBeenCalled();
+    });
+    test.each(proveedores)('%s: timeout de petición aborta el cuerpo y una respuesta tardía no modifica resultados', async (id, ejecutar, host, campo) => {
+        let liberar;
+        let signal;
+        const lectura = new Promise(resolve => { liberar = resolve; });
+        global.fetch = jest.fn(async (destino, opciones) => {
+            expect(new URL(destino).hostname).toBe(host);
+            signal = opciones.signal;
+            return { ok: true, json: () => lectura };
+        });
+        const resultado = await ejecutar({ terminos: ['Angular'], timeoutPeticionMs: 2 });
+        expect(resultado).toEqual([]);
+        expect(signal.aborted).toBe(true);
+        expect(resultado.metricas).toMatchObject({ estado: 'timeout', motivoFinalizacion: 'timeout' });
+        const antes = JSON.stringify(resultado.metricas);
+        liberar(campo ? { [campo]: [respuestas()[id]] } : [{}, respuestas()[id]]);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(resultado).toEqual([]);
+        expect(JSON.stringify(resultado.metricas)).toBe(antes);
+    });
+    test.each(proveedores)('%s: cancelación activa conserva el parcial normalizado y no acepta escrituras tardías', async (id, ejecutar, host, campo) => {
+        const abortador = new AbortController();
+        let liberar;
+        global.fetch = jest.fn(async destino => {
+            expect(new URL(destino).hostname).toBe(host);
+            if (global.fetch.mock.calls.length === 1) {
+                return { ok: true, json: async () => campo ? { [campo]: [respuestas()[id]] } : [{}, respuestas()[id]] };
+            }
+            abortador.abort();
+            return new Promise(resolve => { liberar = resolve; });
+        });
+        const resultado = await ejecutar({ terminos: ['Angular', 'QA'], maxResultados: 4, signal: abortador.signal });
+        expect(resultado).toHaveLength(1);
+        expect(resultado[0].plataforma).toBe(id);
+        expect(resultado.metricas).toMatchObject({ estado: 'parcial', motivoFinalizacion: 'cancelacion', totalElegibles: 1 });
+        const antes = JSON.stringify(resultado);
+        liberar?.({ ok: true, json: async () => campo ? { [campo]: [] } : [{}] });
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(JSON.stringify(resultado)).toBe(antes);
+        expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+    test.each(proveedores)('%s: fechas antiguas, inválidas, futuras y ausentes respetan el cupo elegible', async (id, ejecutar, host, campo) => {
+        const oferta = respuestas()[id];
+        const campoFecha = { remotive: 'publication_date', remoteok: 'date', jooble: 'updated', adzuna: 'created' }[id];
+        const fechas = ['2000-01-01', 'incorrecta', new Date(Date.now() + 3 * 86400000).toISOString(), null, new Date().toISOString()];
+        const datos = fechas.map((fecha, indice) => ({
+            ...JSON.parse(JSON.stringify(oferta).replaceAll('5901', String(5910 + indice))), [campoFecha]: fecha,
+        }));
+        global.fetch = jest.fn(async destino => {
+            expect(new URL(destino).hostname).toBe(host);
+            return { ok: true, json: async () => campo ? { [campo]: datos } : [{}, ...datos] };
+        });
+        const resultado = await ejecutar({ terminos: ['Angular'], maxResultados: 4 });
+        expect(resultado).toHaveLength(4);
+        if (id === 'jooble') {
+            // updated no es publicación original; no invento fecha ni descarte por antigüedad.
+            expect(resultado.map(item => item.fecha_publicacion)).toEqual([null, null, null, null]);
+            expect(resultado[0].datos_crudos.updated).toBe('2000-01-01');
+            expect(resultado.metricas).toMatchObject({ totalCrudos: 5, antiguasDescartadas: 0, sinFechaConocida: 4, totalElegibles: 4 });
+        } else {
+            expect(resultado.slice(0, 3).map(item => item.fecha_publicacion)).toEqual([null, null, null]);
+            expect(resultado[3].fecha_publicacion).toBeInstanceOf(Date);
+            expect(resultado.metricas).toMatchObject({ totalCrudos: 5, antiguasDescartadas: 1, sinFechaConocida: 3, totalElegibles: 4 });
+        }
+    });
+});
+
+describe('Issue59 — contratos de actores con normalizador real', () => {
+    const actores = [
+        ['linkedin', ejecutarScrapingLinkedin, itemsLinkedinFalsos[0]],
+        ['indeed', ejecutarScrapingIndeed, itemsIndeedFalsos[0]],
+        ['bumeran', ejecutarScrapingBumeran, itemsBumeranFalsos[0]],
+        ['glassdoor', ejecutarScrapingGlassdoor, { jobUrl: 'https://www.glassdoor.com.ar/job-listing/sintetica.htm?jl=5901',
+            title: 'Desarrollador Junior', company: { companyName: 'Empresa sintética' }, remoteWorkTypes: ['Remote'],
+            description_text: 'Buscamos desarrollador junior para nuestro equipo.', datePublished: '2026-03-28' }],
+    ];
+    beforeEach(() => {
+        jest.clearAllMocks();
+        process.env.APIFY_TOKEN = 'sintetica';
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        clienteApify.actor().call.mockResolvedValue({ id: 'run-59', defaultDatasetId: 'dataset-59' });
+    });
+    afterEach(() => { delete process.env.APIFY_TOKEN; jest.restoreAllMocks(); });
+    test.each(actores)('%s: vacío válido y dataset incompleto tienen estados distintos', async (id, ejecutar) => {
+        clienteApify.dataset().listItems.mockResolvedValue({ items: [] });
+        const vacio = await ejecutar({ terminos: ['QA'] });
+        expect(vacio).toEqual([]);
+        expect(vacio.metricas).toMatchObject({ estado: 'sin_resultados', peticionesRealizadas: null, errores: [] });
+        clienteApify.dataset().listItems.mockResolvedValue({ items: null });
+        const invalido = await ejecutar({ terminos: ['QA'] });
+        expect(invalido).toEqual([]);
+        expect(invalido.metricas.estado).toBe('error');
+        expect(invalido.metricas.errores.length).toBeGreaterThan(0);
+    });
+    test.each(actores)('%s: aplico máximo local y conservo parcial de un run FAILED', async (id, ejecutar, oferta) => {
+        const distinta = { ...oferta, url: (oferta.url || oferta.jobUrl || oferta.link).replace(/123|5901|1118200001/g, '5902'),
+            jobUrl: (oferta.jobUrl || oferta.url || oferta.link).replace(/123|5901|1118200001/g, '5902'),
+            link: (oferta.link || oferta.url || oferta.jobUrl).replace(/123|5901|1118200001/g, '5902'), id: '5902', key: '5902' };
+        clienteApify.actor().call.mockResolvedValue({ id: 'run-59', status: 'FAILED', defaultDatasetId: 'dataset-59' });
+        clienteApify.dataset().listItems.mockResolvedValue({ items: [oferta, distinta] });
+        const resultado = await ejecutar({ terminos: ['QA'], maxResultados: 1 });
+        expect(resultado).toHaveLength(1);
+        expect(resultado[0].plataforma).toBe(id);
+        expect(resultado.metricas).toMatchObject({ estado: 'parcial', totalCrudos: 2, totalElegibles: 1,
+            errores: expect.arrayContaining([expect.objectContaining({ tipo: 'actor' })]), peticionesRealizadas: null });
+        const input = clienteApify.actor().call.mock.calls[0][0];
+        if (id === 'bumeran') {
+            expect(input).not.toHaveProperty('maxResultados');
+            expect(input).not.toHaveProperty('maxItems');
+            expect(input).toMatchObject({ linkSelector: '', pageFunction: expect.any(String) });
+        } else expect(input[id === 'linkedin' ? 'count' : id === 'indeed' ? 'limit' : 'maxItems']).toBe(1);
+    });
+    test.each(actores)('%s: fechas inválidas, futuras y ausentes se informan como desconocidas', async (id, ejecutar, oferta) => {
+        const fechas = ['incorrecta', new Date(Date.now() + 3 * 86400000).toISOString(), null, new Date().toISOString()];
+        const baseUrl = { linkedin: 'https://linkedin.com/jobs/view/', indeed: 'https://ar.indeed.com/viewjob?jk=',
+            bumeran: 'https://www.bumeran.com.ar/empleos/sintetica-', glassdoor: 'https://www.glassdoor.com.ar/job-listing/sintetica.htm?jl=' }[id];
+        clienteApify.dataset().listItems.mockResolvedValue({ items: fechas.map((fecha, indice) => ({
+            ...oferta, id: String(5960 + indice), key: String(5960 + indice),
+            jobUrl: `${baseUrl}${5960 + indice}`, url: `${baseUrl}${5960 + indice}`, link: `${baseUrl}${5960 + indice}`,
+            postedAt: fecha, datePublished: fecha,
+        })) });
+        const resultado = await ejecutar({ terminos: ['QA'], maxResultados: 4 });
+        expect(resultado).toHaveLength(4);
+        expect(resultado.slice(0, 3).map(item => item.fecha_publicacion)).toEqual([null, null, null]);
+        if (id !== 'bumeran') expect(resultado[3].fecha_publicacion).toBeInstanceOf(Date);
+        expect(resultado.metricas.sinFechaConocida).toBe(id === 'bumeran' ? 4 : 3);
+    });
+    test.each(actores)('%s: sin token o cancelado no inicio ni leo dataset', async (id, ejecutar) => {
+        delete process.env.APIFY_TOKEN;
+        const ausente = await ejecutar({ terminos: ['QA'] });
+        expect(ausente.metricas.estado).toBe('sin_credenciales');
+        expect(clienteApify.actor().call).not.toHaveBeenCalled();
+        process.env.APIFY_TOKEN = 'sintetica';
+        const abortador = new AbortController();
+        abortador.abort();
+        const cancelado = await ejecutar({ terminos: ['QA'], signal: abortador.signal });
+        expect(cancelado.metricas.motivoFinalizacion).toBe('cancelacion');
+        expect(clienteApify.actor().call).not.toHaveBeenCalled();
+        expect(clienteApify.dataset().listItems).not.toHaveBeenCalled();
+    });
+});

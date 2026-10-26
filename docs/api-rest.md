@@ -72,7 +72,7 @@ interface ResumenBusqueda {
     terminos: string[]; // Vacío para integraciones de filtros fijos o inactivas.
     ubicacion: string[];
     ventanaDias: number | null; // null: esta integración no aplica ventana.
-    maxResultados: number | null; // null: Bumeran no aplica límite configurable.
+    maxResultados: number; // Techo local; Bumeran no lo envía al actor.
     filtros: Record<string, unknown>;
     consultasEfectivas?: string[] | Record<string, unknown>;
     equivalenciasAplicadas?: Record<string, string | string[]>;
@@ -92,7 +92,7 @@ de invocar proveedores. Admito hasta 100 textos de 200 caracteres y `maxResultad
 entero de 1 a 500; Adzuna conserva su cap de 50. `[]` explícito o persistido no activa
 defaults: rechazo la ejecución individual/ciclo con 400 antes de todos los proveedores, incluso los de filtros fijos; preview conserva `[]` para fuentes que requieren términos,
 `ejecutable: false` y una advertencia. Los overrides nunca actualizan preferencias.
-Defaults: LinkedIn/Indeed 100, las demás fuentes 50; Bumeran no consume ese límite.
+Defaults: LinkedIn/Indeed 100, GetOnBrd 40 y las demás fuentes 50. En Bumeran aplico el límite local, no sobre el consumo del actor. Para Jooble, `filtros.maxPaginasPorTermino` refleja el override validado de la ejecución; si no lo recibo, informo y aplico 2 páginas por término.
 Valido también la consulta luego de la transformación existente: Computrabajo
 rechaza cualquier término que quede vacío al quitar signos (por ejemplo `###`),
 sin enviar una URL genérica. Las fuentes que fragmentan palabras conservan su
@@ -105,7 +105,7 @@ Las respuestas individuales de scraping incluyen métricas completas de ejecuci�
 `maxResultados`, `ventanaDias`, `consultasEjecutadas`, `consultasOmitidas`, `totalCrudos`, `totalElegibles`,
 `duplicadasDescartadas`, `antiguasDescartadas`, `sinFechaConocida` y `motivoFinalizacion`
 (`'limite_resultados'`, `'limite_peticiones'`, `'limite_paginas'` o `'agotado'`).
-Bumeran sigue informando ausencia de límite configurable (`maxResultados: null`); los demás proveedores conservan sus parámetros/caps.
+Bumeran informa el límite configurable local (`maxResultados` numérico), con advertencia de que el actor no recibe ese límite ni garantiza un techo de costo. Elimino términos exactamente repetidos después de recortar espacios, sin modificar las preferencias guardadas.
 
 Un POST individual activo agrega `datos.configuracion: ResumenBusqueda` y
 `datos.descartadas_por_idioma`, manteniendo contadores existentes. Adzuna sin
@@ -906,7 +906,7 @@ Ejecuta el scraping de Indeed Argentina, normaliza resultados y guarda en BD.
 
 ### POST /api/scraping/bumeran
 
-Ejecuta el scraping de Bumeran usando cheerio-scraper, normaliza y guarda en BD.
+Ejecuto Bumeran mediante `apify/puppeteer-scraper`, normalizo, deduplico, aplico el máximo local y guardo en BD.
 
 **Body (opcional):**
 ```json

@@ -92,7 +92,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
     const explicitos = entrada.terminos;
     const guardados = preferencias.terminos_busqueda;
     const origenTerminos = explicitos !== undefined ? 'ejecucion' : guardados !== undefined ? 'preferencias' : 'defecto';
-    const terminos = validarLista(explicitos !== undefined ? explicitos : guardados !== undefined ? guardados : TERMINOS_BUSQUEDA_DEFECTO, 'Los términos');
+    const terminos = [...new Set(validarLista(explicitos !== undefined ? explicitos : guardados !== undefined ? guardados : TERMINOS_BUSQUEDA_DEFECTO, 'Los términos'))];
     if (!terminos.length && !previsualizacion) {
         throw errorConfiguracion('Necesito términos de búsqueda no vacíos; no los sustituyo por defaults.');
     }
@@ -152,7 +152,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
             ubicacion = ['Buenos Aires', 'Argentina'];
             Object.assign(filtros, { soloUnicas: true, incluirSinSalario: true });
         }
-        if (id === 'jooble') { ubicacion = ['Remote']; filtros.maxPaginasPorTermino = 2; }
+        if (id === 'jooble') { ubicacion = ['Remote']; filtros.maxPaginasPorTermino = entrada.maxPaginasPorTermino ?? 2; }
         if (id === 'adzuna') { ubicacion = ['España']; filtros.prefijo = 'remote'; filtros.normalizacion = 'solo_indicadores_remoto'; }
     }
 
@@ -235,7 +235,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
         terminosUtiles = terminos.length > 0;
     }
 
-    if (id === 'bumeran') advertencias.push('No aplico maxResultados: el actor existente no recibe ese límite.');
+    if (id === 'bumeran') advertencias.push('Aplico maxResultados sobre las ofertas devueltas; el actor no recibe ese límite ni garantiza un límite de costo.');
     if (['jooble', 'remoteok'].includes(id)) {
         advertencias.push(`Aplico un límite estricto sobre maxResultados: garantizo no superar ${maxResultados} ofertas.`);
     }
@@ -282,7 +282,7 @@ function resolverConfiguracion(idOSlug, opciones = {}, preferencias = {}, { prev
             equivalenciasSugeridas,
             ubicacion,
             ventanaDias,
-            maxResultados: id === 'bumeran' ? null : maxResultados,
+            maxResultados,
             filtros,
             advertencias,
             origen: { terminos: usaTerminos ? origenTerminos : 'fijo', ubicacion: origenUbicacion },

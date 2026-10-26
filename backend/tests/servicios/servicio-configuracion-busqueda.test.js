@@ -208,3 +208,54 @@ test('LinkedIn aplica todas las zonas guardadas en URLs reales sin alterar filtr
     expect(urls.some(url => url.includes('location=GBA+Oeste'))).toBe(true);
     expect(urls.every(url => url.includes('f_E=1%2C2&f_TPR=r1209600'))).toBe(true);
 });
+
+// Completo la tabla sintética solicitada sin inventar equivalencias ni categorías.
+describe('Issue59 — consultas representativas y preview', () => {
+    test.each(['QA', 'IT', 'C#', '.NET', 'soporte IT', 'full stack node', 'Angular', 'programador',
+        'desarrollador', 'secretario médico'])('preservo %s en preferencias, URLs y frases de actores', termino => {
+        const preferencias = { terminos_busqueda: [termino], zonas_preferidas: ['CABA'] };
+        const antes = JSON.stringify(preferencias);
+        const linkedin = resolverConfiguracion('linkedin', {}, preferencias);
+        const { construirUrlsLinkedin } = require('../../src/config/apify');
+        const url = new URL(construirUrlsLinkedin(linkedin.opciones)[0]);
+        expect(url.searchParams.get('keywords')).toBe(termino);
+        expect(url.searchParams.get('location')).toBe('CABA');
+        const frase = termino.includes(' ') ? `"${termino}"` : termino;
+        expect(resolverConfiguracion('indeed', {}, preferencias).opciones.queryIndeed).toBe(frase);
+        expect(resolverConfiguracion('jooble', {}, preferencias).opciones.consultasJooble).toEqual([termino]);
+        expect(resolverConfiguracion('adzuna', {}, preferencias).opciones.consultasAdzuna).toEqual([frase]);
+        for (const id of ['bumeran', 'computrabajo']) {
+            const configuracion = resolverConfiguracion(id, {}, preferencias);
+            expect(configuracion.resumen.consultasEfectivas).toHaveLength(1);
+            if (id === 'bumeran') expect(new URL(configuracion.resumen.filtros.urls[0]).hash).toBe('');
+        }
+        expect(JSON.stringify(preferencias)).toBe(antes);
+    });
+    test('Jooble informa el mismo máximo de páginas que aplica el override de ejecución', () => {
+        const configuracion = resolverConfiguracion('jooble', { terminos: ['QA'], maxPaginasPorTermino: 1 });
+        expect(configuracion.opciones.maxPaginasPorTermino).toBe(1);
+        expect(configuracion.resumen.filtros.maxPaginasPorTermino).toBe(1);
+        expect(resolverConfiguracion('jooble', { terminos: ['QA'] }).resumen.filtros.maxPaginasPorTermino).toBe(2);
+    });
+    test('Bumeran informa el límite local sin prometer un límite del actor ni de costo', () => {
+        const configuracion = resolverConfiguracion('bumeran', { terminos: ['QA'], maxResultados: 2 });
+        expect(configuracion.resumen.maxResultados).toBe(2);
+        expect(configuracion.opciones.maxResultados).toBe(2);
+        expect(configuracion.resumen.advertencias).toContain('Aplico maxResultados sobre las ofertas devueltas; el actor no recibe ese límite ni garantiza un límite de costo.');
+    });
+    test('recorto espacios y duplicados sin sustituir los términos guardados', () => {
+        const preferencias = { terminos_busqueda: ['  secretario médico  ', 'QA', 'QA'] };
+        const configuracion = resolverConfiguracion('indeed', {}, preferencias);
+        expect(configuracion.resumen.terminos).toEqual(['secretario médico', 'QA']);
+        expect(configuracion.opciones.queryIndeed).toBe('"secretario médico" OR QA');
+        expect(preferencias.terminos_busqueda).toEqual(['  secretario médico  ', 'QA', 'QA']);
+    });
+    test('informo categorías incompatibles y ubicación ignorada sin reemplazarlas por defaults', () => {
+        for (const id of ['remotive', 'remoteok']) {
+            const configuracion = resolverConfiguracion(id, { terminos: ['secretario médico'], ubicacion: 'CABA' }, {}, { previsualizacion: true });
+            expect(configuracion.resumen).toMatchObject({ ejecutable: false, consultasEfectivas: [], terminos: ['secretario médico'] });
+            expect(configuracion.resumen.advertencias.join(' ')).toMatch(/ubicación/);
+            expect(() => resolverConfiguracion(id, { terminos: ['secretario médico'] })).toThrow(/utilizables/);
+        }
+    });
+});

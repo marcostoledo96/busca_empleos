@@ -302,7 +302,7 @@ async function ejecutarScrapingLinkedin(opciones = {}) {
             totalElegibles: resultado.length,
             duplicadasDescartadas,
             antiguasDescartadas: 0,
-            sinFechaConocida: 0,
+            sinFechaConocida: resultado.filter(oferta => !oferta.fecha_publicacion).length,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
@@ -727,7 +727,7 @@ async function ejecutarScrapingIndeed(opciones = {}) {
             totalElegibles: resultado.length,
             duplicadasDescartadas,
             antiguasDescartadas: 0,
-            sinFechaConocida: 0,
+            sinFechaConocida: resultado.filter(oferta => !oferta.fecha_publicacion).length,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
@@ -930,7 +930,8 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
         const ofertasNormalizadas = normalizarLote(items, 'glassdoor');
         console.log(`Scraping Glassdoor: ${ofertasNormalizadas.length} ofertas normalizadas.`);
 
-        const resultado = ofertasNormalizadas.slice(0, maxResultados);
+        const { ofertasDeduplicadas, duplicadasDescartadas } = deduplicarYConsolidarLote(ofertasNormalizadas);
+        const resultado = ofertasDeduplicadas.slice(0, maxResultados);
         adjuntarMetricas(resultado, {
             maxResultados,
             ventanaDias: 14,
@@ -938,9 +939,9 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
             consultasOmitidas: 0,
             totalCrudos: items.length,
             totalElegibles: resultado.length,
-            duplicadasDescartadas: 0,
+            duplicadasDescartadas,
             antiguasDescartadas: 0,
-            sinFechaConocida: 0,
+            sinFechaConocida: resultado.filter(oferta => !oferta.fecha_publicacion).length,
             motivoFinalizacion: resultado.length >= maxResultados ? 'limite_resultados' : 'agotado',
         });
 
@@ -1890,25 +1891,27 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
     const paises = ['es'];
     let itemsCrudos = [];
     let totalRecibidos = 0;
-    control.conservar(() => {
-        const { ofertasDeduplicadas, duplicadasDescartadas } = deduplicarYConsolidarLote(normalizarLote(itemsCrudos, 'adzuna'));
-        const filtradas = filtrarPorVentanaPublicacion(ofertasDeduplicadas, 30);
-        return { ofertas: filtradas.slice(0, maxResultados), metricas: {
+    const obtenerParcial = () => {
+        const filtradas = filtrarPorVentanaPublicacion(normalizarLote(itemsCrudos, 'adzuna'), 30);
+        const { ofertasDeduplicadas, duplicadasDescartadas } = deduplicarYConsolidarLote(filtradas);
+        return { ofertas: ofertasDeduplicadas.slice(0, maxResultados), metricas: {
             totalCrudos: totalRecibidos, duplicadasDescartadas,
             antiguasDescartadas: filtradas.antiguasDescartadas, sinFechaConocida: filtradas.sinFechaConocida,
         } };
-    });
+    };
+    control.conservar(obtenerParcial);
+    let cantidadElegibles = 0;
 
     try {
         for (const pais of paises) {
-            if (itemsCrudos.length >= maxResultados) break;
+            if (cantidadElegibles >= maxResultados) break;
 
             for (const termino of terminos) {
-                if (itemsCrudos.length >= maxResultados) break;
+                if (cantidadElegibles >= maxResultados) break;
 
                 // La API de Adzuna permite pedir hasta 50 resultados por página.
                 // Calculo cuántos necesito aún para no pedir de más.
-                const resultadosPorPagina = Math.min(maxResultados - itemsCrudos.length, 50);
+                const resultadosPorPagina = Math.min(maxResultados - cantidadElegibles, 50);
 
                 // Capa 1: agrego indicadores de trabajo remoto al término de búsqueda
                 // para que la API priorice ofertas a distancia / teletrabajo.
@@ -1951,7 +1954,8 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
                 const resultados = (Array.isArray(json.results) ? json.results : [])
                     .map(r => ({ ...r, _pais: pais }));
                 totalRecibidos += resultados.length;
-                itemsCrudos = itemsCrudos.concat(resultados).slice(0, maxResultados);
+                itemsCrudos = itemsCrudos.concat(resultados);
+                cantidadElegibles = obtenerParcial().ofertas.length;
                 console.log(`Scraping Adzuna: ${resultados.length} ítem(s) para "${termino}" en ${pais}.`);
 
                 // Pausa para respetar el límite de 25 req/min de la API.
@@ -1963,12 +1967,11 @@ async function ejecutarScrapingAdzuna(opciones = {}) {
 
         const diasVentana = 30;
         const ofertasNormalizadas = normalizarLote(itemsCrudos, 'adzuna');
-        const { ofertasDeduplicadas: ofertasSinDuplicados, duplicadasDescartadas } = deduplicarYConsolidarLote(ofertasNormalizadas);
-
-        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasSinDuplicados, diasVentana);
+        const ofertasFiltradas = filtrarPorVentanaPublicacion(ofertasNormalizadas, diasVentana);
+        const { ofertasDeduplicadas: ofertasSinDuplicados, duplicadasDescartadas } = deduplicarYConsolidarLote(ofertasFiltradas);
         console.log(`Scraping Adzuna: ${ofertasNormalizadas.length} normalizadas → ${ofertasFiltradas.length} dentro de ${diasVentana} días.`);
 
-        const resultado = ofertasFiltradas.slice(0, maxResultados);
+        const resultado = ofertasSinDuplicados.slice(0, maxResultados);
         const motivoFinalizacion = resultado.length >= maxResultados ? 'limite_resultados' : 'agotado';
 
         adjuntarMetricas(resultado, {
