@@ -49,80 +49,10 @@ if (esBaseSintetica) {
 // Railway y la mayoría de PaaS PostgreSQL exigen SSL. Sin él, la conexión se rechaza.
 // rejectUnauthorized: false es necesario porque Railway usa certificados internos
 // que no están en la cadena de confianza pública — es el estándar para PaaS.
-function obtenerDatabaseUrlValida() {
-    const databaseUrl = (process.env.DATABASE_URL || '').trim();
-
-    if (!databaseUrl) {
-        return null;
-    }
-
-    try {
-        const url = new URL(databaseUrl);
-
-        if (url.protocol !== 'postgres:' && url.protocol !== 'postgresql:') {
-            throw new Error('protocolo no soportado');
-        }
-
-        return databaseUrl;
-    } catch {
-        console.error(
-            'Base de datos: DATABASE_URL está mal formada. ' +
-            'La voy a ignorar y voy a intentar conectar usando las variables PG*.'
-        );
-        return null;
-    }
-}
-
-function esHostLocal(host) {
-    if (!host) {
-        return true;
-    }
-
-    const hostNormalizado = host.trim().toLowerCase();
-
-    return [
-        'localhost',
-        '127.0.0.1',
-        '::1',
-        'host.docker.internal',
-        '/var/run/postgresql',
-    ].includes(hostNormalizado);
-}
-
-const databaseUrlValida = obtenerDatabaseUrlValida();
-
-function deboUsarSsl() {
-    const modoSsl = (process.env.PGSSLMODE || '').trim().toLowerCase();
-
-    if (databaseUrlValida) {
-        return true;
-    }
-
-    if (modoSsl === 'disable') {
-        return false;
-    }
-
-    if (modoSsl) {
-        return true;
-    }
-
-    if (process.env.NODE_ENV === 'production') {
-        return true;
-    }
-
-    return !esHostLocal(process.env.PGHOST);
-}
-
-const usaSsl = deboUsarSsl();
-const configuracionPool = {};
-
-if (databaseUrlValida) {
-    configuracionPool.connectionString = databaseUrlValida;
-}
-
-if (usaSsl) {
-    configuracionPool.ssl = { rejectUnauthorized: false };
-}
+const { obtenerConfiguracionPostgres } = require('./configuracion-postgres');
+const configuracionPool = obtenerConfiguracionPostgres(process.env, mensaje => console.error(mensaje));
+const databaseUrlValida = configuracionPool.connectionString || null;
+const usaSsl = Boolean(configuracionPool.ssl);
 // En desarrollo (sin DATABASE_URL y sin NODE_ENV=production), pg lee las variables
 // PG* del .env automáticamente sin necesidad de pasarlas explícitamente al Pool.
 

@@ -159,6 +159,58 @@ Hasta que PostgreSQL no arranque bien, el backend siempre va a fallar al conecta
 > conserva fallback PG* y la misma política SSL. Incluso sin `--apply` puede crear
 > el ledger; no lo uso para inspección productiva read-only. No agregué automigración.
 
+### Preflight read-only de esquema — issue #61
+
+Desde `backend`, `npm run db:verificar-esquema` (ayuda: `npm run db:verificar-esquema -- --help`)
+comprueba el esquema **sin aplicar migraciones ni crear el ledger**. Reutilizo la política
+PostgreSQL de la aplicación, pero no importo su pool con logging ni el runner de migraciones.
+El comando no carga `.env` ni `.env.test`: requiere `DATABASE_URL` válida y completa o las
+variables `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` ya presentes en un entorno
+autorizado. No pego credenciales en comandos, archivos de evidencia o logs.
+No hay fallback si una URL proporcionada es inválida. Para no reemplazar los límites ni
+leer archivos de credenciales implícitos, rechazo `PGSERVICE`, `PGSERVICEFILE`, `PGPASSFILE`,
+parámetros de URL distintos de `sslmode` y `PGOPTIONS` distintos de `-c search_path=<identificador>`.
+
+- Comparo los **basenames exactos** de todos los `.sql` de `backend/sql` y `backend/migrations`:
+  no uso un contador fijo ni equiparo los dos archivos 024. Basenames duplicados entre
+  directorios son ambiguos y bloquean el chequeo.
+- Verifico `schema_migrations` (`id`, `aplicado_en`, `exitoso`) y exijo éxito booleano `true`
+  para cada archivo requerido; ausente, `false` o `NULL` no es compatible.
+- Compruebo contratos de ofertas/sincronización/seguimiento/evaluación, preferencias/perfil,
+  CV, historial, cron, lotes y caché. Consulto catálogo y permisos con `SELECT <columnas> LIMIT 0`:
+  no recupero ofertas, preferencias ni CV. No es una auditoría exhaustiva de tipos, índices,
+  restricciones, calidad de datos o permisos de escritura.
+- Uso una sola conexión, `BEGIN READ ONLY`, `statement_timeout=2s`, `lock_timeout=1s`,
+  inactividad transaccional máxima de 3s, conexión máxima de 3s y límite global de 10s.
+  Revierte/cierra al terminar, incluso ante error. No repara objetos ni cambia permisos.
+- Exit `0`: `PREFLIGHT: OK` y `Migraciones y contratos críticos verificados.`
+  Exit `1`: encabezado `PREFLIGHT: ERROR`, diagnóstico y cierre
+  `No recomiendo continuar con el despliegue.`
+  Identifico ausencias como `Falta: ofertas.fecha_ultima_extraccion` o `Falta: ejecuciones_busqueda`;
+  distingo `Migraciones pendientes: <basename>` de `Migraciones fallidas o sin éxito confirmado: <basename>`.
+  Muestro como máximo 20 incompatibilidades y aviso si hay más. Uso exclusivamente nombres de contratos
+  del código y basenames requeridos del repo, nunca IDs desconocidos del ledger. Rechazo basenames
+  con controles o longitud mayor a 255 caracteres antes de formar diagnósticos.
+  Ante incertidumbre de configuración, conexión o permisos, conservo el diagnóstico genérico fijo:
+  `No pude verificar configuración, conexión o permisos de forma segura.`
+  No imprimo errores PostgreSQL, usuarios, URLs ni valores SQL privados.
+
+Prueba aislada: `npm run test:issue61` ejecuta los once escenarios SQL con las guardas #57
+antes de crear fixtures (PostgreSQL 15 local, puerto 55457, base terminada en `_test`,
+credenciales ficticias exactas; ver [runtime T1](evidencias/issue-61/runtime/provisionamiento.md)).
+Separo esta suite del comando Jest general igual que #57/#59: debe ejecutarse por su runner
+guardado, nunca se omite con `SKIP`. Comparo catálogo, ledger, datos sintéticos y secuencias
+antes/después de cada preflight; el caso futuro usa un directorio exclusivo de pruebas.
+
+**Esta issue no autoriza modificaciones productivas.** Este trabajo no consultó Railway
+ni PostgreSQL productivo: su estado queda **NO VERIFICADO**. Tener MCP conectado no acredita
+credenciales SQL, permisos o respaldo. Un PASS sintético sólo acredita ese esquema sintético;
+no habilita deploy ni demuestra que producción esté actualizada. Ante fallo, no repito
+migraciones a ciegas, no edito el ledger, no borro datos: registro diagnóstico sanitizado y
+solicito una intervención separada y aprobada. No ejecuto backups/restores, reinicios,
+redeploys, cambios de variables/servicios, cron, scraping, DeepSeek ni correos como parte
+del preflight. El smoke autenticado y su integración CI corresponden a la siguiente unidad.
+
 La base de datos arranca vacía. Hay que crear las tablas ejecutando los scripts SQL
 en este **orden obligatorio**:
 

@@ -66,6 +66,29 @@ describe('Configuración sintética explícita', () => {
         expect(configurarEntorno).toHaveBeenCalledWith(expect.objectContaining({ override: true }));
     });
 });
+describe('Política de conexión compartida sin efectos secundarios', () => {
+    const { obtenerConfiguracionPostgres } = require('../../src/config/configuracion-postgres');
+    test.each([
+        [{}, false], [{ PGHOST: 'localhost' }, false], [{ PGHOST: ' 127.0.0.1 ' }, false],
+        [{ PGHOST: '::1' }, false], [{ PGHOST: '/var/run/postgresql' }, false],
+        [{ PGHOST: 'host.docker.internal' }, false], [{ PGHOST: ' ' }, true],
+        [{ PGHOST: 'remoto.invalid' }, true], [{ NODE_ENV: 'production' }, true],
+        [{ NODE_ENV: 'production', PGSSLMODE: 'disable' }, false],
+        [{ PGHOST: 'remoto.invalid', PGSSLMODE: 'DISABLE' }, false],
+        [{ PGSSLMODE: 'require' }, true],
+        [{ DATABASE_URL: 'postgres://sintetico:clave@localhost/sintetica_test', PGSSLMODE: 'disable' }, true],
+    ])('conservo SSL para %j', (entorno, esperado) => {
+        const copia = { ...entorno };
+        const configuracion = obtenerConfiguracionPostgres(entorno);
+        expect(Boolean(configuracion.ssl)).toBe(esperado);
+        expect(entorno).toEqual(copia);
+    });
+    test('conservo aviso sanitizado y fallback de URL inválida en la app', () => {
+        const avisar = jest.fn();
+        expect(obtenerConfiguracionPostgres({ DATABASE_URL: 'secreto-no-url', PGHOST: 'localhost' }, avisar)).toEqual({});
+        expect(avisar.mock.calls).toEqual([['Base de datos: DATABASE_URL está mal formada. La voy a ignorar y voy a intentar conectar usando las variables PG*.']]);
+    });
+});
 let pool;
 
 const hayBaseConfigurada = Boolean(process.env.DATABASE_URL || process.env.PGDATABASE);
