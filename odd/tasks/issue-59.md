@@ -21,10 +21,11 @@ S15. "Tenés autorización para:" "Crear rama y worktree." "Implementar las prue
 S16. "Entregame:" "URL de la PR." "BASE y HEAD exactos." "Matriz de todas las fuentes." "Qué funciona correctamente." "Qué limitaciones son esperadas." "Qué defectos reales encontraste." "Qué corregiste." "Cantidad y resultados de las pruebas focales." "Resultado de integración con PostgreSQL aislado." "Resultado de la suite completa." "Estado del CI." "Consumo externo real: debe ser **cero**, salvo autorización adicional expresa." "Dictamen de `gentle-ai-verify`." "Riesgos y limitaciones pendientes." "Skills, agentes y herramientas realmente utilizados."
 
 ## Tasks
-T1 [S1-S4] delegated explore — registry/matrix/inventory reconciled; evidence complete; in_progress work-unit commit.
-T2 [S3-S9,S12-S13] delegated worker — corrections consolidated; fresh runner/security 5 PASS; in_progress work-unit commit.
-T3 [S8-S11,S13] delegated worker then verify — SQL/suites evidence preserved; production build job-2 exit0 and own artifact assertions PASS; historical migration025 failures reported; evidence complete, commit pending.
-T4 [S14-S16] parent + independent verify — three prior blockers independently corrected; build PASS, final evidence consolidated; commit/push/PR/CI pending.
+T1 [S1-S4] delegated explore — done; registry/matrix/inventory reconciled; commit b919d5b4ded787d72d876c8c5966d637880b9074.
+T2 [S3-S9,S12-S13] delegated worker — done; corrections/regressions/evidence; commit b919d5b4ded787d72d876c8c5966d637880b9074.
+T3 [S8-S11,S13] delegated worker then verify — done with historical migration025 failures explicitly reported; SQL/suites/build evidence and independent limited verifier documented; commit b919d5b4ded787d72d876c8c5966d637880b9074.
+T4 [S14-S16] parent + independent verify — in_progress; three prior blockers independently corrected, build PASS; implementation commit b919d5b4ded787d72d876c8c5966d637880b9074; push/PR/CI pending.
+T5 [S11-S13] delegated runtime worker + parent — done; production build PASS without changing optimizations, two authorized CSS GET, artifact readback PASS; evidence commit b919d5b4ded787d72d876c8c5966d637880b9074.
 
 ## Log
 L1. User's original request is in the parent Pi turn; exact requirements quoted above and issue https://github.com/marcostoledo96/busca_empleos/issues/59 (read including all comments; no comments present). Full request remains authoritative.
@@ -50,3 +51,5 @@ L14. User reports rotating Railway variables and asks local location. Parent che
 L15. job-1 exit1 before Angular due npm double-loading /dev/null user/global config; stdout empty and no output directory. Worker mvon1ys6-6-4u4k reproduced startup RED then GREEN with distinct empty .conf files and safe ENOENT for .npmrc without reading secrets. Real npm --version/prebuild and mock guard/transport checks PASS. No changed product or widened network authority. Parent launched job-2 with corrected runtime runner; await automatic event, no build verdict yet.
 
 L16. job-2 exit0 after8s; Angular production bundle generated7.092s, default optimizations unchanged. Exactly two CSS GET allowed at fonts.googleapis.com:443, no other external destinations reported. Own artifact asserts PASS: four font families inline, no Google Fonts stylesheet links, hashed main JS; environments cmp examples unchanged. Nonblocking preferencias.css budget warning15.61kB/15kB,610bytes. No external provider calls; report now separates zero provider consumption from two authorized public CSS downloads. S11 build blocker resolved; no exception required, no broader re-verification/suite rerun. Proceed with authorized work-unit commits and PR, preserving historical DB failures.
+
+L17. Work-unit commit b919d5b4ded787d72d876c8c5966d637880b9074 contains18 intended files,954 insertions/38 deletions, code with regression tests/docs and SQL runner. Staged scope/secret-marker scan and diffcheck PASS. No environment files, runtime scripts/logs, dist or Angular caches staged. Only untracked frontend/.angular remains and is intentionally preserved. One PR explicitly requested; elevated reviewer load reported rather than deleting tests/docs or splitting PRs. Target workflow has no issue-approval/size label gates, existing type:chore label is available; no PR exists for this branch at prepublication check.
