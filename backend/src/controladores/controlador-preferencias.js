@@ -201,7 +201,7 @@ function validarRolesObjetivoDetalle(roles) {
  * Retorno las preferencias actuales del usuario.
  */
 async function obtenerPreferencias(req, res) {
-    const preferencias = await modeloPreferencia.obtenerPreferencias();
+    const preferencias = await modeloPreferencia.obtenerPreferencias({ soloLectura: true });
 
     res.json({
         exito: true,

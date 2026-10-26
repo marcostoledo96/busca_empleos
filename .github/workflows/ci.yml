@@ -157,6 +157,21 @@ jobs:
             - name: Integración backend focal
               shell: bash
               run: npm --prefix backend run test:issue57 2>&1 | tee frontend/e2e/integracion/salida/backend-focal.log
+            - name: Preflight efectivo y smoke read-only issue61
+              shell: bash
+              run: |
+                  set -o pipefail
+                  (
+                      inicio=$SECONDS
+                      set +e
+                      env -i PATH="$PATH" NODE_ENV=test DB_TEST_SINTETICA=true \
+                          PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test \
+                          PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable \
+                          npm --prefix backend run test:issue61
+                      resultado=$?
+                      printf 'Exit issue61: %s; duración adicional: %ss\n' "$resultado" "$((SECONDS - inicio))"
+                      exit "$resultado"
+                  ) 2>&1 | tee frontend/e2e/integracion/salida/issue61-release.log
             - name: Integración SQL de proveedores issue59
               shell: bash
               env:
@@ -182,7 +197,9 @@ jobs:
               uses: actions/upload-artifact@v4
               with:
                   name: issue57-integracion-${{ github.run_id }}
-                  path: frontend/e2e/integracion/salida/
+                  path: |
+                      frontend/e2e/integracion/salida/
+                      docs/evidencias/issue-61/runtime/*.json
                   if-no-files-found: warn
                   include-hidden-files: true
                   retention-days: 14

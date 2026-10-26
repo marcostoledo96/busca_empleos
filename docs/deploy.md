@@ -159,6 +159,58 @@ Hasta que PostgreSQL no arranque bien, el backend siempre va a fallar al conecta
 > conserva fallback PG* y la misma política SSL. Incluso sin `--apply` puede crear
 > el ledger; no lo uso para inspección productiva read-only. No agregué automigración.
 
+### Preflight read-only de esquema — issue #61
+
+Desde `backend`, `npm run db:verificar-esquema` (ayuda: `npm run db:verificar-esquema -- --help`)
+comprueba el esquema **sin aplicar migraciones ni crear el ledger**. Reutilizo la política
+PostgreSQL de la aplicación, pero no importo su pool con logging ni el runner de migraciones.
+El comando no carga `.env` ni `.env.test`: requiere `DATABASE_URL` válida y completa o las
+variables `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER`, `PGPASSWORD` ya presentes en un entorno
+autorizado. No pego credenciales en comandos, archivos de evidencia o logs.
+No hay fallback si una URL proporcionada es inválida. Para no reemplazar los límites ni
+leer archivos de credenciales implícitos, rechazo `PGSERVICE`, `PGSERVICEFILE`, `PGPASSFILE`,
+parámetros de URL distintos de `sslmode` y `PGOPTIONS` distintos de `-c search_path=<identificador>`.
+
+- Comparo los **basenames exactos** de todos los `.sql` de `backend/sql` y `backend/migrations`:
+  no uso un contador fijo ni equiparo los dos archivos 024. Basenames duplicados entre
+  directorios son ambiguos y bloquean el chequeo.
+- Verifico `schema_migrations` (`id`, `aplicado_en`, `exitoso`) y exijo éxito booleano `true`
+  para cada archivo requerido; ausente, `false` o `NULL` no es compatible.
+- Compruebo contratos de ofertas/sincronización/seguimiento/evaluación, preferencias/perfil,
+  CV, historial, cron, lotes y caché. Consulto catálogo y permisos con `SELECT <columnas> LIMIT 0`:
+  no recupero ofertas, preferencias ni CV. No es una auditoría exhaustiva de tipos, índices,
+  restricciones, calidad de datos o permisos de escritura.
+- Uso una sola conexión, `BEGIN READ ONLY`, `statement_timeout=2s`, `lock_timeout=1s`,
+  inactividad transaccional máxima de 3s, conexión máxima de 3s y límite global de 10s.
+  Revierte/cierra al terminar, incluso ante error. No repara objetos ni cambia permisos.
+- Exit `0`: `PREFLIGHT: OK` y `Migraciones y contratos críticos verificados.`
+  Exit `1`: encabezado `PREFLIGHT: ERROR`, diagnóstico y cierre
+  `No recomiendo continuar con el despliegue.`
+  Identifico ausencias como `Falta: ofertas.fecha_ultima_extraccion` o `Falta: ejecuciones_busqueda`;
+  distingo `Migraciones pendientes: <basename>` de `Migraciones fallidas o sin éxito confirmado: <basename>`.
+  Muestro como máximo 20 incompatibilidades y aviso si hay más. Uso exclusivamente nombres de contratos
+  del código y basenames requeridos del repo, nunca IDs desconocidos del ledger. Rechazo basenames
+  con controles o longitud mayor a 255 caracteres antes de formar diagnósticos.
+  Ante incertidumbre de configuración, conexión o permisos, conservo el diagnóstico genérico fijo:
+  `No pude verificar configuración, conexión o permisos de forma segura.`
+  No imprimo errores PostgreSQL, usuarios, URLs ni valores SQL privados.
+
+Prueba aislada: `npm run test:issue61` ejecuta los once escenarios SQL con las guardas #57
+antes de crear fixtures (PostgreSQL 15 local, puerto 55457, base terminada en `_test`,
+credenciales ficticias exactas; ver [runtime T1](evidencias/issue-61/runtime/provisionamiento.md)).
+Separo esta suite del comando Jest general igual que #57/#59: debe ejecutarse por su runner
+guardado, nunca se omite con `SKIP`. Comparo catálogo, ledger, datos sintéticos y secuencias
+antes/después de cada preflight; el caso futuro usa un directorio exclusivo de pruebas.
+
+**Esta issue no autoriza modificaciones productivas.** Este trabajo no consultó Railway
+ni PostgreSQL productivo: su estado queda **NO VERIFICADO**. Tener MCP conectado no acredita
+credenciales SQL, permisos o respaldo. Un PASS sintético sólo acredita ese esquema sintético;
+no habilita deploy ni demuestra que producción esté actualizada. Ante fallo, no repito
+migraciones a ciegas, no edito el ledger, no borro datos: registro diagnóstico sanitizado y
+solicito una intervención separada y aprobada. No ejecuto backups/restores, reinicios,
+redeploys, cambios de variables/servicios, cron, scraping, DeepSeek ni correos como parte
+del preflight. El smoke autenticado y su integración CI se describen al final de esta guía.
+
 La base de datos arranca vacía. Hay que crear las tablas ejecutando los scripts SQL
 en este **orden obligatorio**:
 
@@ -410,7 +462,7 @@ Firebase Authentication rechaza logins desde dominios no autorizados.
 
 ### 8.3 Checklist de verificación final
 
-- [ ] `GET https://buscaempleos-production.up.railway.app/api/salud` responde `{ "estado": "ok" }`
+- [ ] `GET https://buscaempleos-production.up.railway.app/api/salud` responde `{ "exito": true, "mensaje": "El servidor está funcionando correctamente." }`
 - [ ] Login en el frontend funciona (Firebase auth)
 - [ ] El dashboard carga y muestra las ofertas (token JWT se envía correctamente)
 - [ ] Ejecutar un scraping manual (consume Apify, verificar que no hay error 500)
@@ -585,3 +637,92 @@ El script `generar-env.js` no pudo crear el archivo porque falta una variable de
 
 - Verificar en Railway → servicio backend → **Settings** → **Start Command** que dice `node src/index.js`.
 - Si quedó vacío, editarlo manualmente desde el dashboard.
+
+## 13. Barrera de release y smoke read-only — issue #61
+
+**Este procedimiento no autoriza intervenir producción.** Los pasos de instalación y
+reparación anteriores requieren su propia aprobación; no los ejecuto como diagnóstico.
+No ejecuto migraciones (ni siquiera el runner sin `--apply`), escrituras SQL, backups/restores
+reales, reinicios, redeploys, cambios de variables/servicios, scraping, DeepSeek, reintentos,
+acciones masivas, cron, correos ni cambios de preferencias/postulaciones con este smoke.
+
+### Antes de considerar el candidato
+
+1. Registro SHA exacto del candidato y evidencia de tests/build; identifico nuevas migraciones
+   por sus nombres reales. CI verde sólo prueba el esquema efímero, **no el esquema productivo**.
+2. Comparo el esquema esperado por ese SHA con el esquema efectivo mediante el preflight
+   read-only de la sección 4. Uso únicamente una conexión/rol lector **ya autorizado**:
+   el operador entrega las variables PostgreSQL existentes a la sesión por su mecanismo seguro
+   de secretos, sin poner valores en argv, historial, archivos temporales, reportes o logs.
+   No imprimo el entorno ni activo `set -x`. Desde `backend` ejecuto únicamente
+   `npm run db:verificar-esquema`, que abre `BEGIN READ ONLY` y cierra la conexión.
+   No creo roles, concedo permisos ni cambio la sesión productiva para conseguir acceso.
+3. Código y esquema compatibles: candidato apto para **continuar la decisión**, no autorización
+   de deploy. Esquema antiguo: bloqueado. Conexión/permisos/esquema desconocidos: **NO VERIFICADO**.
+   Si hace falta intervención, defino respaldo, ensayo y recuperación en un procedimiento
+   separado y solicito aprobación específica. No continúo sin evidencia indispensable.
+
+### Después de un despliegue autorizado por separado
+
+1. Registro el SHA efectivamente publicado por Railway y Vercel, estado de ambos servicios
+   y hora de comprobación. El SHA de CI no demuestra por sí solo qué versión quedó publicada.
+2. Un operador con sesión Firebase válida carga un token efímero en `RELEASE_TOKEN` mediante
+   su gestor seguro o entrada oculta local (sin argumentos, persistencia ni logs); fija
+   `RELEASE_URL` al **origen HTTPS explícito** del backend auditado y ejecuta desde `backend`
+   `npm run release:smoke`. Ayuda sin conexión: `npm run release:smoke -- --help`.
+   No pego tokens en el comando, no exporto capturas de consola con el token, no uso `set -x`
+   ni guardo respuestas privadas. Finalizo la sesión/quito el token al terminar.
+3. El CLI hace exclusivamente estos GET, sin seguir redirects ni enviar auth al health:
+
+   | Ruta | Contrato mínimo efectivo |
+   |---|---|
+   | `/api/salud` | `exito: true` y mensaje real del servidor; no acredita PostgreSQL |
+   | `/api/ofertas` | Array de ofertas con ID/título/empresa/plataforma; total coherente, página 1 y `limite_pagina: null` (sin paginar) |
+   | `/api/ofertas/sincronizacion?limite=100` | Array acotado, fecha de corte, max ID, total inicial y cursor coherente con `completada` |
+   | `/api/automatizacion/historial` | Array de ejecuciones; IDs BIGSERIAL como strings, tipo/estado/fechas válidos |
+   | `/api/scraping/previsualizacion` | Plataformas con flags coherentes, consultas, ventana, límites y advertencias; no ejecuta proveedores |
+   | `/api/preferencias` | Fila id 1, arrays básicos, perfil efectivo y firma de criterios |
+
+   Exijo **200 exacto**, JSON y `exito: true`. No acepto 202/304, 500/503, JSON roto ni
+   contrato incoherente. 401/403 o falta de sesión son **NO VERIFICADO**, nunca PASS.
+   En las lecturas de ofertas/sincronización/preferencias no creo preferencias ausentes:
+   respondo 503 sanitizado; preview también falla cerrado. Historial sólo consulta.
+   Con fila existente conservo los contratos; la inicialización/mutación normal fuera de
+   esos GET conserva sus defaults.
+4. Acoto cada respuesta a 5 segundos absolutos y 1 MiB (máximo unas seis esperas de 5s).
+   Solicito `no-cache, no-store`, agrego nonce y no envío condicionales ETag; rechazo `Age`
+   incluso cero y HIT/STALE/UPDATING/REVALIDATED de cachés reconocidas. Si el listado completo
+   supera el límite, registro fallo y diagnóstico separado: no recorto el cuerpo para fingir PASS.
+   La salida sólo muestra ruta fija, código, duración y clasificación; nunca URL completa,
+   token, body o detalles de transporte. Exit 0 exige seis contratos efectivos y sesión;
+   exit 1 indica FALLO/NO VERIFICADO. HTTP sin TLS sólo se admite en loopback literal con
+   `NODE_ENV=test` y `DB_TEST_SINTETICA=true`, para el ensayo sintético, no para el operador real.
+5. Reviso por separado errores funcionales/críticos en los logs autorizados de Railway/Vercel
+   durante esa ventana, sin copiar contenido privado. El CLI **no accede a esos logs**, no
+   acredita que un ciclo termine ni prueba acciones pagas. **HTTP 202 de inicio de ciclo no
+   significa que el ciclo terminó exitosamente.** Health 200 con rutas privadas desconocidas
+   no acredita salud funcional; backend online con rutas 500 no es apto.
+6. Registro candidato/SHA publicado, entorno, fecha, salida sanitizada, exit y duración,
+   evidencia de preflight/logs y pendientes. Ante fallo no declaro éxito funcional, no repito
+   migraciones a ciegas, no modifico ledger ni elimino datos: registro diagnóstico y solicito
+   aprobación específica para el procedimiento de recuperación separado.
+
+### CI y límites de la evidencia
+
+`test:issue61` usa el mismo job `integracion-issue57`, único servicio PostgreSQL 15 en
+`127.0.0.1:55457`, sin servicios/jobs/matrices/dependencias nuevos. El paso limpia el entorno
+con `env -i`, valida guardas antes de fixtures y rechaza destinos/sesiones de release heredados.
+Aplico migraciones reales en un esquema sintético y ejecuto el CLI standalone de preflight
+sobre ese esquema; luego el CLI HTTP contra Express real y PostgreSQL con sesiones read-only.
+Sólo simulo la frontera Firebase y prohíbo proveedores/red externa; no importo `index.js`.
+Comparo catálogo/ledger/datos/secuencias antes/después, incluyendo preferencias ausentes.
+Las suites SQL/HTTP siguen excluidas del Jest ordinario y se ejecutan por el runner guardado.
+El paso conserva `pipefail`, exit y tiempo adicional en el artifact existente, junto con
+hashes de snapshots, sin publicar filas. Costo estimado: 10–15s adicionales en el job PG;
+medición local y comandos exactos en [evidencia T2](evidencias/issue-61/T2-release.md).
+
+**Producción sigue NO VERIFICADO:** no consulté Railway MCP ni PostgreSQL/Vercel productivos,
+no usé sesiones personales ni ejecuté este procedimiento allí. No doy por conectado el MCP,
+ni infiero credenciales SQL, permisos lectores o capacidad de respaldo por su disponibilidad.
+Un proxy no transparente sin cabeceras de caché y los logs externos requieren comprobación
+operativa adicional. CI verde no habilita despliegues ni garantiza producción actualizada.

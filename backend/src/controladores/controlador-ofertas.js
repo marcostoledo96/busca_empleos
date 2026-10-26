@@ -16,8 +16,10 @@ const { crearFirmaCriterios, obtenerVigenciaEvaluacion } = require('../servicios
 const baseDatos = require('../config/base-datos');
 const { normalizarIdPlataforma } = require('../config/plataformas');
 
-async function agregarVigencia(ofertas) {
-    const prefs = await modeloPreferencia.obtenerPreferencias();
+async function agregarVigencia(ofertas, soloLectura = false) {
+    const prefs = soloLectura
+        ? await modeloPreferencia.obtenerPreferencias({ soloLectura: true })
+        : await modeloPreferencia.obtenerPreferencias();
     const firma = prefs ? crearFirmaCriterios(prefs) : null;
     return ofertas.map(oferta => ({ ...oferta, vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma) }));
 }
@@ -85,7 +87,7 @@ async function listarOfertas(req, res) {
 
     res.json({
         exito: true,
-        datos: await agregarVigencia(ofertas),
+        datos: await agregarVigencia(ofertas, true),
         total,
         pagina,
         limite_pagina: limitePagina,
@@ -106,7 +108,7 @@ async function sincronizarOfertas(req, res) {
             limite,
             cursor: req.query.cursor,
         });
-        return res.json({ exito: true, ...resultado, datos: await agregarVigencia(resultado.datos) });
+        return res.json({ exito: true, ...resultado, datos: await agregarVigencia(resultado.datos, true) });
     } catch (error) {
         const statusPorCodigo = {
             CURSOR_SINCRONIZACION_INVALIDO: 400,

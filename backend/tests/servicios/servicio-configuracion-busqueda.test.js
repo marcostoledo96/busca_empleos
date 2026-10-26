@@ -1,7 +1,7 @@
 jest.mock('../../src/config/base-datos', () => ({ query: jest.fn() }));
 jest.mock('dotenv', () => ({ config: jest.fn() }));
 const pool = require('../../src/config/base-datos');
-const { resolverConfiguracion, resolverConfiguraciones, validarOpciones } = require('../../src/servicios/servicio-configuracion-busqueda');
+const { resolverConfiguracion, resolverConfiguraciones, leerPreferenciasBusqueda, validarOpciones } = require('../../src/servicios/servicio-configuracion-busqueda');
 const terminos = ['soporte IT', 'mesa de ayuda'];
 
 describe('Configuración común de búsquedas', () => {
@@ -16,6 +16,15 @@ describe('Configuración común de búsquedas', () => {
         expect(configuracion.opciones.terminos).toEqual(terminos);
         expect(configuracion.resumen.origen.terminos).toBe('preferencias');
         expect(preferencias).toEqual({ terminos_busqueda: terminos });
+    });
+
+    test('conservo defaults de lecturas normales sin fila, pero preview falla sin escribir', async () => {
+        pool.query.mockResolvedValue({ rows: [] });
+        expect(await leerPreferenciasBusqueda()).toEqual({});
+        await expect(resolverConfiguraciones({}, { previsualizacion: true })).rejects.toMatchObject({ statusCode: 503,
+            message: 'No pude leer las preferencias requeridas. No modifiqué datos.' });
+        expect(pool.query).toHaveBeenCalledTimes(2);
+        for (const llamada of pool.query.mock.calls) expect(llamada).toEqual(['SELECT * FROM preferencias WHERE id = $1', [1]]);
     });
 
     test('override prevalece solo para esta ejecución y defaults solo ante ausencia', () => {
