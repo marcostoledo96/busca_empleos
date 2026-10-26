@@ -1,5 +1,52 @@
 # Contratos de proveedores — issue #59
 
+## Respuesta vigente a PR66 / comentario 6417122854 — T6
+
+Atiendo el único pendiente material del [comentario de auditoría](https://github.com/marcostoledo96/busca_empleos/pull/66#issuecomment-6417122854): el CI anterior no ejecutaba SQL59. La auditoría no afirmó defectos funcionales nuevos. **Esta sección es el estado vigente; las rondas siguientes son evidencia histórica, no una ejecución del nuevo HEAD.**
+
+Agrego `npm --prefix backend run test:issue59` al job `integracion-issue57`, después del focal #57 y antes del E2E existente. Reutilizo PostgreSQL15, puerto 55457, base/usuario sintéticos, aislamiento por esquema y upload existente `issue57-integracion-${{ github.run_id }}`. No agrego servicios, jobs, dependencias ni suites completas. Las exclusiones SQL ordinarias y los guards dedicados permanecen intactos.
+
+El nuevo archivo del artifact, `issue59-sql.log`, registra comando, PR head desde `github.event.pull_request.head.sha` (no aplica fuera de PR), commit y árbol reales de `git rev-parse` del checkout. No confundo el merge ref predeterminado de Actions con el head de la PR. Bash explícito y `pipefail` conservan el fallo a través de `tee`; el subshell imprime el exit del runner y lo devuelve. El upload conserva `if: always()` y el directorio existente, incluso ante fallos. Tras `prepararBase()` —que verifica entorno, base, usuario, PostgreSQL15 y esquema— el test SQL informa únicamente identidad sintética, puerto, esquema y guardas activas; también informa el cierre del pool. No imprime contraseñas, tokens, volcados de entorno ni ofertas.
+
+### Verificación local de este lote (sin PostgreSQL ni proveedores)
+
+Partí de HEAD `bfb263c0faef9e5bfc4162e268898fd958c45c09`, árbol committed `ef96b7f04b4b36939a8c7c071ec020d599fd4183`, con delta de trabajo sin commit. Esas identidades no certifican el futuro HEAD publicado. Los logs locales ignorados están en `runtime/pr66-review/`; el padre deberá asociar el commit final y su CI en la entrega de la misma PR.
+
+Desde la raíz, preparé HOME/TMPDIR/cache en ese runtime. Para RED y GREEN usé este prefijo exacto antes de los argumentos npm indicados (sin PG, credenciales ni NODE_OPTIONS heredados):
+
+```sh
+runtime="$PWD/docs/evidencias/issue-59/runtime/pr66-review"; cd backend && env -i PATH="$PATH" HOME="$runtime/home" TMPDIR="$runtime/tmp" npm_config_cache="$runtime/cache" npm_config_update_notifier=false NODE_ENV=test npm test -- --runInBand --runTestsByPath
+```
+
+| Argumentos/comando | Resultado observado |
+| --- | --- |
+| `tests/servicios/issue-59-runner.test.js --testNamePattern='CI ejecuta SQL59'` | RED exit1: 1 fallo por paso ausente (`undefined`), 4 fuera de filtro; `red.{stdout,stderr,exit}` |
+| `tests/servicios/issue-59-runner.test.js tests/servicios/issue-59-seguridad.test.js` | GREEN exit0: 2 suites, 6 PASS, 1.703 s; `green.{stdout,stderr,exit}` |
+| `env -i PATH="$PATH" HOME="$runtime/home" TMPDIR="$runtime/tmp" npm_config_cache="$runtime/cache" node backend/node_modules/js-yaml/bin/js-yaml.js .github/workflows/ci.yml` (desde raíz) | exit0; YAML parseado mediante CLI local instalado; `yaml.{stdout,stderr,exit}` |
+| `git diff --check` | exit0; sin salida |
+
+La regresión nueva extrae el `run` real del workflow y lo ejecuta en Bash aislado con npm ficticio: exit42 y exit0. Comprueba stdout completo igual al log de `tee`, stderr simulado redirigido al log (stderr del shell vacío), ambos exits exactos, comando, head sintético y commit/árbol del checkout. Comprueba estructuralmente el único servicio PostgreSQL del job y upload `always()`. Los cinco tests previos de runner/seguridad siguen pasando: enumeración ordinaria sin SQL, seguridad independiente y rechazo exacto antes de conectar. No agrego SKIP; las cuatro omisiones de RED son solo el filtro puntual. `actionlint` no está instalado; no lo instalé. Parsear YAML no sustituye su análisis de Actions.
+
+### Checklist S17 y límites de entrega
+
+- [x] S10: reutilizo infraestructura #57 sin otra DB; mantengo identidad verificada antes de SQL y transportes simulados.
+- [x] S11: RED/GREEN focal, shell real con npm ficticio, parseo YAML y diffcheck; preservo evidencia previa sin repetir suites costosas sin cambios de producto.
+- [x] S13: separo checks locales actuales, PASS SQL históricos y prueba CI pendiente; consumo real de proveedores en este lote: cero.
+- [x] S17: cableado y logs disponibles en el job/artifact existente; sin políticas, secretos ni servicios externos nuevos. Autorrevisión del diff, guards y propagación de exit realizada.
+- [ ] S10/S17: **PENDING** observar SQL59 **2/2 PASS** en el CI del nuevo commit, identidad/esquema/puerto/guardas y cierre. No ejecuté SQL local ni inicié/observé CI.
+- [x] S14: verificación independiente del delta local por `gentle-ai-verify` y spot check propio del padre: 6/6 focales PASS en cada ejecución; YAML y diffcheck PASS. Sin nueva auditoría funcional ni SQL local.
+- [ ] S17: comentario de entrega por lote y evidencia CI del nuevo commit en la misma PR, con BASE/HEAD, delta, resultados y enlaces: pendientes de publicación/ejecución; no se inventa el resultado SQL.
+
+El CI anterior 40260109169 SUCCESS y los dos PASS SQL locales históricos no prueban el nuevo árbol. Los dos fallos locales históricos de migración025 siguen reportados, no corregidos ni reejecutados; el CI anterior tuvo DB211 PASS según la auditoría. No repetí backend/frontend/DB ni build; no cambié producto. Esta entrega es parcial respecto de la prueba final de aceptación, no un dictamen APTO.
+
+### Verificación independiente y spot check del padre
+
+El usuario autorizó específicamente `/tmp/busca-empleos-pr66-verificacion` para una copia aislada sin `.env`, credenciales ni conexiones externas, después de un intento de verificación que se declaró no disponible antes de acceder o ejecutar nada. `gentle-ai-verify` verificó el delta en una copia independiente bajo ese directorio: **2 suites/6 PASS, exit0**, YAML candidato/BASE parseado y `git diff --check` exit0. El manifiesto de fuentes comparadas entre original y copia conservó SHA256 `06ee44eb57881601d8fc793bb03b42f11d9ff95cef4281b66021079ee464504f`, sin mutación del original. El commit sintético del scratch solo sirve para los probes de Git y no se atribuye al HEAD de la PR.
+
+El verificador confirmó que quitar únicamente el nuevo paso SQL59 del YAML parseado deja el workflow idéntico a BASE `bfb263c0faef9e5bfc4162e268898fd958c45c09`: mismos cuatro jobs, servicio/entorno y artifact. Las dos assertions SQL, helper #57, runner y guardas existentes no cambian. El registro seguro de esquema ocurre después de validarlo, y el mensaje de cierre después de `pool.end()`. **PASS del delta local, no APTO externo ni PASS SQL aún**. La propuesta opcional de otra regresión del verificador no se implementó: no había un defecto adicional demostrado y la prueba existente ya verifica el pipeline real con salidas 42 y 0.
+
+Spot check del padre: `env -i` con PATH y HOME/TMPDIR/cache locales, NODE_ENV=test, sin PG/preload/secretos, `npm --prefix backend test -- --runInBand --runTestsByPath tests/servicios/issue-59-runner.test.js tests/servicios/issue-59-seguridad.test.js`: **2 suites/6 PASS, exit0, 1.58s**. Los logs locales ignorados quedan bajo `runtime/pr66-review/parent/`. No repito suites completas ni SQL local; el CI del commit publicado deberá producir el log contrastable 2/2 solicitado.
+
 ## Alcance y método
 
 Registro esta matriz y el inventario **antes de agregar tests**. Base: `1f2a59fa4f15a7ece9cdba1e65019559306a35af`. Contrasté los doce identificadores con `backend/src/config/plataformas.js`; no agrego una configuración paralela. El índice CodeGraph ya existe; la herramienta MCP no está expuesta al worker, por lo que consulto directamente los archivos señalados por la exploración.

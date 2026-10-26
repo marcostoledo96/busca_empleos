@@ -44,12 +44,16 @@ describe('Issue59 — Express → Glassdoor real → PostgreSQL15 aislado', () =
         validarEntorno();
         restaurar = cerrarRed(proveedores);
         ({ pool, esquema } = await prepararBase());
+        console.info(`[SQL59] Identidad y esquema verificados: PostgreSQL15; base=busca_empleos_issue57_test; usuario=busca_empleos_test; host=127.0.0.1; puerto=55457; esquema=${esquema}; guardas de entorno/.env/red activas; SDK externo simulado.`);
         controles = await prepararControles(pool, esquema);
         await controles.reset();
         app = require('../../src/app');
     });
     afterAll(async () => {
-        if (pool) await pool.end();
+        if (pool) {
+            await pool.end();
+            console.info('[SQL59] Pool PostgreSQL cerrado.');
+        }
         restaurar?.();
     });
     test('resuelvo override, deduplico y contabilizo nueva/actualizada/reaparecida sin perder seguimiento', async () => {

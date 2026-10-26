@@ -157,6 +157,23 @@ jobs:
             - name: Integración backend focal
               shell: bash
               run: npm --prefix backend run test:issue57 2>&1 | tee frontend/e2e/integracion/salida/backend-focal.log
+            - name: Integración SQL de proveedores issue59
+              shell: bash
+              env:
+                  PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: |
+                  set -o pipefail
+                  (
+                      printf 'Comando: npm --prefix backend run test:issue59\n'
+                      printf 'PR head SHA: %s\n' "${PR_HEAD_SHA:-no_aplica}"
+                      printf 'Checkout commit: %s\n' "$(git rev-parse HEAD)"
+                      printf 'Checkout tree: %s\n' "$(git rev-parse HEAD^{tree})"
+                      set +e
+                      npm --prefix backend run test:issue59
+                      resultado=$?
+                      printf 'Exit SQL59: %s\n' "$resultado"
+                      exit "$resultado"
+                  ) 2>&1 | tee frontend/e2e/integracion/salida/issue59-sql.log
             - name: E2E real con API efímera aislada
               shell: bash
               run: npm --prefix frontend run test:e2e:integracion 2>&1 | tee frontend/e2e/integracion/salida/playwright.log
