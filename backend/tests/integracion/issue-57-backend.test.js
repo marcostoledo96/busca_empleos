@@ -330,6 +330,51 @@ describe('Issue #57 — Express, servicios y PostgreSQL reales', () => {
         expect(await filas()).toHaveLength(2);
     });
 
+    test('distingo fallo técnico, rechazo IA y exclusión Java; recupero errores sin alterar seguimiento', async () => {
+        await buscar();
+        const antes = await controles.evidencia();
+        proveedores.cambiar('ia_error');
+        expect((await enviar('/api/evaluacion/ejecutar', { ids: [1] })).status).toBe(200);
+        await esperarTerminal(() => obtener('/api/evaluacion/progreso'));
+        const fallida = await controles.evidencia();
+        expect(fallida.evaluaciones[0]).toMatchObject({ estado_evaluacion: 'pendiente', evaluacion_error_mensaje: expect.stringContaining('503') });
+        expect(fallida.evaluaciones[1]).toEqual(antes.evaluaciones[1]);
+        expect(fallida.ofertas).toEqual(antes.ofertas);
+        expect(proveedores.llamadas.filter(llamada => llamada.destino?.includes('api.deepseek.com'))).toHaveLength(4);
+        proveedores.cambiar('correcto');
+        const reintento = await enviar('/api/evaluacion/reintentar-errores');
+        expect(reintento.status).toBe(200);
+        expect(reintento.body).toMatchObject({ exito: true, en_curso: true, total: 1 });
+        await esperarTerminal(() => obtener('/api/evaluacion/progreso'));
+        const recuperada = await controles.evidencia();
+        expect(recuperada.evaluaciones[0]).toMatchObject({ estado_evaluacion: 'aprobada', porcentaje_match: 85,
+            evaluacion_error_mensaje: null, firma_criterios_evaluacion: expect.any(String) });
+        expect(recuperada.evaluaciones[1]).toEqual(antes.evaluaciones[1]);
+        proveedores.cambiar('ia_rechazada');
+        expect((await enviar('/api/evaluacion/ejecutar', { ids: [2] })).status).toBe(200);
+        await esperarTerminal(() => obtener('/api/evaluacion/progreso'));
+        const rechazada = await controles.evidencia();
+        expect(rechazada.evaluaciones[1]).toMatchObject({ estado_evaluacion: 'rechazada', porcentaje_match: 20,
+            razon_evaluacion: 'No cumplo los requisitos sintéticos.', evaluacion_error_mensaje: null });
+        expect(rechazada.evaluaciones[0]).toEqual(recuperada.evaluaciones[0]);
+        const descripcion = await request(app).patch('/api/ofertas/1/descripcion').set('Authorization', `Bearer ${TOKEN}`)
+            .send({ descripcion: 'Busco desarrollo junior con Java obligatorio y excluyente para trabajar en aplicaciones.' });
+        expect(descripcion.status).toBe(200);
+        expect(descripcion.body.datos.estado_evaluacion).toBe('pendiente');
+        const llamadasAntes = [...proveedores.llamadas];
+        expect((await enviar('/api/evaluacion/ejecutar', { ids: [1] })).status).toBe(200);
+        await esperarTerminal(() => obtener('/api/evaluacion/progreso'));
+        const excluida = await obtener('/api/ofertas/1');
+        expect(excluida.status).toBe(200);
+        expect(excluida.body.datos).toMatchObject({ estado_evaluacion: 'rechazada', estado_postulacion: 'no_postulado',
+            vigencia_evaluacion: 'actual' });
+        expect(excluida.body.datos.explicacion_evaluacion.exclusiones).toEqual(expect.arrayContaining([
+            expect.objectContaining({ requisito: expect.stringMatching(/Java/i) }),
+        ]));
+        expect(proveedores.llamadas).toEqual(llamadasAntes);
+        expect((await controles.evidencia()).ofertas).toEqual(antes.ofertas);
+    });
+
     test('cancelo evaluación activa por su contrato real sin detener cron ni perder scraping', async () => {
         proveedores.retenerEvaluacion();
         expect((await enviar('/api/automatizacion/ejecutar')).status).toBe(202);

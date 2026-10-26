@@ -111,7 +111,7 @@ export class TablaOfertas {
         }
         const tabla = this.tabla();
         const inicio = tabla?.first || 0;
-        return (tabla?.filteredValue ?? this.ofertas()).slice(inicio, inicio + (tabla?.rows || 20))
+        return (tabla?.filteredValue ?? tabla?.value ?? this.ofertas()).slice(inicio, inicio + (tabla?.rows || 20))
             .filter(o => actuales.has(o.id));
     }
 

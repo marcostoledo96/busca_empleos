@@ -138,12 +138,14 @@ for (const caso of [
             : page.getByRole('button', { name: /detalle/i });
         await expect(ofertasVisibles).toHaveCount(2);
         await ofertasVisibles.first().click();
-        await expect(page.getByRole('dialog')).toBeVisible();
-        await expect(page.getByRole('dialog')).toContainText('Desarrollo junior sintético');
+        const detalle = page.getByRole('dialog').filter({ has: page.getByRole('heading', { name: /^Desarrollo junior sintético \d+$/ }) });
+        await expect(detalle).toHaveCount(1);
+        await expect(detalle).toBeVisible();
+        await expect(detalle).toContainText('Desarrollo junior sintético');
         await sinDesborde(page);
         await page.screenshot({ path: testInfo.outputPath('detalle.png'), fullPage: true });
         await page.keyboard.press('Escape');
-        await expect(page.getByRole('dialog')).toBeHidden();
+        await expect(detalle).toBeHidden();
         await page.getByText('Resultados e historial', { exact: true }).click();
         await expect(page.locator('summary').filter({ hasText: /^individual ·/ })).toHaveCount(2);
 
@@ -273,9 +275,9 @@ for (const caso of [
         expect(erroresConsola).toEqual([
             { texto: 'Failed to load resource: the server responded with a status of 503 (Service Unavailable)', url: 'http://127.0.0.1:4357/api/scraping/linkedin' },
             { texto: 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)', url: 'http://127.0.0.1:4357/api/ofertas/sincronizacion?limite=500' },
-            { texto: 'Error al sincronizar dashboard: HttpErrorResponse', url: 'http://127.0.0.1:4357/main.js' },
+            { texto: 'Error al sincronizar dashboard: HttpErrorResponse', url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:4357\/[^/?]+\.js$/) },
             { texto: 'Failed to load resource: the server responded with a status of 500 (Internal Server Error)', url: 'http://127.0.0.1:4357/api/ofertas' },
-            { texto: 'Error al cargar dashboard: HttpErrorResponse', url: 'http://127.0.0.1:4357/main.js' },
+            { texto: 'Error al cargar dashboard: HttpErrorResponse', url: expect.stringMatching(/^http:\/\/127\.0\.0\.1:4357\/[^/?]+\.js$/) },
         ]);
         await sinDesborde(page);
         await page.screenshot({ path: testInfo.outputPath('dashboard-recuperado.png'), fullPage: true });

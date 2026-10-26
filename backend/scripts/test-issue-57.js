@@ -39,6 +39,14 @@ async function iniciarApi(puerto = 3057) {
             }
             res.json({ exito: true });
         });
+        // Inyecto únicamente indisponibilidad de lectura; las escrituras siguen llegando a Express/SQL reales.
+        contenedor.use(async (req, res, next) => {
+            if (req.method === 'GET' && ['/api/scraping/previsualizacion', '/api/automatizacion/historial'].includes(req.path)) {
+                const estado = await controles.falloLectura(req.path);
+                if (estado) return verificarAuth(req, res, () => res.status(estado).json({ exito: false, error: 'Lectura sintética no disponible.' }));
+            }
+            next();
+        });
         contenedor.use(require('../src/app'));
         contenedor.use((error, req, res, next) => res.status(400).json({ exito: false, error: error.message }));
         servidor = await new Promise((resolve, reject) => {
