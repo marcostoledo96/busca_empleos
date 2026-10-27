@@ -1,6 +1,35 @@
 # Issue #60 — Auditoría móvil: borrador incompleto
 
-**NO aprobado para merge ni cierre de #60.** La entrega como PR **DRAFT** fue elegida explícitamente por el dueño después de observar una prueba global insuficiente. Quedan dos bloqueos:
+## Corrección T7 — pedido S21
+
+**Sin aprobación de merge/cierre ni atribución a un commit futuro.** Verifiqué el árbol con HEAD `cb6c111e61d22464daac97e8495d9e4dbc1569c1` más cambios sin commit. La evidencia anterior queda abajo como histórico; las suites completas siguientes se ejecutaron **antes del ajuste pasivo de ruta de salida** descrito a continuación, con los mismos bytes funcionales y de tests que el candidato final:
+
+| Comprobación actual | Resultado observado | Tiempo |
+|---|---|---|
+| Preflight #61 con entorno SQL limpio | 32/32 PASS, exit0 antes de nuevos flujos integrados | 8.309 s |
+| E2E sintético completo, una pasada | 222/222 PASS, exit0 | 6.7 min |
+| Integración completa, una pasada | 22/22 PASS, exit0; 19 existentes + 3 regresiones | 132.146 s |
+| Angular ChromeHeadless | 573 PASS, 4 skips existentes, exit0 | 38.569 s |
+| Build | exit0; warning `preferencias.css` +610 bytes | 4.581 s |
+| `git diff --check` | exit0 | No medido |
+
+**Ajuste final de contrato de artefactos:** restauré únicamente `outputDir: './test-results'` en `frontend/playwright.config.ts`, compatible con la carga existente de CI desde `frontend/test-results/`; mantuve `reuseExistingServer: false` y no modifiqué el workflow. La ruta intermedia `frontend/e2e/integracion/salida/sintetico/` corresponde a las ejecuciones previas, no al candidato final. Con la configuración final ejecuté **una sola** prueba representativa: `npm --prefix frontend run test:e2e -- --grep 'cargo Preferencias reales'`, exit0, **1/1 PASS en9.3s** (caso3.4s), con instrumentación de montaje y servidor propio. No repetí222/22, Angular ni build por esta modificación pasiva: sus resultados anteriores siguen atribuidos al mismo código funcional/tests, no a una ejecución global de la configuración final. Los hashes previos y finales se distinguen en `resultados-correccion.json`; HEAD continúa `cb6c111` con cambios sin commit. No limpié ni borré manualmente artefactos.
+
+**Causa reproducida y corregida:** el topbar dependía de Material Symbols remoto, ausente en el index aislado. Los textos `light_mode`/`settings` salían de sus botones; el ancho mínimo flex del título y el menú desplazaba logout a x335.75–379.75 en360px. Reproduje sin fuente con monospace: tres RED por iconos fuera de límites, incluido desktop. Usé PrimeIcons ya instalado para los cuatro iconos superiores y acoté el flex/espaciado móvil; no oculté controles ni alteré guardas/auth. GREEN3/3 a320/360/1440: botones44px, iconos contenidos, centro `elementFromPoint` dentro del botón, título sin solapamiento, Tab/Shift+Tab, cambio de tema y logout real. El recorrido A360 original también pasó. La primera pasada posterior al fix detectó un literal incorrecto del test (`Preferencias` vs `PREFERENCIAS`); corregí ese literal, no producto para acomodarlo.
+
+**Preferencias: no reproducido, no causa histórica confirmada.** Antes de tocar producto, ejecuté un caso representativo instrumentando pageerror, consola, scripts y requestfailed: PASS, cero errores JS/peticiones fallidas, imports/componentes HTTP200. Después pasaron los30 casos focales y los222 globales. `reuseExistingServer=false` exige arrancar el harness propio y evita reutilización ambigua; no demuestra que antes hubiera un servidor ajeno, caché corrupta o excepción. No modifiqué `main.ts`, router ni proveedores de Preferencias.
+
+**Reset SQL: no reproducido, no arreglo especulativo.** Ejecuté el recorrido real390oscuro con instrumentación temporal de socket/HTTP/proceso/SQL en el mismo harness: PASS16.5s, mismo PID390273, ocho lecturas de evidencia HTTP200 contando el recorrido A posterior, 75 respuestas terminadas y204 operacionesSQL. Hubo un timeout normal de socket idle seguido por reconexión; ningún socket-error/ECONNRESET/uncaught registrado. Los errores SQL P0001/42703 pertenecen a los fallos deliberados de ese recorrido. No capturé el cierre final del proceso. Retiré la instrumentación de arranque antes de la suite final; no cambié keepalive, aislamiento de transporte, reintentos ni timeouts. La suite final también pasó390oscuro.
+
+Detalles, comandos completos, hashes de fuente y resultados por caso: [resultados-correccion.json](resultados-correccion.json). Logs/probe locales: `frontend/e2e/integracion/salida/issue60-correccion-*.log`, `issue60-lifecycle.ndjson`; salidas anteriores preservadas en `salida/backup-correccion/`. Capturas nuevas de Playwright Test: [320](capturas/issue60-fix-shell-320.png), [360](capturas/issue60-fix-shell-360.png), [desktop](capturas/issue60-fix-shell-1440.png). Muestran el shell en claro después del cambio de tema por clic, con foco sobre Configuración. No son inspección MCP ni Android físico. Los iconos restantes fuera del topbar todavía pueden mostrar ligaduras sin Material Symbols; no acredito fidelidad completa del sitio.
+
+**Desviación de preservación:** la suite sintética existente `detalle-capturas.spec.ts` exporta con rutas fijas a `frontend/.angular/issue51-historico/detalle/despues/` y `docs/evidencias/issue-51/B01/detalle/despues/`, independientemente de `outputDir`. No lo detecté antes de ejecutar el comando completo autorizado: regeneró esas salidas preexistentes fuera del área delegada. Lo informé al padre; no borré ni intenté restaurar archivos ajenos. No garantizo preservación byte a byte de esos artefactos. Las salidas propias nuevas sí están en las rutas autorizadas.
+
+Cobertura de este lote: S2/S7/S11–S12 mediante suites existentes y regresión de shell; S13 con capturas y límite explícito de emulación; S14–S15 con guardas #57, SQL15 aislado validado antes de fixtures y preflight #61; S16 con RED/GREEN mínimo; S17 con los comandos delegados aplicables; S21 con diagnóstico de las tres clases y suites verdes, **sin afirmar que los dos fallos históricos no reproducidos estén causalmente resueltos**. Sin backend modificado, no correspondió repetir #57. Revisión independiente, actualización de ODD y publicación/CI de la misma PR68 quedan a cargo del padre.
+
+## Histórico previo a T7
+
+**La entrega histórica NO estaba aprobada para merge ni cierre de #60.** La PR **DRAFT** fue elegida explícitamente por el dueño después de observar una prueba global insuficiente. En ese momento quedaban dos bloqueos:
 
 1. **Integración: 18 PASS / 1 FAIL.** `ECONNRESET` al leer `/__issue57/evidencia` al final de `Angular → Express → SQL 390 oscuro`. Causa desconocida; un probe de transporte respondió 4/4, pero **no reprodujo ni resolvió** el fallo. No lo clasifico como ambiental demostrado.
 2. **E2E sintético: 193 PASS / 29 FAIL.** Todos los fallos están en `preferencias.spec.ts` y `preferencias-harness.spec.ts`. El primer snapshot contiene la cabecera del fixture pero no el componente. Causa no diagnosticada; no afirmo que sea preexistente.
@@ -134,4 +163,4 @@ Limitaciones MCP: Playwright MCP no inició por ENOENT en su directorio externo 
 - Skills efectivamente cargadas por padre/agentes: Gentle AI, branch-pr, Playwright best practices, Angular developer, systematic debugging, Node backend, PostgreSQL, ponytail y cognitive-doc-design. No se usaron skills Angular deprecadas ni Antigravity. MCP usados: GitHub para issue y Chrome DevTools para inspección. El explorer utilizó CodeGraph; no atribuyo a un MCP concreto su transporte. Playwright MCP sólo intentado e indisponible. Engram guarda tareas/decisiones.
 - RDD `off` por `clone_local`, mantenido. ASSESS read-only pidió verificador independiente por riesgo de auth/borradores; no se inició revisión nativa ni se fabricó receipt.
 
-**Siguiente paso de auditoría:** diagnosticar los29 fallos del fixture y el reset, acreditar globales verdes y completar brechas antes de considerar resolver #60. La publicación del borrador no satisface ese criterio.
+**Siguiente paso histórico de auditoría (previo a T7):** diagnosticar los29 fallos del fixture y el reset, acreditar globales verdes y completar brechas antes de considerar resolver #60. La publicación del borrador no satisfacía ese criterio. Los resultados y límites actuales están en la sección T7 al inicio.

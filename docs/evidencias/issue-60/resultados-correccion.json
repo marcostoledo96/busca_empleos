@@ -1,0 +1,311 @@
+{
+    "head": "cb6c111e61d22464daac97e8495d9e4dbc1569c1",
+    "arbol": "HEAD cb6c111 con cambios sin commit. archivos conserva hashes de las suites completas previas al ajuste pasivo de outputDir; archivosCandidatoFinal identifica el árbol final comprobado por el focal. No se atribuye una suite completa al ajuste final.",
+    "archivos": [
+        {
+            "ruta": "frontend/playwright.config.ts",
+            "sha256": "9594b86accd01ca91890997dbdae91fb27a0aeaa9f0877c3773c6545459ca258"
+        },
+        {
+            "ruta": "frontend/e2e/preferencias-harness.spec.ts",
+            "sha256": "2a6fdf1561ba7e93e388772b16f4ef66c82f460bbb0cf218257c9d450f488d3a"
+        },
+        {
+            "ruta": "frontend/e2e/integracion/issue60-regresiones.integracion.ts",
+            "sha256": "5cdd18244242052f43c444913658fd72e2b65bbd45aef218483ce07c3f6e1373"
+        },
+        {
+            "ruta": "frontend/src/app/app.css",
+            "sha256": "41ad17dda13b66d1a0015cd263c66bf5f488c9c54914645cf7d5434de5770ed8"
+        },
+        {
+            "ruta": "frontend/src/app/app.html",
+            "sha256": "f0263f4e85808a9691fbadcbea08d11832ab5c667b78768e217d550bd0a09b7d"
+        }
+    ],
+    "specs": [
+        "S2",
+        "S7",
+        "S11",
+        "S12",
+        "S13",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S21"
+    ],
+    "diagnostico": {
+        "preferencias": {
+            "resultado": "No reproducido antes de corregir producto",
+            "representativo": "1 PASS, 10.9s",
+            "scripts": "200, incluidos chunk-X4W6CKR5.js y componente Preferencias por @ng/component",
+            "pageerrors": 0,
+            "peticionesFallidas": 0,
+            "limite": "No demuestra causa histórica. reuseExistingServer=false es guarda de reproducibilidad, no prueba de servidor ajeno previo."
+        },
+        "logout": {
+            "red": "3 FAIL por iconos fuera de límites; logout x335.75..379.75 en360 y fuera de centro en320",
+            "green": "3 PASS; botones44px, centros elementFromPoint, título íntegro sin solapamiento, Tab/ShiftTab y logout real",
+            "correccion": "PrimeIcons local en topbar; flex sin crecimiento mínimo indebido, ajuste móvil sin ocultar controles",
+            "correccionDeTest": "La primera pasada posterior al fix tuvo3 FAIL por esperar Preferencias en vez de PREFERENCIAS; corregí únicamente el literal del test."
+        },
+        "reset": {
+            "resultado": "No reproducido; no se cambió transporte ni keepAlive",
+            "probe": "Recorrido real Angular → Express → SQL390oscuro,16.5s PASS con instrumentación temporal en salida; retirada antes de suite final",
+            "pid": 390273,
+            "keepAliveTimeout": 5000,
+            "keepAliveTimeoutBuffer": 1000,
+            "respuestasEvidencia": [
+                {
+                    "fecha": "2026-10-27T01:23:06.861Z",
+                    "socket": 2,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:08.762Z",
+                    "socket": 2,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:10.051Z",
+                    "socket": 2,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:10.394Z",
+                    "socket": 2,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:16.807Z",
+                    "socket": 31,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:22.971Z",
+                    "socket": 31,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:51.486Z",
+                    "socket": 47,
+                    "http": 200
+                },
+                {
+                    "fecha": "2026-10-27T01:23:56.845Z",
+                    "socket": 47,
+                    "http": 200
+                }
+            ],
+            "respuestasHTTP": 75,
+            "operacionesSQL": 204,
+            "erroresSQLInyectados": [
+                "P0001 INSERT, fallo deliberado historial",
+                "42703 SELECT, columna retirada deliberadamente por prueba"
+            ],
+            "limite": "Sin ECONNRESET, socket-error, uncaught ni response-close incompleta observados. No capturé cierre final del proceso, sí respuestas terminadas y continuidad del mismo PID."
+        }
+    },
+    "validacion": [
+        {
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable npm --prefix backend run test:issue61",
+            "exit": 0,
+            "pass": 32,
+            "tiempo": "8.309s"
+        },
+        {
+            "comando": "npm --prefix frontend run test:e2e",
+            "exit": 0,
+            "pass": 222,
+            "tiempo": "6.7m",
+            "log": "frontend/e2e/integracion/salida/issue60-correccion-e2e.log"
+        },
+        {
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable npm --prefix frontend run test:e2e:integracion",
+            "exit": 0,
+            "pass": 22,
+            "tiempoMs": 132146.268,
+            "log": "frontend/e2e/integracion/salida/issue60-correccion-integracion.log"
+        },
+        {
+            "comando": "CHROME_BIN=/usr/bin/google-chrome npm --prefix frontend test -- --watch=false --browsers=ChromeHeadless",
+            "exit": 0,
+            "pass": 573,
+            "skipExistentes": 4,
+            "tiempo": "38.569s",
+            "log": "frontend/e2e/integracion/salida/issue60-correccion-angular.log"
+        },
+        {
+            "comando": "npm --prefix frontend run build",
+            "exit": 0,
+            "tiempo": "4.581s",
+            "warning": "preferencias.css supera presupuesto610bytes",
+            "log": "frontend/e2e/integracion/salida/issue60-correccion-build.log"
+        },
+        {
+            "comando": "git diff --check",
+            "exit": 0
+        }
+    ],
+    "integrados": [
+        {
+            "nombre": "Angular → Express → SQL 1440 claro",
+            "estado": "passed",
+            "duracionMs": 19207
+        },
+        {
+            "nombre": "Angular → Express → SQL 390 oscuro",
+            "estado": "passed",
+            "duracionMs": 16991
+        },
+        {
+            "nombre": "Angular → Express → SQL 320 claro",
+            "estado": "passed",
+            "duracionMs": 17040
+        },
+        {
+            "nombre": "shell sin fuente remota conserva blancos de interacción 320",
+            "estado": "passed",
+            "duracionMs": 2804
+        },
+        {
+            "nombre": "shell sin fuente remota conserva blancos de interacción 360",
+            "estado": "passed",
+            "duracionMs": 2289
+        },
+        {
+            "nombre": "shell sin fuente remota conserva blancos de interacción 1440",
+            "estado": "passed",
+            "duracionMs": 2458
+        },
+        {
+            "nombre": "F preferencias móviles: siete pestañas, modelos sin IA, SQL500, borrador, guard y reintento",
+            "estado": "passed",
+            "duracionMs": 4466
+        },
+        {
+            "nombre": "F CV base móvil: edición, error SQL conserva fuente y borrador, salida cancelada y guardado explícito",
+            "estado": "passed",
+            "duracionMs": 2359
+        },
+        {
+            "nombre": "F importar md: extracción real, corrección, IA explícita, decisiones y SQL sólo al guardar",
+            "estado": "passed",
+            "duracionMs": 3991
+        },
+        {
+            "nombre": "F importar pdf: extracción real, corrección, IA explícita, decisiones y SQL sólo al guardar",
+            "estado": "passed",
+            "duracionMs": 2768
+        },
+        {
+            "nombre": "F documentos rechazados: PDF vacío real, inválido y límite conservan SQL y texto corregido",
+            "estado": "passed",
+            "duracionMs": 2103
+        },
+        {
+            "nombre": "F CV real: fuentes guardadas, faltantes, selección, borrador, A4 oscuro e impresión explícita",
+            "estado": "passed",
+            "duracionMs": 1556
+        },
+        {
+            "nombre": "A rutas y sesión SDK sintética 360 claro",
+            "estado": "passed",
+            "duracionMs": 3321
+        },
+        {
+            "nombre": "A rutas y sesión SDK sintética 412 oscuro",
+            "estado": "passed",
+            "duracionMs": 3362
+        },
+        {
+            "nombre": "A rutas y sesión SDK sintética 768 claro",
+            "estado": "passed",
+            "duracionMs": 3441
+        },
+        {
+            "nombre": "A token rechazado 401/403 conserva SQL y sesión ausente vuelve a login",
+            "estado": "passed",
+            "duracionMs": 2646
+        },
+        {
+            "nombre": "D estado, fecha y nota sobreviven recarga y segunda revisión con lectura PostgreSQL",
+            "estado": "passed",
+            "duracionMs": 5124
+        },
+        {
+            "nombre": "D fallo SQL, 400, respuesta tardía y doble envío conservan borrador y permiten reintento",
+            "estado": "passed",
+            "duracionMs": 2508
+        },
+        {
+            "nombre": "D bulk SQL parcial concilia y reintenta sólo IDs válidos; filtro y página invalidan selección",
+            "estado": "passed",
+            "duracionMs": 6298
+        },
+        {
+            "nombre": "B/G lecturas indisponibles, proveedor 429/503 y ciclo fallido recuperan sin perder SQL",
+            "estado": "passed",
+            "duracionMs": 12211
+        },
+        {
+            "nombre": "E reevaluación individual y seleccionada conserva resultado anterior ante JSON incompleto y recupera",
+            "estado": "passed",
+            "duracionMs": 4241
+        },
+        {
+            "nombre": "B/D interrupción de sincronización reanuda; rechazo SQL revierte estado sin tocar IA",
+            "estado": "passed",
+            "duracionMs": 2710
+        }
+    ],
+    "limites": [
+        "No MCP ni Android físico en este lote; sólo Playwright Test Chromium emulado.",
+        "Sin cambios de backend; test:issue57 condicional no aplicable.",
+        "No se leyeron ni copiaron .env; build informó que no modificó los environments existentes.",
+        "Desviación de salidas: test:e2e existente reescribió frontend/.angular/issue51-historico y docs/evidencias/issue-51/B01/detalle/despues mediante exportador con rutas fijas. No se borraron ni restauraron artefactos; preservación byte a byte de esas salidas preexistentes no garantizada.",
+        "No atribuyo resolución causal a Preferencias ni ECONNRESET; las suites actuales pasan.",
+        "Sin commit/push/PR/merge/deploy ni cambios de guardas o auth."
+    ],
+    "archivosCandidatoFinal": [
+        {
+            "ruta": "frontend/playwright.config.ts",
+            "sha256": "d00bd5f47526b36e352d1225604cb11d156ec89eed070c0f9c3191fe30ac7d1b"
+        },
+        {
+            "ruta": "frontend/e2e/preferencias-harness.spec.ts",
+            "sha256": "2a6fdf1561ba7e93e388772b16f4ef66c82f460bbb0cf218257c9d450f488d3a"
+        },
+        {
+            "ruta": "frontend/e2e/integracion/issue60-regresiones.integracion.ts",
+            "sha256": "5cdd18244242052f43c444913658fd72e2b65bbd45aef218483ce07c3f6e1373"
+        },
+        {
+            "ruta": "frontend/src/app/app.css",
+            "sha256": "41ad17dda13b66d1a0015cd263c66bf5f488c9c54914645cf7d5434de5770ed8"
+        },
+        {
+            "ruta": "frontend/src/app/app.html",
+            "sha256": "f0263f4e85808a9691fbadcbea08d11832ab5c667b78768e217d550bd0a09b7d"
+        }
+    ],
+    "ajustePasivoFinal": {
+        "archivo": "frontend/playwright.config.ts",
+        "cambio": "Sólo outputDir: './e2e/integracion/salida/sintetico' → './test-results'",
+        "salidaRuntimeFinal": "frontend/test-results/",
+        "contratoCI": "Carga existente desde frontend/test-results/, sin cambio de workflow",
+        "servidorPropio": "reuseExistingServer=false preservado",
+        "funcionalYTestsSinCambios": true,
+        "atribucion": "222/222,22/22,Angular573+4 y build0 ejecutados antes del ajuste pasivo, con los mismos bytes funcionales/tests. No se repitieron suites completas.",
+        "validacion": {
+            "comando": "npm --prefix frontend run test:e2e -- --grep 'cargo Preferencias reales'",
+            "exit": 0,
+            "pass": 1,
+            "tiempo": "9.3s",
+            "tiempoCaso": "3.4s",
+            "montaje": "PASS con instrumentación de pageerror/consola/imports y servidor propio"
+        },
+        "artefactos": "No se borraron ni limpiaron manualmente salidas previas; se conserva la desviación issue51 documentada."
+    }
+}
