@@ -13,7 +13,7 @@ function crearProveedores() {
         throw new Error(`Operación externa no permitida: ${nombre}`);
     };
     const cambiar = valor => {
-        if (!['correcto', 'vacio', '429', '500', '503', 'timeout', 'invalido', 'parcial', 'retenido', 'volumen', 'ia_incompleta', 'ia_error', 'ia_rechazada'].includes(valor)) {
+        if (!['correcto', 'vacio', '429', '500', '503', 'timeout', 'invalido', 'parcial', 'retenido', 'volumen', 'ia_incompleta', 'ia_error', 'ia_rechazada', 'ia_cv'].includes(valor)) {
             throw new Error('Escenario sintético desconocido.');
         }
         escenario = valor;
@@ -56,7 +56,13 @@ function crearProveedores() {
             if (esperaEvaluacion) await esperaEvaluacion;
             if (escenario === 'ia_error') return { ok: false, status: 503, headers: { get: () => '0.001' }, text: async () => 'Fallo sintético de IA.' };
             return { ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: {
-                content: JSON.stringify(escenario === 'ia_incompleta' ? { match: true }
+                content: JSON.stringify(escenario === 'ia_cv' ? {
+                    nombre: 'Propuesta sintética revisable', perfil_profesional: 'Documento pruebas de software.',
+                    preguntas: [
+                        { campo: 'docker', pregunta: '¿Confirmo Docker básico?', motivo: 'Requiere revisión.', sugerencia: 'basico' },
+                        { campo: 'modalidad_aceptada', pregunta: '¿Confirmo remoto?', motivo: 'No es un hecho acreditado.', sugerencia: 'remoto' },
+                    ],
+                } : escenario === 'ia_incompleta' ? { match: true }
                     : { match: escenario !== 'ia_rechazada', porcentaje: escenario === 'ia_rechazada' ? 20 : 85,
                         razon: escenario === 'ia_rechazada' ? 'No cumplo los requisitos sintéticos.' : 'Cumplo los requisitos sintéticos.' }),
             } }] }) };

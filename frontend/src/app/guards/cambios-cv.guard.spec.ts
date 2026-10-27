@@ -20,6 +20,43 @@ describe('Cambios del CV — navegación real', () => {
         expect(ruta.canDeactivate).toEqual([cambiosCvGuard]);
     });
 
+    it('protege preferencias generales, conserva el borrador tras fallo y permite salir guardado o descartado', async () => {
+        TestBed.configureTestingModule({
+            providers: [provideRouter([
+                { path: 'preferencias', component: Preferencias, canDeactivate: [cambiosCvGuard] },
+                { path: 'destino', component: Destino },
+            ]), provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
+                { provide: DemoService, useValue: { esModoDemo: () => false } }],
+        });
+        const http = TestBed.inject(HttpTestingController);
+        const harness = await RouterTestingHarness.create();
+        const componente = await harness.navigateByUrl('/preferencias', Preferencias);
+        const url = 'http://localhost:3000/api/preferencias';
+        http.expectOne(url).flush({ exito: true, datos: { nombre: 'Nombre confirmado' } });
+        http.expectOne(`${url}/cv-base`).flush({ exito: true, datos: { cv_base: null } });
+        const confirmar = spyOn(window, 'confirm').and.returnValue(false);
+        componente.nombre = 'Borrador general';
+        componente.guardar();
+        http.expectOne(url).flush({}, { status: 500, statusText: 'Fallo sintético' });
+        await harness.navigateByUrl('/destino');
+        expect(harness.routeDebugElement?.componentInstance).toBe(componente);
+        expect(confirmar).toHaveBeenCalled();
+        expect(componente.nombre).toBe('Borrador general');
+        componente.guardar();
+        http.expectOne(url).flush({ exito: true, datos: { nombre: 'Borrador general' } });
+        confirmar.calls.reset();
+        await harness.navigateByUrl('/destino', Destino);
+        expect(confirmar).not.toHaveBeenCalled();
+        const segundo = await harness.navigateByUrl('/preferencias', Preferencias);
+        http.expectOne(url).flush({ exito: true, datos: { nombre: 'Borrador general' } });
+        http.expectOne(`${url}/cv-base`).flush({ exito: true, datos: { cv_base: null } });
+        segundo.nombre = 'Descartable';
+        confirmar.and.returnValue(true);
+        await harness.navigateByUrl('/destino', Destino);
+        expect(confirmar).toHaveBeenCalled();
+        http.verify();
+    });
+
     it('bloquea salida sucia, permite cancelar, confirmar o salir después de guardar', async () => {
         TestBed.configureTestingModule({
             providers: [provideRouter([

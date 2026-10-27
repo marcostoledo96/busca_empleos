@@ -29,6 +29,26 @@ describe('Preferencias — CV base persistido', () => {
         return { fixture, componente: fixture.componentInstance, http };
     }
 
+    it('protege beforeunload con preferencias generales y deja de bloquear después de guardar', async () => {
+        const { componente, http } = await abrir(null, { nombre: 'Nombre confirmado' });
+        const salida = () => {
+            const evento = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+            componente.advertirSalidaCv(evento);
+            return evento.defaultPrevented;
+        };
+        expect(salida()).toBeFalse();
+        componente.nombre = 'Borrador general';
+        expect(salida()).toBeTrue();
+        componente.guardar();
+        http.expectOne(r => r.method === 'PUT').flush({}, { status: 500, statusText: 'Fallo sintético' });
+        expect(salida()).toBeTrue();
+        expect(componente.nombre).toBe('Borrador general');
+        componente.guardar();
+        http.expectOne(r => r.method === 'PUT').flush({ exito: true, datos: { nombre: 'Borrador general' } });
+        expect(salida()).toBeFalse();
+        http.verify();
+    });
+
     it('ubica el editor en Importar CV con disclosure nativo y refleja el borrador en el estado global', async () => {
         const { fixture, http } = await abrir('Fuente confirmada');
         const raiz = fixture.nativeElement as HTMLElement;

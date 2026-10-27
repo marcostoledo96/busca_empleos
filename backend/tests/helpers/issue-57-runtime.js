@@ -8,7 +8,11 @@ async function prepararControles(pool, esquema) {
         DECLARE modo TEXT;
         BEGIN
             SELECT f.modo INTO modo FROM issue57_fallo f;
-            IF TG_TABLE_NAME = 'ofertas' THEN
+            IF TG_TABLE_NAME IN ('preferencias', 'cv_base') THEN
+                IF modo = 'preferencias_cv' THEN
+                    RAISE EXCEPTION 'Fallo sintético issue57: %', modo;
+                END IF;
+            ELSIF TG_TABLE_NAME = 'ofertas' THEN
                 IF modo = 'postulacion_parcial' AND TG_OP = 'UPDATE' AND NEW.titulo LIKE '% 2' THEN
                     RETURN NULL;
                 END IF;
@@ -20,11 +24,13 @@ async function prepararControles(pool, esquema) {
             END IF;
             RETURN NEW;
         END $$;
+        CREATE TRIGGER issue57_preferencias BEFORE INSERT OR UPDATE ON preferencias FOR EACH ROW EXECUTE FUNCTION issue57_inyectar_fallo();
+        CREATE TRIGGER issue57_cv BEFORE INSERT OR UPDATE ON cv_base FOR EACH ROW EXECUTE FUNCTION issue57_inyectar_fallo();
         CREATE TRIGGER issue57_ofertas BEFORE INSERT OR UPDATE ON ofertas FOR EACH ROW EXECUTE FUNCTION issue57_inyectar_fallo();
         CREATE TRIGGER issue57_historial BEFORE INSERT OR UPDATE ON ejecuciones_busqueda FOR EACH ROW EXECUTE FUNCTION issue57_inyectar_fallo();`);
     const fallo = async modo => {
         validarEntorno(process.env, esquema);
-        if (!['ninguno', 'persistencia', 'persistencia_parcial', 'historial_inicio', 'historial_fin', 'postulacion_parcial', 'previsualizacion_lectura', 'previsualizacion_429', 'historial_lectura'].includes(modo)) {
+        if (!['ninguno', 'persistencia', 'persistencia_parcial', 'historial_inicio', 'historial_fin', 'postulacion_parcial', 'previsualizacion_lectura', 'previsualizacion_429', 'historial_lectura', 'preferencias_cv'].includes(modo)) {
             throw new Error('Fallo sintético desconocido.');
         }
         await pool.query('UPDATE issue57_fallo SET modo=$1', [modo]);
@@ -37,6 +43,8 @@ async function prepararControles(pool, esquema) {
             firma_criterios_evaluacion, evaluacion_error_mensaje FROM ofertas ORDER BY id`)).rows,
         historial: (await pool.query('SELECT id, tipo, estado, fin, resumen FROM ejecuciones_busqueda ORDER BY id')).rows,
         cron: (await pool.query('SELECT * FROM configuracion_cron')).rows,
+        preferencias: (await pool.query('SELECT * FROM preferencias ORDER BY id')).rows,
+        cvBase: (await pool.query('SELECT * FROM cv_base ORDER BY id')).rows,
     });
     const reset = async () => {
         validarEntorno(process.env, esquema);

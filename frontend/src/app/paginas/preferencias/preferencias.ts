@@ -162,7 +162,7 @@ export class Preferencias implements OnInit {
 
     @HostListener('window:beforeunload', ['$event'])
     advertirSalidaCv(evento: BeforeUnloadEvent): void {
-        if (!this.cambiosCvPendientes && !this.guardandoCvBase()) return;
+        if (!this.cambiosSinGuardar && !this.cambiosCvPendientes && !this.guardandoCvBase()) return;
         evento.preventDefault();
         evento.returnValue = '';
     }
