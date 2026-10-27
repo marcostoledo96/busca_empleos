@@ -1,0 +1,147 @@
+{
+    "candidate": "3eae48754faa0c04b10a8123234f33f5f82252fa",
+    "tool": "Chrome DevTools MCP",
+    "scope": "Geometría puntual Dashboard con datos sintéticos; no recorridos completos por dispositivo",
+    "matrix": [
+        {
+            "width": 320,
+            "height": 844,
+            "theme": "oscuro",
+            "observation": {
+                "requested": [
+                    320,
+                    844
+                ],
+                "actual": [
+                    320,
+                    844
+                ],
+                "theme": "oscuro",
+                "scrollWidth": 320,
+                "overflow": false,
+                "cards": 2,
+                "technicalNotices": [],
+                "cron": "false"
+            }
+        },
+        {
+            "width": 360,
+            "height": 800,
+            "theme": "claro",
+            "observation": {
+                "requested": [
+                    360,
+                    800
+                ],
+                "actual": [
+                    360,
+                    800
+                ],
+                "theme": "claro",
+                "scrollWidth": 360,
+                "overflow": false,
+                "cards": 2,
+                "technicalNotices": [],
+                "cron": "false"
+            }
+        },
+        {
+            "width": 390,
+            "height": 844,
+            "theme": "oscuro",
+            "observation": {
+                "requested": [
+                    390,
+                    844
+                ],
+                "actual": [
+                    390,
+                    844
+                ],
+                "theme": "oscuro",
+                "scrollWidth": 390,
+                "overflow": false,
+                "cards": 2,
+                "technicalNotices": [],
+                "cron": "false"
+            }
+        },
+        {
+            "width": 412,
+            "height": 915,
+            "theme": "claro",
+            "observation": {
+                "requested": [
+                    412,
+                    915
+                ],
+                "actual": [
+                    412,
+                    915
+                ],
+                "theme": "claro",
+                "scrollWidth": 412,
+                "overflow": false,
+                "cards": 2,
+                "technicalNotices": [],
+                "cron": "false"
+            }
+        },
+        {
+            "width": 768,
+            "height": 900,
+            "theme": "oscuro",
+            "observation": {
+                "requested": [
+                    768,
+                    900
+                ],
+                "actual": [
+                    768,
+                    900
+                ],
+                "theme": "oscuro",
+                "scrollWidth": 768,
+                "overflow": false,
+                "cards": 2,
+                "technicalNotices": [],
+                "cron": "false"
+            }
+        },
+        {
+            "width": 1440,
+            "height": 900,
+            "theme": "claro",
+            "observation": {
+                "requested": [
+                    1440,
+                    900
+                ],
+                "actual": [
+                    1440,
+                    900
+                ],
+                "theme": "claro",
+                "scrollWidth": 1436,
+                "overflow": false,
+                "cards": 0,
+                "technicalNotices": [],
+                "cron": "false"
+            }
+        }
+    ],
+    "detail320": {
+        "left": 16,
+        "right": 304,
+        "top": 42.2,
+        "bottom": 801.8,
+        "escapeCloses": true,
+        "restoredFocus": "Oferta: Desarrollo junior sintético 2"
+    },
+    "limitations": [
+        "Playwright MCP no inició: ENOENT en directorio externo; no se reintentó ni creó ese directorio.",
+        "Captura DevTools MCP denegada por raíces configuradas; capturas conservadas provienen de Playwright Test.",
+        "Iconos de Material Symbols sin fuente remota: no acreditada fidelidad visual completa.",
+        "No Android físico, teclado virtual ni producción."
+    ]
+}
