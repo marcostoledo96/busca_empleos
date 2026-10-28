@@ -13,7 +13,7 @@ function crearProveedores() {
         throw new Error(`Operación externa no permitida: ${nombre}`);
     };
     const cambiar = valor => {
-        if (!['correcto', 'vacio', '429', '500', '503', 'timeout', 'invalido', 'parcial', 'retenido'].includes(valor)) {
+        if (!['correcto', 'vacio', '429', '500', '503', 'timeout', 'invalido', 'parcial', 'retenido', 'volumen', 'ia_incompleta', 'ia_error', 'ia_rechazada', 'ia_cv'].includes(valor)) {
             throw new Error('Escenario sintético desconocido.');
         }
         escenario = valor;
@@ -38,7 +38,8 @@ function crearProveedores() {
                 llamadas.push({ tipo: 'dataset', id });
                 if (escenario === 'invalido') return { items: null };
                 return { items: id === 'hKByXkMQaC5Qt9UMN-dataset' && !['vacio', 'timeout'].includes(escenario)
-                    ? [ofertaLinkedin(1), ofertaLinkedin(2), ofertaLinkedin(1)] : [] };
+                    ? (escenario === 'volumen' ? Array.from({ length: 25 }, (_, indice) => ofertaLinkedin(indice + 1))
+                        : [ofertaLinkedin(1), ofertaLinkedin(2), ofertaLinkedin(1)]) : [] };
             } };
         }
         run() { return prohibir('control remoto inesperado de Actor'); }
@@ -53,8 +54,17 @@ function crearProveedores() {
         llamadas.push({ tipo: 'http', destino: `${destino.origin}${destino.pathname}` });
         if (destino.hostname === 'api.deepseek.com' && destino.pathname === '/v1/chat/completions') {
             if (esperaEvaluacion) await esperaEvaluacion;
+            if (escenario === 'ia_error') return { ok: false, status: 503, headers: { get: () => '0.001' }, text: async () => 'Fallo sintético de IA.' };
             return { ok: true, json: async () => ({ choices: [{ finish_reason: 'stop', message: {
-                content: JSON.stringify({ match: true, porcentaje: 85, razon: 'Cumplo los requisitos sintéticos.' }),
+                content: JSON.stringify(escenario === 'ia_cv' ? {
+                    nombre: 'Propuesta sintética revisable', perfil_profesional: 'Documento pruebas de software.',
+                    preguntas: [
+                        { campo: 'docker', pregunta: '¿Confirmo Docker básico?', motivo: 'Requiere revisión.', sugerencia: 'basico' },
+                        { campo: 'modalidad_aceptada', pregunta: '¿Confirmo remoto?', motivo: 'No es un hecho acreditado.', sugerencia: 'remoto' },
+                    ],
+                } : escenario === 'ia_incompleta' ? { match: true }
+                    : { match: escenario !== 'ia_rechazada', porcentaje: escenario === 'ia_rechazada' ? 20 : 85,
+                        razon: escenario === 'ia_rechazada' ? 'No cumplo los requisitos sintéticos.' : 'Cumplo los requisitos sintéticos.' }),
             } }] }) };
         }
         if (destino.origin === 'https://www.computrabajo.com.ar'

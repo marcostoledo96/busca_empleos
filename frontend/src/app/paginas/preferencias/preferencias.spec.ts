@@ -29,6 +29,83 @@ describe('Preferencias — CV base persistido', () => {
         return { fixture, componente: fixture.componentInstance, http };
     }
 
+    it('T9 conserva ediciones posteriores al PUT y normaliza sólo los campos intactos', async () => {
+        const { componente, http } = await abrir(null, { nombre: 'Inicial', perfil_profesional: 'Inicial' });
+        componente.nombre = 'Enviado';
+        componente.perfilProfesional = ' Enviado ';
+        componente.guardar();
+        const put = http.expectOne(r => r.method === 'PUT');
+        expect(put.request.body).toEqual({ nombre: 'Enviado', perfil_profesional: ' Enviado ' });
+        componente.nombre = 'Edición posterior';
+        componente.nivelInglesDetalle = { lectura: 'basico' } as any;
+        componente.agregarTecnologia();
+        put.flush({ exito: true, datos: { nombre: 'Enviado', perfil_profesional: 'Enviado' } });
+        expect(componente.nombre).toBe('Edición posterior');
+        expect(componente.perfilProfesional).toBe('Enviado');
+        expect(componente.nivelInglesDetalle).toEqual({ lectura: 'basico' } as any);
+        expect(componente.tecnologiasDetalle.length).toBe(1);
+        expect(componente.guardando()).toBeFalse();
+        expect(componente.cambiosSinGuardar).toBeTrue();
+        expect(componente.mensajeAccesible()).toBe('Guardé las preferencias enviadas. Quedan cambios posteriores sin guardar.');
+        componente.guardar();
+        const segundo = http.expectOne(r => r.method === 'PUT');
+        expect(segundo.request.body.nombre).toBe('Edición posterior');
+        expect(segundo.request.body.perfil_profesional).toBeUndefined();
+        segundo.flush({}, { status: 500, statusText: 'Fallo sintético' });
+        expect(componente.nombre).toBe('Edición posterior');
+        expect(componente.cambiosSinGuardar).toBeTrue();
+        expect(componente.mensajeAccesible()).toBe('No se pudieron guardar las preferencias.');
+        http.verify();
+    });
+
+    it('T9 protege importación material en beforeunload sin bloquear blanco, cancelado o aplicado y guardado', async () => {
+        const { componente, http } = await abrir();
+        const salida = () => {
+            const evento = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+            componente.advertirSalidaCv(evento);
+            return evento.defaultPrevented;
+        };
+        componente.textoCvImportacion = '  \n ';
+        expect(salida()).toBeFalse();
+        componente.textoCvImportacion = 'Texto revisado';
+        expect(salida()).toBeTrue();
+        expect(componente.cambiosCvPendientes).toBeFalse();
+        componente.textoCvImportacion = '';
+        componente.resultadoImportacion = { nombre: 'Propuesta' };
+        expect(salida()).toBeTrue();
+        componente.cancelarImportacion();
+        expect(salida()).toBeFalse();
+        componente.textoCvImportacion = 'Texto ya aplicado';
+        componente.resultadoImportacion = { nombre: 'Confirmado' };
+        componente.aplicarImportacion();
+        expect(salida()).toBeTrue();
+        componente.guardar();
+        http.expectOne(r => r.method === 'PUT').flush({ exito: true, datos: { nombre: 'Confirmado' } });
+        expect(salida()).toBeFalse();
+        http.expectNone(r => r.method !== 'GET');
+        http.verify();
+    });
+
+    it('protege beforeunload con preferencias generales y deja de bloquear después de guardar', async () => {
+        const { componente, http } = await abrir(null, { nombre: 'Nombre confirmado' });
+        const salida = () => {
+            const evento = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+            componente.advertirSalidaCv(evento);
+            return evento.defaultPrevented;
+        };
+        expect(salida()).toBeFalse();
+        componente.nombre = 'Borrador general';
+        expect(salida()).toBeTrue();
+        componente.guardar();
+        http.expectOne(r => r.method === 'PUT').flush({}, { status: 500, statusText: 'Fallo sintético' });
+        expect(salida()).toBeTrue();
+        expect(componente.nombre).toBe('Borrador general');
+        componente.guardar();
+        http.expectOne(r => r.method === 'PUT').flush({ exito: true, datos: { nombre: 'Borrador general' } });
+        expect(salida()).toBeFalse();
+        http.verify();
+    });
+
     it('ubica el editor en Importar CV con disclosure nativo y refleja el borrador en el estado global', async () => {
         const { fixture, http } = await abrir('Fuente confirmada');
         const raiz = fixture.nativeElement as HTMLElement;

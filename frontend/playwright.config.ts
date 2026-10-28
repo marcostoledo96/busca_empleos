@@ -22,6 +22,7 @@ export default defineConfig({
         command: 'npx --no-install ng serve --configuration e2e --host 127.0.0.1 --port 4350',
         url: 'http://127.0.0.1:4350',
         timeout: 25000,
-        reuseExistingServer: true,
+        // Exijo el harness de este árbol, no un servidor de otra ejecución local.
+        reuseExistingServer: false,
     },
 });

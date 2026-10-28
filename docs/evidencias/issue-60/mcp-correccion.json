@@ -1,0 +1,327 @@
+{
+    "candidate": "ba636cf2c8b5729b9be777d97d6e06b2fef9afd4",
+    "tree": "2e91b802c8309c40b46a7e40f0319deb401aa51f",
+    "tool": "Chrome DevTools MCP",
+    "scope": "Geometría de controles reales de topbar en Preferencias y logout normal a360; no seis recorridos completos.",
+    "matrix": [
+        {
+            "url": "/preferencias",
+            "requested": [
+                320,
+                844
+            ],
+            "actual": [
+                320,
+                844
+            ],
+            "theme": "claro",
+            "overflow": false,
+            "controls": [
+                {
+                    "label": "Abrir menú de navegación",
+                    "x": 8,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cambiar tema visual",
+                    "x": 164,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Configuración de preferencias",
+                    "x": 216,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cerrar sesión",
+                    "x": 268,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                }
+            ]
+        },
+        {
+            "url": "/preferencias",
+            "requested": [
+                360,
+                800
+            ],
+            "actual": [
+                360,
+                800
+            ],
+            "theme": "oscuro",
+            "overflow": false,
+            "controls": [
+                {
+                    "label": "Abrir menú de navegación",
+                    "x": 8,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cambiar tema visual",
+                    "x": 204,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Configuración de preferencias",
+                    "x": 256,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cerrar sesión",
+                    "x": 308,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                }
+            ]
+        },
+        {
+            "url": "/preferencias",
+            "requested": [
+                390,
+                844
+            ],
+            "actual": [
+                390,
+                844
+            ],
+            "theme": "claro",
+            "overflow": false,
+            "controls": [
+                {
+                    "label": "Abrir menú de navegación",
+                    "x": 8,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cambiar tema visual",
+                    "x": 234.40000915527344,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Configuración de preferencias",
+                    "x": 286.3999938964844,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cerrar sesión",
+                    "x": 338.3999938964844,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                }
+            ]
+        },
+        {
+            "url": "/preferencias",
+            "requested": [
+                412,
+                915
+            ],
+            "actual": [
+                412,
+                915
+            ],
+            "theme": "oscuro",
+            "overflow": false,
+            "controls": [
+                {
+                    "label": "Abrir menú de navegación",
+                    "x": 8,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cambiar tema visual",
+                    "x": 256,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Configuración de preferencias",
+                    "x": 308,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cerrar sesión",
+                    "x": 360,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                }
+            ]
+        },
+        {
+            "url": "/preferencias",
+            "requested": [
+                768,
+                900
+            ],
+            "actual": [
+                768,
+                900
+            ],
+            "theme": "claro",
+            "overflow": false,
+            "controls": [
+                {
+                    "label": "Abrir menú de navegación",
+                    "x": 8,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cambiar tema visual",
+                    "x": 612,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Configuración de preferencias",
+                    "x": 664,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cerrar sesión",
+                    "x": 716,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                }
+            ]
+        },
+        {
+            "url": "/preferencias",
+            "requested": [
+                1440,
+                900
+            ],
+            "actual": [
+                1440,
+                900
+            ],
+            "theme": "oscuro",
+            "overflow": false,
+            "controls": [
+                {
+                    "label": "Cambiar tema visual",
+                    "x": 1256,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Configuración de preferencias",
+                    "x": 1308,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                },
+                {
+                    "label": "Cerrar sesión",
+                    "x": 1360,
+                    "y": 9.199999809265137,
+                    "width": 44,
+                    "height": 44,
+                    "inside": true,
+                    "centerHits": true
+                }
+            ]
+        }
+    ],
+    "logout360": {
+        "action": "Clic normal con herramienta click sobre botón Cerrar sesión del snapshot actual",
+        "result": "/login",
+        "heading": "Authentication",
+        "viewport": [
+            360,
+            800
+        ],
+        "overflow": false
+    },
+    "independentReview": {
+        "agent": "gentle-ai-verify",
+        "task": "mvq122tm-c-xfa2",
+        "scope": "Fuente, logs y tres PNG; sin ejecutar pruebas, escrituras ni scratch",
+        "verdict": "Sin blockers causados por el candidato; publicable en misma PR DRAFT, no cierre/merge ni prueba causal de fallos históricos no reproducidos."
+    },
+    "limitations": [
+        "Sin Android físico, teclado virtual ni autenticación Firebase remota.",
+        "Capturas nuevas provienen de Playwright Test, no MCP.",
+        "No se atribuyen las suites globales al commit de publicación futuro.",
+        "Fuera del topbar siguen posibles ligaduras sin fuente Material; no acreditación visual exhaustiva."
+    ]
+}

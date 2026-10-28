@@ -19,14 +19,14 @@
             <li>
                 <a routerLink="/" routerLinkActive="nav-activo" [routerLinkActiveOptions]="{exact: true}"
                    class="sidebar-enlace" (click)="cerrarSidebar()" sidebarEnlace>
-                    <span class="material-symbols-outlined" aria-hidden="true">dashboard</span>
+                    <span class="pi pi-th-large" aria-hidden="true"></span>
                     DASHBOARD
                 </a>
             </li>
             <li>
                 <a routerLink="/preferencias" routerLinkActive="nav-activo"
                    class="sidebar-enlace" (click)="cerrarSidebar()" sidebarEnlace>
-                    <span class="material-symbols-outlined" aria-hidden="true">settings</span>
+                    <span class="pi pi-cog" aria-hidden="true"></span>
                     PREFERENCIAS
                 </a>
             </li>
@@ -37,9 +37,7 @@
     <header class="topbar" role="banner">
         <!-- Botón hamburger (solo mobile) -->
         <button class="topbar-hamburger" id="btn-hamburger" (click)="toggleSidebar()" aria-label="Abrir menú de navegación" [attr.aria-expanded]="sidebarAbierta()">
-            <span class="material-symbols-outlined" aria-hidden="true">
-                {{ sidebarAbierta() ? 'close' : 'menu' }}
-            </span>
+            <span class="pi" [class.pi-times]="sidebarAbierta()" [class.pi-bars]="!sidebarAbierta()" aria-hidden="true"></span>
         </button>
 
         <div class="topbar-contenido">
@@ -54,17 +52,13 @@
             </div>
             <div class="topbar-derecha">
                 <button class="topbar-btn" (click)="toggleTema()" aria-label="Cambiar tema visual">
-                    <span class="material-symbols-outlined" aria-hidden="true">
-                        {{ modoOscuro() ? 'light_mode' : 'dark_mode' }}
-                    </span>
+                    <span class="pi" [class.pi-sun]="modoOscuro()" [class.pi-moon]="!modoOscuro()" aria-hidden="true"></span>
                 </button>
                 <a routerLink="/preferencias" class="topbar-btn" aria-label="Configuración de preferencias">
-                    <span class="material-symbols-outlined" aria-hidden="true">settings</span>
+                    <span class="pi pi-cog" aria-hidden="true"></span>
                 </a>
                 <button class="topbar-btn" (click)="cerrarSesion()" [attr.aria-label]="esModoDemo() ? 'Salir del modo demo' : 'Cerrar sesión'">
-                    <span class="material-symbols-outlined" aria-hidden="true">
-                        {{ esModoDemo() ? 'exit_to_app' : 'logout' }}
-                    </span>
+                    <span class="pi pi-sign-out" aria-hidden="true"></span>
                 </button>
             </div>
         </div>

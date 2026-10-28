@@ -148,12 +148,14 @@
 
 .topbar-contenido {
     flex: 1;
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
 }
 
 .topbar-izquierda {
+    min-width: 0;
     display: flex;
     align-items: baseline;
     gap: 1.5rem;
@@ -193,12 +195,14 @@
 }
 
 .topbar-derecha {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
 .topbar-btn {
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -241,8 +245,9 @@
     border-radius: var(--radius-sm);
 }
 
-.topbar-hamburger .material-symbols-outlined {
-    font-size: 24px;
+.topbar-hamburger .pi,
+.topbar-btn .pi {
+    font-size: 20px;
 }
 
 /* === Overlay del sidebar (solo mobile) === */
@@ -355,7 +360,13 @@
 
     .topbar {
         left: 0;
-        padding: 0 1rem;
+        padding: 0 0.5rem;
+        gap: 0.5rem;
+    }
+
+    .topbar-seccion {
+        font-size: 0.875rem;
+        overflow-wrap: anywhere;
     }
 
     .topbar-hamburger {

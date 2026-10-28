@@ -35,18 +35,35 @@ test('conservo la entrada Dashboard del harness', async ({ page }) => {
     await expect(page.getByRole('heading', { name: 'Preferencias de búsqueda' })).toHaveCount(0);
 });
 
-test('cargo Preferencias reales con perfil confirmado y sin análisis automático', async ({ page }) => {
-    await page.goto('/preferencias');
-    await expect(page.getByRole('heading', { name: 'Preferencias de búsqueda', exact: true })).toBeVisible();
-    await abrirEditor(page);
-    await expect(page.getByLabel('Texto del CV en Markdown')).toHaveValue(/CV sintético/);
-    await page.getByRole('tab', { name: 'PERFIL', exact: true }).click();
-    await expect(page.getByLabel('Nombre completo')).toHaveValue('Candidatura sintética');
-    const registro = page.getByLabel('Llamadas simuladas');
-    await expect(registro).toHaveText('GET /preferencias\nGET /preferencias/cv-base');
-    await page.getByRole('tab', { name: 'TECNOLOGÍAS', exact: true }).click();
-    await page.getByRole('tab', { name: 'ROLES', exact: true }).click();
-    await expect(registro).toHaveText('GET /preferencias\nGET /preferencias/cv-base');
+test('cargo Preferencias reales con perfil confirmado y sin análisis automático', async ({ page }, testInfo) => {
+    const diagnostico: string[] = [];
+    const errores: string[] = [];
+    page.on('pageerror', error => {
+        errores.push(error.message);
+        diagnostico.push(`pageerror: ${error.stack}`);
+    });
+    page.on('console', mensaje => diagnostico.push(`console ${mensaje.type()}: ${mensaje.text()}`));
+    page.on('requestfailed', solicitud => diagnostico.push(`red: ${solicitud.url()} ${solicitud.failure()?.errorText}`));
+    page.on('response', respuesta => {
+        if (respuesta.request().resourceType() === 'script') diagnostico.push(`script ${respuesta.status()}: ${respuesta.url()}`);
+    });
+    try {
+        await page.goto('/preferencias');
+        await expect(page.getByRole('heading', { name: 'Preferencias de búsqueda', exact: true })).toBeVisible();
+        await abrirEditor(page);
+        await expect(page.getByLabel('Texto del CV en Markdown')).toHaveValue(/CV sintético/);
+        await page.getByRole('tab', { name: 'PERFIL', exact: true }).click();
+        await expect(page.getByLabel('Nombre completo')).toHaveValue('Candidatura sintética');
+        const registro = page.getByLabel('Llamadas simuladas');
+        await expect(registro).toHaveText('GET /preferencias\nGET /preferencias/cv-base');
+        await page.getByRole('tab', { name: 'TECNOLOGÍAS', exact: true }).click();
+        await page.getByRole('tab', { name: 'ROLES', exact: true }).click();
+        await expect(registro).toHaveText('GET /preferencias\nGET /preferencias/cv-base');
+        expect(errores).toEqual([]);
+    } finally {
+        await testInfo.attach('montaje-preferencias', { body: diagnostico.join('\n'), contentType: 'text/plain' });
+        if (errores.length) console.log(diagnostico.join('\n'));
+    }
 });
 
 test('protejo la navegación real y guardo únicamente el CV solicitado', async ({ page }) => {

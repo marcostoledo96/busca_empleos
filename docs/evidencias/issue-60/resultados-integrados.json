@@ -1,0 +1,219 @@
+{
+    "ejecucion": "ca1e26f61d264c2aa85489676acf0bdab3e67a32 + cambios sin commit preservados después en 3eae48754faa0c04b10a8123234f33f5f82252fa",
+    "duracionMs": 121907.873,
+    "pass": 18,
+    "fail": 1,
+    "tests": [
+        {
+            "recorrido": "Angular → Express → SQL 1440 claro",
+            "estado": "passed",
+            "duracionMs": 17367,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-despues-de-buscar",
+                    "sha256": "e0aaaf2bfa430e9254dd0ceeff043ea0cc6d7e54c10360a43c119de6f5b3b0a9"
+                },
+                {
+                    "nombre": "SQL-ciclo-terminal",
+                    "sha256": "b0255fed8d6f84148e088bf02d24f58178f8b290fc44ebd21b24e92e8a201276"
+                },
+                {
+                    "nombre": "SQL-y-fronteras",
+                    "sha256": "5dd58280b3a545fcca23580bebeabe6526c5fcdac02c95fbd7eb10edf6d4c5b9"
+                }
+            ]
+        },
+        {
+            "recorrido": "Angular → Express → SQL 390 oscuro",
+            "estado": "failed",
+            "duracionMs": 16723,
+            "error": "Error: apiRequestContext.get: socket hang up (ECONNRESET)",
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-despues-de-buscar",
+                    "sha256": "aaf76403930bf7b1b0d4c530ed965ba26785f26cee2ab2a009a237f3a3f1dbe2"
+                },
+                {
+                    "nombre": "SQL-ciclo-terminal",
+                    "sha256": "4449d644e057b0ff0b01019e8300a2b08f96c130d15b3e0737200635a900e912"
+                }
+            ]
+        },
+        {
+            "recorrido": "Angular → Express → SQL 320 claro",
+            "estado": "passed",
+            "duracionMs": 17068,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-despues-de-buscar",
+                    "sha256": "1b931178b94340f2c40ab246fddfb32a9f08652542eb967a093ac2bcd05e02bd"
+                },
+                {
+                    "nombre": "SQL-ciclo-terminal",
+                    "sha256": "9727c3d2c51d8f93a5e20e9b217bf16958f7b54a30bc7038398992c54576df44"
+                },
+                {
+                    "nombre": "SQL-y-fronteras",
+                    "sha256": "d0ce52e19d3fa54534199b13d5e8f33912bab3ee4315b6619ec97bf30f27236e"
+                }
+            ]
+        },
+        {
+            "recorrido": "F preferencias móviles: siete pestañas, modelos sin IA, SQL500, borrador, guard y reintento",
+            "estado": "passed",
+            "duracionMs": 4277,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-preferencias-antes-despues",
+                    "sha256": "ce7dbc7213b4650673b62aaa1211f1550ab8a1d47cbb8fe0e2b5dc4764e3c342"
+                }
+            ]
+        },
+        {
+            "recorrido": "F CV base móvil: edición, error SQL conserva fuente y borrador, salida cancelada y guardado explícito",
+            "estado": "passed",
+            "duracionMs": 2359,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-cv-base-antes-despues",
+                    "sha256": "f3b8e36c35045302f623bd9af137795b63c8620d9f9d532be75983fb25361f17"
+                }
+            ]
+        },
+        {
+            "recorrido": "F importar md: extracción real, corrección, IA explícita, decisiones y SQL sólo al guardar",
+            "estado": "passed",
+            "duracionMs": 3477,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-importacion-md",
+                    "sha256": "677d2cd8c930f8075a6f4008c34e222ad4ddc562a0a90fe37956d79a6be5d7eb"
+                }
+            ]
+        },
+        {
+            "recorrido": "F importar pdf: extracción real, corrección, IA explícita, decisiones y SQL sólo al guardar",
+            "estado": "passed",
+            "duracionMs": 2671,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-importacion-pdf",
+                    "sha256": "9e372e56a58ff7739c036f18e317b280d8d3013269f15a2e5c9b99bc9925c198"
+                }
+            ]
+        },
+        {
+            "recorrido": "F documentos rechazados: PDF vacío real, inválido y límite conservan SQL y texto corregido",
+            "estado": "passed",
+            "duracionMs": 2502,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-importacion-rechazos",
+                    "sha256": "2c1f9891852c7dc06bce21b8879748201810ccd8e0acac87237bb30796c2a81f"
+                }
+            ]
+        },
+        {
+            "recorrido": "F CV real: fuentes guardadas, faltantes, selección, borrador, A4 oscuro e impresión explícita",
+            "estado": "passed",
+            "duracionMs": 1625,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-cv-impresion-sin-escrituras",
+                    "sha256": "ee640a0dbb8d70e672dfe79777d047b1d16adb38c39a4b3c9859414bcc9d36c3"
+                }
+            ]
+        },
+        {
+            "recorrido": "A rutas y sesión SDK sintética 360 claro",
+            "estado": "passed",
+            "duracionMs": 3153,
+            "evidenciaSQL": []
+        },
+        {
+            "recorrido": "A rutas y sesión SDK sintética 412 oscuro",
+            "estado": "passed",
+            "duracionMs": 3528,
+            "evidenciaSQL": []
+        },
+        {
+            "recorrido": "A rutas y sesión SDK sintética 768 claro",
+            "estado": "passed",
+            "duracionMs": 3227,
+            "evidenciaSQL": []
+        },
+        {
+            "recorrido": "A token rechazado 401/403 conserva SQL y sesión ausente vuelve a login",
+            "estado": "passed",
+            "duracionMs": 2533,
+            "evidenciaSQL": []
+        },
+        {
+            "recorrido": "D estado, fecha y nota sobreviven recarga y segunda revisión con lectura PostgreSQL",
+            "estado": "passed",
+            "duracionMs": 5484,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-seguimiento-dos-revisiones",
+                    "sha256": "bcc3daa9a28ecbb49adfecae6f1bba44e891d8ed20f6d1f7d733a3d7fbcef0b2"
+                }
+            ]
+        },
+        {
+            "recorrido": "D fallo SQL, 400, respuesta tardía y doble envío conservan borrador y permiten reintento",
+            "estado": "passed",
+            "duracionMs": 2631,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-reintento-y-versiones",
+                    "sha256": "b56ea4a3a94dc95f9e6af719430bc374648fb643f3e0fff43465779776ade473"
+                }
+            ]
+        },
+        {
+            "recorrido": "D bulk SQL parcial concilia y reintenta sólo IDs válidos; filtro y página invalidan selección",
+            "estado": "passed",
+            "duracionMs": 6830,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-bulk-parcial-reintento",
+                    "sha256": "81cfd1956bd31a99da0f2e250b6f7e56bbe004bf8f41d94532056245c1ce27e3"
+                }
+            ]
+        },
+        {
+            "recorrido": "B/G lecturas indisponibles, proveedor 429/503 y ciclo fallido recuperan sin perder SQL",
+            "estado": "passed",
+            "duracionMs": 11855,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-recuperacion-lecturas-proveedor-ciclo",
+                    "sha256": "16368c48c81d51dfbf39945db4651988627bd1c3e9186ed28cbb66f7eee7c2df"
+                }
+            ]
+        },
+        {
+            "recorrido": "E reevaluación individual y seleccionada conserva resultado anterior ante JSON incompleto y recupera",
+            "estado": "passed",
+            "duracionMs": 4357,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-IA-individual-incompleta-seleccionada",
+                    "sha256": "bd082633e64976f7492469a3e1f57ef205ff35a90134ebdb58dd8a455463f607"
+                }
+            ]
+        },
+        {
+            "recorrido": "B/D interrupción de sincronización reanuda; rechazo SQL revierte estado sin tocar IA",
+            "estado": "passed",
+            "duracionMs": 2496,
+            "evidenciaSQL": [
+                {
+                    "nombre": "SQL-interrupcion-rollback",
+                    "sha256": "39e38928db4b31bee4e9db954d34ed2b0252e070d5327b1a24b4d2cc6f80df82"
+                }
+            ]
+        }
+    ],
+    "nota": "Los hashes identifican adjuntos SQL del runner real, no una lectura SQL adicional ni evidencia de todas las columnas. Datos brutos quedan en artefactos del runner; sin rutas absolutas ni documentos personales en este resumen."
+}

@@ -741,9 +741,9 @@
     <div class="acciones">
         <button class="btn-guardar" [disabled]="guardando() || analizandoCv() || modoDemo()" (click)="guardar()" aria-label="Guardar preferencias">
             @if (guardando()) {
-                <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
+                <span class="pi pi-spinner btn-spin" aria-hidden="true"></span>
             } @else {
-                <span class="material-symbols-outlined" aria-hidden="true">save</span>
+                <span class="pi pi-save" aria-hidden="true"></span>
             }
             GUARDAR PREFERENCIAS
         </button>
