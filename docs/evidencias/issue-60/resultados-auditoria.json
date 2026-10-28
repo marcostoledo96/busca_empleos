@@ -1,6 +1,6 @@
 {
     "lote": "T9",
-    "estado": "GREEN local frontend; consolidación/gates restantes/publicación pendientes",
+    "estado": "Correcciones y verificación local completas; publicación/CI nuevo pendiente",
     "specs": [
         "S22",
         "S23",
@@ -17,9 +17,8 @@
         "S18"
     ],
     "pendientes": [
-        "Gates backend restantes y registro de commit",
-        "Publicar lote y comentar evidencia en misma PR68",
-        "CI del nuevo HEAD aún no observado; sin watcher"
+        "Publicar lote y comentar resultado en PR68",
+        "CI del nuevo candidato pendiente; no watcher/merge/cierre/deploy"
     ],
     "atribucion": {
         "head": "91cd7b57efdc4d0b6c9909cae110a26bf8dc404a",
@@ -38,7 +37,10 @@
             "frontend/src/app/app.html": "5d34e32266f34542dab2eb983674a4c8e63f625e37df714509c44d42499c1eb1",
             "frontend/e2e/integracion/preferencias-cv.integracion.ts": "86b85bf9a5c6d0fbd6d964f7c184f29d26605cc5f704067f0c756da8db445d87",
             "frontend/e2e/integracion/issue60-regresiones.integracion.ts": "63ab1f4711b1a948cad387621e5a4313bdf7ca930a940eeafffea262dd823580"
-        }
+        },
+        "commitQuePreservaFuenteTests": "63c6d38508b10b6cc765532652c92f7047ace75b",
+        "arbolCommitPreservacion": "d6b062200bc946aee94f793e6ab3c3b2699dc00a",
+        "deltaTrasPreservacion": "Sólo metadatos ODD/atribución, no cambios fuente/tests ni reruns de suites."
     },
     "comandos": [
         {
