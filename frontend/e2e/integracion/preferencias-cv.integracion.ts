@@ -68,6 +68,115 @@ test.beforeEach(async ({ request, context }) => {
     });
 });
 
+for (const analizada of [false, true]) {
+    test(`T9 importación ${analizada ? 'analizada con decisiones' : 'textual'}: salida explícita sin PUT`, async ({ page, request }, info) => {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto('/preferencias?tema=oscuro');
+        await tab(page, 'IMPORTAR CV');
+        const antes = await sql(request);
+        let puts = 0;
+        page.on('request', r => { if (r.method() === 'PUT') puts++; });
+        const texto = page.getByLabel('Borrador temporal: corregir o pegar texto del CV');
+        await texto.fill('# Revisión sintética T9');
+        if (analizada) {
+            await control(request, { escenario: 'ia_cv' });
+            await page.getByRole('button', { name: 'Analizar este texto con IA', exact: true }).click();
+            await expect(page.getByRole('heading', { name: 'Borrador revisable del CV' })).toBeVisible();
+            await page.locator('#cv-nombre').fill('Propuesta revisada T9');
+            await page.locator('.importar-pregunta').filter({ hasText: '¿Confirmo Docker básico?' }).getByRole('button', { name: 'Aplicar sugerencia', exact: true }).click();
+        }
+        // Sin la guarda se navega silenciosamente: no espero un diálogo para producir el RED.
+        const dialogos: string[] = [];
+        const rechazar = async (dialogo: any) => { dialogos.push(dialogo.type()); await dialogo.dismiss(); };
+        page.on('dialog', rechazar);
+        await page.getByRole('link', { name: 'Preparar CV imprimible con los datos guardados' }).click();
+        await expect(page).toHaveURL(/\/preferencias/);
+        expect(dialogos).toEqual(['confirm']);
+        await page.evaluate(() => { location.href = '/cv'; });
+        await expect(texto).toHaveValue('# Revisión sintética T9');
+        expect(dialogos).toEqual(['confirm', 'beforeunload']);
+        if (analizada) {
+            await expect(page.locator('#cv-nombre')).toHaveValue('Propuesta revisada T9');
+            await expect(page.locator('.importar-pregunta').filter({ hasText: '¿Confirmo Docker básico?' }).getByRole('button', { name: 'Aplicar sugerencia', exact: true })).toBeDisabled();
+            await expect(page.locator('.importar-pregunta').filter({ hasText: '¿Confirmo Docker básico?' })).toContainText('Estado: aplicada');
+        }
+        const rechazado = await sql(request);
+        expect(rechazado.preferencias).toEqual(antes.preferencias);
+        expect(rechazado.cvBase).toEqual(antes.cvBase);
+        expect(rechazado.llamadas.filter((l: any) => l.tipo === 'http')).toHaveLength(analizada ? 1 : 0);
+        expect(puts).toBe(0);
+        await captura(page, info, `t9-importacion-${analizada}`);
+        page.off('dialog', rechazar);
+        page.once('dialog', d => d.accept());
+        await page.getByRole('link', { name: 'Preparar CV imprimible con los datos guardados' }).click();
+        await expect(page).toHaveURL(/\/cv$/);
+        expect(puts).toBe(0);
+        const descartado = await sql(request);
+        expect(descartado.preferencias).toEqual(antes.preferencias);
+        expect(descartado.cvBase).toEqual(antes.cvBase);
+        expect(descartado.llamadas).toEqual(rechazado.llamadas);
+        await page.goto('/preferencias');
+        await tab(page, 'IMPORTAR CV');
+        await expect(texto).toHaveValue('');
+        await info.attach('SQL-importacion-rechazada-descartada', { body: JSON.stringify({ antes, rechazado, descartado }), contentType: 'application/json' });
+    });
+}
+
+for (const falla of [false, true]) {
+    test(`T9 PUT retenido ${falla ? '500' : '200'} conserva edición posterior y SQL del envío`, async ({ page, request }, info) => {
+        await page.setViewportSize({ width: 320, height: 844 });
+        await page.goto('/preferencias?tema=claro');
+        const nombre = page.getByLabel('Nombre completo');
+        await expect(nombre).toHaveValue('Candidatura sintética T3');
+        const antes = await sql(request);
+        if (falla) await control(request, { fallo: 'preferencias_cv' });
+        let liberar!: () => void;
+        let recibida!: () => void;
+        const retenida = new Promise<void>(r => { liberar = r; });
+        const lista = new Promise<void>(r => { recibida = r; });
+        let payload: any;
+        let puts = 0;
+        await page.route('**/api/preferencias', async ruta => {
+            if (ruta.request().method() !== 'PUT') return ruta.continue();
+            puts++;
+            payload = ruta.request().postDataJSON();
+            const respuesta = await ruta.fetch();
+            recibida();
+            await retenida;
+            await ruta.fulfill({ response: respuesta });
+        });
+        await nombre.fill('Enviado T9');
+        await page.getByRole('button', { name: 'Guardar preferencias', exact: true }).click();
+        await lista;
+        await nombre.fill('Edición posterior T9');
+        expect(payload).toEqual({ nombre: 'Enviado T9' });
+        liberar();
+        await expect(page.getByRole('status').filter({ hasText: falla ? 'No se pudieron guardar las preferencias.' : 'Guardé las preferencias enviadas. Quedan cambios posteriores sin guardar.' })).toBeVisible();
+        await expect(nombre).toHaveValue('Edición posterior T9');
+        await expect(page.getByText('Cambios sin guardar.', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Guardar preferencias', exact: true })).toBeEnabled();
+        const despues = await sql(request);
+        if (falla) expect(despues.preferencias).toEqual(antes.preferencias);
+        else expect(despues.preferencias[0].nombre).toBe('Enviado T9');
+        expect(despues.cvBase).toEqual(antes.cvBase);
+        expect(despues.llamadas).toEqual(antes.llamadas);
+        const rechazar = async (d: any) => d.dismiss();
+        page.on('dialog', rechazar);
+        await page.getByRole('link', { name: 'Preparar CV imprimible con los datos guardados' }).click();
+        await expect(page).toHaveURL(/\/preferencias/);
+        await expect(nombre).toHaveValue('Edición posterior T9');
+        expect(puts).toBe(1);
+        await captura(page, info, `t9-put-${falla}`);
+        page.off('dialog', rechazar);
+        page.once('dialog', d => d.accept());
+        await page.reload();
+        await expect(nombre).toHaveValue(falla ? 'Candidatura sintética T3' : 'Enviado T9');
+        expect(puts).toBe(1);
+        expect((await sql(request)).preferencias).toEqual(despues.preferencias);
+        await info.attach('SQL-PUT-retenido', { body: JSON.stringify({ antes, despues, payload, puts }), contentType: 'application/json' });
+    });
+}
+
 test('F preferencias móviles: siete pestañas, modelos sin IA, SQL500, borrador, guard y reintento', async ({ page, request }, info) => {
     await page.setViewportSize({ width: 320, height: 844 });
     await page.goto('/preferencias?tema=claro');
@@ -199,7 +308,14 @@ for (const formato of ['md', 'pdf']) {
         expect(aplicado.llamadas.filter((llamada: any) => llamada.tipo === 'http')).toHaveLength(1);
         await page.getByRole('button', { name: 'Guardar preferencias', exact: true }).click();
         await expect(page.getByRole('status').filter({ hasText: 'Preferencias actualizadas correctamente.' })).toBeVisible();
+        const dialogosGuardado: string[] = [];
+        page.on('dialog', async d => { dialogosGuardado.push(d.type()); await d.accept(); });
+        await page.getByRole('link', { name: 'Preparar CV imprimible con los datos guardados' }).click();
+        await expect(page).toHaveURL(/\/cv$/);
+        expect(dialogosGuardado).toEqual([]);
+        await page.goto('/preferencias');
         await page.reload();
+        expect(dialogosGuardado).toEqual([]);
         await expect(page.getByLabel('Nombre completo')).toHaveValue('Nombre confirmado desde importación');
         const despues = await sql(request);
         expect(despues.preferencias[0].tecnologias_detalle).toEqual([expect.objectContaining({ nombre: 'Docker', nivel: 'basico' })]);

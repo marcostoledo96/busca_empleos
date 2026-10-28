@@ -141,6 +141,11 @@ export class Preferencias implements OnInit {
     private cvBaseEditado = false;
     private cvBaseExito = false;
 
+    get cambiosImportacionPendientes(): boolean {
+        return !this.importacionAplicada && !!(this.textoCvImportacion.trim() || this.resultadoImportacion ||
+            this.archivoCvSeleccionado || this.analizandoCv() || this.extrayendoCv());
+    }
+
     get cambiosCvPendientes(): boolean {
         return this.cvBaseCargado && (this.cvBaseGuardado === null
             ? this.cvBaseEditado || this.cvBaseTexto !== '' : this.cvBaseTexto !== this.cvBaseGuardado);
@@ -162,7 +167,7 @@ export class Preferencias implements OnInit {
 
     @HostListener('window:beforeunload', ['$event'])
     advertirSalidaCv(evento: BeforeUnloadEvent): void {
-        if (!this.cambiosSinGuardar && !this.cambiosCvPendientes && !this.guardandoCvBase()) return;
+        if (!this.cambiosSinGuardar && !this.cambiosCvPendientes && !this.cambiosImportacionPendientes && !this.guardandoCvBase()) return;
         evento.preventDefault();
         evento.returnValue = '';
     }
@@ -554,7 +559,8 @@ export class Preferencias implements OnInit {
     guardar(): void {
         if (this.modoDemo() || this.guardando() || this.analizandoCv()) return;
         this.guardando.set(true);
-        const formulario = this.datosFormulario();
+        // Congelo también listas y objetos: los controles siguen disponibles durante el PUT.
+        const formulario = structuredClone(this.datosFormulario());
         const anterior = this.formularioGuardado ? JSON.parse(this.formularioGuardado) : null;
         // Envío solo cambios: un control vacío no materializa un dato ausente persistido.
         const datos: PreferenciasActualizar = Object.fromEntries(Object.entries(formulario).filter(([campo, valor]) =>
@@ -572,14 +578,25 @@ export class Preferencias implements OnInit {
         this.servicio.actualizarPreferencias(datos).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos) {
+                    const posteriores = Object.fromEntries(Object.entries(this.datosFormulario()).filter(([campo, valor]) =>
+                        JSON.stringify(valor) !== JSON.stringify(formulario[campo as keyof PreferenciasActualizar])));
                     this.mapearDesdeApi(respuesta.datos);
+                    const confirmado = this.formularioGuardado;
+                    if (Object.keys(posteriores).length) {
+                        this.mapearDesdeApi({ ...respuesta.datos, ...posteriores } as PreferenciasModel);
+                        // Comparo el borrador conservado contra la respuesta persistida, no contra sí mismo.
+                        this.formularioGuardado = confirmado;
+                    }
                     // Uso únicamente el cambio confirmado sobre los criterios persistidos.
                     if (respuesta.cambio_criterios === true) this.perfilCambio.set(true);
-                    this.mensajeAccesible.set('Preferencias actualizadas correctamente.');
+                    const mensaje = this.cambiosSinGuardar
+                        ? 'Guardé las preferencias enviadas. Quedan cambios posteriores sin guardar.'
+                        : 'Preferencias actualizadas correctamente.';
+                    this.mensajeAccesible.set(mensaje);
                     this.mensajes.add({
-                        severity: 'success',
+                        severity: this.cambiosSinGuardar ? 'info' : 'success',
                         summary: 'Guardado',
-                        detail: 'Preferencias actualizadas correctamente.',
+                        detail: mensaje,
                     });
                 }
                 this.guardando.set(false);

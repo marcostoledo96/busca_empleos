@@ -1,0 +1,124 @@
+{
+    "headAlInspeccionar": "91cd7b57efdc4d0b6c9909cae110a26bf8dc404a",
+    "estado": "HEAD más diff fuente/tests sin commit",
+    "sha256DiffOchoArchivos": "3c97b34ceb0291cb0b3fc1ed21c2539caa7fe24ff4618b63d61515709411d253",
+    "herramienta": "Chrome DevTools MCP real del padre",
+    "scope": "Sidebar/Guardar y navegación de borrador textual; no seis recorridos completos ni Android físico.",
+    "sidebar320": {
+        "viewport": [
+            320,
+            844
+        ],
+        "theme": "oscuro",
+        "overflow": false,
+        "primeicons": true,
+        "menu": "true",
+        "sidebar": [
+            {
+                "text": "DASHBOARD",
+                "icon": "pi pi-th-large",
+                "iconFamily": "primeicons",
+                "x": 0,
+                "width": 254.40000915527344,
+                "height": 51.20000076293945,
+                "inside": true,
+                "centerHit": true
+            },
+            {
+                "text": "PREFERENCIAS",
+                "icon": "pi pi-cog",
+                "iconFamily": "primeicons",
+                "x": 0,
+                "width": 254.40000915527344,
+                "height": 51.20000076293945,
+                "inside": true,
+                "centerHit": true
+            }
+        ]
+    },
+    "guardar320": {
+        "viewport": [
+            320,
+            844
+        ],
+        "text": "GUARDAR PREFERENCIAS",
+        "icon": "pi pi-save ng-star-inserted",
+        "iconFamily": "primeicons",
+        "x": 16,
+        "y": 711.8125,
+        "width": 288,
+        "height": 44,
+        "inside": true,
+        "centerHit": true,
+        "menuClosed": true,
+        "overflow": false
+    },
+    "desktop1440": {
+        "viewport": [
+            1440,
+            900
+        ],
+        "theme": "claro",
+        "overflow": false,
+        "primeicons": true,
+        "sidebar": [
+            {
+                "text": "DASHBOARD",
+                "icon": "pi pi-th-large"
+            },
+            {
+                "text": "PREFERENCIAS",
+                "icon": "pi pi-cog"
+            }
+        ],
+        "guardar": {
+            "text": "GUARDAR PREFERENCIAS",
+            "icon": "pi pi-save ng-star-inserted",
+            "x": 1207.487548828125,
+            "width": 196.5124969482422,
+            "height": 44,
+            "inside": true,
+            "centerHit": true
+        }
+    },
+    "importacion": {
+        "dialogo": "Hay cambios de preferencias, del CV base o de la revisión de importación sin confirmar. ¿Salir y descartarlos?.",
+        "cancelacion": {
+            "url": "/preferencias",
+            "viewport": [
+                320,
+                844
+            ],
+            "texto": "# Borrador sintético MCP de auditoría",
+            "overflow": false
+        },
+        "aceptacion": {
+            "url": "/cv",
+            "viewport": [
+                320,
+                844
+            ],
+            "overflow": false,
+            "heading": "Preparar mi CV"
+        },
+        "peticionesObservadas": [
+            "reqid=299 GET http://127.0.0.1:4357/api/preferencias [304]",
+            "reqid=300 GET http://127.0.0.1:4357/api/preferencias/cv-base [304]",
+            "reqid=303 GET http://127.0.0.1:4357/api/preferencias [304]",
+            "reqid=304 GET http://127.0.0.1:4357/api/preferencias/cv-base [304]"
+        ],
+        "putsObservados": 0
+    },
+    "limitaciones": [
+        "resize_page solicitado320 devolvió viewport real500; sólo se acreditan320 tras emulate320x844x1,mobile,touch, y1440 tras emulate1440x900x1.",
+        "Primera apertura mientras compilaba servidor dio ERR_CONNECTION_REFUSED; apertura efectiva sólo tras log Local4357.",
+        "No screenshots MCP nuevas: seis PNG del lote son Playwright Test, inspeccionados por verificador.",
+        "MCP no repitió SQL/PUT retenido/IA: evidencias de26 integrados y revisión independiente se atribuyen por separado.",
+        "Sin Android físico, OAuth real, PDF físico ni revisión exhaustiva de todos los controles originales."
+    ],
+    "independiente": {
+        "task": "mvrf68e2-g-6llj",
+        "resultado": "Sin defectos funcionales severos nuevos en diff T9; fuente/logs/cuatroPNG, runtimepropioNOTRUN.",
+        "incidente": "bash del verificador volcó automáticamente outputbase64extenso a temporal fuera del proyecto; no scratchmanual ni acceso/alteración de archivo, padre no lo leyó."
+    }
+}

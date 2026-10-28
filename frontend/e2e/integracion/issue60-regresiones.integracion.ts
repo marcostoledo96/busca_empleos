@@ -10,7 +10,21 @@ for (const ancho of [320, 360, 1440]) {
         await page.goto('/preferencias?tema=oscuro');
         await expect(page.getByRole('heading', { name: 'Preferencias de búsqueda', exact: true })).toBeVisible();
         // Reproduzco la ausencia de Material Symbols sin depender de una descarga de Google.
-        await page.addStyleTag({ content: '.topbar .material-symbols-outlined { font-family: monospace !important; }' });
+        await page.addStyleTag({ content: '.material-symbols-outlined { font-family: monospace !important; }' });
+        const guardar = page.getByRole('button', { name: 'Guardar preferencias', exact: true });
+        await expect(guardar).toHaveText('GUARDAR PREFERENCIAS');
+        await expect(guardar.locator('.pi-save[aria-hidden="true"]')).toHaveCount(1);
+        if (ancho < 768) await page.getByRole('button', { name: 'Abrir menú de navegación' }).click();
+        const enlaces = page.locator('.sidebar-enlace');
+        await expect(enlaces.nth(0)).toHaveText('DASHBOARD');
+        await expect(enlaces.nth(1)).toHaveText('PREFERENCIAS');
+        await expect(enlaces.nth(0).locator('.pi-th-large[aria-hidden="true"]')).toHaveCount(1);
+        await expect(enlaces.nth(1).locator('.pi-cog[aria-hidden="true"]')).toHaveCount(1);
+        await page.screenshot({ path: `../docs/evidencias/issue-60/capturas/issue60-audit-sidebar-${ancho}.png` });
+        if (ancho < 768) await page.keyboard.press('Escape');
+        await guardar.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `../docs/evidencias/issue-60/capturas/issue60-audit-guardar-${ancho}.png` });
+        await page.evaluate(() => scrollTo(0, 0));
         await page.evaluate(() => document.fonts.ready);
         expect(await page.evaluate(() => document.fonts.check('20px primeicons'))).toBe(true);
         const geometria = await page.locator('.topbar').evaluate(barra => ({

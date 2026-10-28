@@ -1,0 +1,199 @@
+{
+    "lote": "T9",
+    "estado": "GREEN local frontend; consolidación/gates restantes/publicación pendientes",
+    "specs": [
+        "S22",
+        "S23",
+        "S24",
+        "S25",
+        "S7",
+        "S8",
+        "S11",
+        "S12",
+        "S14",
+        "S15",
+        "S16",
+        "S17",
+        "S18"
+    ],
+    "pendientes": [
+        "Gates backend restantes y registro de commit",
+        "Publicar lote y comentar evidencia en misma PR68",
+        "CI del nuevo HEAD aún no observado; sin watcher"
+    ],
+    "atribucion": {
+        "head": "91cd7b57efdc4d0b6c9909cae110a26bf8dc404a",
+        "base": "71b81be75da247905ac4d613c49f98feb9ba6c7a",
+        "arbolHeadNoIncluyeCambiosProbados": "adccbc4367cebebb43090a2824d18fdc181bb8e6",
+        "trabajo": "HEAD + diff sin commit; ODD local ajeno preservado",
+        "sha256DiffOchoArchivosFinales": "3c97b34ceb0291cb0b3fc1ed21c2539caa7fe24ff4618b63d61515709411d253",
+        "momentoRegistroHerramientaUtc": "2026-10-27T11:14:34Z",
+        "deltaPosteriorSuites": "Documentación de evidencia únicamente; fuente y tests finales idénticos a suites completas. E2E focal GREEN precede assertions adicionales de decisiones/no-phantom y capturas documentales; suite integrada completa incluye todo.",
+        "sha256Archivos": {
+            "frontend/src/app/paginas/preferencias/preferencias.ts": "707064af37a2906feab925694e57e126d6557f264b9a17fcd160c616f188a48c",
+            "frontend/src/app/paginas/preferencias/preferencias.spec.ts": "c9640ee29fe8035e9e55c1e038f9b4d464151e83b6df4f01bfcdfe34d2208041",
+            "frontend/src/app/paginas/preferencias/preferencias.html": "7e1364709381d57ed2a38d2d43157b790ca46dcc45277e5574bb94724e784692",
+            "frontend/src/app/guards/cambios-cv.guard.ts": "7f04f4f2e052a37c36f21b2e62318038f9b895fb8ae7f0bf19b997ddaed80bfb",
+            "frontend/src/app/guards/cambios-cv.guard.spec.ts": "00deb2aa974746b6568f87ec6f61e07a09b508c450484a5f74cd7593f5b6a879",
+            "frontend/src/app/app.html": "5d34e32266f34542dab2eb983674a4c8e63f625e37df714509c44d42499c1eb1",
+            "frontend/e2e/integracion/preferencias-cv.integracion.ts": "86b85bf9a5c6d0fbd6d964f7c184f29d26605cc5f704067f0c756da8db445d87",
+            "frontend/e2e/integracion/issue60-regresiones.integracion.ts": "63ab1f4711b1a948cad387621e5a4313bdf7ca930a940eeafffea262dd823580"
+        }
+    },
+    "comandos": [
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NG_CLI_ANALYTICS=false CHROME_BIN=/usr/bin/google-chrome npm test -- --watch=false --browsers=ChromeHeadless --include=src/app/paginas/preferencias/preferencias.spec.ts --include=src/app/guards/cambios-cv.guard.spec.ts",
+            "red": {
+                "exit": 1,
+                "pass": 71,
+                "fail": 4,
+                "log": "frontend/e2e/integracion/salida/t9-unit-red.log"
+            },
+            "green": {
+                "exit": 0,
+                "pass": 75,
+                "fail": 0,
+                "log": "frontend/e2e/integracion/salida/t9-unit-green.log"
+            },
+            "stderrEsperado": "HttpErrorResponse500 de escenarios negativos, sin fallo de suite GREEN"
+        },
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable NG_CLI_ANALYTICS=false npm run test:e2e:integracion -- --grep 'T9|shell sin fuente'",
+            "red": {
+                "exit": 1,
+                "pass": 1,
+                "fail": 6,
+                "segundosResumen": 47.4,
+                "log": "frontend/e2e/integracion/salida/t9-e2e-red.log"
+            },
+            "green": {
+                "exit": 0,
+                "pass": 7,
+                "fail": 0,
+                "segundosResumen": 19.6,
+                "log": "frontend/e2e/integracion/salida/t9-e2e-green.log"
+            },
+            "stderrEsperado": "Fallo sintético preferencias_cv en PUT500"
+        },
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NG_CLI_ANALYTICS=false CHROME_BIN=/usr/bin/google-chrome npm test -- --watch=false --browsers=ChromeHeadless",
+            "exit": 0,
+            "pass": 577,
+            "skipsExistentes": 4,
+            "segundosNavegador": 33.234,
+            "log": "frontend/e2e/integracion/salida/t9-angular-full.log",
+            "stderrEsperado": "Errores HTTP simulados de casos negativos existentes"
+        },
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable NG_CLI_ANALYTICS=false npm run test:e2e:integracion",
+            "exit": 0,
+            "pass": 26,
+            "fail": 0,
+            "duracionResumen": "2.2m",
+            "log": "frontend/e2e/integracion/salida/t9-integracion-full.log",
+            "reporte": "frontend/e2e/integracion/salida/resultados.json",
+            "stderrEsperado": "Fallos SQL/proveedor deliberados; casos positivos y negativos PASS"
+        },
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NG_CLI_ANALYTICS=false HTTPS_PROXY=http://127.0.0.1:9 HTTP_PROXY=http://127.0.0.1:9 npm run build",
+            "exit": 127,
+            "estado": "FAIL ambiental, gate pendiente",
+            "log": "frontend/e2e/integracion/salida/t9-build.log",
+            "stdout": "Prebuild confirmó environments existentes sin modificarlos; Building FAILED",
+            "stderr": "Inlining of fonts failed al recuperar fonts.googleapis.com; connect ECONNREFUSED127.0.0.1:9. Proxy loopback impide red externa. No reintento ni cambio config.",
+            "diagnosticoAutomaticoAngularNoLeido": "/tmp/ng-jIx63F/angular-errors.log"
+        },
+        {
+            "directorio": ".",
+            "comando": "git diff --check",
+            "exit": 0,
+            "stdout": "",
+            "stderr": ""
+        },
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NG_CLI_ANALYTICS=false npm run build",
+            "exit": 0,
+            "log": "frontend/e2e/integracion/salida/t9-build-autorizado.log",
+            "segundosBundle": 5.224,
+            "autorizacion": "Usuario 'autorizo', L28; descarga fuentes públicas sin credenciales ni APIs reales.",
+            "warningExistente": "CSS preferencias excede610B; fallo127previo preservado."
+        },
+        {
+            "directorio": "frontend",
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NG_CLI_ANALYTICS=false npm run test:e2e",
+            "exit": 0,
+            "pass": 222,
+            "fail": 0,
+            "duracionResumen": "7.5m",
+            "log": "frontend/e2e/integracion/salida/t9-sintetico-full.log",
+            "alcance": "Suite existente; runner heredado regenera artefactos issue51 locales, no stageados ni borrados."
+        }
+    ],
+    "sql": {
+        "guardas": "backend/tests/helpers/issue-57-entorno.validarEntorno; env-i sin dotenv de producción",
+        "identidadAntesDeEscrituras": {
+            "db": "busca_empleos_issue57_test",
+            "usuario": "busca_empleos_test",
+            "version": "PostgreSQL15.19",
+            "host": "127.0.0.1",
+            "puerto": 55457,
+            "exit": 0
+        },
+        "consultaReadOnly": "SELECT current_database() AS db, current_user AS usuario, version() AS version",
+        "preflight": {
+            "comando": "env -i PATH=\"$PATH\" HOME=\"$HOME\" NODE_ENV=test DB_TEST_SINTETICA=true PGHOST=127.0.0.1 PGPORT=55457 PGDATABASE=busca_empleos_issue57_test PGUSER=busca_empleos_test PGPASSWORD=sintetica_issue57 PGSSLMODE=disable node -e 'const {preparar,ejecutar,instantanea}=require(\"./backend/tests/helpers/issue-61-entorno\"); (async()=>{const b=await preparar();try{const antes=JSON.stringify(await instantanea(b.pool,b.origen));const r=ejecutar(b.origen);process.stdout.write(r.stdout);process.stderr.write(r.stderr);console.log(JSON.stringify({esquema:b.origen,status:r.status,sinCambios:antes===JSON.stringify(await instantanea(b.pool,b.origen))}));if(r.status!==0||antes!==JSON.stringify(await instantanea(b.pool,b.origen)))process.exitCode=1;}finally{await b.pool.end();}})().catch(e=>{console.error(e.message);process.exitCode=1;});'",
+            "exit": 0,
+            "esquema": "issue61_825384_1793099057075_origen",
+            "stdout": "PREFLIGHT: OK\nMigraciones y contratos críticos verificados.\nstatus0 sinCambiostrue",
+            "stderr": "",
+            "log": "frontend/e2e/integracion/salida/t9-preflight.log",
+            "limite": "Helper existente prepara esquema sólo tras identidad válida; ejecutar llama verificar-esquema.js real read-only. No es la suite32/32 test:issue61, que escribe fuera del alcance."
+        },
+        "persistencia": "Adjuntos públicos SQL-importacion-rechazada-descartada y SQL-PUT-retenido del reporte integrado; preferencias/CV y llamadas comparados. PUT200 guarda snapshot EnviadoT9; edición posterior sólo borrador. PUT500 deja filas iguales. Navegación no genera PUT.",
+        "externos": "Firebase SDK/Admin, DeepSeek y Apify simulados en harness existente; red inesperada bloqueada; cron inactivo"
+    },
+    "capturas": {
+        "herramienta": "Playwright Test, no MCP",
+        "tema": "oscuro",
+        "viewports": [
+            "320x900",
+            "360x900",
+            "1440x900"
+        ],
+        "archivos": [
+            "capturas/issue60-audit-sidebar-320.png",
+            "capturas/issue60-audit-guardar-320.png",
+            "capturas/issue60-audit-sidebar-360.png",
+            "capturas/issue60-audit-guardar-360.png",
+            "capturas/issue60-audit-sidebar-1440.png",
+            "capturas/issue60-audit-guardar-1440.png"
+        ],
+        "inspeccionPropia": "Leí sidebar320 y guardar320; iconos locales y etiquetas legibles, sin SAVE/SETTINGS/DASHBOARD duplicados. No inspección independiente.",
+        "limites": "No Android físico; no toda matriz visual ni OAuth/PDF físico"
+    },
+    "recursos": {
+        "servidores3057y4357": "cerrados por Playwright, ss sin listeners",
+        "postgres55457": "existente, permanece escuchando",
+        "schemas": "sintéticos preservados; no limpieza destructiva"
+    },
+    "preservacion": "ODD local, issue51 untracked y outputs existentes sin limpieza manual. Cache/dist generados autorizados por respuesta A en L26. Sin config/env/deps/backend, commit/push/PR/watcher/merge/deploy. Angular creó diagnóstico automático de error fuera del proyecto; no accedido ni alterado.",
+    "noEjecutado": [
+        "Backend restante local: pendiente de gates actuales; no se heredan cantidades del CI previo.",
+        "CI nuevo candidato: aún sin publicación ni resultado.",
+        "Android físico, OAuth real y PDF físico: NOT RUN."
+    ],
+    "capturaLogs": "Cada comando frontend se ejecutó en foreground con > e2e/integracion/salida/t9-*.log 2>&1, conservando exit en resultado y mostrando tail; preflight con redirección análoga desde raíz. Logs RED conservados; Playwright regenera su directorio de resultados automáticamente.",
+    "verificacionIndependiente": {
+        "task": "mvrf68e2-g-6llj",
+        "resultado": "Sin defectos funcionales severos nuevos",
+        "runtimePropio": "NOT RUN",
+        "metodo": "Fuente, logs y cuatro PNG; SQLadjuntos decodificados. No demanda pruebaanidadaextra ni declaraaceptaciónexhaustiva.",
+        "mcp": "mcp-auditoria.json"
+    }
+}
