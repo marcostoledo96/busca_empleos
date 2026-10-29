@@ -426,11 +426,11 @@ function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
     let respuesta;
     try {
         respuesta = JSON.parse(textoLimpio);
-    } catch (errorParseo) {
+    } catch {
         return {
             match: false,
             porcentaje: null,
-            razon: `No se pudo parsear la respuesta de DeepSeek: ${errorParseo.message}`,
+            razon: 'No se pudo parsear la respuesta de DeepSeek: JSON inválido.',
             error: true,
             invalido: true,
             inconsistente: true,
@@ -450,7 +450,7 @@ function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
         return {
             match: false,
             porcentaje: null,
-            razon: `La respuesta de DeepSeek no es un objeto JSON válido, se recibió: ${JSON.stringify(respuesta)}`,
+            razon: 'La respuesta de DeepSeek no es un objeto JSON válido.',
             error: true,
             invalido: true,
             inconsistente: true,
@@ -470,7 +470,7 @@ function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
         return {
             match: false,
             porcentaje: null,
-            razon: `El campo "match" debe ser boolean, se recibió: ${JSON.stringify(respuesta.match)}`,
+            razon: 'El campo "match" debe ser boolean.',
             error: true,
             invalido: true,
             inconsistente: true,

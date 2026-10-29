@@ -214,7 +214,7 @@ test('error técnico conserva evaluación válida, no descarta manualmente y lib
     await ejecutar({ ids: [1] });
     expect(filas[0]).toMatchObject({ estado_evaluacion: 'aprobada', estado_postulacion: 'no_postulado',
         razon_evaluacion: 'Resultado anterior', porcentaje_match: 80, fecha_evaluacion: '2026-01-01', firma_criterios_evaluacion: 'anterior',
-        evaluacion_error_mensaje: expect.stringContaining('Fallo sintético') });
+        evaluacion_error_mensaje: 'Error al evaluar con DeepSeek: Error técnico (ERROR_EVALUACION). Volvé a intentar.' });
     expect(servicio.obtenerProgresoEvaluacion()).toMatchObject({ activo: false, errores: 1 });
     expect(bloqueo.liberarBloqueoSeguro).toHaveBeenCalledTimes(1);
 });

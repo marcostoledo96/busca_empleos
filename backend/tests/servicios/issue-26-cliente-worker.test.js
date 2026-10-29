@@ -1,3 +1,4 @@
+jest.mock('dotenv', () => ({ config: jest.fn() }));
 jest.mock('../../src/modelos/oferta', () => ({
     obtenerOfertasPendientes: jest.fn(),
     actualizarEvaluacion: jest.fn(),
@@ -60,6 +61,7 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
         cache.buscarCache.mockResolvedValue(null);
         lotes.crearLote.mockResolvedValue({ id: 26 });
         servicio = require('../../src/servicios/servicio-evaluacion');
+        jest.spyOn(console, 'error').mockImplementation(() => {});
     });
 
     afterEach(() => {
@@ -112,6 +114,92 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
         );
         expect(ofertas.registrarErrorEvaluacion).not.toHaveBeenCalled();
         expect(cache.guardarCache).not.toHaveBeenCalled();
+    });
+
+    test.each([
+        ['length', '{', 'SALIDA_TRUNCADA'],
+        ['length', RESPUESTA_VALIDA, 'SALIDA_TRUNCADA'],
+        ['content_filter', '{}', 'SALIDA_INCOMPLETA'],
+        ['aborted', '{}', 'SALIDA_INCOMPLETA'],
+        ['insufficient_system_resource', '{}', 'SALIDA_INCOMPLETA'],
+        ['tool_calls', '{}', 'SALIDA_INCOMPLETA'],
+        ['CV_PRIVADO', '{}', 'SALIDA_INCOMPLETA'],
+        ['stop', 'CV_PRIVADO', 'JSON_INVALIDO'],
+        ['stop', '', 'SALIDA_VACIA'],
+        ['stop', '{"match":"CV_PRIVADO"}', 'RESPUESTA_INVALIDA'],
+    ])('diagnostico %s sin filtrar contenido ni cachear', async (finishReason, contenido, codigo) => {
+        responder({ ...crearSobre(contenido, finishReason), model: 'CV_PRIVADO', usage: {
+            prompt_tokens: 12, completion_tokens: 8, completion_tokens_details: { reasoning_tokens: 3 },
+        } });
+        const resumen = await servicio.evaluarOfertasPendientes();
+        comprobarError(resumen);
+        expect(console.error).toHaveBeenCalledTimes(1);
+        expect(console.error).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', {
+            oferta_id: OFERTA.id, codigo, modelo_solicitado: 'deepseek-flash', max_tokens: 4096,
+            duracion_ms: expect.any(Number), tokens_entrada: 12, tokens_salida: 8, tokens_razonamiento: 3,
+            ...(finishReason === 'CV_PRIVADO' ? {} : { finish_reason: finishReason }),
+        });
+        expect(JSON.stringify([resumen, ofertas.actualizarEvaluacion.mock.calls, console.error.mock.calls])).not.toContain('CV_PRIVADO');
+        expect(cache.guardarCache).not.toHaveBeenCalled();
+        expect(fetchSimulado).toHaveBeenCalledTimes(1);
+    });
+
+    test('diagnostico choices ausente sin inventar finalización ni consumo', async () => {
+        responder({});
+        const resumen = await servicio.evaluarOfertasPendientes();
+        comprobarError(resumen);
+        expect(console.error).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', {
+            oferta_id: OFERTA.id, codigo: 'CHOICES_AUSENTES', modelo_solicitado: 'deepseek-flash',
+            max_tokens: 4096, duracion_ms: expect.any(Number),
+        });
+        expect(fetchSimulado).toHaveBeenCalledTimes(1);
+        expect(cache.guardarCache).not.toHaveBeenCalled();
+    });
+
+    test.each([429, 503, 'timeout', 'cancelacion'])('el worker registra transporte %s y recupera en una ejecución posterior', async caso => {
+        jest.useFakeTimers();
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        if (typeof caso === 'number') fetchSimulado.mockResolvedValue({ ok: false, status: caso, headers: { get: () => '0' } });
+        else if (caso === 'timeout') fetchSimulado.mockImplementation((url, { signal }) => new Promise((resolve, reject) => {
+            signal.addEventListener('abort', () => reject(new Error('CV_PRIVADO')));
+        }));
+        else fetchSimulado.mockRejectedValue(Object.assign(new Error('CV_PRIVADO'), { name: 'AbortError' }));
+        try {
+            const pendiente = servicio.evaluarOfertasPendientes();
+            await jest.runAllTimersAsync();
+            const resumen = await pendiente;
+            comprobarError(resumen);
+            expect(console.error).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', {
+                oferta_id: OFERTA.id, codigo: typeof caso === 'number' ? `HTTP_${caso}` : caso === 'timeout' ? 'TIMEOUT' : 'CANCELADA',
+                modelo_solicitado: 'deepseek-flash', max_tokens: 4096, duracion_ms: expect.any(Number),
+            });
+            expect(JSON.stringify([resumen, console.error.mock.calls, ofertas.actualizarEvaluacion.mock.calls])).not.toContain('CV_PRIVADO');
+            expect(cache.guardarCache).not.toHaveBeenCalled();
+            expect(fetchSimulado).toHaveBeenCalledTimes(4);
+            responder(crearSobre());
+            expect(await servicio.evaluarOfertasPendientes()).toMatchObject({ errores: 0, aprobadas: 1 });
+            expect(fetchSimulado).toHaveBeenCalledTimes(5);
+            expect(cache.guardarCache).toHaveBeenCalledTimes(1);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
+    test('la cancelación del lote conserva el resultado en vuelo y no solicita la oferta siguiente', async () => {
+        ofertas.obtenerOfertasPendientes.mockResolvedValue([{ ...OFERTA }, { ...OFERTA, id: 27 }]);
+        fetchSimulado.mockImplementationOnce(async () => {
+            await servicio.cancelarEvaluacionPendiente();
+            return { ok: true, json: async () => crearSobre() };
+        });
+        expect(await servicio.evaluarOfertasPendientes()).toMatchObject({ estado: 'cancelado', aprobadas: 1, procesadas: 1 });
+        expect(fetchSimulado).toHaveBeenCalledTimes(1);
+        expect(cache.guardarCache).toHaveBeenCalledTimes(1);
+        expect(console.error).not.toHaveBeenCalled();
+    });
+
+    test.each(['CV_PRIVADO', '"CV_PRIVADO"', '{"match":"CV_PRIVADO"}'])('el parser no publica valores rechazados: %s', texto => {
+        const parser = require('../../src/servicios/evaluacion/parser-respuesta-ia');
+        expect(JSON.stringify(parser.parsearRespuestaEvaluacionIa(texto))).not.toContain('CV_PRIVADO');
     });
 
     test('aplico el contrato JSON legacy válido mediante el parser real y confirmo la caché', async () => {

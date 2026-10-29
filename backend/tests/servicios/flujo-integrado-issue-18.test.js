@@ -191,7 +191,7 @@ describe('Flujos integrados de evaluación con IA — Issue 18', () => {
 
             // 2. Simulé fallo técnico de DeepSeek devolviendo HTTP 503
             proveedor.consultarDeepSeek.mockRejectedValueOnce(
-                new Error('HTTP 503 Service Unavailable: el modelo se encuentra temporalmente sobrecargado')
+                Object.assign(new Error('HTTP 503 Service Unavailable: el modelo se encuentra temporalmente sobrecargado'), { codigo: 'HTTP_503' })
             );
 
             // Ejecuté la evaluación de ofertas pendientes
@@ -201,7 +201,7 @@ describe('Flujos integrados de evaluación con IA — Issue 18', () => {
             expect(filasOfertas[0].estado_evaluacion).toBe('pendiente');
 
             // Verifiqué que se persistió el fallo técnico en evaluacion_error_mensaje
-            expect(filasOfertas[0].evaluacion_error_mensaje).toContain('HTTP 503 Service Unavailable');
+            expect(filasOfertas[0].evaluacion_error_mensaje).toBe('Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.');
 
             // Verifiqué que el contador de errores fue 1 y el de rechazadas fue 0
             expect(resumenFallo.errores).toBe(1);
@@ -320,7 +320,7 @@ describe('Flujos integrados de evaluación con IA — Issue 18', () => {
 
             // Simulé fallo de conexión de red
             proveedor.consultarDeepSeek.mockRejectedValueOnce(
-                new Error('connect ECONNREFUSED 127.0.0.1:443')
+                Object.assign(new Error('connect ECONNREFUSED 127.0.0.1:443'), { codigo: 'ERROR_TRANSPORTE' })
             );
 
             const resEjecucion = crearRespuestaMock();
@@ -337,7 +337,7 @@ describe('Flujos integrados de evaluación con IA — Issue 18', () => {
 
             // Verifiqué que se preservó en pendiente con error técnico
             expect(filasOfertas[0].estado_evaluacion).toBe('pendiente');
-            expect(filasOfertas[0].evaluacion_error_mensaje).toContain('ECONNREFUSED');
+            expect(filasOfertas[0].evaluacion_error_mensaje).toBe('Error al evaluar con DeepSeek: Error técnico (ERROR_TRANSPORTE). Volvé a intentar.');
             expect(cache.size).toBe(0);
 
             // Reintento exitoso a través de endpoint del controlador

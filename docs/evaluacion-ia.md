@@ -40,11 +40,61 @@ objeto JSON válido antes del parser estricto de la tarea. `length`, salida vac�
 JSON inválido son fallos técnicos recuperables, nunca rechazos laborales ni hits de
 caché exitosos. Valido también API key y modelo compatible.
 
-El callback opcional `opciones.alRecibirMetadatos` recibe solo modelo solicitado,
-modelo reportado, `finish_reason`, duración y tokens de entrada/salida/razonamiento
-cuando existen y son válidos. No exporto `reasoning_content`, prompts, CV ni respuestas
-en diagnósticos generales; tampoco invento métricas ausentes. El retorno sigue siendo
-texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
+El callback opcional `opciones.alRecibirMetadatos` recibe modelo solicitado,
+`max_tokens` efectivo sin modificarlo, duración total (incluidos reintentos/backoff)
+y, si están disponibles, modelo reportado, `finish_reason` y tokens de
+entrada/salida/razonamiento. Solo acepto modelos del catálogo y el alias legacy;
+omito identificadores desconocidos, aunque parezcan nombres de modelo válidos.
+Solo acepto los cierres exactos `stop`, `length`, `content_filter`, `tool_calls`,
+`function_call`, `aborted` e `insufficient_system_resource`; omito cualquier otro
+texto. Los tokens deben ser enteros seguros no negativos: cero es válido, ausencia
+no equivale a cero. No exporto `reasoning_content`, prompts, CV ni respuestas.
+El callback se ejecuta una vez por consulta, también ante fallo de transporte;
+sus excepciones no invalidan una respuesta ni generan solicitudes adicionales.
+El retorno sigue siendo texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
+
+### Diagnóstico de fallos de evaluación (#70, T1)
+
+Consumo ese callback en el evaluador existente. Cada fallo registra un único
+`console.error('[Evaluación] Fallo técnico de IA', campos)` con ID numérico seguro,
+metadatos anteriores y código normalizado; nunca registro el objeto Error, stack,
+mensajes originales, respuestas ni evidencias del parser. Una evaluación válida,
+una exclusión o un hit de caché no emiten ese diagnóstico de fallo.
+
+| Código diagnóstico | Evidencia disponible |
+| --- | --- |
+| `SALIDA_TRUNCADA` | Cierre `length`, incluso con JSON aparentemente completo |
+| `SALIDA_INCOMPLETA` | Otro cierre o cierre desconocido/ausente |
+| `CHOICES_AUSENTES` | Sin primera elección |
+| `SALIDA_VACIA` | Cierre `stop` sin contenido textual usable |
+| `JSON_INVALIDO` | Sobre o contenido no JSON válido/objeto |
+| `RESPUESTA_INVALIDA` | Schema o coherencia rechazados por el parser |
+| `HTTP_4xx` / `HTTP_5xx` | Estado HTTP numérico del último intento fallido |
+| `TIMEOUT` | Aborté por vencimiento del timeout del intento |
+| `CANCELADA` | El transporte devolvió `AbortError` sin vencer ese timeout |
+| `ERROR_TRANSPORTE` | Otro fallo de transporte |
+| `ERROR_EVALUACION` | Error inesperado sin código reconocido |
+
+Mantengo `SALIDA_INCOMPLETA` en el error público del cliente para elecciones
+ausentes/contenido vacío: la clasificación más precisa viaja por el callback,
+sin cambiar el contrato HTTP de importación CV. La cancelación del lote sigue
+siendo entre ofertas: no aborta la petición ya iniciada ni equivale a `CANCELADA`.
+
+En API/persistencia conservo resultados de error y mensajes técnicos seguros,
+sin copiar `SyntaxError.message` ni valores rechazados en los mensajes técnicos.
+Conservo el contrato semántico previo del parser: porcentaje, flags de
+inconsistencia/invalidez y explicación estructurada; nunca copio esos textos al
+registro diagnóstico. La telemetría no se guarda en caché ni firma ni requiere columnas nuevas.
+Sigo usando `actualizarEvaluacion`/`registrarErrorEvaluacion` y confirmo caché después
+del UPDATE exitoso. No cambio resultados correctos, decisiones manuales ni
+postulaciones. Mantengo cuatro intentos máximos de transporte, presupuestos,
+modelos, razonamiento, prompts y scoring: no hay evidencia para más reintentos.
+
+**Límite de la evidencia:** estos diagnósticos distinguen fallos futuros; los
+mensajes históricos genéricos no prueban por qué fallaron aquellas consultas.
+La verificación de telemetría es sintética con fetch/almacenamiento simulados,
+sin proveedor real ni producción. El preview siguiente no recupera ofertas
+automáticamente ni identifica los errores históricos.
 
 ## Perfil del candidato
 
