@@ -173,6 +173,8 @@ function sanitizarOferta(oferta) {
 
 function validarOpciones(opciones) {
     if (opciones.autorizar !== true || !['servidor', 'base', 'usuario', 'salida'].every(campo => typeof opciones[campo] === 'string' && opciones[campo].trim())
+        || !(net.isIP(opciones.servidor) || (path.isAbsolute(opciones.servidor)
+            && path.resolve(opciones.servidor) === opciones.servidor && !/[\x00-\x1f\x7f-\x9f]/.test(opciones.servidor)))
         || !Number.isInteger(opciones.puerto) || opciones.puerto < 1 || opciones.puerto > 65535
         || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(opciones.salida)) throw new Error(MENSAJE_RECHAZO);
 }
@@ -269,7 +271,9 @@ async function exportarOfertas(opciones, dependencias = {}) {
 const AYUDA = `Uso: node backend/tests/scripts/exportar-ofertas.js --autorizar --servidor IP_O_SOCKET --puerto NUMERO --base BASE --usuario ROL_LECTOR --salida NOMBRE_NUEVO [--sintetico]
 Solo SELECT. No cargo dotenv ni DATABASE_URL. PGPASSWORD es opcional y nunca se imprime.
 Compruebo servidor, puerto, base, usuario y modo read-only antes de leer ofertas.
-Uso IP literal para TCP (no hostname DNS); para Unix compruebo socket local y puerto configurado.
+Antes de crear el cliente exijo IP literal válida para TCP (sin DNS) o directorio Unix absoluto normalizado, sin controles, segmentos . o .. ni barras redundantes.
+--autorizar y --servidor autorizan explícitamente el socket; después compruebo identidad SQL y puerto configurado.
+TLS sin cambios: heredo PGSSLMODE; para TCP real el operador debe asegurar TLS autenticado y certificado válido para la IP.
 Salida privada exclusiva: .qa-runtime/issue69/NOMBRE_NUEVO/; no sobrescribo directorios.
 JSONL UTF-8 completo, criterios sanitizados sin prompts privados y resumen.json como marca de finalización.
 El resumen informa versión de formato, fecha de exportación y columnas ausentes (exportadas como null).

@@ -71,6 +71,50 @@ test.each([{ autorizar: false }, { salida: '../escape' }, { puerto: 0 }, { base:
     expect(fs.readdirSync(directorio)).toEqual([]);
 });
 
+test.each([
+    { servidor: 'db.example.test' }, { servidor: 'localhost' },
+    { servidor: '' }, { servidor: '   ' }, { servidor: ' 192.0.2.1' },
+    { servidor: '192.0.2.999' }, { servidor: '192.0.2' }, { servidor: '2001:db8:::1' },
+    { servidor: '[::1]' }, { servidor: 'postgres://192.0.2.1' }, { servidor: '192.0.2.1,192.0.2.2' },
+    { servidor: 'socket/relativo' }, { servidor: '//socket' }, { servidor: '/socket/../otro' },
+    { servidor: '/socket/./otro' }, { servidor: '/socket//otro' }, { servidor: '/socket/' },
+    { servidor: '/socket\u0000otro' }, { servidor: '/socket\notro' }, { servidor: '/socket\u007fotro' },
+    { servidor: '/socket', autorizar: false },
+])('rechazo destino inválido antes de crear cliente: %j', async cambio => {
+    const entrada = { ...opciones, ...cambio };
+    const original = { ...entrada };
+    const { cliente, dependencias } = prepararCliente();
+    const crearCliente = jest.fn(() => cliente);
+    await expect(exportarOfertas(entrada, { ...dependencias, crearCliente }))
+        .rejects.toThrow(/^Exportación rechazada: autorización o destino inválido\.$/);
+    expect(crearCliente).not.toHaveBeenCalled();
+    expect(cliente.connect).not.toHaveBeenCalled();
+    expect(cliente.query).not.toHaveBeenCalled();
+    expect(cliente.end).not.toHaveBeenCalled();
+    expect(entrada).toEqual(original);
+    expect(fs.readdirSync(directorio)).toEqual([]);
+});
+
+test.each(['192.0.2.1', '2001:db8::1', '/var/run/postgresql', '/proc/self/fd/42'])
+('acepto destino literal o socket autorizado sin modificarlo: %s', async servidor => {
+    const entrada = { ...opciones, servidor };
+    const original = { ...entrada };
+    const { cliente, dependencias, consultas } = prepararCliente(undefined, {
+        servidor: servidor.startsWith('/') ? null : servidor,
+        ...(servidor.startsWith('/') ? { puerto: null, puerto_configurado: '5432' } : {}),
+    });
+    const crearCliente = jest.fn(() => cliente);
+    const resumen = await exportarOfertas(entrada, { ...dependencias, crearCliente });
+    expect(crearCliente).toHaveBeenCalledTimes(1);
+    expect(crearCliente).toHaveBeenCalledWith(original);
+    expect(cliente.connect).toHaveBeenCalledTimes(1);
+    expect(cliente.end).toHaveBeenCalledTimes(1);
+    expect(consultas).toEqual([SQL_IDENTIDAD, SQL_PREFERENCIAS, SQL_COLUMNAS, SQL_OFERTAS]);
+    expect(resumen.completo).toBe(true);
+    expect(resumen.total_sql).toBe(String(resumen.total_exportado));
+    expect(entrada).toEqual(original);
+});
+
 test('reconcilio cero filas y preferencias ausentes sin inventar criterios', async () => {
     const { dependencias } = prepararCliente({ ofertas: [], preferencias: null });
     const resumen = await exportarOfertas(opciones, dependencias);

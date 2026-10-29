@@ -15,10 +15,14 @@ S9. «La auditoría debe conservar casos ambiguos como ambiguos, no forzar un ve
 S10. «Tenés autorización para implementar el exportador, agregar pruebas sintéticas, hacer commits, push y abrir una PR hacia `master`.» «Utilizá `Closes #69`.» «Ejecutá Gentle AI Verify antes de publicar.» «No hagas merge, no cierres la issue ni ejecutes deploy manual.»
 S11. «Informame:» Los diez puntos exactos de la sección 11 original en L1, incluyendo límites y CI.
 
+S12. «Rechazar hostnames DNS para conexiones TCP y aceptar únicamente direcciones IP literales válidas o sockets Unix explícitamente autorizados.» «Validar el destino antes de crear el cliente o llamar a `connect()`.» «Mantener las protecciones read-only y las verificaciones de identidad existentes.» «Agregar pruebas sintéticas que demuestren que un destino inválido nunca inicia una conexión.» «Ejecutá los tests focales pertinentes y el `npm test` completo exigido por AGENTS.md.» «Mantené la corrección mínima y proporcional.» Publicación y restricciones exactas en L10.
+
 ## Tasks
 T1 | S1-S9 | inline cierre autorizado + Worker | done | Commit 0cc35fc9cc16be04a63fec11340687a60cc92cbd; RED13/GREEN45 recuperados, padre45PASS/suite2814PASS159SKIP; PG18real12/12+cero/rechazo/NULL, contadores constantes; hash0291.
 T2 | S1-S11 | delegated gentle-ai-verify + parent spot check | done | Commit 0cc35fc9cc16be04a63fec11340687a60cc92cbd; Risk: item 2; Verify mvtic6ad-1-u50u PASS B1-B3/S3,45focal+8stubs; anterior S1-S9PASS, S10-S11preparación.
 T3 | S10-S11 | inline | done | Commit de código 0cc35fc9cc16be04a63fec11340687a60cc92cbd + este cierre documental; PR72 master Closes #69, CI40873869610 PASS (4jobs+2checksVercel), no merge/cierreissue/deploymanual; CI del cierre se observa sin modificar fuente.
+
+T4 | S6/S12 | delegated gentle-ai-worker + verify | done | Commit correctivo que incorpora S12 (identificable por git blame de esta línea); delta BASEaf3effd; RED18/GREEN70, suite2839PASS159SKIP, Verify34probesPASS, hash2dad; Risk: item 2. Publicación y HEAD exacto quedan en comentario PR72 y mirrorEngram.
 
 ## Log
 L1. Pedido original (verbatim):
@@ -274,3 +278,31 @@ L7. Verify limitado mvtic6ad-1-u50u PASS B1B2B3/S3;45/45focal+8/8stubs originale
 L8. Commit0cc35fc9cc16be04a63fec11340687a60cc92cbd reúne exportador/tests/docs/ODD (1286líneasautoradas, singlePRautorizada). Scope scan9paths y secretos:sin hallazgos; datoslocales/criterios/depsignorados. Pushjob4exit0 y PR72confirmada, base master, labeltype:feature, Closes69. CIwatchjob5pendiente; nunca merge/cierreissue/deploy. T1/T2mismo commit de trabajo; fronteraúnica por coherenciaseguridad+tests+docs. Próximo commit solo evidencia/cierredocumental, no nueva unidad código.
 
 L9. CI fuente0cc35fc run40873869610 terminóPASS, watchjob5exit0: backendunit27s, backendDB38s, integración57 3m42s, frontend9m30s; Vercel/previewcommentsPASS por automatización existente, sin deploymanual. BASE4ae83b2614c4468596d7f2b796725d5f17d40736; exportador0291sin cambios. T3cumplepublicaciónyresultadoCI; cierre documental agrega solo evidencia (T1/T2commit0cc, T3estecommit). Última muestra útil solo sintética salida-sintetica-corregida. Ruta futura autorizada .qa-runtime/issue69/auditoria-autorizada-01/{busco-trabajo-auditoria-matching.jsonl,busco-trabajo-criterios-sanitizados.json,resumen.json}, no existe exportproductivo. No hay pendientes funcionales ni cambios de evaluador. El CI que derive del commit documental se informa al entregar; no reinicia revisión de código ni SQL.
+
+L10. Nuevo pedido (verbatim):
+
+Continuá trabajando en la PR #72 de `marcostoledo96/busca_empleos`, issue #69.
+
+El auditor externo detectó un hallazgo bloqueante de seguridad. Leé el comentario completo:
+
+https://github.com/marcostoledo96/busca_empleos/pull/72#issuecomment-6497030599
+
+Corregí el problema de validación del servidor PostgreSQL antes de establecer la conexión.
+
+**Objetivo:**
+- Rechazar hostnames DNS para conexiones TCP y aceptar únicamente direcciones IP literales válidas o sockets Unix explícitamente autorizados.
+- Validar el destino antes de crear el cliente o llamar a `connect()`.
+- Mantener las protecciones read-only y las verificaciones de identidad existentes.
+- Agregar pruebas sintéticas que demuestren que un destino inválido nunca inicia una conexión.
+
+Ejecutá los tests focales pertinentes y el `npm test` completo exigido por AGENTS.md.
+
+Mantené la corrección mínima y proporcional. No modifiques scoring, prompts ni reglas de matching. No leas producción, credenciales ni datasets reales. No ejecutes builds ni deploys por iniciativa.
+
+Cuando termines, hacé commit y push a la misma rama de la PR #72. Publicá un comentario de entrega indicando HEAD exacto, cambios, pruebas ejecutadas, resultados y limitaciones.
+
+No hagas merge ni cierres la issue. La auditoría externa recurrente verificará la corrección.
+
+L11. Comentario6497030599 leído completo. Confirma validarOpciones solo string no vacío y connect antes de verificar identidad SQL; DNS debe rechazarse antes de crearCliente. EstadoPRopen/no merge, branch remoto/localaf3sin cambios. Alcance mínimo guardaserver+tests+docs; TLS no se reconfigura, se explicita limitación existente. No SQL/credenciales/datasets reales ni builds.
+
+L12. T4terminado: solo2líneasfuncionales de guarda y ayuda/docs/test. RED18fallos52pases, GREEN70; suite85PASS10SKIP2839PASS159SKIP. Padre70PASS. Verify mvtr3otq-2-6e58 PASS S6/S12,27rechazosantesfactory/connect+7positivos=34sinconexión, inputsinalterados, SQL/read-only/identitysin cambios. SourceSHA2dad7e4b1f682811a189abe45f4ff94c7178b254517085d4a0f88735af8ea7e8. Noproducción/credenciales/datasets/PGreal/build/deploy. TLSheredadosinreconfigurar, no authTLSrealverificada; reauditoríaexternapendiente, noautoadjudicarPASSexterno. ErroroperativoprimernpmtestdesderaízMissingScriptresueltoalbackend, sinFAILfinal. Commitdeestelotecontienetodaevidenciadelcódigo; HEADexactoyresultadoentrega sepublicanenPR72sin otrocierre documentalrecursivo.
