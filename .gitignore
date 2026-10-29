@@ -29,3 +29,5 @@ docs/login
 
 # Dependencias (cada subcarpeta tiene su propio .gitignore pero esto cubre la raíz)
 node_modules/
+# Salidas privadas de auditoría y socket de prueba sintética (nunca publicar).
+.qa-runtime/

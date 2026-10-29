@@ -459,6 +459,22 @@ ni auditoría. En esta verificación previa a publicar usé Node 24.18 local;
 CI remoto con Node 22 no fue ejecutado.
 Confirmo limpieza de fixtures aislados (tmpfs), sin datos persistentes restantes.
 
+## Exportación privada para auditoría offline (#69)
+
+Adapto el exportador existente de `backend/tests/scripts/exportar-ofertas.js` con
+opt-in y destino explícitos, verificación SELECT de identidad/read-only, JSONL UTF-8
+sin recortar descripciones, conteo reconciliado y criterios sanitizados separados.
+Distingo extracción inicial de última extracción y reporto columnas ausentes como null,
+versión del formato y fecha de exportación. Omito prompts privados y evidencias narrativas
+del perfil; indico instrucciones incompletas y describo la prioridad IA como ranking
+separado, nunca como bonus fijo al match.
+No cambio scoring ni prompts, no inicio servicios y no exporto producción automáticamente.
+La salida privada queda ignorada en `.qa-runtime/issue69/`; los datos sintéticos no
+representan una exportación real. No atribuyo autoría no persistida ni reconstruyo
+criterios históricos: la vigencia queda desconocida mientras el helper canónico
+importe configuración con dotenv. La fecha almacenada puede provenir del backfill.
+Ver [campos, procedimiento, pruebas y límites de sanitización](exportacion-auditoria-matching.md).
+
 ## Documentos relacionados
 
 - [Arquitectura](arquitectura.md) — Vista general del flujo.
