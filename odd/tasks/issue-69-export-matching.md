@@ -16,9 +16,9 @@ S10. «Tenés autorización para implementar el exportador, agregar pruebas sint
 S11. «Informame:» Los diez puntos exactos de la sección 11 original en L1, incluyendo límites y CI.
 
 ## Tasks
-T1 | S1-S9 | inline cierre autorizado + Worker | done | RED13/GREEN45 recuperados; padre45focalPASS, suite85/2814PASS159SKIP; PG18real12/12+cero/rechazo/NULL, catálogos constantes; hash0291; commit con T2 pendiente.
-T2 | S1-S11 | delegated gentle-ai-verify + parent spot check | done | Risk: item 2; Verify mvtic6ad-1-u50u PASS B1-B3/S3,45focal+8stubs; anterior S1-S9PASS y S10-S11preparación; hash0291; commit junto con T1 pendiente.
-T3 | S10-S11 | inline | in_progress | Commit de implementación/verificación y cierre documental, push, singlePRmasterCloses69, observar CI; sin merge/deploy.
+T1 | S1-S9 | inline cierre autorizado + Worker | done | Commit 0cc35fc9cc16be04a63fec11340687a60cc92cbd; RED13/GREEN45 recuperados, padre45PASS/suite2814PASS159SKIP; PG18real12/12+cero/rechazo/NULL, contadores constantes; hash0291.
+T2 | S1-S11 | delegated gentle-ai-verify + parent spot check | done | Commit 0cc35fc9cc16be04a63fec11340687a60cc92cbd; Risk: item 2; Verify mvtic6ad-1-u50u PASS B1-B3/S3,45focal+8stubs; anterior S1-S9PASS, S10-S11preparación.
+T3 | S10-S11 | inline | done | Commit de código 0cc35fc9cc16be04a63fec11340687a60cc92cbd + este cierre documental; PR72 master Closes #69, CI40873869610 PASS (4jobs+2checksVercel), no merge/cierreissue/deploymanual; CI del cierre se observa sin modificar fuente.
 
 ## Log
 L1. Pedido original (verbatim):
@@ -270,3 +270,7 @@ L5. Usuario: «continua». Retomo inline sin relanzar Worker. Recuperada observa
 L6. Padre observó focal45/45PASS y suite85suites/2814testsPASS,159SKIP, exit0. PG18localefímero sin TCP:12/12, cero filas/rechazo/NULL;3bases68tablas4esquemas17rolesiguales; hash0291. Clúster nuevo inicializado/apagado sin tocar existentes, sin DDL/DMLapp. Muestra corregida .qa-runtime/issue69/salida-sintetica-corregida, solo sintética. Docs actualizados. masterdestinoconfirmado, permiso pushtrue y ninguna PRprevia de rama. Retomo Verify limitado.
 
 L7. Verify limitado mvtic6ad-1-u50u PASS B1B2B3/S3;45/45focal+8/8stubs originales/controles, entrada inmutable,total8/8,cierrecliente,4consultas. Hash0291estable; diffchecklimpio. S1S2S4-S9PASSprevio,S10-S11preparación. Sin sweepnuevo. T3inprogress publicaciónautorizada, no merge/deploy. Riesgo residualitem2; revisiónhumana del dataset real requerida. No producción.
+
+L8. Commit0cc35fc9cc16be04a63fec11340687a60cc92cbd reúne exportador/tests/docs/ODD (1286líneasautoradas, singlePRautorizada). Scope scan9paths y secretos:sin hallazgos; datoslocales/criterios/depsignorados. Pushjob4exit0 y PR72confirmada, base master, labeltype:feature, Closes69. CIwatchjob5pendiente; nunca merge/cierreissue/deploy. T1/T2mismo commit de trabajo; fronteraúnica por coherenciaseguridad+tests+docs. Próximo commit solo evidencia/cierredocumental, no nueva unidad código.
+
+L9. CI fuente0cc35fc run40873869610 terminóPASS, watchjob5exit0: backendunit27s, backendDB38s, integración57 3m42s, frontend9m30s; Vercel/previewcommentsPASS por automatización existente, sin deploymanual. BASE4ae83b2614c4468596d7f2b796725d5f17d40736; exportador0291sin cambios. T3cumplepublicaciónyresultadoCI; cierre documental agrega solo evidencia (T1/T2commit0cc, T3estecommit). Última muestra útil solo sintética salida-sintetica-corregida. Ruta futura autorizada .qa-runtime/issue69/auditoria-autorizada-01/{busco-trabajo-auditoria-matching.jsonl,busco-trabajo-criterios-sanitizados.json,resumen.json}, no existe exportproductivo. No hay pendientes funcionales ni cambios de evaluador. El CI que derive del commit documental se informa al entregar; no reinicia revisión de código ni SQL.
