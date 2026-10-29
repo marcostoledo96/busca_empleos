@@ -963,8 +963,8 @@ async function obtenerOfertasPendientes() {
 }
 
 /**
- * Obtengo las ofertas con errores de evaluación en los últimos 30 días,
- * excluyendo las que solo tienen una reevaluación solicitada pendiente.
+ * Selecciono pendientes recientes con fallo técnico, sin evaluación previa
+ * ni seguimiento manual. Comparto este universo entre preview y reintento.
  *
  * @returns {Promise<Array>} Lista de ofertas con error recuperable.
  */
@@ -972,9 +972,16 @@ async function obtenerOfertasConErrores() {
     const resultado = await pool.query(
         `SELECT * FROM ofertas
          WHERE COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'
+           AND estado_evaluacion = 'pendiente'
            AND evaluacion_error_mensaje IS NOT NULL
-           AND evaluacion_error_mensaje != 'REEVALUACION_SOLICITADA'
-         ORDER BY fecha_extraccion DESC`
+           AND BTRIM(evaluacion_error_mensaje, E' \\t\\n\\r') != ''
+           AND BTRIM(evaluacion_error_mensaje, E' \\t\\n\\r') != 'REEVALUACION_SOLICITADA'
+           AND firma_criterios_evaluacion IS NULL
+           AND porcentaje_match IS NULL
+           AND estado_postulacion = 'no_postulado'
+           AND fecha_postulacion IS NULL
+           AND nota_postulacion IS NULL
+         ORDER BY fecha_extraccion DESC, id DESC`
     );
 
     return resultado.rows;

@@ -495,7 +495,8 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar pendientes recientes o forzar IDs seleccionados | **Sí** | **Sí** (5/min) |
-| POST | `/api/evaluacion/reintentar-errores` | Reintentar evaluación de ofertas con fallo técnico reciente | **Sí** | **Sí** (5/min) |
+| GET | `/api/evaluacion/reintentar-errores` | Preview de candidatos actuales, solo total e IDs, sin ejecutar | **Sí** | **Sí** (5/min compartido) |
+| POST | `/api/evaluacion/reintentar-errores` | Reintentar pendientes con fallo técnico reciente sin resultado previo ni seguimiento manual | **Sí** | **Sí** (5/min) |
 | GET | `/api/automatizacion/estado` | Estado actual del cron | **Sí** | No |
 | GET | `/api/automatizacion/historial` | Hasta 20 ejecuciones durables sanitizadas | **Sí** | **Sí** (5/min) |
 | POST | `/api/automatizacion/iniciar` | Programar el cron | **Sí** | No |
@@ -1057,12 +1058,44 @@ caché no revierte el resultado guardado.
 Guardar preferencias no inicia evaluación ni scraping; solo esta ejecución explícita
 puede consumir IA cuando las exclusiones no resuelven la oferta.
 
+### GET /api/evaluacion/reintentar-errores
+
+Consulto con el Bearer Firebase habitual, sin body ni parámetros. Hereda el rate
+limit de evaluación (5/min compartido), pero no toma locks ni inicia worker/lotes,
+no lee preferencias ni llama proveedores y no escribe ofertas, firmas o caché.
+
+**200 (ejemplo sintético, no IDs históricos):**
+```json
+{ "exito": true, "total": 2, "ids": [42, 17] }
+```
+
+Sin candidatos: `{ "exito": true, "total": 0, "ids": [] }`. Solo devuelvo cantidad
+e IDs, nunca filas, mensajes privados, perfil ni notas. Fallo SQL: **503** con
+`{ "exito": false, "error": "No pude consultar los candidatos a reintento." }`.
+Conservo 401/403 de autenticación y 429 del limitador.
+
+GET y POST comparten un único selector: pendientes con extracción inclusiva de
+30 días por `COALESCE(fecha_ultima_extraccion, fecha_extraccion)`, error no nulo
+ni vacío/blanco ni marcador `REEVALUACION_SOLICITADA`, firma y porcentaje nulos,
+`estado_postulacion = 'no_postulado'`, fecha y nota de postulación nulas.
+Excluyo aprobadas/rechazadas incluso con error y pendientes con resultado previo
+(incluido porcentaje cero) o datos manuales (incluida nota vacía).
+Orden: `fecha_extraccion DESC, id DESC`.
+
+El total representa candidatos **actuales**, no un inventario histórico del incidente.
+Es un snapshot no vinculante: puede quedar obsoleto, no reserva IDs ni autoriza un
+POST. Antes de leer producción requiero permiso específico; antes de cualquier
+futuro reintento requiero autorización explícita de producción con IDs exactos,
+alcance/costo y revalidación exacta e inmediata de esos IDs contra el selector actual.
+Si cambian, detengo el procedimiento. El POST genérico no representa ese permiso
+ni queda ligado al GET. Ver [procedimiento seguro](evaluacion-ia.md#preview-de-solo-lectura-y-autorización-futura-70-t2).
+
 ### POST /api/evaluacion/reintentar-errores
 
-Reintenta evaluar exclusivamente las ofertas de los últimos **30 días** que hayan
-sufrido un fallo técnico (`evaluacion_error_mensaje IS NOT NULL AND evaluacion_error_mensaje != 'REEVALUACION_SOLICITADA'`).
+Reutilizo el selector protegido descrito en el GET, el worker y el mutex existentes.
+No agrego endpoint de ejecución, reintentos, cambios de presupuesto ni recuperación automática.
 
-- No reevalúa ofertas aprobadas o rechazadas válidas que no tengan error.
+- No reevalúo aprobadas/rechazadas, resultados previos ni seguimiento manual aunque tengan error.
 - Si no hay ofertas con fallos técnicos, responde **200** con `{ exito: true, total: 0, mensaje: 'No hay ofertas con errores de evaluación para reintentar.' }`.
 - Si hay ofertas con error, responde **200** `{ exito: true, en_curso: true, total: N, mensaje: 'Reintentando evaluación de ofertas con error...' }` y procesa en background bajo el mismo Advisory Lock (`EVALUACION_OFERTAS`).
 - Si ya hay una evaluación activa, responde **409 Conflict**.

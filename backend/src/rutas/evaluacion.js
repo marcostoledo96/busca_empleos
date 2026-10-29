@@ -13,7 +13,8 @@ router.post('/cancelar', controlador.cancelarEvaluacion);
 // Permite volver a evaluar ofertas recientes tras cambiar el perfil.
 router.post('/resetear', controlador.resetearEvaluaciones);
 
-// Reintenta evaluar las ofertas que tuvieron un fallo técnico.
+// Consulto el mismo selector protegido sin ejecutar el worker ni adquirir el mutex.
+router.get('/reintentar-errores', controlador.previsualizarErrores);
 router.post('/reintentar-errores', controlador.reintentarErrores);
 
 module.exports = router;
