@@ -1,0 +1,31 @@
+{
+    "tipo": "sintetico_issue_69_no_productivo",
+    "preferencias": {
+        "roles_objetivo_detalle": [{"rol": "Desarrollo junior", "prioridad": "principal", "aliases": ["Desarrollo"], "evidencia": "Objetivo sintético"}],
+        "tecnologias_detalle": [{"nombre": "JavaScript", "nivel": "junior", "evidencia": "Proyecto sintético"}],
+        "nivel_real_seniority": "junior",
+        "anios_experiencia_reales": 1,
+        "modalidad_aceptada": "cualquiera",
+        "zonas_preferidas": ["Zona sintética"],
+        "nivel_ingles_detalle": {"espanol": "nativo", "reading": "A2", "writing": "A2", "speaking": "A1", "listening": "A2", "regla": "Sin inglés obligatorio"},
+        "reglas_exclusion": ["Java obligatorio"],
+        "usar_prompt_personalizado": true,
+        "prompt_personalizado": "CV_COMPLETO_NO_EXPORTAR Persona Sintética Reservada",
+        "nombre": "Persona Sintética Reservada",
+        "cv": "CV_NO_EXPORTAR"
+    },
+    "ofertas": [
+        {"id": 1, "titulo": "Aprobación justificada", "url": "https://www.linkedin.com/jobs/view/4398123456/", "estado_evaluacion": "aprobada", "porcentaje_match": 85, "descripcion": "JavaScript junior", "razon_evaluacion": "Cumple JavaScript", "fecha_extraccion": "2020-01-01T00:00:00Z", "fecha_ultima_extraccion": "2026-01-01T00:00:00Z", "explicacion_evaluacion": {"cumplidos": [{"requisito": "JavaScript", "tipo": "obligatorio", "evidencia_oferta": "JavaScript junior", "evidencia_perfil": "Proyecto", "explicacion": "Cumple"}]}},
+        {"id": 2, "titulo": "Rechazo justificado", "url": "https://ar.indeed.com/viewjob?jk=abcdef0123456789", "estado_evaluacion": "rechazada", "porcentaje_match": 10, "descripcion": "Java obligatorio", "explicacion_evaluacion": {"exclusiones": [{"requisito": "Java", "tipo": "obligatorio"}]}},
+        {"id": 3, "titulo": "Posible falso positivo", "estado_evaluacion": "aprobada", "porcentaje_match": 90, "descripcion": "Java obligatorio"},
+        {"id": 4, "titulo": "Posible falso negativo", "estado_evaluacion": "rechazada", "porcentaje_match": 30, "descripcion": "JavaScript junior, inglés deseable. Requiere experiencia ISO 27001 (2022), C# y .NET. https://www.linkedin.com/jobs/view/4398123456/ https://ar.indeed.com/viewjob?jk=abcdef0123456789"},
+        {"id": 5, "titulo": "Sin explicación", "url": "https://www.bumeran.com.ar/empleos/desarrollo-1234567890.html", "estado_evaluacion": "aprobada", "porcentaje_match": null, "explicacion_evaluacion": null},
+        {"id": 6, "titulo": "Porcentaje inconsistente", "url": "https://usuario:PRIVATE_PASSWORD@ar.indeed.com/viewjob?jk=abcdef0123456789&token=PRIVATE_TOKEN&utm_source=PRIVATE_TRACKING#PRIVATE_FRAGMENT", "estado_evaluacion": "aprobada", "porcentaje_match": "140"},
+        {"id": 7, "titulo": "Error técnico", "estado_evaluacion": "pendiente", "evaluacion_error_mensaje": "HTTP 503"},
+        {"id": 8, "titulo": "Descripción parcial", "estado_evaluacion": "pendiente", "descripcion": null, "origen_descripcion": "tarjeta", "descripcion_completitud": "parcial", "evaluacion_error_mensaje": "REEVALUACION_SOLICITADA"},
+        {"id": 9, "titulo": "Evaluación antigua", "estado_evaluacion": "rechazada", "firma_criterios_evaluacion": "firma-antigua", "fecha_evaluacion": "2020-01-01T00:00:00Z"},
+        {"id": 10, "titulo": "Histórico invisible", "estado_evaluacion": "estado_desconocido", "fecha_extraccion": "2018-01-01T00:00:00Z", "estado_postulacion": "descartada"},
+        {"id": 11, "titulo": "Unicode áéíóú ñ 🚀", "estado_evaluacion": "pendiente", "descripcion": "REQUISITO_EXTENSO"},
+        {"id": 12, "titulo": "Privacidad", "estado_evaluacion": "aprobada", "empresa": "contacto@example.invalid Persona Sintética Reservada", "descripcion": "JavaScript C# .NET 3+ años. contacto@example.invalid +54 11 5555 1234 https://usuario:clave@empleos.example/oferta?token=SECRETO#privado token=SECRETO; Java obligatorio, Senior 5+ años\nAuthorization: Basic dXNlcjpwYXNz; Java obligatorio\nCookie: session=PRIVATE_SESSION; refresh=PRIVATE_REFRESH; Senior 5+ años\nAuthorization: Digest username=\"PRIVATE_USER\", realm=\"PRIVATE_REALM\", response=\"PRIVATE_RESPONSE\"; C# y .NET\nAuthorization: CustomScheme PRIVATE_CUSTOM; Java obligatorio\nRequiere experiencia ISO 27001 (2022), C# y .NET. Teléfono: +54 11 5555 1234", "url": "https://usuario:clave@empleos.example/oferta?token=SECRETO#privado", "razon_evaluacion": "Cookie: session=PRIVATE_SESSION; refresh=PRIVATE_REFRESH; Java obligatorio", "evaluacion_error_mensaje": "Authorization: Bearer PRIVATE_BEARER; C# y .NET", "datos_crudos": {"token": "SECRETO"}, "notas_postulacion": "NOTA_NO_EXPORTAR", "explicacion_evaluacion": {"cumplidos": [{"requisito": "JavaScript", "explicacion": "contacto@example.invalid", "reasoning_content": "RAZONAMIENTO_NO_EXPORTAR", "evidencia_perfil": {"token": "SECRETO"}}], "reasoning_content": "RAZONAMIENTO_NO_EXPORTAR"}}
+    ]
+}

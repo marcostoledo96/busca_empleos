@@ -1,5 +1,7 @@
 # Dependencias
 node_modules/
+# También ignoro el enlace local a dependencias del mismo clon.
+/node_modules
 
 # Variables de entorno (contiene credenciales)
 .env
