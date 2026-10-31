@@ -84,12 +84,22 @@ No uso carreras de promesas alrededor del SDK ni tareas desacopladas de persiste
 `RunClient.abort()` está soportado; uso su modo inmediato, no `gracefully`, para
 no agregar el período de gracia de un Actor que podría seguir trabajando.
 Sólo un estado terminal confirma finalización; `ABORTING` o un fallo del abort
-produce `cancelacion_no_confirmada`. Si el arranque falla sin devolver run id,
-no puedo confirmar abort remoto: no reintento y el timeout remoto solicitado es
-la protección restante (no una cancelación confirmada). El SDK no expone
+produce `cancelacion_no_confirmada` únicamente si intenté abortar un run conocido.
+Si `actor.call()` rechaza con HTTP403 antes de devolver run ID, conservo `http` y
+`codigoHttp: 403` con el mensaje «El proveedor rechazó el inicio del Actor. No recibí
+un run ID; no intenté cancelación remota.». No agrego un evento de cancelación ficticio.
+Ante red, timeout u otra respuesta ambigua sin ID, explicito que no intenté cancelación
+y no puedo confirmar si el Actor inició. No reintento el arranque. Sin ID conocido no
+consulto ni aborto el run; con ID intento abort como máximo una vez, incluso si vence
+el plazo durante esa operación. El timeout remoto solicitado no demuestra que el run
+haya iniciado, terminado ni sido cancelado. El SDK no expone
 AbortSignal para estas operaciones: una cancelación local espera a que termine
 la operación HTTP en curso, acotada por el SDK, y luego detiene/consulta el run.
 El resultado no acredita escrituras externas o cancelación que no pude verificar.
+El error global de Apify se atribuye a las consultas del mismo lote; diez URLs no
+acreditan diez respuestas HTTP independientes. El panel existente agrupa ese evento,
+conserva HTTP403 y ofrece los resultados por consulta en el detalle. Documento el
+alcance y las verificaciones pendientes en [issue #71](issue-71-bumeran-403.md).
 
 Pruebo exclusivamente proveedores simulados y reloj controlado. La persistencia,
 el historial, el cron y la presentación Angular se verifican en las unidades de

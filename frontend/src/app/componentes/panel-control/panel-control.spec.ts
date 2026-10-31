@@ -1,3 +1,4 @@
+import { fuenteBumeran71, urlsBumeran71, errorBumeran71 } from '../../../../e2e/fixtures/issue-58';
 import { ComponentFixture, TestBed, fakeAsync, tick, discardPeriodicTasks } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { PanelControl } from './panel-control';
@@ -201,6 +202,28 @@ describe('PanelControl — Selector mobile de scraping', () => {
         expect(eventos[0]?.textContent).toContain('Angular');
         expect(eventos[0]?.textContent).toContain('React');
         expect(eventos[0]?.getAttribute('role')).toBe('alert');
+    });
+
+    it('issue71: agrupo el mismo HTTP403 de diez URLs sin inventar diez eventos ni cancelación', async () => {
+        component.resultadoIndividual.set(structuredClone(fuenteBumeran71));
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const estado = raiz.querySelector('[aria-label="Estado operativo de búsquedas"]')!;
+        const mensajes = [...estado.querySelectorAll('p')];
+        const resumen = mensajes.find(nodo => nodo.textContent?.includes('Bumeran · Búsqueda individual:'))!;
+        expect(resumen.textContent?.trim()).toBe('Bumeran · Búsqueda individual: Error · http');
+        expect(resumen.textContent).not.toContain('https://');
+        const eventos = mensajes.filter(nodo => nodo.textContent?.includes('http 403'));
+        expect(eventos.length).toBe(1);
+        expect(eventos[0].textContent).toContain(errorBumeran71.mensaje);
+        for (const url of urlsBumeran71) expect(eventos[0].textContent).toContain(url);
+        expect(estado.textContent).not.toContain('cancelacion_no_confirmada');
+        const detalles = raiz.querySelector<HTMLDetailsElement>('details[aria-label="Resultados e historial"]')!;
+        expect(detalles.open).toBeFalse();
+        detalles.querySelector('summary')!.click();
+        expect(detalles.open).toBeTrue();
+        for (const url of urlsBumeran71) expect(detalles.textContent).toContain(url);
     });
 
     it('issue58: distingo ausencia, curso y resultado anterior conservado', () => {

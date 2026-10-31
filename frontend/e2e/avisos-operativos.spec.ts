@@ -1,4 +1,10 @@
 import { test, expect, Page, Locator } from '@playwright/test';
+// Mantengo expectativas independientes para no cargar módulos Angular en el runner Node.
+const urlsBumeran71 = ['programador', 'qa', 'tester', 'desarrollador', 'full-stack', 'frontend', 'soporte-tecnico', 'help-desk', 'it', 'support']
+    .map(termino => `https://www.bumeran.com.ar/empleos-busqueda-${termino}.html`);
+const errorBumeran71 = {
+    mensaje: 'El proveedor rechazó el inicio del Actor. No recibí un run ID; no intenté cancelación remota.',
+};
 const mensajeExtenso = 'DiagnosticoSinteticoSinEspacios'.repeat(18);
 
 const etapa = process.env['ISSUE58_CAPTURA'] === 'antes' ? 'antes' : 'despues';
@@ -138,6 +144,28 @@ for (const [width, height, tema] of [[320, 844, 'claro'], [360, 800, 'oscuro'], 
         await context.close();
     });
 }
+
+test('issue71: HTTP403 compartido por diez URLs mantiene resumen y detalle móvil', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto('/?issue58=bumeran-403');
+    const resumen = estado(page).getByText('Bumeran · Ciclo: Error · http', { exact: true });
+    await expect(resumen).toBeVisible();
+    await expect(resumen).not.toContainText('https://');
+    const evento = estado(page).locator('p').filter({ hasText: 'http 403' });
+    await expect(evento).toHaveCount(1);
+    await expect(evento).toContainText(errorBumeran71.mensaje);
+    await expect(estado(page)).not.toContainText('cancelacion_no_confirmada');
+    for (const url of urlsBumeran71) await expect(evento).toContainText(url);
+    await comprobarTextoCompleto(evento);
+    const detalles = page.getByLabel('Resultados e historial');
+    await expect(detalles).not.toHaveAttribute('open');
+    await detalles.locator('summary').first().click();
+    await expect(detalles).toHaveAttribute('open', '');
+    for (const url of urlsBumeran71) await expect(detalles).toContainText(url);
+    await expect(page.getByLabel('Llamadas simuladas')).not.toContainText('POST');
+    await expect(page.getByLabel('Llamadas simuladas')).not.toContainText('PATCH');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
 
 test('issue58 sin ejecuciones, cancelado, 202 y recuperación alternativa', async ({ page }) => {
     await page.goto('/?issue58=sin-ejecuciones');

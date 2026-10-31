@@ -7,7 +7,8 @@ jest.mock('../../src/config/apify', () => ({
     construirUrlsLinkedin: () => ['https://linkedin.test/busqueda'],
     construirUrlsComputrabajo: () => ['https://computrabajo.test/busqueda'],
     formatearTerminoComputrabajo: termino => termino,
-    construirUrlsBumeran: () => ['https://bumeran.test/busqueda'],
+    construirUrlsBumeran: () => ['programador', 'qa', 'tester', 'desarrollador', 'full-stack', 'frontend', 'soporte-tecnico', 'help-desk', 'it', 'support']
+        .map(termino => `https://www.bumeran.com.ar/empleos-busqueda-${termino}.html`),
 }));
 jest.mock('../../src/servicios/servicio-normalizacion', () => ({
     normalizarLote: (items, plataforma) => items.map(item => ({ ...item, plataforma })),
@@ -254,6 +255,117 @@ test('Apify completa polling sin duplicar el arranque', async () => {
     expect(resultado).toHaveLength(1);
     expect(resultado.metricas).toMatchObject({ estado: 'completada', totalCrudos: 1, totalElegibles: 1, duracionMs: 1000 });
     expect(call).toHaveBeenCalledTimes(1); expect(get).toHaveBeenCalledTimes(1); expect(abort).not.toHaveBeenCalled();
+});
+
+test.each(['Bumeran', 'Linkedin', 'Indeed', 'Glassdoor'])('issue71: %s conserva HTTP403 sin inventar cancelación ni repetir arranque', async nombre => {
+    const call = jest.fn().mockRejectedValue(Object.assign(new Error('cuerpo privado'), { statusCode: 403 }));
+    clienteApify.actor.mockReturnValue({ call });
+    const resultado = await servicio[`ejecutarScraping${nombre}`]({ terminos: ['qa'] });
+    expect(resultado).toEqual([]);
+    expect(resultado.metricas).toMatchObject({ estado: 'error', motivoFinalizacion: 'http', totalElegibles: 0 });
+    expect(resultado.metricas.errores).toEqual([{ tipo: 'http', codigoHttp: 403,
+        mensaje: 'El proveedor rechazó el inicio del Actor. No recibí un run ID; no intenté cancelación remota.' }]);
+    expect(resultado.metricas.resultadosConsultas).toHaveLength(nombre === 'Bumeran' ? 10 : 1);
+    for (const consulta of resultado.metricas.resultadosConsultas) {
+        expect(consulta).toMatchObject({ estado: 'error', peticionesRealizadas: null, totalCrudos: null,
+            errores: resultado.metricas.errores });
+    }
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(clienteApify.run).not.toHaveBeenCalled();
+    expect(clienteApify.dataset).not.toHaveBeenCalled();
+    expect(JSON.stringify(resultado.metricas)).not.toContain('privado');
+});
+
+test.each([['ECONNRESET', 'red'], ['ETIMEDOUT', 'timeout']])('issue71: arranque ambiguo %s sin ID conserva incertidumbre', async (code, tipo) => {
+    const call = jest.fn().mockRejectedValue(Object.assign(new Error('privado'), { code }));
+    clienteApify.actor.mockReturnValue({ call });
+    const resultado = await servicio.ejecutarScrapingBumeran({ terminos: ['qa'] });
+    expect(resultado).toEqual([]);
+    expect(resultado.metricas.estado).toBe(tipo === 'timeout' ? 'timeout' : 'error');
+    expect(resultado.metricas.errores).toEqual([{ tipo, mensaje: `${tipo === 'red' ? 'No pude comunicarme con el proveedor.' : 'Alcancé el tiempo máximo permitido.'} No recibí un run ID; no intenté cancelación remota y no puedo confirmar si el Actor inició.` }]);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(clienteApify.run).not.toHaveBeenCalled();
+    expect(clienteApify.dataset).not.toHaveBeenCalled();
+});
+
+test.each(['FAILED', 'ABORTED', 'TIMED-OUT'])('issue71: Bumeran terminal %s conserva dataset parcial sin abort', async status => {
+    const call = jest.fn().mockResolvedValue({ id: 'run-71', status, defaultDatasetId: 'dataset-71' });
+    clienteApify.actor.mockReturnValue({ call });
+    clienteApify.dataset.mockReturnValue({ listItems: jest.fn().mockResolvedValue({ items: [[oferta]] }) });
+    const resultado = await servicio.ejecutarScrapingBumeran({ terminos: ['qa'] });
+    expect(resultado).toHaveLength(1);
+    expect(resultado.metricas.estado).toBe('parcial');
+    expect(resultado.metricas.errores).toEqual([{ tipo: status === 'TIMED-OUT' ? 'timeout' : 'actor',
+        mensaje: status === 'TIMED-OUT' ? 'Alcancé el tiempo máximo permitido.' : 'El Actor no finalizó correctamente.' }]);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(clienteApify.run).not.toHaveBeenCalled();
+});
+
+test.each(['ABORTED', 'ABORTING', 'denegada'])('issue71: HTTP403 con run conocido y abort %s mantiene eventos reales', async estadoAbort => {
+    jest.useFakeTimers();
+    const call = jest.fn().mockResolvedValue({ id: 'run-71', status: 'RUNNING' });
+    const get = jest.fn().mockRejectedValue(Object.assign(new Error('privado'), { statusCode: 403 }));
+    const abort = estadoAbort === 'denegada'
+        ? jest.fn().mockRejectedValue(Object.assign(new Error('privado'), { statusCode: 403 }))
+        : jest.fn().mockResolvedValue({ status: estadoAbort });
+    clienteApify.actor.mockReturnValue({ call });
+    clienteApify.run.mockReturnValue({ get, abort });
+    const pendiente = servicio.ejecutarScrapingBumeran({ terminos: ['qa'] });
+    await jest.advanceTimersByTimeAsync(1000);
+    const resultado = await pendiente;
+    expect(resultado).toEqual([]);
+    expect(resultado.metricas.estado).toBe('error');
+    expect(resultado.metricas.errores).toEqual([
+        { tipo: 'http', codigoHttp: 403, mensaje: 'El proveedor rechazó la petición.' },
+        ...(estadoAbort === 'ABORTED' ? [] : [{ tipo: 'cancelacion_no_confirmada', mensaje: 'No pude confirmar la cancelación remota del Actor.' }]),
+    ]);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(abort).toHaveBeenCalledTimes(1);
+    expect(clienteApify.run.mock.calls.every(([id]) => id === 'run-71')).toBe(true);
+    expect(clienteApify.dataset).not.toHaveBeenCalled();
+});
+
+test('issue71: no repito abort al vencer el plazo durante cancelación no terminal', async () => {
+    jest.useFakeTimers();
+    const call = jest.fn().mockResolvedValue({ id: 'run-71', status: 'ABORTING' });
+    const abort = jest.fn().mockImplementation(async () => {
+        await new Promise(resolve => setTimeout(resolve, 45000));
+        return { status: 'ABORTING' };
+    });
+    clienteApify.actor.mockReturnValue({ call });
+    clienteApify.run.mockReturnValue({ abort });
+    const pendiente = servicio.ejecutarScrapingBumeran({ terminos: ['qa'], timeoutMs: 45001 });
+    await jest.advanceTimersByTimeAsync(46001);
+    const resultado = await pendiente;
+    expect(resultado).toEqual([]);
+    expect(resultado.metricas.estado).toBe('timeout');
+    expect(resultado.metricas.errores.map(error => error.tipo)).toEqual(['timeout', 'cancelacion_no_confirmada']);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(abort).toHaveBeenCalledTimes(1);
+});
+
+test.each(['Linkedin', 'Indeed', 'Glassdoor'])('issue71: preservo éxito de %s con dataset útil y un único arranque', async nombre => {
+    const call = jest.fn().mockResolvedValue({ id: 'run-71', status: 'SUCCEEDED', defaultDatasetId: 'dataset-71' });
+    clienteApify.actor.mockReturnValue({ call });
+    clienteApify.dataset.mockReturnValue({ listItems: jest.fn().mockResolvedValue({ items: [oferta] }) });
+    const resultado = await servicio[`ejecutarScraping${nombre}`]({ terminos: ['qa'] });
+    expect(resultado).toHaveLength(1);
+    expect(resultado.metricas).toMatchObject({ estado: 'completada', totalCrudos: 1, totalElegibles: 1, errores: [] });
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(clienteApify.run).not.toHaveBeenCalled();
+});
+
+test('issue71: respuesta no terminal sin ID no intenta polling ni abort', async () => {
+    const call = jest.fn().mockResolvedValue({ status: 'ABORTING' });
+    clienteApify.actor.mockReturnValue({ call });
+    const resultado = await servicio.ejecutarScrapingBumeran({ terminos: ['qa'] });
+    expect(resultado).toEqual([]);
+    expect(resultado.metricas).toMatchObject({ estado: 'error', errores: [{ tipo: 'respuesta_invalida',
+        mensaje: 'Recibí una respuesta inválida del proveedor. No recibí un run ID; no intenté cancelación remota y no puedo confirmar si el Actor inició.' }] });
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(clienteApify.run).not.toHaveBeenCalled();
+    expect(clienteApify.dataset).not.toHaveBeenCalled();
 });
 
 test('registry no ofrece GetOnBrd, Google Jobs ni InfoJobs como fuentes activas', () => {
