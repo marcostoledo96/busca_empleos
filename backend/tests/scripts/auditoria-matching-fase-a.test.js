@@ -18,7 +18,9 @@ afterEach(() => { fs.rmSync(directorio, { recursive: true, force: true }); });
 // Solo verifico integridad de la muestra; no adjudico semántica ni ejecuto matching.
 function comprobarIntegridad(archivos, idsEsperados) {
     const [jsonl, criterios, resumen] = archivos.map(buffer => new TextDecoder('utf-8', { fatal: true }).decode(buffer));
-    const filas = jsonl.trim().split('\n').filter(Boolean).map(linea => JSON.parse(linea));
+    const lineas = jsonl === '' ? [] : jsonl.split('\n');
+    if (lineas.at(-1) === '') lineas.pop();
+    const filas = lineas.map(linea => JSON.parse(linea));
     const meta = JSON.parse(resumen);
     const perfil = JSON.parse(criterios);
     const ids = filas.map(fila => fila.id);
@@ -145,6 +147,15 @@ test.each(['duplicado', 'omitido', 'sustituido', 'campo', 'utf8', 'resumen', 'cr
     if (defecto === 'criterios') archivos[1] = Buffer.from(JSON.stringify({ ...JSON.parse(archivos[1]), firma_actual: 'inventada' }));
     expect(() => comprobarIntegridad(archivos, ofertas.map(fila => fila.id))).toThrow();
     expect(originales).toEqual(copia);
+});
+
+test('rechazo líneas vacías interiores y conservo el terminador final legítimo', async () => {
+    const ofertas = obtenerMuestraAuditoria().slice(0, 2).map(caso => caso.oferta);
+    const archivos = await producir(ofertas);
+    const ids = ofertas.map(oferta => oferta.id);
+    expect(comprobarIntegridad(archivos, ids).map(fila => fila.id)).toEqual([17, 42]);
+    const corruptos = [Buffer.from(archivos[0].toString('utf8').replace('\n', '\n\n')), ...archivos.slice(1)];
+    expect(() => comprobarIntegridad(corruptos, ids)).toThrow(SyntaxError);
 });
 
 test('no confundo UTF-8 inválido con JSON inválido ni reemplazo silencioso', () => {
