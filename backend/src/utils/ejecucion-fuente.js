@@ -145,9 +145,11 @@ function crearEjecucionFuente(plataforma, opciones = {}) {
             detalle.totalCrudos = null;
         }
         let run;
+        let abortIntentado = false;
         try {
             run = await cliente.actor(actor).call(input, { timeout: Math.min(120, Math.floor((restante() - 45000) / 1000)), waitSecs: 1 });
             const terminales = ['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'];
+            if (!run?.id && !terminales.includes(run?.status)) throw Object.assign(new Error('Run sin ID.'), { tipo: 'respuesta_invalida' });
             while (run?.status && !terminales.includes(run.status) && restante() > 45000 && !opciones.signal?.aborted) {
                 await esperar(1000);
                 if (restante() <= 45000) break;
@@ -159,11 +161,12 @@ function crearEjecucionFuente(plataforma, opciones = {}) {
             if (!terminales.includes(run.status)) {
                 registrarError('timeout');
                 if (run?.id) {
+                    abortIntentado = true;
                     try {
                         const detenida = await cliente.run(run.id).abort();
                         if (!['ABORTED', 'SUCCEEDED', 'FAILED', 'TIMED-OUT'].includes(detenida?.status)) registrarError('cancelacion_no_confirmada');
                     } catch { registrarError('cancelacion_no_confirmada'); }
-                } else registrarError('cancelacion_no_confirmada');
+                }
             } else if (run.status !== 'SUCCEEDED') registrarError(run.status === 'TIMED-OUT' ? 'timeout' : 'actor');
             comprobar();
             if (!run?.defaultDatasetId) return { items: [] };
@@ -174,12 +177,15 @@ function crearEjecucionFuente(plataforma, opciones = {}) {
         } catch (error) {
             if (!error.controlado) {
                 const codigoHttp = error.statusCode;
-                registrarError(error.tipo || (['ECONNABORTED', 'ETIMEDOUT'].includes(error.code)
+                const registrado = registrarError(error.tipo || (['ECONNABORTED', 'ETIMEDOUT'].includes(error.code)
                     ? 'timeout' : codigoHttp === 429 ? 'limite_solicitudes' : codigoHttp ? 'http' : 'red'), undefined, codigoHttp);
+                if (!run?.id) registrado.mensaje = codigoHttp === 403
+                    ? 'El proveedor rechazó el inicio del Actor. No recibí un run ID; no intenté cancelación remota.'
+                    : `${registrado.mensaje} No recibí un run ID; no intenté cancelación remota y no puedo confirmar si el Actor inició.`;
                 error.controlado = true;
             }
-            if (!run) registrarError('cancelacion_no_confirmada');
-            else if (!['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status)) {
+            if (run?.id && !abortIntentado && !['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(run.status)) {
+                abortIntentado = true;
                 try {
                     const detenida = await cliente.run(run.id).abort();
                     if (!['ABORTED', 'SUCCEEDED', 'FAILED', 'TIMED-OUT'].includes(detenida?.status)) registrarError('cancelacion_no_confirmada');

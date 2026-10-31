@@ -2,6 +2,15 @@ import { HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/ht
 import { of, throwError } from 'rxjs';
 import { ResumenBusqueda, ResultadoBusqueda, ResultadoFuente } from '../../src/app/modelos/respuesta-api.model';
 
+export const urlsBumeran71 = ['programador', 'qa', 'tester', 'desarrollador', 'full-stack', 'frontend', 'soporte-tecnico', 'help-desk', 'it', 'support']
+    .map(termino => `https://www.bumeran.com.ar/empleos-busqueda-${termino}.html`);
+export const errorBumeran71 = { tipo: 'http', codigoHttp: 403,
+    mensaje: 'El proveedor rechazó el inicio del Actor. No recibí un run ID; no intenté cancelación remota.' };
+export const fuenteBumeran71: ResultadoFuente = { plataforma: 'bumeran', nombre: 'Bumeran', estado: 'error',
+    run_id: null, nuevas: 0, totalElegibles: 0, motivoFinalizacion: 'http', errores: [errorBumeran71],
+    resultadosConsultas: urlsBumeran71.map(consulta => ({ consulta, estado: 'error',
+        peticionesRealizadas: null, totalCrudos: null, errores: [{ ...errorBumeran71 }] })),
+};
 export const mensajeExtenso = 'DiagnosticoSinteticoSinEspacios'.repeat(18);
 const ubicacionFija = 'No aplico ubicación ni zonas preferidas: esta integración conserva su ubicación fija.';
 const avisos: Record<string, string[]> = {
@@ -45,7 +54,9 @@ export function crearHttpIssue58(escenario: string) {
         // Reproduzco la doble representación del mismo evento en ejecucion-fuente.js.
         fuente.errores!.push(...structuredClone(fuente.resultadosConsultas!.flatMap(consulta => consulta.errores)));
     }
-    const resultado: ResultadoBusqueda = { estado, estadoScraping: estado,
+    if (escenario === 'bumeran-403') Object.assign(fuente, structuredClone(fuenteBumeran71));
+    const estadoResultado = escenario === 'bumeran-403' ? 'parcial' : estado;
+    const resultado: ResultadoBusqueda = { estado: estadoResultado, estadoScraping: estadoResultado,
         estadoEvaluacion: 'completada', fuentes: [fuente], configuracion };
     const ok = (datos: unknown, status = 200) => of(new HttpResponse({ status, body: { exito: true, datos } }));
     const fallo = (status: number, error: string) => throwError(() => new HttpErrorResponse({ status, error: { error } }));
@@ -59,7 +70,7 @@ export function crearHttpIssue58(escenario: string) {
             }
             return ok(escenario === 'sin-ejecuciones' ? [] : [{ id: 58, tipo: 'ciclo_manual',
                 inicio: '2026-01-15T18:00:00Z', fin: '2026-01-15T18:01:00Z',
-                duracion_ms: 60000, estado, resumen: resultado }]);
+                duracion_ms: 60000, estado: estadoResultado, resumen: resultado }]);
         }
         if (ruta.endsWith('/automatizacion/estado')) return ok({ activo: false, expresionCron: null,
             ultimaEjecucion: null, ultimoResultado: escenario === 'sin-ejecuciones' ? null : resultado });
