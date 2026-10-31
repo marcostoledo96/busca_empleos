@@ -52,4 +52,8 @@ Preparé los environments Angular desde los ejemplos seguros y el rol/base exact
 - E2E: el primer intento falló antes de descubrir tests porque el spec de Playwright importaba el fixture Angular de navegador. Separé las expectativas del runner sin cargar Angular en Node ni debilitar assertions; el segundo intento terminó exit0, **21/21 E2E**, incluido el caso móvil con diez URLs, resumen agrupado, detalle y una única representación causal del HTTP403. El recorrido existente también conservó geometría en 320, 360, 390, 768 y 1440 px.
 - No repetí backend completo, SQL57 ni Angular después de correcciones limitadas a las expectativas SQL59 y al import del spec E2E.
 
+### Verificación independiente
+
+La inspección inicial no detectó bloqueantes, pero no pudo ejecutar pruebas por requerir una copia temporal aislada fuera del alcance autorizado. Después de la autorización explícita, el verificador comprobó el commit `35a148c77dddf5dde296ab2ddd6bcc21b5425c8a` en una única copia sin `.env` ni credenciales: **exit0, 57/57 pruebas, ninguna omitida**, con mocks y sin proveedores reales. Los blobs backend/documentales de la copia y los hashes del candidato original permanecieron intactos. SQL y UI corresponden a las ejecuciones previas detalladas arriba, corroboradas por lectura sin repetirlas.
+
 No prometo un techo de gasto a partir del recorte local de resultados de Bumeran. Las pruebas usan exclusivamente SDK/HTTP simulados y no acreditan disponibilidad productiva ni costes remotos.
