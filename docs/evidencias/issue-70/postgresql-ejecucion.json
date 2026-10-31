@@ -1,0 +1,31 @@
+{
+  "origin": "Evento de finalización del harness, job-4, sin relanzar el proceso",
+  "exit_code_observed": 0,
+  "test_command": "npm test -- --runInBand --no-cache tests/integracion/issue-70-recuperacion.test.js --verbose=false",
+  "cwd": "backend (worktree exclusivo issue-70)",
+  "environment": {
+    "env_base": "env -i PATH=\"$PATH\" HOME=\"$HOME\"",
+    "NODE_ENV": "test",
+    "DB_TEST_SINTETICA": "true",
+    "ALLOW_DB_TESTS": "true",
+    "PGHOST": "127.0.0.1",
+    "PGPORT": "44703 (asignado efímeramente al cluster nuevo)",
+    "PGUSER": "issue70_test (sintético)",
+    "PGPASSWORD": "sintetica_issue70 (valor ficticio, sin acceso externo)",
+    "PGDATABASE": "busca_empleos_issue70_test",
+    "PGSSLMODE": "disable",
+    "DEEPSEEK_API_KEY": "clave-sintetica (ficticia; fetch bloqueado)",
+    "DATABASE_URL": "ausente por env -i"
+  },
+  "postgresql": "18, initdb nuevo, solo loopback, sin socket Unix; estado/data propios ignorados, sin recursos existentes",
+  "setup": "createdb en cluster propio; la prueba crea tablas en esquema aleatorio dentro de transacción y revierte; no db:migrate, tablas públicas ni producción",
+  "output": "postgresql-original.log, stdout/stderr combinados originales; el exit code procede del evento de finalización, no se infiere de texto PASS",
+  "shutdown": "postgresql-apagado.log; trap pg_ctl stop del cluster propio",
+  "result": {
+    "suites_pass": 1,
+    "tests_pass": 2,
+    "tests_fail": 0,
+    "duration_seconds": 0.722
+  },
+  "test_time_identity_limitation": "No se imprimió un SHA ni manifiesto completo en el comando PG original. La asociación al candidato es retrospectiva y se documenta en README e identidad-candidato.json; no invento un hash contemporáneo."
+}
