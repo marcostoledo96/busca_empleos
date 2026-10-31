@@ -1,0 +1,99 @@
+PG sintético puerto local 44703
+waiting for server to start.... done
+server started
+
+> busca-empleos-backend@1.0.0 test
+> jest --verbose --testPathIgnorePatterns="tests/integracion/issue-(57-backend|59-proveedores|61-(esquema|http))[.]test[.]js$" --runInBand --no-cache tests/integracion/issue-70-recuperacion.test.js --verbose=false
+
+PASS tests/integracion/issue-70-recuperacion.test.js
+  ● Console
+
+    console.warn
+      [2026-10-29T22:43:33.685Z] [WARN] CURSOR_SINCRONIZACION_SECRETO no está configurado; uso un secreto efímero y los cursores se invalidarán al reiniciar.
+
+      53 |     const nivelTexto = Object.keys(NIVELES).find((key) => NIVELES[key] === nivelRequerido) || 'info';
+      54 |
+    > 55 |     funcionConsola(formatearMensaje(nivelTexto, mensaje), ...args);
+         |     ^
+      56 | }
+      57 |
+      58 | /**
+
+      at funcionConsola (src/utils/logger.js:55:5)
+      at Object.loguear [as warn] (src/utils/logger.js:82:5)
+      at Object.warn (src/modelos/oferta.js:28:12)
+      at Object.require (tests/integracion/issue-70-recuperacion.test.js:86:18)
+
+    console.log
+      [Evaluación] Evaluando 2 ofertas pendientes...
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:458:17)
+
+    console.log
+      [Evaluación] Procesando oferta ID 100: "Backend Node.js Junior"...
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:467:21)
+
+    console.error
+      [Evaluación] Fallo técnico de IA { oferta_id: 100, codigo: 'HTTP_503' }
+
+      147 |     let metadatos = {};
+      148 |     const registrarFallo = codigo => {
+    > 149 |         console.error('[Evaluación] Fallo técnico de IA', {
+          |                 ^
+      150 |             ...(Number.isSafeInteger(oferta.id) && oferta.id > 0 ? { oferta_id: oferta.id } : {}),
+      151 |             ...metadatos,
+      152 |             codigo,
+
+      at error (src/servicios/servicio-evaluacion.js:149:17)
+      at registrarFallo (src/servicios/servicio-evaluacion.js:367:9)
+      at Object.evaluarOfertasPendientes (src/servicios/servicio-evaluacion.js:472:31)
+      at Object.<anonymous> (tests/integracion/issue-70-recuperacion.test.js:165:23)
+
+    console.log
+      [Evaluación] Procesando oferta ID 101: "Backend Node.js Junior"...
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:467:21)
+
+    console.error
+      [Evaluación] Fallo técnico de IA { oferta_id: 101, codigo: 'HTTP_503' }
+
+      147 |     let metadatos = {};
+      148 |     const registrarFallo = codigo => {
+    > 149 |         console.error('[Evaluación] Fallo técnico de IA', {
+          |                 ^
+      150 |             ...(Number.isSafeInteger(oferta.id) && oferta.id > 0 ? { oferta_id: oferta.id } : {}),
+      151 |             ...metadatos,
+      152 |             codigo,
+
+      at error (src/servicios/servicio-evaluacion.js:149:17)
+      at registrarFallo (src/servicios/servicio-evaluacion.js:367:9)
+      at Object.evaluarOfertasPendientes (src/servicios/servicio-evaluacion.js:472:31)
+      at Object.<anonymous> (tests/integracion/issue-70-recuperacion.test.js:165:23)
+
+    console.log
+      [Evaluación] Procesamiento finalizado. Aprobadas: 0, Rechazadas: 0, Errores: 2
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:599:17)
+
+    console.log
+      [Evaluación] Evaluando 1 ofertas pendientes...
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:458:17)
+
+    console.log
+      [Evaluación] Procesando oferta ID 100: "Backend Node.js Junior"...
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:467:21)
+
+    console.log
+      [Evaluación] Procesamiento finalizado. Aprobadas: 1, Rechazadas: 0, Errores: 0
+
+      at Object.log [as evaluarOfertasPendientes] (src/servicios/servicio-evaluacion.js:599:17)
+
+
+Test Suites: 1 passed, 1 total
+Tests:       2 passed, 2 total
+Snapshots:   0 total
+Time:        0.722 s
+Ran all test suites matching tests/integracion/issue-70-recuperacion.test.js.

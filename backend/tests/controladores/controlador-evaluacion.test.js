@@ -465,6 +465,46 @@ describe('Controlador de evaluación', () => {
         });
     });
 
+    describe('GET /api/evaluacion/reintentar-errores — preview', () => {
+        test.each([[[]], [[{ id: 8, descripcion: 'PRIVADO', evaluacion_error_mensaje: 'PRIVADO', nota_postulacion: 'PRIVADO' }]]])('proyecta solo total e IDs sin efectos: %j', async filas => {
+            modeloOferta.obtenerOfertasConErrores.mockResolvedValue(filas);
+            const res = await request(app).get('/api/evaluacion/reintentar-errores');
+            expect(res.status).toBe(200);
+            expect(res.body).toEqual({ exito: true, total: filas.length, ids: filas.map(fila => fila.id) });
+            expect(modeloOferta.obtenerOfertasConErrores).toHaveBeenCalledTimes(1);
+            expect(bloqueo.intentarAdquirirLock).not.toHaveBeenCalled();
+            expect(bloqueo.liberarBloqueoSeguro).not.toHaveBeenCalled();
+            for (const funcion of Object.values(servicioEvaluacion)) {
+                if (jest.isMockFunction(funcion)) expect(funcion).not.toHaveBeenCalled();
+            }
+            for (const funcion of Object.values(modeloOferta)) {
+                if (funcion !== modeloOferta.obtenerOfertasConErrores && jest.isMockFunction(funcion)) expect(funcion).not.toHaveBeenCalled();
+            }
+        });
+
+        test('falla cerrado sin filtrar mensajes privados de PostgreSQL', async () => {
+            modeloOferta.obtenerOfertasConErrores.mockRejectedValue(new Error('PRIVADO credencial consulta perfil'));
+            const res = await request(app).get('/api/evaluacion/reintentar-errores');
+            expect(res.status).toBe(503);
+            expect(res.body).toEqual({ exito: false, error: 'No pude consultar los candidatos a reintento.' });
+            expect(bloqueo.intentarAdquirirLock).not.toHaveBeenCalled();
+            expect(servicioEvaluacion.evaluarOfertasPendientes).not.toHaveBeenCalled();
+        });
+
+        test('la autenticación real rechaza sin token antes del selector', async () => {
+            jest.doMock('../../src/config/firebase-admin', () => ({ verifyIdToken: jest.fn() }));
+            const express = require('express');
+            const { verificarAuth } = jest.requireActual('../../src/utils/middleware-auth');
+            const protegida = express();
+            protegida.use('/api', verificarAuth);
+            protegida.use('/api/evaluacion', require('../../src/rutas/evaluacion'));
+            const res = await request(protegida).get('/api/evaluacion/reintentar-errores');
+            expect(res.status).toBe(401);
+            expect(res.body).toEqual({ exito: false, error: 'No autorizado. Se requiere un token de autenticación.' });
+            expect(modeloOferta.obtenerOfertasConErrores).not.toHaveBeenCalled();
+        });
+    });
+
     // === POST /api/evaluacion/reintentar-errores ===
 
     describe('POST /api/evaluacion/reintentar-errores', () => {

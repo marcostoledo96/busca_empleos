@@ -143,7 +143,10 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
             ].includes(respuesta.status);
 
             if (!reintentable || intento === maxReintentos) {
-                const error = new Error(`DeepSeek respondió con error ${respuesta.status}.`);
+                const estado = Number.isInteger(respuesta.status) && respuesta.status >= 400 && respuesta.status <= 599
+                    ? respuesta.status : null;
+                const error = crearErrorRespuesta(estado ? `HTTP_${estado}` : 'ERROR_TRANSPORTE',
+                    estado ? `DeepSeek respondió con error ${estado}.` : 'DeepSeek respondió con un error HTTP.');
                 error.noReintentar = true;
                 throw error;
             }
@@ -161,7 +164,10 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
             await esperar(espera);
         } catch (error) {
             clearTimeout(timeout);
-            ultimoError = error;
+            ultimoError = error.noReintentar ? error : crearErrorRespuesta(
+                controlador.signal.aborted ? 'TIMEOUT' : error.name === 'AbortError' ? 'CANCELADA' : 'ERROR_TRANSPORTE',
+                'Se agotaron los reintentos de DeepSeek por un error de red o timeout.'
+            );
 
             if (error.noReintentar || intento === maxReintentos) {
                 break;
@@ -177,8 +183,7 @@ async function fetchConTimeoutYRetry(url, opciones, config = {}) {
         }
     }
 
-    if (ultimoError?.noReintentar) throw ultimoError;
-    throw new Error('Se agotaron los reintentos de DeepSeek por un error de red o timeout.');
+    throw ultimoError;
 }
 
 /**
@@ -211,55 +216,73 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo, opcione
     }
     const configuracion = opciones.importacionCv ? CONFIGURACION_IMPORTACION : CONFIGURACION_DECISION;
     const inicio = Date.now();
-    const datos = await fetchConTimeoutYRetry(DEEPSEEK_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-        },
-        body: JSON.stringify({
-            model: modeloEfectivo,
-            messages: [
-                { role: 'system', content: mensajeSistema },
-                { role: 'user', content: mensajeUsuario },
-            ],
-            ...configuracion,
-        }),
-    }, {
-        timeoutMs: opciones.importacionCv ? TIMEOUT_IMPORTACION_MS : TIMEOUT_EVALUACION_MS,
-        maxReintentos: 3,
-    });
+    const metadatos = { modelo_solicitado: modeloEfectivo, max_tokens: configuracion.max_tokens };
+    try {
+        const datos = await fetchConTimeoutYRetry(DEEPSEEK_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            },
+            body: JSON.stringify({
+                model: modeloEfectivo,
+                messages: [
+                    { role: 'system', content: mensajeSistema },
+                    { role: 'user', content: mensajeUsuario },
+                ],
+                ...configuracion,
+            }),
+        }, {
+            timeoutMs: opciones.importacionCv ? TIMEOUT_IMPORTACION_MS : TIMEOUT_EVALUACION_MS,
+            maxReintentos: 3,
+        });
 
-    const eleccion = Array.isArray(datos?.choices) ? datos.choices[0] : null;
-    if (opciones.alRecibirMetadatos) {
-        const metadatos = { modelo_solicitado: modeloEfectivo, duracion_ms: Date.now() - inicio };
-        if (typeof datos?.model === 'string') metadatos.modelo_reportado = datos.model;
-        if (typeof eleccion?.finish_reason === 'string') metadatos.finish_reason = eleccion.finish_reason;
+        const eleccion = Array.isArray(datos?.choices) ? datos.choices[0] : null;
+        // No acepto texto arbitrario del proveedor en ningún campo diagnóstico.
+        if ([...MODELOS_DEEPSEEK, 'deepseek-v4-flash'].includes(datos?.model)) metadatos.modelo_reportado = datos.model;
+        if (['stop', 'length', 'content_filter', 'tool_calls', 'function_call', 'aborted', 'insufficient_system_resource'].includes(eleccion?.finish_reason)) {
+            metadatos.finish_reason = eleccion.finish_reason;
+        }
         for (const [campo, valor] of Object.entries({
             tokens_entrada: datos?.usage?.prompt_tokens,
             tokens_salida: datos?.usage?.completion_tokens,
             tokens_razonamiento: datos?.usage?.completion_tokens_details?.reasoning_tokens,
         })) {
-            if (Number.isFinite(valor) && valor >= 0) metadatos[campo] = valor;
+            if (Number.isSafeInteger(valor) && valor >= 0) metadatos[campo] = valor;
         }
-        opciones.alRecibirMetadatos(metadatos);
+        if (!eleccion) {
+            metadatos.codigo = 'CHOICES_AUSENTES';
+            throw crearErrorRespuesta('SALIDA_INCOMPLETA', 'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.');
+        }
+        if (eleccion?.finish_reason !== 'stop') {
+            throw crearErrorRespuesta(eleccion?.finish_reason === 'length' ? 'SALIDA_TRUNCADA' : 'SALIDA_INCOMPLETA',
+                'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.');
+        }
+        const contenido = eleccion.message?.content;
+        if (typeof contenido !== 'string' || !contenido.trim()) {
+            metadatos.codigo = 'SALIDA_VACIA';
+            throw crearErrorRespuesta('SALIDA_INCOMPLETA', 'DeepSeek devolvió una respuesta vacía. Volvé a intentar.');
+        }
+        try {
+            const objeto = JSON.parse(contenido);
+            if (!objeto || typeof objeto !== 'object' || Array.isArray(objeto)) throw new Error();
+        } catch {
+            throw crearErrorRespuesta('JSON_INVALIDO', 'DeepSeek no devolvió un objeto JSON válido. Volvé a intentar.');
+        }
+        // Los validadores estrictos de cada tarea conservan la validación semántica.
+        return contenido;
+    } catch (error) {
+        const codigo = /^(?:SALIDA_TRUNCADA|SALIDA_INCOMPLETA|JSON_INVALIDO|TIMEOUT|CANCELADA|ERROR_TRANSPORTE|HTTP_[45]\d{2})$/.test(error?.codigo)
+            ? error.codigo : 'ERROR_TRANSPORTE';
+        metadatos.codigo = metadatos.codigo || codigo;
+        throw error;
+    } finally {
+        metadatos.duracion_ms = Math.max(0, Date.now() - inicio);
+        // Un observador no debe cambiar el resultado ni provocar nuevas solicitudes.
+        try {
+            await opciones.alRecibirMetadatos?.(metadatos);
+        } catch {}
     }
-    if (eleccion?.finish_reason !== 'stop') {
-        throw crearErrorRespuesta(eleccion?.finish_reason === 'length' ? 'SALIDA_TRUNCADA' : 'SALIDA_INCOMPLETA',
-            'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.');
-    }
-    const contenido = eleccion.message?.content;
-    if (typeof contenido !== 'string' || !contenido.trim()) {
-        throw crearErrorRespuesta('SALIDA_INCOMPLETA', 'DeepSeek devolvió una respuesta vacía. Volvé a intentar.');
-    }
-    try {
-        const objeto = JSON.parse(contenido);
-        if (!objeto || typeof objeto !== 'object' || Array.isArray(objeto)) throw new Error();
-    } catch {
-        throw crearErrorRespuesta('JSON_INVALIDO', 'DeepSeek no devolvió un objeto JSON válido. Volvé a intentar.');
-    }
-    // Los validadores estrictos de cada tarea conservan la validación semántica.
-    return contenido;
 }
 
 function crearErrorRespuesta(codigo, mensaje) {

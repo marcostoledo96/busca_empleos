@@ -1,0 +1,122 @@
+{
+  "baseline": "b3f243baa360c385a4f61a8ebe4399a7450a75d3",
+  "published_candidate": "af52277be070aa8909d46299c683e128c3cf4bf5",
+  "code_commit": "e973d8c37cca0c65aa85384ade74f6917170a587",
+  "git_head_during_uncommitted_test_execution": "b3f243baa360c385a4f61a8ebe4399a7450a75d3",
+  "identity_note": "Los hashes candidate se calculan ahora de los blobs del commit publicado y se comparan byte a byte con el worktree. No son un manifiesto generado durante la ejecución histórica. Solo tres SHA fueron registrados por el padre durante la entrega original. El reporte primario Verify declara comprobación de los 18 archivos antes/después de su ejecución. No atribuir los PASS al árbol limpio de BASE.",
+  "source_test_files": [
+    {
+      "path": "backend/src/config/deepseek.js",
+      "sha256_candidate": "7df8228d5ab4e25c1fe257f4f349991dab3af4ed6526ad696c0488b09957f097",
+      "git_blob": "12ee4ba20ff338c9b5390fcbf00e87d162e592b4",
+      "sha256_previously_recorded_in_parent_delivery": "7df8228d5ab4e25c1fe257f4f349991dab3af4ed6526ad696c0488b09957f097"
+    },
+    {
+      "path": "backend/src/controladores/controlador-evaluacion.js",
+      "sha256_candidate": "55aca4223d76f241d327999348392e8afe3c50f7efe8b092d9d1af64f8103e40",
+      "git_blob": "ad1c581d97925528e775c109686e9ff265930e47",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/src/modelos/oferta.js",
+      "sha256_candidate": "14a97741ba3d038e8325bdc9b06e04333532977ca6c32d336ffe9a7971f20d0a",
+      "git_blob": "7be2239236d561dc719695fd8c3834eb187856f7",
+      "sha256_previously_recorded_in_parent_delivery": "14a97741ba3d038e8325bdc9b06e04333532977ca6c32d336ffe9a7971f20d0a"
+    },
+    {
+      "path": "backend/src/rutas/evaluacion.js",
+      "sha256_candidate": "07ffd35492ee8f486561ca594382cc6b4c006919eb0055a9968e385721abbc0b",
+      "git_blob": "1feb8a1b7b8bccbac9acd12d1ee240de5ca03cd7",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/src/servicios/evaluacion/parser-respuesta-ia.js",
+      "sha256_candidate": "3d9baad2cf43b9c6688d769749b4c186cdb3c267f66f12dcb81d685ff67c930d",
+      "git_blob": "daeacd63660e88a076a651f12b8bec352d25e676",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/src/servicios/servicio-evaluacion.js",
+      "sha256_candidate": "2b48677ee521ab4cfdbd87f8c8a41359c95f274f3f974000c006d145d1dc444f",
+      "git_blob": "23b41e075caf5d60fea7b91398b6ab6ee4ceed13",
+      "sha256_previously_recorded_in_parent_delivery": "2b48677ee521ab4cfdbd87f8c8a41359c95f274f3f974000c006d145d1dc444f"
+    },
+    {
+      "path": "backend/tests/config/deepseek.test.js",
+      "sha256_candidate": "6d97b5166dc0136ce1283da670044332d702990f49bc48da067e054fa40f6de5",
+      "git_blob": "5b2664eda1bb1c5f2993ae88bed3b5080fa1ceed",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/controladores/controlador-evaluacion.test.js",
+      "sha256_candidate": "ae2d58a617dad34eb1ef8fb7b492e88d6417ab28cdfb41896a738eead3b2a720",
+      "git_blob": "4c008dbb579e29b7326ba7d3b73732b298a988c4",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/integracion/issue-70-recuperacion.test.js",
+      "sha256_candidate": "a21259d16d3976b98aee0d17c4591147c6a73308f3fe0720e7b9ea6e6a06ae5e",
+      "git_blob": "063b602aa53d5a364e1df81d9232e378dff4b8ea",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/modelos/oferta.test.js",
+      "sha256_candidate": "244a92306c838ab0f732dfb310351ed026456a0cd5bc3139bd39eea8f0644f09",
+      "git_blob": "c324e64e3013ea74782693d697b53a5f6f23ee98",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/cache-evaluacion-flujo.test.js",
+      "sha256_candidate": "dbd385b1be34ef012a90ebae4d8e20ac2729f8f7d9240b42edc791f5529f136b",
+      "git_blob": "4cb3ef554fde4b176b294ce28625c8ecd2c0561d",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/evaluacion/parser-respuesta-ia.test.js",
+      "sha256_candidate": "49c9c533fd4b721883480d41f66cd782604f12179bc856f8f36a422c84676db2",
+      "git_blob": "835cf5edbf7bef647db2b83dde8c178a5f8fddb9",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/flujo-integrado-issue-18.test.js",
+      "sha256_candidate": "a78d04292557d1e67030266830f9eda6a042a03a124a28b6b23059ec7d57bc80",
+      "git_blob": "67094394a686dfebd94991c4d8790e29d8d145ae",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/issue-26-cliente-worker.test.js",
+      "sha256_candidate": "fd742761354e3a1af34aa31a6001de5c891d2082643394518cb6c4159c37b88f",
+      "git_blob": "2d2e8e24fc1af3e18bf0685283459e243acf4107",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/reevaluacion-fallos.test.js",
+      "sha256_candidate": "90b71caecccbfdc551bcc7fb6c4ac8a6d0bf21cbf328e96250d615b861c70de2",
+      "git_blob": "22926afb5c2bfdcda434ab13617466ba31b016b1",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/reevaluacion-seleccionada.test.js",
+      "sha256_candidate": "d6b8e4778b4a5a38d37ad213b3d82e28d95166f16e154de0c5cab0f9b1a1e7aa",
+      "git_blob": "4aee0d150beb11a68cb4d57192439b0906b23833",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/servicio-evaluacion-recuperacion.test.js",
+      "sha256_candidate": "31ef6a7ee04332c25c704516ada38d2eef8f5ac3d28281bf970269bb1ffd17ac",
+      "git_blob": "d56de2b341a44afc95111609587331938e1d9812",
+      "sha256_previously_recorded_in_parent_delivery": null
+    },
+    {
+      "path": "backend/tests/servicios/servicio-evaluacion.test.js",
+      "sha256_candidate": "ce9a71ebba795b845b3dd60c3f399bbb537ad11271124b2754db457f3898cdab",
+      "git_blob": "05941dd231f60ecb6d46155b84439f8259b64cc3",
+      "sha256_previously_recorded_in_parent_delivery": null
+    }
+  ],
+  "sanitized_artifact_sha256": {
+    "postgresql-original.log": "6d1fd37772dab9d3d733c23eabee00d066f5f2d0a677b23801576c5af4821475",
+    "postgresql-apagado.log": "ca19178a35ab4153b75b494963b66ce8243e1b94c173107c87b44d09db23652d",
+    "verify-original.md": "6e727ebadfaf9755ea4706a13d303583dec3d484d88244245f94abd35c693ee7"
+  }
+}

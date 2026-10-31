@@ -451,7 +451,7 @@ describe('Servicio de evaluación — Recuperación de lotes interrumpidos y rei
             },
         ];
 
-        proveedor.consultarDeepSeek.mockRejectedValue(new Error('Nuevo fallo de conexión HTTP 503'));
+        proveedor.consultarDeepSeek.mockRejectedValue(Object.assign(new Error('Nuevo fallo de conexión HTTP 503'), { codigo: 'HTTP_503' }));
 
         const resultado = await servicio.reintentarErroresEvaluacion();
         expect(resultado.exito).toBe(true);
@@ -464,10 +464,10 @@ describe('Servicio de evaluación — Recuperación de lotes interrumpidos y rei
 
         // La aprobada debe seguir siendo 'aprobada', con su veredicto conservado y nuevo mensaje
         expect(filasOfertas[0].estado_evaluacion).toBe('aprobada');
-        expect(filasOfertas[0].evaluacion_error_mensaje).toContain('Nuevo fallo de conexión HTTP 503');
+        expect(filasOfertas[0].evaluacion_error_mensaje).toBe('Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.');
 
         // La pendiente debe seguir 'pendiente' con el nuevo mensaje
         expect(filasOfertas[1].estado_evaluacion).toBe('pendiente');
-        expect(filasOfertas[1].evaluacion_error_mensaje).toContain('Nuevo fallo de conexión HTTP 503');
+        expect(filasOfertas[1].evaluacion_error_mensaje).toBe('Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.');
     });
 });

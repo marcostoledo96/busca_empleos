@@ -1,6 +1,7 @@
 // Controlador de evaluación — maneja la request para evaluar ofertas con IA.
 //
-// Este controlador tiene cuatro endpoints:
+// Este controlador administra evaluación, progreso, cancelación, reset y reintentos:
+// - GET /reintentar-errores: Consulto candidatos sin ejecutar ni escribir.
 // - POST /ejecutar: Evalúo pendientes recientes o fuerzo los IDs seleccionados
 //   en segundo plano. Respondo inmediatamente; el cliente consulta /progreso.
 // - GET /progreso: Devuelve el estado actual del progreso.
@@ -140,9 +141,19 @@ async function resetearEvaluaciones(req, res) {
     }
 }
 
+/** GET /api/evaluacion/reintentar-errores: proyecto solo cantidad e IDs actuales. */
+async function previsualizarErrores(req, res) {
+    try {
+        const candidatas = await modeloOferta.obtenerOfertasConErrores();
+        return res.json({ exito: true, total: candidatas.length, ids: candidatas.map(oferta => oferta.id) });
+    } catch {
+        return res.status(503).json({ exito: false, error: 'No pude consultar los candidatos a reintento.' });
+    }
+}
+
 /**
  * POST /api/evaluacion/reintentar-errores
- * Reintenta evaluar las ofertas que tuvieron un error técnico en los últimos 30 días.
+ * Reintento solo pendientes recientes con fallo técnico, sin resultado previo ni seguimiento manual.
  */
 async function reintentarErrores(req, res) {
     const lock = await bloqueo.intentarAdquirirLock(bloqueo.CLAVES.EVALUACION_OFERTAS);
@@ -203,4 +214,5 @@ module.exports = {
     cancelarEvaluacion,
     resetearEvaluaciones,
     reintentarErrores,
+    previsualizarErrores,
 };

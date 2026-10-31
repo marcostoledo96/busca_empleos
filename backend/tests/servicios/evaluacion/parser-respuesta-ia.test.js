@@ -27,7 +27,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
             por_confirmar: [],
             exclusiones: [],
         });
-        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido, se recibió: null');
+        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido.');
     });
 
     test('maneja número JSON ("42") retornando error técnico controlado', () => {
@@ -40,7 +40,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
         expect(resultado.invalido).toBe(true);
         expect(resultado.inconsistente).toBe(true);
         expect(resultado.desglose_disponible).toBe(false);
-        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido, se recibió: 42');
+        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido.');
     });
 
     test('maneja array JSON ("[]") retornando error técnico controlado', () => {
@@ -53,7 +53,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
         expect(resultado.invalido).toBe(true);
         expect(resultado.inconsistente).toBe(true);
         expect(resultado.desglose_disponible).toBe(false);
-        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido, se recibió: []');
+        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido.');
     });
 
     test('maneja string JSON ("\"texto\"") retornando error técnico controlado', () => {
@@ -66,7 +66,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
         expect(resultado.invalido).toBe(true);
         expect(resultado.inconsistente).toBe(true);
         expect(resultado.desglose_disponible).toBe(false);
-        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido, se recibió: "texto plano JSON"');
+        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido.');
     });
 
     test('maneja objeto vacío ("{}") retornando match no booleano controlado', () => {
@@ -79,7 +79,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
         expect(resultado.invalido).toBe(true);
         expect(resultado.inconsistente).toBe(true);
         expect(resultado.desglose_disponible).toBe(false);
-        expect(resultado.razon).toBe('El campo "match" debe ser boolean, se recibió: undefined');
+        expect(resultado.razon).toBe('El campo "match" debe ser boolean.');
     });
 
     test('maneja JSON malformado retornando error de parseo descriptivo', () => {
@@ -104,7 +104,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
         expect(resultado.error).toBe(true);
         expect(resultado.invalido).toBe(true);
         expect(resultado.inconsistente).toBe(true);
-        expect(resultado.razon).toBe('El campo "match" debe ser boolean, se recibió: "true"');
+        expect(resultado.razon).toBe('El campo "match" debe ser boolean.');
     });
 
     test('maneja fences Markdown con payload inválido (```json null ```)', () => {
@@ -113,7 +113,7 @@ describe('Parser respuesta IA — Manejo robusto de payloads no válidos (WU 1)'
 
         expect(resultado.match).toBe(false);
         expect(resultado.error).toBe(true);
-        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido, se recibió: null');
+        expect(resultado.razon).toBe('La respuesta de DeepSeek no es un objeto JSON válido.');
     });
 
     test('maneja respuesta válida estructurada respetando todas las validaciones', () => {

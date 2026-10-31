@@ -40,11 +40,61 @@ objeto JSON válido antes del parser estricto de la tarea. `length`, salida vac�
 JSON inválido son fallos técnicos recuperables, nunca rechazos laborales ni hits de
 caché exitosos. Valido también API key y modelo compatible.
 
-El callback opcional `opciones.alRecibirMetadatos` recibe solo modelo solicitado,
-modelo reportado, `finish_reason`, duración y tokens de entrada/salida/razonamiento
-cuando existen y son válidos. No exporto `reasoning_content`, prompts, CV ni respuestas
-en diagnósticos generales; tampoco invento métricas ausentes. El retorno sigue siendo
-texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
+El callback opcional `opciones.alRecibirMetadatos` recibe modelo solicitado,
+`max_tokens` efectivo sin modificarlo, duración total (incluidos reintentos/backoff)
+y, si están disponibles, modelo reportado, `finish_reason` y tokens de
+entrada/salida/razonamiento. Solo acepto modelos del catálogo y el alias legacy;
+omito identificadores desconocidos, aunque parezcan nombres de modelo válidos.
+Solo acepto los cierres exactos `stop`, `length`, `content_filter`, `tool_calls`,
+`function_call`, `aborted` e `insufficient_system_resource`; omito cualquier otro
+texto. Los tokens deben ser enteros seguros no negativos: cero es válido, ausencia
+no equivale a cero. No exporto `reasoning_content`, prompts, CV ni respuestas.
+El callback se ejecuta una vez por consulta, también ante fallo de transporte;
+sus excepciones no invalidan una respuesta ni generan solicitudes adicionales.
+El retorno sigue siendo texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
+
+### Diagnóstico de fallos de evaluación (#70, T1)
+
+Consumo ese callback en el evaluador existente. Cada fallo registra un único
+`console.error('[Evaluación] Fallo técnico de IA', campos)` con ID numérico seguro,
+metadatos anteriores y código normalizado; nunca registro el objeto Error, stack,
+mensajes originales, respuestas ni evidencias del parser. Una evaluación válida,
+una exclusión o un hit de caché no emiten ese diagnóstico de fallo.
+
+| Código diagnóstico | Evidencia disponible |
+| --- | --- |
+| `SALIDA_TRUNCADA` | Cierre `length`, incluso con JSON aparentemente completo |
+| `SALIDA_INCOMPLETA` | Otro cierre o cierre desconocido/ausente |
+| `CHOICES_AUSENTES` | Sin primera elección |
+| `SALIDA_VACIA` | Cierre `stop` sin contenido textual usable |
+| `JSON_INVALIDO` | Sobre o contenido no JSON válido/objeto |
+| `RESPUESTA_INVALIDA` | Schema o coherencia rechazados por el parser |
+| `HTTP_4xx` / `HTTP_5xx` | Estado HTTP numérico del último intento fallido |
+| `TIMEOUT` | Aborté por vencimiento del timeout del intento |
+| `CANCELADA` | El transporte devolvió `AbortError` sin vencer ese timeout |
+| `ERROR_TRANSPORTE` | Otro fallo de transporte |
+| `ERROR_EVALUACION` | Error inesperado sin código reconocido |
+
+Mantengo `SALIDA_INCOMPLETA` en el error público del cliente para elecciones
+ausentes/contenido vacío: la clasificación más precisa viaja por el callback,
+sin cambiar el contrato HTTP de importación CV. La cancelación del lote sigue
+siendo entre ofertas: no aborta la petición ya iniciada ni equivale a `CANCELADA`.
+
+En API/persistencia conservo resultados de error y mensajes técnicos seguros,
+sin copiar `SyntaxError.message` ni valores rechazados en los mensajes técnicos.
+Conservo el contrato semántico previo del parser: porcentaje, flags de
+inconsistencia/invalidez y explicación estructurada; nunca copio esos textos al
+registro diagnóstico. La telemetría no se guarda en caché ni firma ni requiere columnas nuevas.
+Sigo usando `actualizarEvaluacion`/`registrarErrorEvaluacion` y confirmo caché después
+del UPDATE exitoso. No cambio resultados correctos, decisiones manuales ni
+postulaciones. Mantengo cuatro intentos máximos de transporte, presupuestos,
+modelos, razonamiento, prompts y scoring: no hay evidencia para más reintentos.
+
+**Límite de la evidencia:** estos diagnósticos distinguen fallos futuros; los
+mensajes históricos genéricos no prueban por qué fallaron aquellas consultas.
+La verificación de telemetría es sintética con fetch/almacenamiento simulados,
+sin proveedor real ni producción. El preview siguiente no recupera ofertas
+automáticamente ni identifica los errores históricos.
 
 ## Perfil del candidato
 
@@ -553,7 +603,51 @@ A partir de la issue #18, se separa conceptual y fácticamente el **rechazo labo
 - **Cancelación segura:** `cancelarEvaluacionPendiente()` distingue si hay un worker realmente iterando en memoria (señalando parada ordenada) o si se trata de un lote interrumpido/huérfano (cerrando inmediatamente el lote en BD como `'cancelado'` y reseteando el progreso en memoria).
 
 ### 3. Acción «Reintentar errores»
-- Endpoint `POST /api/evaluacion/reintentar-errores`: selecciona exclusivamente ofertas extraídas en los últimos 30 días con `evaluacion_error_mensaje IS NOT NULL AND evaluacion_error_mensaje != 'REEVALUACION_SOLICITADA'`.
-- Reutiliza el worker, mutex y progreso existentes sin disparar reevaluaciones indiscriminadas de ofertas ya aprobadas o rechazadas.
-- Si el reintento resulta exitoso, limpia `evaluacion_error_mensaje = null`, guarda el nuevo estado de evaluación y actualiza la firma canónica.
+- GET y POST `/api/evaluacion/reintentar-errores` comparten `obtenerOfertasConErrores`: exijo `estado_evaluacion = 'pendiente'`, extracción reciente por `COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'`, error no nulo ni vacío/blanco ni marcador `REEVALUACION_SOLICITADA`, firma y porcentaje nulos, estado `no_postulado` y fecha/nota de postulación nulas. Una nota vacía también queda fuera por prudencia. Ordeno por primera extracción descendente e ID descendente para desempatar.
+- Excluyo aprobadas/rechazadas aunque tengan error, pendientes con firma o porcentaje anterior (incluso cero), seguimiento manual y ofertas antiguas sin reaparición reciente. No cambio los demás selectores ni las exclusiones laborales.
+- El POST existente reutiliza worker, mutex y progreso; no agrego otro ejecutor ni reintentos. Si tiene éxito, limpia el error y guarda resultado y firma después del UPDATE, antes de confirmar caché.
+
+### Preview de solo lectura y autorización futura (#70, T2)
+
+1. Obtengo autorización específica antes de **leer producción**; una sesión autenticada no reemplaza ese permiso operativo. En un entorno autorizado, consulto únicamente `GET /api/evaluacion/reintentar-errores` con el Bearer habitual, sin body ni parámetros.
+2. Reviso `{ exito: true, total, ids }`: son candidatos **actuales**, no inventario histórico del incidente. No identifico los cinco errores históricos ni afirmo conocer cuatro IDs. La respuesta no incluye filas, mensajes técnicos, notas, descripciones ni perfil. Una falla SQL devuelve 503 genérico, no una lista vacía ni el mensaje privado de la excepción.
+3. No ejecuto el POST como parte de este procedimiento. Antes de cualquier recuperación futura, necesito autorización explícita de producción con **IDs exactos**, alcance y posible costo, y revalidar exactamente esos IDs contra el selector vigente inmediatamente antes de ejecutar. Si cambia el conjunto, me detengo y reviso la autorización.
+
+El GET no adquiere mutex, inicia lotes, lee preferencias, llama IA ni escribe ofertas,
+firmas o caché. Hereda autenticación y el rate limit del router (5/min compartido).
+Es una consulta puntual **no vinculante**: no reserva filas, no emite un token de
+snapshot ni enlaza un futuro POST. Puede quedar obsoleto por cambios concurrentes.
+El POST genérico vuelve a seleccionar el conjunto vigente, no acepta una aprobación
+ligada al preview y **no constituye permiso** para recuperar esos IDs. Tampoco usar
+`/ejecutar` con IDs evita la necesidad de autorización y revalidación.
+
+### Causa → persistencia → costo y caché
+
+| Causa comprobable | Estado / error persistido | Reintento y costo | Caché / firma |
+| --- | --- | --- | --- |
+| `length`, cierre incompleto, contenido vacío, JSON/schema inválido | Sin éxito previo: pendiente con error técnico, nunca rechazo laboral | Solo preview; no reintento nuevo por conjetura. Una ejecución autorizada puede consumir IA | No cacheo fallo ni asigno firma de éxito |
+| HTTP 429/5xx, timeout o transporte | Pendiente con error técnico | Conservo solamente los reintentos transitorios existentes; no agrego loops ni presupuesto | No cacheo fallo |
+| Fallo durante reevaluación con resultado válido anterior | Conservo estado, porcentaje, fecha y firma; registro solo error | Fuera del selector protegido, sin recuperación automática | Conservo caché y firma previas |
+| Respuesta válida o exclusión determinística | Aprobada/rechazada, error nulo | Fuera del preview; exclusión previa no llama IA | Persisto resultado antes de caché; conservo defensas vigentes |
+| Seguimiento manual o firma/porcentaje previo en pendiente | Sin cambios por GET ni selección de errores | Excluido por prudencia, requiere revisión explícita | Sin invalidación ni borrado |
+| Fallo SQL | GET: 503 genérico; worker: lote en error | No simulo éxito ni agrego reintentos | No confirmo nueva caché antes de UPDATE exitoso |
+| Error histórico genérico | No puedo atribuir causa retrospectiva | El total actual no reconstruye el incidente | No reconstruyo firmas históricas |
+
+La prueba durable `backend/tests/integracion/issue-70-recuperacion.test.js` requiere
+`ALLOW_DB_TESTS=true`, `DB_TEST_SINTETICA=true`, `NODE_ENV=test` y variables PG
+explícitas hacia `127.0.0.1`, puerto asignado al cluster aislado, base terminada en
+`_test`, usuario/clave sintéticos y `PGSSLMODE=disable`; rechazo `DATABASE_URL` y
+servicios PG. Compruebo identidad y `test-db-guard` antes de DDL. Creo solamente
+ofertas, caché y lotes en un esquema propio aleatorio dentro de una transacción que
+revierto al terminar, sin migraciones ni tablas públicas. Bloqueo fetch externo;
+proveedor y preferencias son sintéticos, persistencia de ofertas/caché es SQL real.
+Sin ambos flags los casos PG quedan **SKIPPED**, no PASS.
+
+**Evidencia local de #70:** `npm test -- --runInBand --no-cache --silent --verbose=false`
+en entorno limpio de test: 2874 PASS, 161 SKIPPED, 0 FAIL (85 suites PASS, 11 SKIPPED).
+Los dos casos anteriores pasaron además contra PostgreSQL 18 aislado con identidad
+verificada y schema transaccional propio; confirmé el apagado del cluster al terminar.
+Los otros 159 casos omitidos no quedan verificados por esta ejecución. No ejecuté
+frontend, builds, migraciones, proveedor real ni producción. La causa de los cinco
+fallos históricos sigue desconocida; estas pruebas no reconstruyen ese inventario.
 

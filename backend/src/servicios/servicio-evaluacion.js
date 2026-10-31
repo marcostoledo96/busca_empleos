@@ -144,6 +144,14 @@ function ubicacionEnZonas(ubicacion, zonas) {
  * @returns {Object} Resultado con firma_criterios_evaluacion solo si fue exitoso.
  */
 async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opciones = {}) {
+    let metadatos = {};
+    const registrarFallo = codigo => {
+        console.error('[Evaluación] Fallo técnico de IA', {
+            ...(Number.isSafeInteger(oferta.id) && oferta.id > 0 ? { oferta_id: oferta.id } : {}),
+            ...metadatos,
+            codigo,
+        });
+    };
     try {
         // Si recibo instrucciones como parámetro las uso; si no,
         // leo las preferencias de la BD (para llamadas sueltas desde la API).
@@ -279,19 +287,23 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         const respuestaTexto = await consultarDeepSeek(
             instruccionesFinal,
             promptEvaluacion,
-            modeloFinal
+            modeloFinal,
+            { alRecibirMetadatos: datos => { metadatos = datos; } }
         );
 
         // ── Paso 3: Parsear la respuesta de DeepSeek con el parser estricto ──
         const textoOferta = [oferta.titulo, oferta.descripcion].filter(Boolean).join('\n');
         const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta);
 
-        // Si el parser falla, informo un error técnico; el worker no persiste un rechazo.
+        // Registro solo clasificación y métricas, nunca evidencias ni texto del parser.
+        if (respuesta.error || respuesta.invalido || respuesta.inconsistente) {
+            registrarFallo('RESPUESTA_INVALIDA');
+        }
         if (respuesta.error && !respuesta.inconsistente) {
             return {
                 match: false,
                 porcentaje: 15,
-                razon: `No se pudo interpretar la respuesta de DeepSeek: ${respuesta.razon}`,
+                razon: 'No se pudo interpretar la respuesta de DeepSeek: respuesta inválida.',
                 error: true,
                 explicacion: respuesta.explicacion,
                 desglose_disponible: false,
@@ -341,8 +353,18 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         });
 
     } catch (error) {
-        const razonError = `Error al evaluar con DeepSeek: ${error.message}`;
-        console.error(`[Evaluación] Error al evaluar oferta ID ${oferta.id}: ${razonError}`);
+        const codigoRecibido = metadatos.codigo || error?.codigo;
+        const codigo = /^(?:SALIDA_TRUNCADA|SALIDA_INCOMPLETA|CHOICES_AUSENTES|SALIDA_VACIA|JSON_INVALIDO|TIMEOUT|CANCELADA|ERROR_TRANSPORTE|HTTP_[45]\d{2})$/.test(codigoRecibido)
+            ? codigoRecibido : 'ERROR_EVALUACION';
+        const mensajes = {
+            SALIDA_TRUNCADA: 'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.',
+            SALIDA_INCOMPLETA: 'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.',
+            CHOICES_AUSENTES: 'DeepSeek devolvió una respuesta sin opciones. Volvé a intentar.',
+            SALIDA_VACIA: 'DeepSeek devolvió una respuesta vacía. Volvé a intentar.',
+            JSON_INVALIDO: 'DeepSeek no devolvió un objeto JSON válido. Volvé a intentar.',
+        };
+        const razonError = `Error al evaluar con DeepSeek: ${mensajes[codigo] || `Error técnico (${codigo}). Volvé a intentar.`}`;
+        registrarFallo(codigo);
 
         return {
             match: false,

@@ -75,6 +75,32 @@ describe('Issue #22 — contrato SQL sin conexión', () => {
     });
 });
 
+describe('Issue #70 — selección conservadora sin conexión', () => {
+    test('selecciona solo pendientes con error técnico, sin resultado previo ni seguimiento manual', async () => {
+        const filas = [{ id: 7, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'TIMEOUT' }];
+        const consulta = jest.spyOn(pool, 'query').mockResolvedValue({ rows: filas });
+        try {
+            expect(await modeloOferta.obtenerOfertasConErrores()).toEqual(filas);
+            const sql = consulta.mock.calls[0][0];
+            expect(sql).toContain("COALESCE(fecha_ultima_extraccion, fecha_extraccion) >= NOW() - INTERVAL '30 days'");
+            expect(sql).toContain("estado_evaluacion = 'pendiente'");
+            expect(sql).toContain('evaluacion_error_mensaje IS NOT NULL');
+            expect(sql).toContain("!= 'REEVALUACION_SOLICITADA'");
+            expect(sql).toMatch(/TRIM\(.*evaluacion_error_mensaje.*\) != ''/);
+            expect(sql).toContain('firma_criterios_evaluacion IS NULL');
+            expect(sql).toContain('porcentaje_match IS NULL');
+            expect(sql).toContain("estado_postulacion = 'no_postulado'");
+            expect(sql).toContain('fecha_postulacion IS NULL');
+            expect(sql).toContain('nota_postulacion IS NULL');
+            expect(sql).toContain('ORDER BY fecha_extraccion DESC, id DESC');
+            expect(sql).not.toMatch(/UPDATE|INSERT|DELETE|FOR UPDATE/);
+            expect(modeloOferta.obtenerOfertasConErrorRecuperable).toBe(modeloOferta.obtenerOfertasConErrores);
+        } finally {
+            consulta.mockRestore();
+        }
+    });
+});
+
 const dbTestsPermitidos = process.env.ALLOW_DB_TESTS === 'true';
 const entornoSeguro = process.env.NODE_ENV === 'test'
     || (process.env.PGDATABASE || '').includes('test');

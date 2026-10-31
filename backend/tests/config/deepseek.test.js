@@ -34,7 +34,7 @@ test.each([false, true])('rechazo truncamiento en ambas tareas: %s', async impor
     await expect(consultarDeepSeek('JSON', 'Texto', undefined, { importacionCv })).rejects.toMatchObject({ codigo: 'SALIDA_TRUNCADA' });
 });
 
-test.each(['content_filter', 'tool_calls', 'desconocido', null, undefined])('rechazo finalización no segura: %s', async motivo => {
+test.each(['content_filter', 'tool_calls', 'aborted', 'insufficient_system_resource', 'desconocido', null, undefined])('rechazo finalización no segura: %s', async motivo => {
     responder('{}', 'stop', { choices: [{ finish_reason: motivo, message: { content: '{}' } }] });
     await expect(consultarDeepSeek('JSON', 'Texto')).rejects.toMatchObject({ codigo: 'SALIDA_INCOMPLETA' });
 });
@@ -55,13 +55,13 @@ test.each(['{', '[]', 'null', 'true', '```json\n{}\n```'])('exijo un objeto JSON
 });
 
 test('devuelvo metadatos seguros opcionales sin cambiar el retorno de texto', async () => {
-    responder('{"nombre":null}', 'stop', { model: 'modelo-reportado', usage: {
+    responder('{"nombre":null}', 'stop', { model: 'deepseek-flash', usage: {
         prompt_tokens: 100, completion_tokens: 30, completion_tokens_details: { reasoning_tokens: 20 }, privado: 'CV_PRIVADO',
     } });
     const alRecibirMetadatos = jest.fn();
     await expect(consultarDeepSeek('JSON PRIVADO', 'CV_PRIVADO', 'deepseek-v4-flash', { alRecibirMetadatos })).resolves.toBe('{"nombre":null}');
-    expect(alRecibirMetadatos).toHaveBeenCalledWith({ modelo_solicitado: 'deepseek-flash', modelo_reportado: 'modelo-reportado',
-        finish_reason: 'stop', duracion_ms: expect.any(Number), tokens_entrada: 100, tokens_salida: 30, tokens_razonamiento: 20 });
+    expect(alRecibirMetadatos).toHaveBeenCalledWith({ modelo_solicitado: 'deepseek-flash', modelo_reportado: 'deepseek-flash',
+        finish_reason: 'stop', max_tokens: 4096, duracion_ms: expect.any(Number), tokens_entrada: 100, tokens_salida: 30, tokens_razonamiento: 20 });
     expect(JSON.stringify(alRecibirMetadatos.mock.calls)).not.toMatch(/PRIVADO|Bearer/);
 });
 
@@ -69,7 +69,45 @@ test('no invento metadatos ausentes', async () => {
     responder();
     const alRecibirMetadatos = jest.fn();
     await consultarDeepSeek('JSON', 'Texto', undefined, { alRecibirMetadatos });
-    expect(alRecibirMetadatos).toHaveBeenCalledWith({ modelo_solicitado: 'deepseek-flash', finish_reason: 'stop', duracion_ms: expect.any(Number) });
+    expect(alRecibirMetadatos).toHaveBeenCalledWith({ modelo_solicitado: 'deepseek-flash', max_tokens: 4096, finish_reason: 'stop', duracion_ms: expect.any(Number) });
+});
+
+test('omito cadenas maliciosas y métricas inválidas sin divulgar contenido', async () => {
+    responder('{}', 'stop', { model: 'CV_PRIVADO\nBearer secreto', usage: { prompt_tokens: -1, completion_tokens: '30' },
+        choices: [{ finish_reason: 'CV_PRIVADO', message: { content: 'CV_PRIVADO' } }] });
+    const alRecibirMetadatos = jest.fn();
+    await expect(consultarDeepSeek('JSON', 'Texto', undefined, { alRecibirMetadatos })).rejects.toMatchObject({ codigo: 'SALIDA_INCOMPLETA' });
+    expect(alRecibirMetadatos).toHaveBeenCalledWith({ modelo_solicitado: 'deepseek-flash', max_tokens: 4096,
+        duracion_ms: expect.any(Number), codigo: 'SALIDA_INCOMPLETA' });
+    expect(JSON.stringify(alRecibirMetadatos.mock.calls)).not.toContain('PRIVADO');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+test('un observador que falla no rompe una respuesta válida ni duplica solicitudes', async () => {
+    responder();
+    await expect(consultarDeepSeek('JSON', 'Texto', undefined, {
+        alRecibirMetadatos: () => { throw new Error('CV_PRIVADO'); },
+    })).resolves.toBe('{}');
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+});
+
+test.each([429, 503, 'red', 'cancelacion', 'timeout'])('entrego diagnóstico seguro del fallo de transporte %s', async caso => {
+    jest.spyOn(console, 'warn').mockImplementation(() => {});
+    if (typeof caso === 'number') global.fetch.mockResolvedValue({ ok: false, status: caso, headers: { get: () => '0' } });
+    else if (caso === 'timeout') global.fetch.mockImplementation((url, { signal }) => new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(new Error('CV_PRIVADO')));
+    }));
+    else global.fetch.mockRejectedValue(Object.assign(new Error('CV_PRIVADO'), { name: caso === 'cancelacion' ? 'AbortError' : 'Error' }));
+    const alRecibirMetadatos = jest.fn();
+    const codigo = typeof caso === 'number' ? `HTTP_${caso}` : { red: 'ERROR_TRANSPORTE', cancelacion: 'CANCELADA', timeout: 'TIMEOUT' }[caso];
+    const comprobacion = expect(consultarDeepSeek('JSON', 'Texto', undefined, { alRecibirMetadatos })).rejects.toMatchObject({ codigo });
+    await jest.runAllTimersAsync();
+    await comprobacion;
+    expect(alRecibirMetadatos).toHaveBeenCalledTimes(1);
+    expect(alRecibirMetadatos).toHaveBeenCalledWith({ modelo_solicitado: 'deepseek-flash', max_tokens: 4096,
+        duracion_ms: expect.any(Number), codigo });
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+    expect(JSON.stringify([alRecibirMetadatos.mock.calls, console.warn.mock.calls])).not.toContain('CV_PRIVADO');
 });
 
 test.each([false, true])('no divulgo respuesta privada HTTP ni reintento errores permanentes, importación %s', async importacionCv => {

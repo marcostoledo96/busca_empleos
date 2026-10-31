@@ -56,8 +56,8 @@ test.each(['SALIDA_TRUNCADA', 'SALIDA_INCOMPLETA', 'JSON_INVALIDO'])('error téc
     expect(resumen.errores).toBe(1);
     expect(resumen.rechazadas).toBe(0);
     expect(resumen.aprobadas).toBe(0);
-    expect(ofertas.actualizarEvaluacion).toHaveBeenCalledWith(9, 'pendiente', expect.stringContaining('Error técnico'), null,
-        expect.stringContaining('Error técnico'), null, null, null, oferta.descripcion);
+    expect(ofertas.actualizarEvaluacion).toHaveBeenCalledWith(9, 'pendiente', expect.stringContaining('Error al evaluar con DeepSeek:'), null,
+        expect.stringContaining('Error al evaluar con DeepSeek:'), null, null, null, oferta.descripcion);
     expect(registros.size).toBe(0);
     expect((await servicio.evaluarOferta(oferta)).match).toBe(true);
     expect(registros.size).toBe(1);
@@ -73,10 +73,25 @@ test('una reevaluación incompleta conserva el resultado válido y no sustituye 
     expect(resumen.errores).toBe(1);
     expect(resumen.rechazadas).toBe(0);
     expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
-    expect(ofertas.registrarErrorEvaluacion).toHaveBeenCalledWith(9, expect.stringContaining('Salida incompleta'), anterior.descripcion);
+    expect(ofertas.registrarErrorEvaluacion).toHaveBeenCalledWith(9, expect.stringContaining('respuesta incompleta'), anterior.descripcion);
     expect([...registros.values()]).toEqual([almacenada]);
     expect(anterior.porcentaje_match).toBe(80);
     expect(anterior.firma_criterios_evaluacion).toBe('anterior');
+});
+
+test.each([new SyntaxError('CV_PRIVADO'), Object.assign(new Error('CV_PRIVADO'), { codigo: 'CV_PRIVADO' })])('no publico errores inesperados ni códigos arbitrarios y recupero después', async error => {
+    const registro = jest.spyOn(console, 'error').mockImplementation(() => {});
+    proveedor.consultarDeepSeek.mockRejectedValueOnce(error);
+    const resumen = await servicio.evaluarOfertasPendientes();
+    expect(resumen.errores).toBe(1);
+    expect(registro).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', { oferta_id: 9, codigo: 'ERROR_EVALUACION' });
+    expect(JSON.stringify([resumen, registro.mock.calls, ofertas.actualizarEvaluacion.mock.calls])).not.toContain('CV_PRIVADO');
+    expect(registros.size).toBe(0);
+    expect((await servicio.evaluarOferta(oferta)).match).toBe(true);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
+    expect(registros.size).toBe(1);
+    expect(JSON.stringify([...registros.values()])).not.toMatch(/duracion_ms|finish_reason|max_tokens|tokens_entrada/);
+    registro.mockRestore();
 });
 
 test('mismas entradas reales reutilizan caché: una sola llamada al proveedor', async () => {

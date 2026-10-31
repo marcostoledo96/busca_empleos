@@ -478,13 +478,13 @@ describe('Servicio de evaluación con IA', () => {
 
         test('retorna error descriptivo si DeepSeek falla', async () => {
             consultarDeepSeek.mockRejectedValueOnce(
-                new Error('DeepSeek respondió con error 500')
+                Object.assign(new Error('DeepSeek respondió con error 500'), { codigo: 'HTTP_500' })
             );
 
             const resultado = await evaluarOferta(ofertaEjemplo, instruccionesTest, 'deepseek-v4-flash', preferenciasEjemplo);
 
             expect(resultado.match).toBe(false);
-            expect(resultado.razon).toContain('error');
+            expect(resultado.razon).toBe('Error al evaluar con DeepSeek: Error técnico (HTTP_500). Volvé a intentar.');
             expect(resultado.error).toBe(true);
         });
 
@@ -1536,7 +1536,7 @@ describe('Servicio de evaluación con IA', () => {
         test('error 503 de DeepSeek no convierte la oferta en rechazada y permanece en pendiente', async () => {
             const oferta503 = { ...ofertaEjemplo, id: 301, estado_evaluacion: 'pendiente' };
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([oferta503]);
-            consultarDeepSeek.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+            consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('503 Service Unavailable'), { codigo: 'HTTP_503' }));
             modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
                 ...oferta503,
                 estado_evaluacion: 'pendiente',
@@ -1553,9 +1553,9 @@ describe('Servicio de evaluación con IA', () => {
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
                 301,
                 'pendiente',
-                expect.stringContaining('503 Service Unavailable'),
+                'Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.',
                 null,
-                expect.stringContaining('503 Service Unavailable'),
+                'Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.',
                 null,
                 null,
                 null,
@@ -1578,7 +1578,7 @@ describe('Servicio de evaluación con IA', () => {
         test('timeout no genera rechazo laboral y conserva la oferta como pendiente', async () => {
             const ofertaTimeout = { ...ofertaEjemplo, id: 302, estado_evaluacion: 'pendiente' };
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaTimeout]);
-            consultarDeepSeek.mockRejectedValueOnce(new Error('Connection timed out after 30000ms'));
+            consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('Connection timed out after 30000ms'), { codigo: 'TIMEOUT' }));
             modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
                 ...ofertaTimeout,
                 estado_evaluacion: 'pendiente',
@@ -1592,9 +1592,9 @@ describe('Servicio de evaluación con IA', () => {
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
                 302,
                 'pendiente',
-                expect.stringContaining('Connection timed out'),
+                'Error al evaluar con DeepSeek: Error técnico (TIMEOUT). Volvé a intentar.',
                 null,
-                expect.stringContaining('Connection timed out'),
+                'Error al evaluar con DeepSeek: Error técnico (TIMEOUT). Volvé a intentar.',
                 null,
                 null,
                 null,
@@ -1605,7 +1605,7 @@ describe('Servicio de evaluación con IA', () => {
         test('error 429 se registra como error técnico y la oferta queda en pendiente con mensaje de error', async () => {
             const oferta429 = { ...ofertaEjemplo, id: 303, estado_evaluacion: 'pendiente' };
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([oferta429]);
-            consultarDeepSeek.mockRejectedValueOnce(new Error('429 Rate limit exceeded'));
+            consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('429 Rate limit exceeded'), { codigo: 'HTTP_429' }));
             modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
                 ...oferta429,
                 estado_evaluacion: 'pendiente',
@@ -1618,9 +1618,9 @@ describe('Servicio de evaluación con IA', () => {
             expect(modeloOferta.actualizarEvaluacion).toHaveBeenCalledWith(
                 303,
                 'pendiente',
-                expect.stringContaining('429 Rate limit exceeded'),
+                'Error al evaluar con DeepSeek: Error técnico (HTTP_429). Volvé a intentar.',
                 null,
-                expect.stringContaining('429 Rate limit exceeded'),
+                'Error al evaluar con DeepSeek: Error técnico (HTTP_429). Volvé a intentar.',
                 null,
                 null,
                 null,
@@ -1638,10 +1638,10 @@ describe('Servicio de evaluación con IA', () => {
                 porcentaje_match: 90,
                 evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA',
             };
-            consultarDeepSeek.mockRejectedValueOnce(new Error('503 Service Unavailable'));
+            consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('503 Service Unavailable'), { codigo: 'HTTP_503' }));
             modeloOferta.registrarErrorEvaluacion.mockResolvedValueOnce({
                 ...ofertaPreviamenteAprobada,
-                evaluacion_error_mensaje: 'Error al evaluar con DeepSeek: 503 Service Unavailable',
+                evaluacion_error_mensaje: 'Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.',
             });
 
             const resumen = await evaluarOfertasPendientes([ofertaPreviamenteAprobada]);
@@ -1653,7 +1653,7 @@ describe('Servicio de evaluación con IA', () => {
             expect(resumen.detalle[0].estado).toBe('aprobada');
             expect(modeloOferta.registrarErrorEvaluacion).toHaveBeenCalledWith(
                 304,
-                expect.stringContaining('503 Service Unavailable'),
+                'Error al evaluar con DeepSeek: Error técnico (HTTP_503). Volvé a intentar.',
                 ofertaPreviamenteAprobada.descripcion
             );
             expect(modeloOferta.actualizarEvaluacion).not.toHaveBeenCalled();
