@@ -63,6 +63,8 @@ node backend/tests/scripts/exportar-ofertas.js \
 
 Rechazo configuración parcial, puertos inválidos, CA ilegible o PEM sin certificados CA válidos **antes de crear el cliente o conectar**. Conservo los dos mensajes fijos y los códigos de salida existentes. Ignoro `ssl`, `host`, `port`, `options` y `connectionString` arbitrarios del llamador: no pueden reemplazar esta configuración protegida. El formato exportado no cambia.
 
+La guarda SQL usa `host(inet_server_addr()) AS servidor`: retiro únicamente la máscara `/32` de IPv4 o `/128` de IPv6 que agrega el cast a texto de PostgreSQL. Comparo el resultado **exactamente** con la IP literal autorizada, tanto en modo directo como proxy; no normalizo la entrada ni acepto IPs distintas o representaciones IPv6 equivalentes. Para Unix conservo dirección SQL `null` y puerto configurado.
+
 ### Vinculación de confianza y preflight posterior
 
 **Antes de autorizar una conexión real, exijo verificar la procedencia de la CA y su vinculación con esa instancia/identidad mediante un canal autenticado independiente.** Recibir un archivo, obtenerlo del mismo endpoint sin autenticar o comprobar su sintaxis no demuestra procedencia. No descargo certificados, no hago TOFU ni modifico la confianza global. La CA explícita reemplaza las raíces predeterminadas para esta conexión; mantengo `rejectUnauthorized: true`, sin depender de `PGSSLMODE` para el modo proxy.
@@ -74,6 +76,8 @@ En el driver `pg` instalado, `pg/lib/connection.js` copia las opciones SSL pero 
 ### Alcance de las pruebas locales
 
 `exportar-ofertas-proxy-tls.test.js` usa únicamente sockets loopback, PKI EC marcada TESTONLY y un receptor mínimo SSLRequest → TLS → Startup/AuthenticationOk/ReadyForQuery. No instala ni inicia PostgreSQL ni ejecuta SQL: después de conectar con el cliente real configurado por el exportador, simulo las respuestas de consultas y reutilizo los doce casos y el verificador públicos existentes. Compruebo CA incorrecta, certificado vencido, identidad equivocada y rechazo de TLS antes de Startup/autenticación, consultas o salida; las fallas CLI conservan stderr fijo, stdout vacío y código 1. También bloqueo cada discrepancia SQL antes de preferencias/ofertas/salida, y verifico sanitización, reconciliación, formato y permisos privados en el caso válido. La suite focal incluye las regresiones del modo directo y auditoría; la suite backend completa y la verificación independiente corresponden al padre, con evidencia reportada por separado.
+
+La regresión condicional de `exportar-ofertas.test.js` reutiliza el adaptador de relaciones sintéticas del helper `issue-69-postgres-prueba.js`, pero ejecuta la consulta de identidad **sin sustituirla** en PostgreSQL real. La habilito únicamente con `TESTONLY_PG_PORT` (puerto distinto de 5432) y `TESTONLY_PG_SOCKET` apuntando al socket de un clúster efímero propio. El dial está fijado a `127.0.0.1`, `::1` o ese socket; no leo variables de conexión de la aplicación. Compruebo máscaras reales `/32` y `/128`, doce filas reconciliadas, discrepancia rechazada antes de datos/archivos, contadores de catálogo sin cambios y conservación de Unix/null. Los casos proxy de este probe inyectan el cliente SQL local: **no prueban TLS sobre PostgreSQL real**; el handshake TLS corresponde al receptor sintético descrito arriba. Sin esas variables, estas cinco pruebas quedan omitidas, no aprobadas.
 
 ## Qué leo y qué no modifico
 

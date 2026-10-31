@@ -21,7 +21,7 @@ const CAMPOS_REQUISITO = ['requisito', 'tipo', 'evidencia_oferta', 'evidencia_pe
 const MENSAJE_RECHAZO = 'Exportación rechazada: autorización o destino inválido.';
 const MENSAJE_ERROR = 'No pude completar la exportación. No comparta una salida sin resumen completo.';
 const SQL_IDENTIDAD = `SELECT current_database() AS base, current_user AS usuario,
-    inet_server_addr()::text AS servidor, inet_server_port() AS puerto,
+    host(inet_server_addr()) AS servidor, inet_server_port() AS puerto,
     current_setting('port') AS puerto_configurado,
     current_setting('default_transaction_read_only') AS solo_lectura,
     current_setting('transaction_read_only') AS transaccion_solo_lectura`;
