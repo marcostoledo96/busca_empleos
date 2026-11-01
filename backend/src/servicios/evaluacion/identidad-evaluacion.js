@@ -5,7 +5,7 @@ const { VERSION_PRIORIDAD_IA } = require('./detector-prioridad-ia');
 const { ordenarObjeto, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./entradas-evaluacion');
 
 // Incremento esta versión cuando cambia el contrato de reglas o del parser.
-const VERSION_CONTRATO_EVALUACION = 'evaluacion-v5';
+const VERSION_CONTRATO_EVALUACION = 'evaluacion-v6';
 
 function serializarCanonico(valor) {
     return JSON.stringify(ordenarObjeto(valor));
@@ -35,6 +35,7 @@ function construirEntradaOferta(oferta) {
     return {
         mensaje_usuario: construirPromptEvaluacion(oferta),
         datos_crudos: datosCrudos,
+        modalidad_metadatos: crudos.normalizacion_modalidad?.metadatos ?? oferta.modalidad ?? null,
         version: VERSION_CONTRATO_EVALUACION,
     };
 }

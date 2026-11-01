@@ -348,7 +348,13 @@ function normalizarLote(items, plataforma) {
 
     for (const item of items) {
         try {
-            resultados.push(normalizador(item));
+            const oferta = normalizador(item);
+            const interpretacion = resolverModalidadOferta(oferta);
+            resultados.push({
+                ...oferta,
+                modalidad: interpretacion.modalidad,
+                datos_crudos: { ...oferta.datos_crudos, normalizacion_modalidad: interpretacion },
+            });
         } catch (error) {
             // Logueo la advertencia pero no freno el proceso.
             console.warn(
@@ -1593,12 +1599,17 @@ function extraerNumeroInfojobs(valor) {
  * @param {string} texto - Texto a analizar.
  * @returns {'remoto'|'hibrido'|'presencial'|null}
  */
+const PATRON_NEGACION_REMOTO = /\b(?:sin\s+posibilidad\s+de\s+(?:trabajo\s+)?remoto|sin\s+posibilidad\s+de\s+teletrabajo|no\s+(?:se\s+admite|se\s+permite|hay|posibilidad\s+de)\s+(?:trabajo\s+remoto|teletrabajo)|remote\s+work\s+is\s+not\s+(?:available|permitted|allowed)|not\s+a\s+remote\s+position|no\s+teletrabajo|no\s+remoto)\b/i;
+
 function detectarModalidadTexto(texto = '') {
     if (!texto || typeof texto !== 'string') return null;
-    const t = texto.toLowerCase();
+    // Distingo el objeto de una tarea y el acceso opcional de la modalidad del puesto.
+    const t = texto.toLowerCase().replace(/<[^>]+>/g, ' ')
+        .replace(/\b(soporte|acceso|monitoreo)\s+remoto\b/g, '$1')
+        .replace(/\bacceso\s+opcional\s+a\s+(?:un\s+)?puesto\s+en\s+oficina\b/g, 'beneficio opcional');
 
     // 1. Negaciones explícitas de trabajo remoto:
-    const esNegacionRemoto = /\b(?:sin\s+posibilidad\s+de\s+(?:trabajo\s+)?remoto|sin\s+posibilidad\s+de\s+teletrabajo|no\s+(?:se\s+admite|se\s+permite|hay|posibilidad\s+de)\s+(?:trabajo\s+remoto|teletrabajo)|remote\s+work\s+is\s+not\s+(?:available|permitted|allowed)|not\s+a\s+remote\s+position|no\s+teletrabajo|no\s+remoto)\b/i.test(t);
+    const esNegacionRemoto = PATRON_NEGACION_REMOTO.test(t);
 
     // 2. Menciones explícitas de esquema híbrido:
     const esHibrido = /\b(?:h[ií]brido|hybrid|\d+\s*d[ií]as?\s+(?:en\s+)?oficina.*?\d+\s*d[ií]as?\s+(?:de\s+)?teletrabajo|\d+\s*d[ií]as?\s+(?:de\s+)?teletrabajo.*?\d+\s*d[ií]as?\s+(?:en\s+)?oficina|teletrabajo\s+(?:parcial|mixto|h[ií]brido)|presencial\s+y\s+(?:remoto|teletrabajo))\b/i.test(t);
@@ -1608,7 +1619,7 @@ function detectarModalidadTexto(texto = '') {
 
     // 4. Menciones explícitas de trabajo remoto pleno:
     const esRemotoPleno = /\b(?:100%\s*(?:remoto|remote|teletrabajo)|(?:remoto|remote|teletrabajo)\s*100%|fully\s*remote|full\s*remote|totalmente\s*(?:remoto|a\s+distancia))\b/i.test(t);
-    const esRemotoGeneral = /\b(?:remoto|remote|teletrabajo|telework|work\s+from\s+home|trabajo\s+a\s+distancia)\b/i.test(t);
+    const esRemotoGeneral = /\b(?:remot[oa]|remote|teletrabajo|telework|work\s+from\s+home|trabajo\s+a\s+distancia)\b/i.test(t);
 
     if (esHibrido) {
         return 'hibrido';
@@ -1616,6 +1627,11 @@ function detectarModalidadTexto(texto = '') {
 
     if (esNegacionRemoto) {
         return esPresencial ? 'presencial' : null;
+    }
+
+    // La asistencia obligatoria recurrente impide interpretar remoto pleno.
+    if (esRemotoGeneral && exigeAsistenciaPeriodica(t)) {
+        return 'hibrido';
     }
 
     if (esRemotoPleno) {
@@ -1638,6 +1654,32 @@ function detectarModalidadTexto(texto = '') {
     }
 
     return null;
+}
+
+function exigeAsistenciaPeriodica(texto = '') {
+    const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+    // shortcut: reconozco obligaciones y frecuencias explícitas, no cualquier visita u oficina mencionada.
+    const obligaciones = t.matchAll(/\b(no\s+(?:(?:se|hay)\s+)?)?(?:asistencia\s+obligatoria|debe\s+asistir|debera\s+asistir)\s+a\s+(?:la\s+)?oficina\s+(?:una\s+vez|\d+\s+dias?)\s+por\s+(?:semana|mes)\b/g);
+    return [...obligaciones].some(coincidencia => !coincidencia[1]);
+}
+
+/** Concilio fuentes ya normalizadas sin inferir modalidad desde una ciudad o jornada. */
+function resolverModalidadOferta(oferta = {}) {
+    const previa = oferta.datos_crudos?.normalizacion_modalidad;
+    const metadatoCrudo = previa && Object.hasOwn(previa, 'metadatos') ? previa.metadatos : oferta.modalidad;
+    const metadatos = typeof metadatoCrudo === 'string' ? metadatoCrudo.toLowerCase().trim() || null : null;
+    const titulo = detectarModalidadTexto(oferta.titulo);
+    const descripcion = detectarModalidadTexto(oferta.descripcion);
+    const senales = [...new Set([metadatos, titulo, descripcion].filter(Boolean))];
+    const asistencia = exigeAsistenciaPeriodica(oferta.descripcion || '');
+    const negacionRemoto = [oferta.titulo, oferta.descripcion].some(texto => PATRON_NEGACION_REMOTO.test(String(texto || '').replace(/<[^>]+>/g, ' ')));
+    const conflicto = senales.length > 1 || ((asistencia || negacionRemoto) && senales.includes('remoto'));
+    // La obligación concreta de asistencia prevalece sobre la etiqueta remoto.
+    // Otras contradicciones permanecen desconocidas, sin elegir el valor más restrictivo.
+    const modalidad = negacionRemoto && senales.includes('remoto') ? null
+        : asistencia && senales.includes('remoto') ? 'hibrido'
+        : conflicto ? null : senales[0] || null;
+    return { metadatos, titulo, descripcion, negacion_remoto: negacionRemoto, modalidad, conflicto };
 }
 
 function normalizarOfertaAdzuna(item) {
@@ -1722,6 +1764,7 @@ module.exports = {
     normalizarOfertaRemoteOK,
     normalizarOfertaAdzuna,
     normalizarLote,
+    resolverModalidadOferta,
     obtenerIdentidadCanonica,
     canonizarUrlPlataforma,
     // Exporto las auxiliares para poder testearlas si hace falta.

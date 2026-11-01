@@ -23,6 +23,7 @@ const {
     estaEnZonasPreferidas,
     detectarRestriccionRemotaIncompatible,
 } = require('./criterio-ubicacion');
+const { resolverModalidadOferta } = require('../servicio-normalizacion');
 
 // ──────────────────────────────────────────────────────────────
 // Patrones de detección
@@ -395,12 +396,13 @@ function detectarInglesExcluyente(oferta) {
  * @returns {{ detectado: boolean, patron: string|null, evidencia?: string }}
  */
 function detectarUbicacionIncompatible(oferta, preferencias) {
-    const modalidad = (oferta.modalidad || '').toLowerCase().trim();
+    const interpretacion = resolverModalidadOferta(oferta);
+    const { modalidad } = interpretacion;
     const zonas = preferencias.zonas_preferidas || [];
 
     // Caso 1: Ofertas remotas restringidas a residentes de otro país.
-    if (modalidad === 'remoto') {
-        const restriccionRemota = detectarRestriccionRemotaIncompatible(oferta);
+    if ([modalidad, interpretacion.metadatos, interpretacion.titulo, interpretacion.descripcion].includes('remoto')) {
+        const restriccionRemota = detectarRestriccionRemotaIncompatible({ ...oferta, modalidad: 'remoto' });
         if (restriccionRemota.detectado) {
             return {
                 detectado: true,
@@ -408,7 +410,6 @@ function detectarUbicacionIncompatible(oferta, preferencias) {
                 evidencia: restriccionRemota.evidencia,
             };
         }
-        return { detectado: false, patron: null };
     }
 
     // Solo aplica para ofertas presenciales (híbrido no se excluye determinísticamente).
@@ -606,6 +607,16 @@ function evaluarReglasExclusion(oferta, preferencias) {
         evidencia_perfil: '',
         explicacion: 'El texto indica Junior/Trainee y el metadato indica Senior/SR; conservo el conflicto por confirmar, sin elegir silenciosamente el nivel más restrictivo.',
     }] : [];
+    const interpretacionModalidad = resolverModalidadOferta(oferta);
+    if (interpretacionModalidad.conflicto) {
+        conflicto.push({
+            requisito: 'Conflicto de modalidad',
+            tipo: 'desconocido',
+            evidencia_oferta: `Metadatos: ${interpretacionModalidad.metadatos || 'desconocido'}; título: ${interpretacionModalidad.titulo || 'desconocido'}; descripción: ${interpretacionModalidad.descripcion || 'desconocido'}; negación de remoto: ${interpretacionModalidad.negacion_remoto ? 'sí' : 'no'}`,
+            evidencia_perfil: '',
+            explicacion: 'Conservo las fuentes contradictorias por confirmar; la asistencia obligatoria periódica impide remoto pleno y las demás contradicciones permanecen desconocidas.',
+        });
+    }
     const reglasActivadas = [];
     const exclusionesDetectadas = [];
     let excluida = false;
