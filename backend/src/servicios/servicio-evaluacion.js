@@ -131,6 +131,23 @@ function ubicacionEnZonas(ubicacion, zonas) {
     return estaEnZonasPreferidas(ubicacion, zonas) === true;
 }
 
+/** Exijo una afirmación completa del hecho actual; una mención literal no acredita título ni residencia. */
+function acreditarHechoActual(requisito, evidencia, hechos) {
+    const titulacion = /\b(?:licenciatura|licenciad[oa]|titulo|titulacion|grado|doctorado|maestria|tecnicatura)\b/.test(requisito);
+    const residencia = /\b(?:residir|residencia)\b/.test(requisito);
+    if (!titulacion && !residencia) return contieneTokenNormalizado(evidencia, requisito);
+    // shortcut: sólo acredito hechos fuente completos y sin citas; un párrafo ambiguo requiere confirmación manual.
+    if (!hechos.some(texto => typeof texto === 'string' && !/[«»“”"'‘’\r\n]/.test(texto.trim())
+        && normalizarTextoComparacion(texto) === evidencia)) return false;
+    const confirmado = [' confirmado', ' confirmada'].some(sufijo => evidencia === `${requisito}${sufijo}`);
+    if (titulacion) return confirmado
+        || ['obtuve la ', 'complete la ', 'finalice la ', 'me gradue de la '].some(prefijo => evidencia === `${prefijo}${requisito}`)
+        || [' obtenida', ' obtenido', ' completada', ' completado'].some(sufijo => evidencia === `${requisito}${sufijo}`);
+    const lugar = requisito.match(/^(?:residir|residencia(?: actual)?) (en .+)$/)?.[1];
+    return confirmado || Boolean(lugar && ['resido ', 'resido actualmente ', 'vivo actualmente ']
+        .some(prefijo => evidencia === `${prefijo}${lugar}`));
+}
+
 /** Conservo afinidad y evidencia sin confundir elegibilidad desconocida con rechazo. */
 function resolverElegibilidad(resultado, oferta, preferencias) {
     if (resultado.error || resultado.invalido || resultado.inconsistente || !resultado.match) return resultado;
@@ -168,7 +185,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 || limitaciones.includes(perfil)
                 && [candidato.perfil_profesional, candidato.limitaciones_explicitas].some(texto => contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
                 && ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => perfil === `${prefijo}${requisito}`);
-            const cumplimientoAcreditado = ofertaAcreditada && contieneTokenNormalizado(perfil, requisito)
+            const cumplimientoAcreditado = ofertaAcreditada && acreditarHechoActual(requisito, perfil, hechos)
                 // El contexto puede agregar prefijos; sólo una cita también presente en los hechos literales acredita cumplimiento.
                 && hechosLiterales.some(texto => contieneTokenNormalizado(texto, perfil)) && clausulasPerfil.includes(perfil)
                 && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)

@@ -612,7 +612,9 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
 reviso obligaciones en las cuatro categorías, no sólo `por_confirmar`. Reutilizo
 el candidato efectivo y los validadores contextuales existentes. Una obligación
 en `cumplidos` requiere citas relacionadas del cuerpo del aviso y de hechos
-confirmados del candidato, con el requisito presente en ambas. No acepto una
+confirmados del candidato. Para títulos y residencia exijo una afirmación del
+mismo hecho actual, no una mera mención; para otros requisitos conservo el nombre
+en ambas citas. No acepto una
 preferencia, el prompt personalizado, una capacidad ajena ni una equivalencia
 académica como prueba. Si no puedo acreditarlo, muevo el requisito a `por_confirmar`,
 retiro el falso cumplimiento/incumplimiento/exclusión y explico qué falta confirmar.
@@ -657,9 +659,9 @@ anterior y el parser de contradicciones de #81 permanece sin modificaciones.
 La caché JSON conserva el resultado completo, incluida la bandera interna;
 además derivo nuevamente la elegibilidad del desglose en cada hit, sin mutarlo.
 Conservo el booleano de afinidad para que una bandera omitida no convierta la
-incertidumbre en rechazo ni aprobación. Versiono el contrato actual como `evaluacion-v8`
-(v7 fue el contrato inicial de #80), también con instrucciones explícitas: cambia
-la identidad y no reutilizo aprobaciones v7. El mensaje de usuario incluye las pautas
+incertidumbre en rechazo ni aprobación. Versiono el contrato actual como `evaluacion-v9`
+(v7 inicial y v8 de V1 son históricos), también con instrucciones explícitas:
+cambia la identidad y no reutilizo aprobaciones v8. El mensaje de usuario incluye las pautas
 de incertidumbre. No borro cachés ni reparo evaluaciones históricas.
 
 **Presentación:** el detalle muestra **Elegibilidad pendiente de confirmación**
@@ -706,8 +708,8 @@ una cita fabricada con el prefijo «deseable». En cláusulas mixtas no rebajo u
 obligación explícita por un deseable ajeno: si no puedo atribuirlo, queda pendiente.
 Conservo los años declarados en `anios_experiencia_reales`: 1 acredita «1 año de
 experiencia»; null, omisión, cero o proyectos prácticos no acreditan ese año.
-No agrego equivalencias ni interpretación gramatical general; mantengo v8 como
-contrato del delta corregido, sin cambiar el parser #81.
+En aquella tanda no agregué equivalencias ni interpretación gramatical general;
+el contrato del delta V1 fue v8, sin cambiar el parser #81.
 
 Reproduzco los siete casos exactos y los 13 fallos anteriores: **RED 20 FAIL/105 PASS**.
 Luego pasan las cuatro suites #80/identidad/#17/#18: **125 PASS**, y las 13 suites
@@ -726,6 +728,79 @@ originales desconocidos. El cierre del padre observa backend completo **3831 PAS
 cierra los bloqueos con **125 PASS y 35/35 probes públicos**, sin fallos pendientes.
 No repito navegador ni afirmo aprobación de la auditoría externa; los 7 E2E y las
 dos capturas pertenecen al mismo cambio de presentación, sin cambios UI posteriores.
+
+### Auditoría V2: afirmación del hecho actual (#80, comentario 6564469167)
+
+Sobre la base `97f4969`, no considero que `perfil_profesional` certifique un título
+obtenido o una residencia vigente por incluir su nombre. Un predicado positivo
+pequeño exige una afirmación completa del mismo hecho, además de las comprobaciones
+literales/contextuales y del candidato efectivo. Por ejemplo:
+
+- «Obtuve la Licenciatura en Sistemas.» o «Completé la Licenciatura en Sistemas.»
+  acreditan esa titulación declarada; no otra ni una equivalencia académica.
+- «Resido actualmente en provincia Delta.» acredita el requisito «Residir en
+  provincia Delta». Sólo cambio esa forma verbal, sin inferir otra ubicación.
+- Conservo la declaración explícita autónoma del mismo requisito «…: confirmado/a»;
+  una mención sola, cursada, condición de estudiante, formación o plan futuro
+  sin afirmación actual quedan **por confirmar**, nunca como exclusión inventada.
+
+No amplío una lista de sinónimos prohibidos: título/residencia sólo aprueban por
+las formas afirmativas completas reconocidas. Otras redacciones quedan pendientes
+para confirmación manual; esto no verifica diplomas ni domicilios reales.
+Los hechos técnicos y años canónicos conservan su contrato anterior, así como las
+ausencias explícitas acreditadas, exclusiones duras, deseables y reglas #79/#83.
+No modifico el parser #81, porcentajes, umbrales ni estados persistidos.
+
+Reproduzco las cuatro falsas aprobaciones (curso, estudiante, formación y mudanza
+futura) por worker público, y agrego controles positivos actuales y de mera
+mención. **RED 11 FAIL/127 PASS**, antes de cambiar fuentes; **GREEN 138 PASS**
+en las cuatro suites #80/identidad/#17/#18. Los cuatro casos inciertos verifican
+proveedor, hit de caché sin flag, selección/reintento y reinicio con el modelo real
+de lotes sobre pool simulado: estado pendiente, score 91, razón/categorías honestas,
+sin error técnico, falsa exclusión ni aprobaciones contadas. Un primer RED tuvo
+además cinco fallos del fixture por aridad desigual en `test.each`; los corregí
+antes del RED conductual, sin cambiar producción ni aumentar timeouts.
+Las 13 suites relacionadas pasan **1543 pruebas**, sin fallos ni omitidas.
+
+Contrato **v9**: una prueba asegura miss de v8 aun con instrucciones explícitas
+idénticas. No borro ni reparo históricos. No altero hechos/aserciones positivos
+ni fixtures #17/#18 para ocultar regresiones. Los PASS/CI de V1 son históricos;
+la suite backend completa, navegador y cierre independiente de V2 quedan al padre.
+No afirmo aprobación de auditoría externa ni pruebo proveedores o SQL reales.
+
+**Corrección contextual acotada posterior (L19):** el primer V2 todavía aprobaba
+una cita mutilada de `Cuando me gradúe podré decir:\n«Obtuve la Licenciatura en
+Sistemas».` y de `Todavía no puedo afirmar lo siguiente:\n«Obtuve la Licenciatura
+en Sistemas».`. El extractor separaba la introducción de la cita; acreditar
+solamente esa cláusula perdía su procedencia. Ahora, antes de acreditar títulos o
+residencia, comparo la evidencia con un **hecho fuente íntegro**, antes de partirlo:
+debe coincidir completo tras normalización, sin citas ni saltos de línea internos,
+y pasar el predicado afirmativo actual. No agrego «cuando/todavía» a una blacklist
+ni interpreto arbitrariamente párrafos. La incertidumbre no fabrica incompatibilidad.
+
+Este contrato no estructurado es deliberadamente conservador: una declaración
+válida embebida en un párrafo compuesto también queda pendiente de confirmación
+manual. Los dos controles antiguos «…: confirmado.» conservan su entrada compuesta
+y ahora verifican ese fallback; después el mismo hecho declarado de forma autónoma
+aprueba. No borro el caso compuesto ni cambio la titulación/residencia afirmada.
+Se mantienen los positivos realistas «Obtuve…», «Completé…» y «Resido actualmente…»,
+así como los hechos técnicos y años estructurados. Las comillas de los ejemplos
+de esta documentación son tipográficas, no parte del hecho fuente autónomo.
+
+**RED observado 4 FAIL/140 PASS** (dos casos exactos por proveedor y dos reinicios;
+los controles de futuro/negación en la misma línea ya pasaban). **GREEN final
+144 PASS en cuatro suites**: cada caso exacto comprueba proveedor, caché sin flag,
+selección de aprobada y reintento con error previo, más persistencia/rehidratación
+con modelo real de lote y pool simulado. Mantengo score 91, razón/categorías honestas,
+sin error técnico, falsa exclusión ni contador de aprobada. **13 suites relacionadas,
+1543 PASS**, sin fallos ni omitidas. Conservo v9 del delta aún no publicado; las
+instrucciones finales también reflejan este límite y se revalida cada hit de caché.
+El backend completo anterior de 3844 PASS/166 SKIPPED fue histórico. El cierre
+posterior del padre observa **3850 PASS/166 SKIPPED**, 90 suites PASS y 11 omitidas.
+El recheck independiente dirigido cierra el bloqueo con **144 PASS y 52 probes
+públicos PASS**, sin fallos; compara la fuente final con la probada. El navegador
+pasó 7 controles sobre la UI sin cambios, sin repetirlos por cambios sólo backend.
+No se abrió otra auditoría general ni se modificó UI/parser #81/esquema.
 
 ## Distinción de errores técnicos y recuperación de lotes (#18)
 

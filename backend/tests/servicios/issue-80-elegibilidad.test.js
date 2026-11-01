@@ -25,6 +25,15 @@ const respuesta = (categoria = 'por_confirmar', requisito = item('Residencia en 
     explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [], [categoria]: [requisito] },
 });
 
+const CASOS_V2_INCIERTOS = [
+    ['V2 cursada', 'Licenciatura en Sistemas', 'Licenciatura en Sistemas obligatoria', 'Actualmente curso la Licenciatura en Sistemas.'],
+    ['V2 estudiante', 'Licenciatura en Sistemas', 'Licenciatura en Sistemas obligatoria', 'Soy estudiante de Licenciatura en Sistemas.'],
+    ['V2 formación', 'Licenciatura en Sistemas', 'Licenciatura en Sistemas obligatoria', 'Me estoy formando en Licenciatura en Sistemas.'],
+    ['V2 residencia futura', 'Residir en provincia Delta', 'Residir en provincia Delta es obligatorio', 'Planeo residir en provincia Delta.'],
+    ['V2 contexto futuro multilínea', 'Licenciatura en Sistemas', 'Licenciatura en Sistemas es obligatorio.', 'Cuando me gradúe podré decir:\n«Obtuve la Licenciatura en Sistemas».', 'Obtuve la Licenciatura en Sistemas'],
+    ['V2 contexto negativo multilínea', 'Licenciatura en Sistemas', 'Licenciatura en Sistemas es obligatorio.', 'Todavía no puedo afirmar lo siguiente:\n«Obtuve la Licenciatura en Sistemas».', 'Obtuve la Licenciatura en Sistemas'],
+];
+
 beforeEach(() => {
     jest.resetAllMocks();
     servicio._resetearEstadoInterno();
@@ -172,8 +181,16 @@ test.each([
     ['B3 deseable ajeno', '', '', 'Licenciatura en Sistemas obligatoria y Docker deseable.', 'pendiente'],
     ['B4 años canónicos', '', '1 año de experiencia', 'TypeScript. Requisito obligatorio: 1 año de experiencia.', 'aprobada'],
     ['B4 ausencia en perfil', 'No cuento con Licenciatura en Sistemas.', null, null, 'rechazada'],
+    ...CASOS_V2_INCIERTOS.map(([caso, requisito, descripcion, perfil, evidencia]) => [caso, perfil, evidencia ?? null, descripcion, 'pendiente']),
+    ['V2 contexto futuro misma línea', 'Cuando me gradúe podré decir: «Obtuve la Licenciatura en Sistemas».', 'Obtuve la Licenciatura en Sistemas', 'Licenciatura en Sistemas es obligatorio.', 'pendiente'],
+    ['V2 contexto negativo misma línea', 'Todavía no puedo afirmar lo siguiente: «Obtuve la Licenciatura en Sistemas».', 'Obtuve la Licenciatura en Sistemas', 'Licenciatura en Sistemas es obligatorio.', 'pendiente'],
+    ['V2 título obtenido', 'Obtuve la Licenciatura en Sistemas.', null, 'Licenciatura en Sistemas obligatoria', 'aprobada'],
+    ['V2 título completado', 'Completé la Licenciatura en Sistemas.', null, 'Licenciatura en Sistemas obligatoria', 'aprobada'],
+    ['V2 residencia actual', 'Resido actualmente en provincia Delta.', null, 'Residir en provincia Delta es obligatorio', 'aprobada'],
+    ['V2 título sólo mencionado', 'Licenciatura en Sistemas.', null, 'Licenciatura en Sistemas obligatoria', 'pendiente'],
+    ['V2 título no obtenido todavía', 'Todavía no me gradué de la Licenciatura en Sistemas.', null, 'Licenciatura en Sistemas obligatoria', 'pendiente'],
 ])('%s: proveedor, caché sin flag y selección mantienen evidencia honesta', async (caso, perfil, evidencia, descripcion, estado) => {
-    const requisito = caso === 'B4 años canónicos' ? '1 año de experiencia' : 'Licenciatura en Sistemas';
+    const requisito = caso === 'B4 años canónicos' ? '1 año de experiencia' : caso.startsWith('V2 residencia') ? 'Residir en provincia Delta' : 'Licenciatura en Sistemas';
     const oferta = { ...ofertaBase, descripcion: descripcion || 'TypeScript. Licenciatura en Sistemas obligatoria.' };
     preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: perfil, ...(caso === 'B4 años canónicos' ? { anios_experiencia_reales: 1 } : {}) });
     const datos = respuesta('cumplidos', { ...item(requisito), evidencia_perfil: evidencia ?? perfil });
@@ -200,10 +217,12 @@ test.each([
     cache.buscarCache.mockResolvedValue(datos);
     await comprobar();
     expect(datos).toEqual(original);
+    const contexto = caso.startsWith('V2 contexto');
+    if (contexto) await comprobar([{ ...oferta, estado_evaluacion: 'aprobada' }]);
     await comprobar([{ ...oferta, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'TIMEOUT anterior' }]);
     expect(cache.buscarCache).toHaveBeenCalledTimes(2);
-    expect(cache.guardarCache).toHaveBeenCalledTimes(2);
-    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
+    expect(cache.guardarCache).toHaveBeenCalledTimes(contexto ? 3 : 2);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(contexto ? 3 : 2);
     expect(console.error).not.toHaveBeenCalled();
 });
 
@@ -342,13 +361,17 @@ test('con instrucciones explícitas envío restricciones de incertidumbre y no r
     expect(actual.firma_criterios_evaluacion).not.toBe(anterior.firma_criterios_evaluacion);
 });
 
-test.each(['Residencia en provincia Delta', 'Licenciatura en Sistemas'])('cumplimiento confirmado permite aprobar: %s', async requisito => {
+test.each(['Residencia en provincia Delta', 'Licenciatura en Sistemas'])('confirmación autónoma permite aprobar, el párrafo compuesto requiere confirmar: %s', async requisito => {
     preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: `${prefs.perfil_profesional} ${requisito}: confirmado.` });
     ofertas.obtenerOfertasPendientes.mockResolvedValue([{ ...ofertaBase, descripcion: `Desarrollo con TypeScript. Requisito obligatorio: ${requisito}.` }]);
     proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta('cumplidos', { ...item(requisito), evidencia_perfil: `${requisito}: confirmado.`, explicacion: 'Cumplimiento respaldado por el perfil.' })));
+    const compuesto = await servicio.evaluarOfertasPendientes();
+    expect(compuesto).toEqual(expect.objectContaining({ aprobadas: 0, rechazadas: 0, errores: 0, evaluadas: 1 }));
+    expect(ofertas.actualizarEvaluacion.mock.calls[0].slice(1, 5)).toEqual(['pendiente', expect.stringContaining('Pendiente de confirmación'), 91, null]);
+    preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: `${requisito}: confirmado.` });
     const resumen = await servicio.evaluarOfertasPendientes();
     expect(resumen).toEqual(expect.objectContaining({ aprobadas: 1, rechazadas: 0, errores: 0, pendientes: 0 }));
-    expect(ofertas.actualizarEvaluacion.mock.calls[0].slice(1, 5)).toEqual(['aprobada', 'Afinidad técnica con TypeScript.', 91, null]);
+    expect(ofertas.actualizarEvaluacion.mock.calls[1].slice(1, 5)).toEqual(['aprobada', 'Afinidad técnica con TypeScript.', 91, null]);
 });
 
 test('lote mixto cuenta decisiones y mantiene incertidumbre pendiente sin error', async () => {
@@ -389,9 +412,14 @@ describe('rehidratación con modelo real de lotes y pool simulado', () => {
         });
     });
 
-    test.each([['obligación por confirmar', ofertaBase, 91], ['descripción ausente', { ...ofertaBase, descripcion: null }, null],
-        ...['cumplidos', 'no_cumplidos', 'exclusiones'].map(categoria => [categoria, ofertaBase, 91])])(
-        '%s conserva progreso persistido después de reiniciar', async (nombre, oferta, porcentaje) => {
+    test.each([['obligación por confirmar', ofertaBase, 91, null, null], ['descripción ausente', { ...ofertaBase, descripcion: null }, null, null, null],
+        ...['cumplidos', 'no_cumplidos', 'exclusiones'].map(categoria => [categoria, ofertaBase, 91, null, null]),
+        ...CASOS_V2_INCIERTOS.map(([caso, requisito, descripcion, perfil, evidencia]) => [caso, { ...ofertaBase, descripcion }, 91, perfil, { requisito, evidencia: evidencia ?? perfil }])])(
+        '%s conserva progreso persistido después de reiniciar', async (nombre, oferta, porcentaje, perfil, prueba) => {
+            if (perfil) {
+                preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: perfil });
+                proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta('cumplidos', { ...item(prueba.requisito), evidencia_perfil: prueba.evidencia })));
+            }
             if (['cumplidos', 'no_cumplidos', 'exclusiones'].includes(nombre)) proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(nombre, item('Licenciatura obligatoria'))));
             ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
             await servicio.evaluarOfertasPendientes();
