@@ -170,4 +170,4 @@ if (require.main === module) ejecutarPrueba().catch(() => {
     process.stderr.write('Falló la prueba sintética aislada.\n');
     process.exitCode = 1;
 });
-module.exports = { obtenerCasos, verificarSalida };
+module.exports = { obtenerCasos, verificarSalida, adaptarCliente };

@@ -5,7 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const { EventEmitter } = require('events');
 const { exportarOfertas, SQL_IDENTIDAD, SQL_PREFERENCIAS, SQL_OFERTAS, SQL_COLUMNAS, CAMPOS } = require('./exportar-ofertas');
-const { obtenerCasos, verificarSalida } = require('./issue-69-postgres-prueba');
+const { obtenerCasos, verificarSalida, adaptarCliente } = require('./issue-69-postgres-prueba');
 const ruta = path.resolve(__dirname, 'exportar-ofertas.js');
 let directorio;
 const opciones = { autorizar: true, servidor: '192.0.2.1', puerto: 5432, base: 'sintetica', usuario: 'lector', salida: 'prueba', sintetico: true };
@@ -113,6 +113,59 @@ test.each(['192.0.2.1', '2001:db8::1', '/var/run/postgresql', '/proc/self/fd/42'
     expect(resumen.completo).toBe(true);
     expect(resumen.total_sql).toBe(String(resumen.total_exportado));
     expect(entrada).toEqual(original);
+});
+
+// Solo habilito este probe contra un clúster TESTONLY nuevo, con dial fijo loopback.
+const pruebaPostgres = process.env.TESTONLY_PG_PORT ? test : test.skip;
+pruebaPostgres.each([
+    ['127.0.0.1', false], ['::1', false], ['127.0.0.1', true], ['::1', true], ['socket', false],
+])('PostgreSQL real: dirección sin máscara y guarda exacta en %s, proxy=%s', async (direccion, proxy) => {
+    const { Client } = require('pg');
+    const puerto = Number(process.env.TESTONLY_PG_PORT);
+    expect(puerto).toBeGreaterThan(1024);
+    expect(puerto).not.toBe(5432);
+    let descriptor;
+    if (direccion === 'socket') descriptor = fs.openSync(process.env.TESTONLY_PG_SOCKET, 'r');
+    const servidor = descriptor === undefined ? direccion : `/proc/self/fd/${descriptor}`;
+    const configuracion = { host: servidor, port: puerto, database: 'postgres', user: 'postgres', password: '',
+        options: '-c default_transaction_read_only=on', connectionTimeoutMillis: 2000 };
+    const observador = new Client(configuracion);
+    const datos = obtenerCasos();
+    const entrada = { ...opciones, servidor, puerto, base: 'postgres', usuario: 'postgres' };
+    if (proxy) {
+        const ca = path.join(directorio, 'ca.pem');
+        fs.writeFileSync(ca, require('../fixtures/exportador-proxy-tls').ca);
+        Object.assign(entrada, { 'proxy-servidor': 'localhost', 'proxy-puerto': puerto,
+            'ca-tls': ca, 'identidad-tls': 'backend-auditoria.test' });
+    }
+    const consultas = [];
+    const dependencias = { directorioSalida: path.join(directorio, 'salida'),
+        crearCliente: () => adaptarCliente(new Client(configuracion), datos, consultas) };
+    const contadores = `SELECT (SELECT count(*) FROM pg_database) AS bases,
+        (SELECT count(*) FROM pg_class) AS relaciones, (SELECT count(*) FROM pg_roles) AS roles`;
+    try {
+        await observador.connect();
+        const antes = (await observador.query(contadores)).rows;
+        const identidad = (await observador.query(`SELECT inet_server_addr()::text AS mascara,
+            host(inet_server_addr()) AS direccion`)).rows[0];
+        expect(identidad).toEqual(direccion === 'socket' ? { mascara: null, direccion: null }
+            : { mascara: `${direccion}/${direccion === '::1' ? 128 : 32}`, direccion });
+        const resumen = await exportarOfertas(entrada, dependencias);
+        expect(resumen.completo).toBe(true);
+        expect(verificarSalida(path.join(directorio, 'salida/prueba'), datos.ofertas).escenarios).toBe(12);
+        expect(consultas).toHaveLength(4);
+        consultas.length = 0;
+        // Incluso otra representación válida de IPv6 debe rechazarse: no normalizo la entrada.
+        const incorrecto = direccion === '::1' ? '0:0:0:0:0:0:0:1' : '127.0.0.2';
+        await expect(exportarOfertas({ ...entrada, servidor: incorrecto, salida: 'rechazo' }, dependencias))
+            .rejects.toThrow(/^Exportación rechazada: autorización o destino inválido\.$/);
+        expect(consultas).toEqual(['SELECT identidad/read-only']);
+        expect(fs.readdirSync(path.join(directorio, 'salida'))).toEqual(['prueba']);
+        expect((await observador.query(contadores)).rows).toEqual(antes);
+    } finally {
+        await observador.end();
+        if (descriptor !== undefined) fs.closeSync(descriptor);
+    }
 });
 
 test('reconcilio cero filas y preferencias ausentes sin inventar criterios', async () => {

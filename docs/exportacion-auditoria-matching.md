@@ -20,7 +20,7 @@ No publico estos archivos como adjuntos de issue/PR, logs, caché de CI ni artef
 
 1. Solicito autorización explícita sobre **servidor/IP o socket, puerto, base y usuario**. Prefiero un rol lector ya existente, con permisos SELECT sobre `ofertas` y `preferencias`; este procedimiento no crea roles ni cambia configuración. No uso automáticamente el destino del backend.
 2. Confirmo con el responsable la identidad esperada. Antes de crear el cliente o conectar, rechazo DNS (incluido `localhost`), valores vacíos, espacios en direcciones TCP, IPs malformadas, corchetes, URLs y listas de hosts. Acepto únicamente IPs literales válidas según `net.isIP`, sin normalizarlas silenciosamente, o un directorio Unix absoluto normalizado: sin controles/NUL, segmentos `.`/`..`, barras repetidas ni barra final salvo `/`. `--autorizar` junto con el valor exacto de `--servidor` autoriza explícitamente ese socket; no agrego flags ni compruebo existencia del directorio para esta guarda. Conservo rutas como `/var/run/postgresql` y `/proc/self/fd/42`. Para TCP uso una IP literal, no un hostname: comparo `inet_server_addr()` y `inet_server_port()` con los valores esperados. Un proxy/NAT con puerto distinto puede ser rechazado. Para Unix uso el directorio de socket autorizado, verifico dirección SQL nula y puerto configurado; esto identifica el punto local de conexión, no certifica criptográficamente un clúster remoto.
-3. Si necesito contraseña, la ingreso con lectura oculta en mi terminal, sin incluirla en comandos, archivos o historial. No cargo `.env`, URLs de conexión ni configuración privada del proyecto. Por ejemplo, en Bash: `read -rs -p 'Contraseña del rol lector: ' PGPASSWORD; export PGPASSWORD; printf '\n'`. La política TLS no cambia: el cliente hereda `PGSSLMODE`. Para TCP real, el operador debe asegurar TLS autenticado y que el certificado coincida con la IP literal autorizada; esta guarda y la identidad SQL no sustituyen esa autenticación ni prueban verificación TLS en producción. No utilizo archivos de credenciales implícitos: el cliente recibe contraseña explícita o cadena vacía.
+3. Si necesito contraseña, la ingreso con lectura oculta en mi terminal, sin incluirla en comandos, archivos o historial. No cargo `.env`, URLs de conexión ni configuración privada del proyecto. Por ejemplo, en Bash: `read -rs -p 'Contraseña del rol lector: ' PGPASSWORD; export PGPASSWORD; printf '\n'`. En modo directo la política TLS no cambia: el cliente hereda `PGSSLMODE`. Para TCP real, el operador debe asegurar TLS autenticado y que el certificado coincida con la IP literal autorizada; esta guarda y la identidad SQL no sustituyen esa autenticación ni prueban verificación TLS en producción. No utilizo archivos de credenciales implícitos: el cliente recibe contraseña explícita o cadena vacía.
 4. Desde la raíz del worktree ejecuto el siguiente **modelo**, reemplazando únicamente identificadores de destino ya autorizados (la IP de documentación no es un destino real):
 
    ```bash
@@ -32,7 +32,7 @@ No publico estos archivos como adjuntos de issue/PR, logs, caché de CI ni artef
 
 5. Retiro la contraseña del entorno con `unset PGPASSWORD`. Verifico localmente el resumen y reviso todos los textos antes de adjuntar los tres archivos. No los imprimo en consola ni los publico en GitHub.
 
-La ayuda pasiva está en `node backend/tests/scripts/exportar-ofertas.js --help`. Opciones públicas: `--autorizar`, `--servidor`, `--puerto`, `--base`, `--usuario`, `--salida`, `--sintetico` y `--help`. Todas las opciones de destino y el nombre nuevo de salida son obligatorios; `--sintetico` solo etiqueta el origen declarado, no inventa fixtures ni cambia la consulta. Rechazo opciones desconocidas, duplicadas y nombres de salida que permitan escapar del directorio dedicado.
+La ayuda pasiva está en `node backend/tests/scripts/exportar-ofertas.js --help`. Opciones públicas: `--autorizar`, `--servidor`, `--puerto`, `--base`, `--usuario`, `--salida`, `--sintetico`, `--help` y el conjunto proxy `--proxy-servidor`, `--proxy-puerto`, `--ca-tls`, `--identidad-tls` (detallado abajo). Todas las opciones de destino y el nombre nuevo de salida son obligatorios; `--sintetico` solo etiqueta el origen declarado, no inventa fixtures ni cambia la consulta. Rechazo opciones desconocidas, duplicadas y nombres de salida que permitan escapar del directorio dedicado.
 
 Sin opt-in/destino válido rechazo antes de cargar `pg` o abrir conexión. Los mensajes de error son fijos, sin valores privados ni errores del driver:
 
@@ -40,6 +40,44 @@ Sin opt-in/destino válido rechazo antes de cargar `pg` o abrir conexión. Los m
 - `No pude completar la exportación. No comparta una salida sin resumen completo.`
 
 Ambos terminan con código 1. La finalización válida informa únicamente `Exportación completa; revise los archivos privados antes de compartir.` y termina con código 0.
+
+## Proxy TLS explícito (etapa 1, sin acceso productivo)
+
+Mantengo el modo directo por IP/socket intacto. Para un proxy TCP agrego **las cuatro opciones juntas**, sin fallback al modo directo:
+
+| Identidad | Opciones | Qué verifico |
+| --- | --- | --- |
+| Destino de conexión | `--proxy-servidor IP_O_DNS --proxy-puerto NUMERO` | Endpoint TCP autorizado del proxy. Acepto IP literal o nombre DNS sin URL, socket, espacios ni lista de hosts. |
+| Identidad TLS | `--ca-tls ARCHIVO_PEM --identidad-tls IP_O_DNS` | Cadena contra la CA explícita y nombre/IP esperado mediante `tls.checkServerIdentity`. No acepto comodines como identidad de entrada. |
+| Backend SQL esperado | `--servidor IP --puerto NUMERO --base BASE --usuario ROL` | Dirección/puerto SQL internos esperados, base, rol y ambos flags read-only. En proxy no acepto sockets como backend. |
+
+Modelo **documental, no ejecutado contra ningún servicio real**:
+
+```bash
+node backend/tests/scripts/exportar-ofertas.js \
+    --autorizar --servidor 192.0.2.10 --puerto 5432 \
+    --proxy-servidor proxy.example.test --proxy-puerto 15432 \
+    --ca-tls /RUTA_AUTORIZADA/ca-instancia.pem --identidad-tls backend.example.test \
+    --base BASE_AUTORIZADA --usuario ROL_LECTOR --salida auditoria-proxy-01
+```
+
+Rechazo configuración parcial, puertos inválidos, CA ilegible o PEM sin certificados CA válidos **antes de crear el cliente o conectar**. Conservo los dos mensajes fijos y los códigos de salida existentes. Ignoro `ssl`, `host`, `port`, `options` y `connectionString` arbitrarios del llamador: no pueden reemplazar esta configuración protegida. El formato exportado no cambia.
+
+La guarda SQL usa `host(inet_server_addr()) AS servidor`: retiro únicamente la máscara `/32` de IPv4 o `/128` de IPv6 que agrega el cast a texto de PostgreSQL. Comparo el resultado **exactamente** con la IP literal autorizada, tanto en modo directo como proxy; no normalizo la entrada ni acepto IPs distintas o representaciones IPv6 equivalentes. Para Unix conservo dirección SQL `null` y puerto configurado.
+
+### Vinculación de confianza y preflight posterior
+
+**Antes de autorizar una conexión real, exijo verificar la procedencia de la CA y su vinculación con esa instancia/identidad mediante un canal autenticado independiente.** Recibir un archivo, obtenerlo del mismo endpoint sin autenticar o comprobar su sintaxis no demuestra procedencia. No descargo certificados, no hago TOFU ni modifico la confianza global. La CA explícita reemplaza las raíces predeterminadas para esta conexión; mantengo `rejectUnauthorized: true`, sin depender de `PGSSLMODE` para el modo proxy.
+
+El proxy transporta TCP: su dominio público no necesariamente figura en el certificado del PostgreSQL detrás. La investigación previa del template PostgreSQL SSL 18 indica CA de instancia y nombres locales/privados; **eso no prueba el contenido del certificado de una instancia real**. No inspeccioné imagen, certificados ni configuración productiva en esta etapa. El preflight posterior necesita CA con procedencia autenticada, identidad TLS exacta cubierta por el certificado, endpoint/puerto proxy, IP/puerto SQL internos, base y rol lector autorizados, permisos mínimos y read-only. Si esos datos no permiten autenticar la instancia, me detengo; no cambio el servidor ni sus certificados.
+
+En el driver `pg` instalado, `pg/lib/connection.js` copia las opciones SSL pero sobrescribe `servername` con el host de dial cuando es DNS. Por eso **configurar solamente SNI no alcanza**: el callback ignora ese nombre recibido y **devuelve** el resultado de `tls.checkServerIdentity(identidadEsperada, certificado)`, incluido su error. La validación de cadena de Node sigue activa e independiente. La prueba real conecta a `localhost`, presenta SAN `backend-auditoria.test`, registra SNI `localhost` y exige el nombre autorizado; pedir `localhost` como identidad falla aunque coincida con SNI.
+
+### Alcance de las pruebas locales
+
+`exportar-ofertas-proxy-tls.test.js` usa únicamente sockets loopback, PKI EC marcada TESTONLY y un receptor mínimo SSLRequest → TLS → Startup/AuthenticationOk/ReadyForQuery. No instala ni inicia PostgreSQL ni ejecuta SQL: después de conectar con el cliente real configurado por el exportador, simulo las respuestas de consultas y reutilizo los doce casos y el verificador públicos existentes. Compruebo CA incorrecta, certificado vencido, identidad equivocada y rechazo de TLS antes de Startup/autenticación, consultas o salida; las fallas CLI conservan stderr fijo, stdout vacío y código 1. También bloqueo cada discrepancia SQL antes de preferencias/ofertas/salida, y verifico sanitización, reconciliación, formato y permisos privados en el caso válido. La suite focal incluye las regresiones del modo directo y auditoría; la suite backend completa y la verificación independiente corresponden al padre, con evidencia reportada por separado.
+
+La regresión condicional de `exportar-ofertas.test.js` reutiliza el adaptador de relaciones sintéticas del helper `issue-69-postgres-prueba.js`, pero ejecuta la consulta de identidad **sin sustituirla** en PostgreSQL real. La habilito únicamente con `TESTONLY_PG_PORT` (puerto distinto de 5432) y `TESTONLY_PG_SOCKET` apuntando al socket de un clúster efímero propio. El dial está fijado a `127.0.0.1`, `::1` o ese socket; no leo variables de conexión de la aplicación. Compruebo máscaras reales `/32` y `/128`, doce filas reconciliadas, discrepancia rechazada antes de datos/archivos, contadores de catálogo sin cambios y conservación de Unix/null. Los casos proxy de este probe inyectan el cliente SQL local: **no prueban TLS sobre PostgreSQL real**; el handshake TLS corresponde al receptor sintético descrito arriba. Sin esas variables, estas cinco pruebas quedan omitidas, no aprobadas.
 
 ## Qué leo y qué no modifico
 

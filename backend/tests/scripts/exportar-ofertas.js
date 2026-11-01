@@ -2,6 +2,9 @@
 const fs = require('fs');
 const path = require('path');
 const net = require('net');
+const tls = require('tls');
+const { X509Certificate } = require('crypto');
+const OPCIONES_PROXY = ['proxy-servidor', 'proxy-puerto', 'ca-tls', 'identidad-tls'];
 const { construirPerfilEfectivo } = require('../../src/servicios/evaluacion/perfil-efectivo');
 const { VERSION_PRIORIDAD_IA } = require('../../src/servicios/evaluacion/detector-prioridad-ia');
 
@@ -18,7 +21,7 @@ const CAMPOS_REQUISITO = ['requisito', 'tipo', 'evidencia_oferta', 'evidencia_pe
 const MENSAJE_RECHAZO = 'Exportación rechazada: autorización o destino inválido.';
 const MENSAJE_ERROR = 'No pude completar la exportación. No comparta una salida sin resumen completo.';
 const SQL_IDENTIDAD = `SELECT current_database() AS base, current_user AS usuario,
-    inet_server_addr()::text AS servidor, inet_server_port() AS puerto,
+    host(inet_server_addr()) AS servidor, inet_server_port() AS puerto,
     current_setting('port') AS puerto_configurado,
     current_setting('default_transaction_read_only') AS solo_lectura,
     current_setting('transaction_read_only') AS transaccion_solo_lectura`;
@@ -177,13 +180,34 @@ function validarOpciones(opciones) {
             && path.resolve(opciones.servidor) === opciones.servidor && !/[\x00-\x1f\x7f-\x9f]/.test(opciones.servidor)))
         || !Number.isInteger(opciones.puerto) || opciones.puerto < 1 || opciones.puerto > 65535
         || !/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,79}$/.test(opciones.salida)) throw new Error(MENSAJE_RECHAZO);
+    if (!OPCIONES_PROXY.some(campo => Object.hasOwn(opciones, campo))) return;
+    const nombreValido = valor => typeof valor === 'string' && (net.isIP(valor) || (valor.length <= 253
+        && valor.split('.').every(segmento => /^[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$/.test(segmento))));
+    if (!net.isIP(opciones.servidor) || !nombreValido(opciones['proxy-servidor']) || !nombreValido(opciones['identidad-tls'])
+        || !Number.isInteger(opciones['proxy-puerto']) || opciones['proxy-puerto'] < 1 || opciones['proxy-puerto'] > 65535
+        || typeof opciones['ca-tls'] !== 'string' || !opciones['ca-tls'].trim()) throw new Error(MENSAJE_RECHAZO);
+    try {
+        const ca = fs.readFileSync(opciones['ca-tls'], 'utf8');
+        const certificados = ca.match(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g);
+        if (!certificados?.length || certificados.some(certificado => !new X509Certificate(certificado).ca)
+            || ca.replace(/-----BEGIN CERTIFICATE-----[\s\S]*?-----END CERTIFICATE-----/g, '').trim()) throw new Error();
+        tls.createSecureContext({ ca });
+        const identidad = opciones['identidad-tls'];
+        return { ca, rejectUnauthorized: true, servername: identidad,
+            // pg sobrescribe SNI con el host de dial DNS; verifico la identidad autorizada, no ese host.
+            checkServerIdentity: (_nombreDial, certificado) => tls.checkServerIdentity(identidad, certificado) };
+    } catch {
+        throw new Error(MENSAJE_RECHAZO);
+    }
 }
 
-function crearCliente(opciones) {
+function crearCliente(opciones, sslProxy) {
     const { Client } = require('pg');
     // No acepto connectionString ni opciones arbitrarias que puedan anular estas guardas.
     return new Client({
-        host: opciones.servidor, port: opciones.puerto, database: opciones.base, user: opciones.usuario,
+        host: sslProxy ? opciones['proxy-servidor'] : opciones.servidor,
+        port: sslProxy ? opciones['proxy-puerto'] : opciones.puerto, database: opciones.base, user: opciones.usuario,
+        ...(sslProxy ? { ssl: sslProxy } : {}),
         password: process.env.PGPASSWORD ?? '',
         options: '-c default_transaction_read_only=on -c statement_timeout=120000 -c lock_timeout=5000',
         application_name: 'auditoria_matching_lectura', connectionTimeoutMillis: 10000,
@@ -191,8 +215,8 @@ function crearCliente(opciones) {
 }
 
 async function exportarOfertas(opciones, dependencias = {}) {
-    validarOpciones(opciones);
-    const cliente = (dependencias.crearCliente || crearCliente)(opciones);
+    const sslProxy = validarOpciones(opciones);
+    const cliente = dependencias.crearCliente ? dependencias.crearCliente(opciones) : crearCliente(opciones, sslProxy);
     const baseSalida = dependencias.directorioSalida || DIRECTORIO_SALIDA;
     let directorio;
     let archivo;
@@ -273,7 +297,11 @@ Solo SELECT. No cargo dotenv ni DATABASE_URL. PGPASSWORD es opcional y nunca se 
 Compruebo servidor, puerto, base, usuario y modo read-only antes de leer ofertas.
 Antes de crear el cliente exijo IP literal válida para TCP (sin DNS) o directorio Unix absoluto normalizado, sin controles, segmentos . o .. ni barras redundantes.
 --autorizar y --servidor autorizan explícitamente el socket; después compruebo identidad SQL y puerto configurado.
-TLS sin cambios: heredo PGSSLMODE; para TCP real el operador debe asegurar TLS autenticado y certificado válido para la IP.
+Modo directo sin cambios: heredo PGSSLMODE; para TCP real el operador debe asegurar TLS autenticado y certificado válido para la IP.
+Proxy explícito (las cuatro obligatorias): --proxy-servidor IP_O_DNS --proxy-puerto NUMERO --ca-tls ARCHIVO_PEM --identidad-tls IP_O_DNS.
+En proxy, --servidor IP y --puerto son el backend SQL esperado, no el destino de conexión; no acepto socket.
+Exijo CA explícita y TLS autenticado con la identidad esperada, aunque difiera del DNS de dial/SNI.
+Antes de usarlo verifico la procedencia de la CA y su vinculación con la identidad mediante un canal autenticado independiente; el archivo no prueba procedencia.
 Salida privada exclusiva: .qa-runtime/issue69/NOMBRE_NUEVO/; no sobrescribo directorios.
 JSONL UTF-8 completo, criterios sanitizados sin prompts privados y resumen.json como marca de finalización.
 El resumen informa versión de formato, fecha de exportación y columnas ausentes (exportadas como null).
@@ -290,11 +318,12 @@ async function ejecutarCli(argumentos = process.argv.slice(2)) {
         const opciones = {};
         for (let indice = 0; indice < argumentos.length; indice++) {
             const clave = argumentos[indice].replace(/^--/, '');
-            if (!argumentos[indice].startsWith('--') || !['autorizar', 'servidor', 'puerto', 'base', 'usuario', 'salida', 'sintetico'].includes(clave)
+            if (!argumentos[indice].startsWith('--') || !['autorizar', 'servidor', 'puerto', 'base', 'usuario', 'salida', 'sintetico', ...OPCIONES_PROXY].includes(clave)
                 || Object.hasOwn(opciones, clave)) throw new Error(MENSAJE_RECHAZO);
             opciones[clave] = ['autorizar', 'sintetico'].includes(clave) ? true : argumentos[++indice];
         }
         opciones.puerto = Number(opciones.puerto);
+        if (Object.hasOwn(opciones, 'proxy-puerto')) opciones['proxy-puerto'] = Number(opciones['proxy-puerto']);
         await exportarOfertas(opciones);
         process.stdout.write('Exportación completa; revise los archivos privados antes de compartir.\n');
     } catch (error) {
