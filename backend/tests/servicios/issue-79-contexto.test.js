@@ -219,25 +219,27 @@ test.each(casosF2.filter(([, , , hayConflicto]) => !hayConflicto))('%s: defensa 
     expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
 });
 
-test.each(casosF2.flatMap(caso => ['Senior', 'SR'].map(nivel => [...caso, nivel])))(
+test.each(casosF2.flatMap(([nombre, descripcion, regla, hayConflicto, titulo = 'Desarrollo web']) =>
+    ['Senior', 'SR'].map(nivel => [nombre, descripcion, regla, hayConflicto, nivel, titulo])))(
     '%s: regla pública con metadato %s/%s/%s/%s',
-    (nombre, descripcion, regla, hayConflicto, nivel) => {
-        const oferta = crearOferta({ titulo: 'Desarrollo web', nivel_requerido: nivel, descripcion });
+    (nombre, descripcion, regla, hayConflicto, nivel, titulo) => {
+        const oferta = crearOferta({ titulo, nivel_requerido: nivel, descripcion });
         const original = structuredClone(oferta);
         const resultado = reglas.evaluarReglasExclusion(oferta, prefs);
         expect(resultado.reglas).toEqual(regla ? [regla] : []);
-        expect(resultado.porcentaje).toBe(regla ? 15 : null);
+        expect(resultado.porcentaje).toBe(regla ? porcentajes[regla] : null);
         expect(resultado.explicacion.por_confirmar).toHaveLength(hayConflicto ? 1 : 0);
         if (hayConflicto) expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).toContain(`nivel_requerido: ${nivel}`);
         expect(oferta).toEqual(original);
     }
 );
 
-test.each(casosF2.flatMap(caso => ['Senior', 'SR'].flatMap(nivel => [true, false].flatMap(match =>
-    [true, false].map(hit => [...caso, nivel, match, hit])))))(
+test.each(casosF2.flatMap(([nombre, descripcion, regla, hayConflicto, titulo = 'Desarrollo web']) =>
+    ['Senior', 'SR'].flatMap(nivel => [true, false].flatMap(match =>
+        [true, false].map(hit => [nombre, descripcion, regla, hayConflicto, nivel, match, hit, titulo])))))(
     '%s: lote público (%s/%s/%s/%s/%s/%s)',
-    async (nombre, descripcion, regla, hayConflicto, nivel, match, hit) => {
-        const oferta = crearOferta({ titulo: 'Desarrollo web', nivel_requerido: nivel, descripcion });
+    async (nombre, descripcion, regla, hayConflicto, nivel, match, hit, titulo) => {
+        const oferta = crearOferta({ titulo, nivel_requerido: nivel, descripcion });
         const original = structuredClone(oferta);
         const almacenada = { ...respuesta(match), explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] } };
         const cacheOriginal = structuredClone(almacenada);
@@ -252,7 +254,7 @@ test.each(casosF2.flatMap(caso => ['Senior', 'SR'].flatMap(nivel => [true, false
         expect(ofertas.actualizarEvaluacion).toHaveBeenCalledTimes(1);
         const guardada = ofertas.actualizarEvaluacion.mock.calls[0];
         expect(guardada[1]).toBe(aprobada ? 'aprobada' : 'rechazada');
-        expect(guardada[3]).toBe(regla ? 15 : respuesta(match).porcentaje);
+        expect(guardada[3]).toBe(regla ? porcentajes[regla] : respuesta(match).porcentaje);
         expect(guardada[7]?.por_confirmar || []).toHaveLength(hayConflicto ? 1 : 0);
         expect(guardada[7]?.exclusiones || []).toHaveLength(regla ? 1 : 0);
         if (hayConflicto) expect(guardada[7].por_confirmar[0].evidencia_oferta).toContain(`nivel_requerido: ${nivel}`);
@@ -262,6 +264,14 @@ test.each(casosF2.flatMap(caso => ['Senior', 'SR'].flatMap(nivel => [true, false
         expect(almacenada).toEqual(cacheOriginal);
     }
 );
+
+test.each(['Senior', 'SR'])('F2 S9 conservo evidencia de la otra vacante: %s', nivel => {
+    const [, descripcion] = casosF2.find(([nombre]) => nombre === 'F2 S9 otra vacante en otra cláusula');
+    const resultado = reglas.evaluarReglasExclusion(crearOferta({ titulo: 'Desarrollo web', nivel_requerido: nivel, descripcion }), prefs);
+    expect(resultado.explicacion.por_confirmar).toHaveLength(1);
+    expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).toContain('buscamos perfil junior para otra vacante');
+    expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).not.toContain('gestionar');
+});
 
 test('el contrato nuevo cambia la firma incluso con instrucciones explícitas', () => {
     const opciones = { instrucciones: 'Sistema explícito' };

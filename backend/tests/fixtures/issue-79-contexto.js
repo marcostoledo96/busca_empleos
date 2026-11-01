@@ -21,6 +21,17 @@ const casosF1 = [
     ['F1 lista uno entre', { descripcion: 'Se requiere dominio de al menos uno entre Java, Spring Boot y TypeScript' }, null],
 ];
 const casosF2 = [
+    ['F2 S9 vacante para desarrolladores Junior', 'Vacante para desarrolladores Junior con TypeScript.', null, true],
+    ['F2 S9 vacante para desarrolladores Trainee', 'Vacante para desarrolladores Trainee con TypeScript.', null, true],
+    ['F2 S9 rol propio expresado con de', 'Buscamos candidatos para trabajar de desarrolladores Junior.', null, true],
+    ['F2 S9 tareas de terceros', 'Buscamos desarrollador Senior para coordinar las tareas de desarrolladores Junior', 'seniority', false],
+    ['F2 S9 gestión de terceros', 'Buscamos desarrollador Senior para gestionar desarrolladores Junior', 'seniority', false],
+    ['F2 S9 colegas', 'Buscamos desarrollador Senior para trabajar con desarrolladores Junior', 'seniority', false],
+    ['F2 S9 puestos propios como desarrolladores', 'Buscamos perfiles para trabajar como desarrolladores Junior.', null, true],
+    ['F2 S9 título Junior con tareas propias', 'Coordinar las tareas de desarrolladores Junior.', null, true, 'Desarrollador Junior'],
+    ['F2 S9 otra vacante en otra cláusula', 'Buscamos desarrollador Senior para gestionar desarrolladores Junior; buscamos perfil Junior para otra vacante.', 'seniority', true],
+    ['F2 S9 SR obligatorio', 'Buscamos desarrollador SR obligatorio.', 'seniority', false],
+    ['F2 S9 Java conserva porcentaje', 'Buscamos perfil Junior para coordinar tareas. Java obligatorio.', 'java', true],
     ['F2 residual liderazgo', 'Buscamos desarrollador Senior para liderar un grupo de desarrolladores Junior', 'seniority', false],
     ['F2 residual coordinación', 'Buscamos desarrollador Senior para coordinar desarrolladores Junior', 'seniority', false],
     ['F2 residual train', 'We seek a Senior developer to train Junior developers', 'seniority', false],

@@ -582,9 +582,14 @@ function evaluarReglasExclusion(oferta, preferencias) {
                 const negacion = [...antes.matchAll(/\bno\s+(?:se\s+)?(?:busca\w*|queremos)\b/g)].at(-1);
                 const ultimoAjeno = [...antes.matchAll(new RegExp(`${PATRON_EMPRESA.source}|${PATRON_MENTORIA.source}|\\b(?:equipo|team|capacita\\w*|ensen\\w*|formar\\w*)\\b`, 'g'))].at(-1)?.index ?? -1;
                 const conduccionTerceros = antes.match(/\b(?:liderar|coordinar|train)\s+(?:(?:un|a|the)\s+)?(?:(?:grupo|equipo|group|team)\s+(?:de|of)\s+)?(?:(?:desarrollador\w*|developers?)\s+)?$/);
-                // Acoto la conducción a las personas Junior siguientes, no a tareas propias.
+                const despues = clausula.texto.slice(coincidencia.index + coincidencia[0].length);
+                const personas = /\b(?:desarrolladores|developers|ingenieros|engineers)\s*$/.test(antes)
+                    || /^\s+(?:desarrolladores|developers|ingenieros|engineers)\b/.test(despues);
+                const rolPropio = /\b(?:como|as|trabajar\s+de)\s+(?:(?:desarrolladores|developers|ingenieros|engineers)\s*)?$/.test(antes);
+                const complementoTerceros = personas && !rolPropio ? [...antes.matchAll(/\bpara\s+\w+(?:ar|er|ir)\b/g)].at(-1) : null;
+                // Exijo una actividad infinitiva: «para desarrolladores» designa la vacante.
                 return (!negacion || negacion.index + negacion[0].length <= ultimaVacante)
-                    && Math.max(ultimoAjeno, conduccionTerceros?.index ?? -1) <= ultimaVacante;
+                    && Math.max(ultimoAjeno, conduccionTerceros?.index ?? -1, complementoTerceros?.index ?? -1) <= ultimaVacante;
             }));
     const conflicto = junior && /^(?:senior|sr)$/i.test(String(oferta.nivel_requerido || '').trim()) ? [{
         requisito: 'Conflicto de seniority',

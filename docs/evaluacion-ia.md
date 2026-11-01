@@ -769,3 +769,47 @@ La verificación independiente reproduce 30 fallos sobre el HEAD previo y pasa
 completa pasa **3362 pruebas**, con 166 SKIPPED y cero FAIL (88 suites PASS,
 11 SKIPPED). No atribuyo PASS a los omitidos ni afirmo una gramática universal.
 
+### Residuo F2: complementos de personas y tareas (S9)
+
+Reproduzco sobre `ddc216b811ebcc662abe07897e37ef0835a0e4ff` los tres cuerpos
+del comentario `6557925842`: «coordinar las tareas de desarrolladores Junior»,
+«gestionar desarrolladores Junior» y «trabajar con desarrolladores Junior».
+No amplio la lista de verbos: identifico el grupo de personas junto al nivel
+como complemento local de una actividad infinitiva introducida por «para»,
+comparándolo con la última búsqueda de vacante de esa cláusula. Conservo el
+reconocimiento previo (incluido «train»), los roles propios declarados mediante
+«como/as/trabajar de», los títulos Junior y
+una nueva búsqueda Junior en otra cláusula, con evidencia de esa vacante real.
+No cambio F1, v5, porcentajes ni geografía; Senior/SR obligatorio sigue en 15 y
+Java obligatorio en 10, incluso cuando coexiste con un conflicto real.
+
+Prueba del delta intermedio, anterior a la corrección L28: RED **32 FAIL,
+44 PASS, 1524 SKIPPED por filtro**; GREEN de seis suites **1610 PASS, 0 FAIL,
+0 SKIPPED**. Reutilizo matrices públicas Senior/SR con
+proveedor, caché y persistencia simulados e inmutabilidad. El diferencial contra
+`ddc216b` conserva 20 controles con stdout, stderr y código idénticos. Estos
+resultados intermedios no sustituyen el cierre de la fuente final informado abajo;
+no heredo los resultados del HEAD anterior ni reparo históricos.
+
+#### Corrección acotada de la regresión de vacante propia (L28)
+
+Reproduzco que «Vacante para desarrolladores Junior con TypeScript.» y su
+variante Trainee perdían el conflicto real; también «Buscamos candidatos para
+trabajar de desarrolladores Junior.». La causa era aceptar cualquier «para/to»
+sin actividad. Exijo un infinitivo tras «para» y reconozco «trabajar de» como rol
+propio, sin confundirlo con «las tareas de» ni con «trabajar con» terceros.
+Conservo un conflicto Senior/SR, sin exclusión inventada ni cambios a la decisión
+del proveedor o sus porcentajes 80/25. Mantengo los tres negativos S9 en cero
+conflictos y Senior en 15, además de la evidencia de otra vacante Junior.
+
+RED nuevo: **30 FAIL, 0 PASS, 1610 SKIPPED por filtro**, antes del ajuste.
+GREEN final de seis suites: **1640 PASS, 0 FAIL, 0 SKIPPED**. Las matrices
+existentes cubren reglas, proveedor/caché positivos y negativos, persistencia e
+inmutabilidad. Diferencial público contra `ddc216b`: **26 controles**, stdout,
+stderr y exit code idénticos, incluidos los seis controles de vacante/rol propio.
+El recheck independiente acotado pasa **90 pruebas**, con 40 SKIPPED por selección
+y cero FAIL. La suite backend completa final pasa **3478 pruebas**, con
+166 SKIPPED y cero FAIL (88 suites PASS, 11 SKIPPED). Los omitidos no equivalen
+a PASS; no sumo corridas ni heredo pruebas del HEAD anterior. Mantengo F1, v5 y
+#83 sin cambios, sin reparación histórica ni gramática universal.
+
