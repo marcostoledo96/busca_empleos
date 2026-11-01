@@ -722,6 +722,16 @@ registra 3679 PASS, 166 SKIPPED y 4 FAIL, con una suite adicional sin cargar
 reprodujeron en BASE; no afirmo que la suite global esté aprobada.
 La evidencia causal e independiente anterior no se reemplaza por estos conteos.
 
+**Verificación posterior del entorno local:** con autorización del propietario
+resuelvo ambos fallos usando dependencias ya instaladas de otro worktree del
+mismo clon y con `package-lock.json` idéntico. El enlace local `node_modules`
+queda ignorado; no cambio fuente, pruebas, versiones ni lockfiles. El proceso
+hijo del test TLS no heredaba `NODE_PATH`, y la instalación usada por el padre
+no tenía `pdf-parse`: eran fallos de resolución local, no defectos TLS probados.
+Sin `NODE_PATH`, las dos suites focales pasan 69 pruebas y `npm test -- --runInBand`
+pasa 3718 pruebas, con 166 SKIPPED, 0 FAIL y 89 suites aprobadas. Los omitidos
+siguen sin verificarse; no ejecuto proveedores reales ni SQL real local.
+
 ## Exclusiones contextuales y conflicto de fuentes (#79)
 
 Verifico con avisos inventados sobre BASE `fe93b04631d85dee4aa5a952077f7021fd8adb2c`.
