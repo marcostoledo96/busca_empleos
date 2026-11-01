@@ -24,6 +24,7 @@ const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
 const reglasExclusion = require('./evaluacion/reglas-exclusion');
+const { resolverModalidadOferta } = require('./servicio-normalizacion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
 const { construirPerfilDesdePreferencias, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
@@ -178,7 +179,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             return {
                 ...resultado,
                 explicacion: { ...explicacion, por_confirmar: [
-                    ...(explicacion.por_confirmar || []).filter(item => item.requisito !== 'Conflicto de seniority'),
+                    ...(explicacion.por_confirmar || []).filter(item => !conflictos.some(conflicto => conflicto.requisito === item.requisito)),
                     ...conflictos,
                 ] },
                 desglose_disponible: true,
@@ -228,7 +229,8 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
 
         // Defensa programática: presencial fuera de zona o remoto restringido a otro país → rechazo sin consultar IA.
         // (Esta defensa se mantiene unificada con las reglas de exclusión como respaldo extra.)
-        const modalidadOferta = (oferta.modalidad || '').toLowerCase().trim();
+        const interpretacionModalidad = resolverModalidadOferta(oferta);
+        const modalidadOferta = interpretacionModalidad.modalidad;
         const zonasPreferidas = (preferenciasFinal || {}).zonas_preferidas || [];
         const ubicacionOferta = oferta.ubicacion || '';
 
@@ -259,8 +261,8 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                 };
                 return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
             }
-        } else if (modalidadOferta === 'remoto') {
-            const restriccionRemota = detectarRestriccionRemotaIncompatible(oferta);
+        } else if ([modalidadOferta, interpretacionModalidad.metadatos, interpretacionModalidad.titulo, interpretacionModalidad.descripcion].includes('remoto')) {
+            const restriccionRemota = detectarRestriccionRemotaIncompatible({ ...oferta, modalidad: 'remoto' });
             if (restriccionRemota.detectado) {
                 const itemExclusion = {
                     requisito: 'Residencia territorial remota compatible',

@@ -651,6 +651,106 @@ Los otros 159 casos omitidos no quedan verificados por esta ejecución. No ejecu
 frontend, builds, migraciones, proveedor real ni producción. La causa de los cinco
 fallos históricos sigue desconocida; estas pruebas no reconstruyen ese inventario.
 
+## Modalidad y procedencia geográfica (#83)
+
+En `normalizarLote()` concilio las señales del título, descripción y modalidad
+entregada por cada adaptador mediante `resolverModalidadOferta()`, reutilizando
+el detector textual existente. Conservo esas señales y el resultado en
+`datos_crudos.normalizacion_modalidad`, sin modificar el objeto de origen.
+
+- Una señal textual completa una modalidad ausente; ciudad conocida y jornada
+  full-time/part-time no prueban presencialidad ni trabajo remoto. Tampoco
+  interpreto «soporte/acceso/monitoreo remoto» como modalidad del postulante:
+  el adjetivo describe el objeto de la tarea. El beneficio «Acceso opcional a un
+  puesto en oficina» tampoco prueba presencialidad ni contradice una etiqueta
+  remota. Conservo las señales reales «puesto remoto», «trabajo remoto»,
+  «modalidad remota» y «remoto» en el título; no generalizo a cualquier tarea.
+- Ante modalidades contradictorias conservo `null` y un **Conflicto de modalidad**
+  en `explicacion.por_confirmar`, sin rechazo ni aprobación automática. Una
+  negación explícita de remoto tampoco confirma presencialidad por sí sola.
+  Reconozco «No se permite modalidad remota», «Sin posibilidad de modalidad
+  remota» y «Trabajo remoto no permitido» antes de inferir remoto. Sin metadatos
+  conservo `null`; con metadato presencial mantengo esa señal y su exclusión
+  geográfica legítima; con metadato remoto explicito el conflicto.
+- La asistencia obligatoria periódica a oficina prevalece sobre remoto y produce
+  `hibrido`. Reconozco las formas explícitas «asistencia obligatoria a/en oficina
+  una vez por semana/mes» y «debe/deberá asistir a (la) oficina N días por
+  semana/mes» o «al mes»;
+  identifico la negación local «No», «No se» o «No hay» de cada obligación,
+  sin anular obligaciones afirmativas independientes. No implemento
+  un analizador general de visitas, recomendaciones ni otras frecuencias.
+- Las defensas pre/post y el respaldo del evaluador reutilizan la misma resolución.
+  Una contradicción de modalidad no anula una restricción territorial explícita
+  detectada por el criterio remoto vigente. Mantengo el rechazo presencial fuera
+  de zona, la incertidumbre y las equivalencias configuradas; no amplío zonas.
+- Conservo los conflictos también al recibir decisiones positivas/negativas del
+  proveedor o caché. No altero porcentajes ni el objeto cacheado recibido.
+
+Versiono las reglas como `evaluacion-v6` e incluyo la señal de modalidad de
+metadatos en la identidad de oferta: diferencias de procedencia relevantes no
+comparten caché. No borro cachés ni reparo o reevalúo filas históricas. El punto
+común de conciliación de la ingesta es `normalizarLote()`; el detector compartido
+también participa en la admisión individual de Adzuna, cuyo cambio aceptado
+detallo a continuación.
+
+Los controles sintéticos de alias CABA/GBA, homónimos y restricciones territoriales
+ya pasaban en BASE. La extracción Computrabajo usa selectores de empresa y
+ubicación separados; sin un patrón de contaminación inequívoco reproducido no
+elimino texto, números ni Unicode de esos campos. No afirmo sanear ruido histórico.
+La prueba del recorrido usa proveedor y persistencia simulados, no SQL ni API real.
+
+**Corrección focal B1/B2:** antes de corregir observo 15 FAIL y 43 PASS:
+los seis casos indicados por la verificación independiente fallan con proveedor
+simulado positivo y negativo; también falla «modalidad remota» aislada y el
+beneficio opcional en Computrabajo/Jooble. Después de corregir, la focal pasa
+58 pruebas y las seis suites relacionadas pasan 1458, sin FAIL ni SKIPPED.
+Conservo el rechazo presencial en 10 sin proveedor, y la decisión simulada
+80/25 cuando corresponde continuar, sin escrituras de ofertas ni mutaciones.
+Mantengo v6; esta ejecución focal no sustituye la suite completa ni el recheck
+independiente. La admisión Adzuna cambia en el caso aceptado siguiente.
+
+**Decisión explícita del propietario (S5, opción 1):** acepto y documento la
+admisión de Adzuna con título «Desarrollo Junior remoto» y descripción «Acceso
+opcional a un puesto en oficina.». En BASE este caso producía `[]` y dos
+advertencias al detectarse `hibrido`; ahora conservo una oferta `remoto`, sin
+advertencias ni conflicto inventado. No afirmo que la guarda Adzuna permanezca
+enteramente sin cambios: este es un cambio de admisión autorizado en #83.
+
+La etiqueta «Madrid, España» no constituye por sí sola una exigencia de residencia.
+Continúo al matching y respeto la decisión simulada del proveedor (80/25), sin
+aprobación automática. Las restricciones territoriales explícitas conservan su
+cobertura existente. Agrego dos regresiones del recorrido público sin cambiar
+fuente: no hay RED significativo porque el comportamiento vigente ya satisface
+la decisión. La focal final pasa 60 pruebas; la suite completa de entrega
+registra 3679 PASS, 166 SKIPPED y 4 FAIL, con una suite adicional sin cargar
+`pdf-parse`. Los cuatro fallos de proxy TLS y la carga fallida también se
+reprodujeron en BASE; no afirmo que la suite global esté aprobada.
+La evidencia causal e independiente anterior no se reemplaza por estos conteos.
+
+**Verificación posterior del entorno local:** con autorización del propietario
+resuelvo ambos fallos usando dependencias ya instaladas de otro worktree del
+mismo clon y con `package-lock.json` idéntico. El enlace local `node_modules`
+queda ignorado; no cambio fuente, pruebas, versiones ni lockfiles. El proceso
+hijo del test TLS no heredaba `NODE_PATH`, y la instalación usada por el padre
+no tenía `pdf-parse`: eran fallos de resolución local, no defectos TLS probados.
+Sin `NODE_PATH`, las dos suites focales pasan 69 pruebas y `npm test -- --runInBand`
+pasa 3718 pruebas, con 166 SKIPPED, 0 FAIL y 89 suites aprobadas. Los omitidos
+siguen sin verificarse; no ejecuto proveedores reales ni SQL real local.
+
+**Corrección de PR-AUDIT-V1 (`6559895192`, sobre `f112d16`):** reproduzco
+las tres negaciones y las dos obligaciones periódicas nuevas mediante el recorrido
+`normalizarLote()` → reglas → proveedor/caché simulados: RED **31 FAIL, 68 PASS**;
+GREEN **99 PASS, 0 FAIL/SKIPPED**. Las seis suites relacionadas pasan **1458**
+pruebas sin FAIL/SKIPPED. Conservo rechazo presencial en Córdoba en 10 sin
+proveedor/caché, decisiones 80/25, conflictos e inmutabilidad. Adzuna descarta
+los cinco textos auditados con sus advertencias exactas; admite las obligaciones
+localmente negadas y conserva la oficina opcional aceptada en S5 y visitas voluntarias.
+El diferencial público contra `f112d16` cubre los 12 adaptadores: **60 deltas
+solicitados, 108 controles idénticos, cero deltas inesperados**, comparando datos,
+stdout, stderr y código de salida. Mantengo `evaluacion-v6` en esta rama aún no
+integrada. La suite completa y la verificación independiente del nuevo delta
+quedan a cargo del cierre; no ejecuto SQL ni proveedores reales ni reparo históricos.
+
 ## Exclusiones contextuales y conflicto de fuentes (#79)
 
 Verifico con avisos inventados sobre BASE `fe93b04631d85dee4aa5a952077f7021fd8adb2c`.

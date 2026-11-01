@@ -259,6 +259,8 @@ export class DetalleOferta implements OnDestroy {
     // Corrijo el autofocus interno sin interferir con quien ya usó teclado o puntero.
     private moverFocoAlModal(): void {
         const activo = document.activeElement as HTMLElement | null;
+        // Conservo el foco que ya llegó al diálogo antes de vencer el inicio programado.
+        if (activo?.closest('.p-dialog') && this.elemento.nativeElement.contains(activo)) return;
         if (activo?.closest('.p-select-overlay') || activo?.getAttribute('aria-expanded') === 'true') {
             return;
         }
