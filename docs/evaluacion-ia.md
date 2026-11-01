@@ -668,9 +668,14 @@ el detector textual existente. Conservo esas señales y el resultado en
 - Ante modalidades contradictorias conservo `null` y un **Conflicto de modalidad**
   en `explicacion.por_confirmar`, sin rechazo ni aprobación automática. Una
   negación explícita de remoto tampoco confirma presencialidad por sí sola.
+  Reconozco «No se permite modalidad remota», «Sin posibilidad de modalidad
+  remota» y «Trabajo remoto no permitido» antes de inferir remoto. Sin metadatos
+  conservo `null`; con metadato presencial mantengo esa señal y su exclusión
+  geográfica legítima; con metadato remoto explicito el conflicto.
 - La asistencia obligatoria periódica a oficina prevalece sobre remoto y produce
-  `hibrido`. Reconozco las formas explícitas «asistencia obligatoria a oficina una
-  vez por semana/mes» y «debe/deberá asistir a oficina N días por semana/mes»;
+  `hibrido`. Reconozco las formas explícitas «asistencia obligatoria a/en oficina
+  una vez por semana/mes» y «debe/deberá asistir a (la) oficina N días por
+  semana/mes» o «al mes»;
   identifico la negación local «No», «No se» o «No hay» de cada obligación,
   sin anular obligaciones afirmativas independientes. No implemento
   un analizador general de visitas, recomendaciones ni otras frecuencias.
@@ -731,6 +736,20 @@ no tenía `pdf-parse`: eran fallos de resolución local, no defectos TLS probado
 Sin `NODE_PATH`, las dos suites focales pasan 69 pruebas y `npm test -- --runInBand`
 pasa 3718 pruebas, con 166 SKIPPED, 0 FAIL y 89 suites aprobadas. Los omitidos
 siguen sin verificarse; no ejecuto proveedores reales ni SQL real local.
+
+**Corrección de PR-AUDIT-V1 (`6559895192`, sobre `f112d16`):** reproduzco
+las tres negaciones y las dos obligaciones periódicas nuevas mediante el recorrido
+`normalizarLote()` → reglas → proveedor/caché simulados: RED **31 FAIL, 68 PASS**;
+GREEN **99 PASS, 0 FAIL/SKIPPED**. Las seis suites relacionadas pasan **1458**
+pruebas sin FAIL/SKIPPED. Conservo rechazo presencial en Córdoba en 10 sin
+proveedor/caché, decisiones 80/25, conflictos e inmutabilidad. Adzuna descarta
+los cinco textos auditados con sus advertencias exactas; admite las obligaciones
+localmente negadas y conserva la oficina opcional aceptada en S5 y visitas voluntarias.
+El diferencial público contra `f112d16` cubre los 12 adaptadores: **60 deltas
+solicitados, 108 controles idénticos, cero deltas inesperados**, comparando datos,
+stdout, stderr y código de salida. Mantengo `evaluacion-v6` en esta rama aún no
+integrada. La suite completa y la verificación independiente del nuevo delta
+quedan a cargo del cierre; no ejecuto SQL ni proveedores reales ni reparo históricos.
 
 ## Exclusiones contextuales y conflicto de fuentes (#79)
 

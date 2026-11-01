@@ -1599,7 +1599,7 @@ function extraerNumeroInfojobs(valor) {
  * @param {string} texto - Texto a analizar.
  * @returns {'remoto'|'hibrido'|'presencial'|null}
  */
-const PATRON_NEGACION_REMOTO = /\b(?:sin\s+posibilidad\s+de\s+(?:trabajo\s+)?remoto|sin\s+posibilidad\s+de\s+teletrabajo|no\s+(?:se\s+admite|se\s+permite|hay|posibilidad\s+de)\s+(?:trabajo\s+remoto|teletrabajo)|remote\s+work\s+is\s+not\s+(?:available|permitted|allowed)|not\s+a\s+remote\s+position|no\s+teletrabajo|no\s+remoto)\b/i;
+const PATRON_NEGACION_REMOTO = /\b(?:sin\s+posibilidad\s+de\s+(?:(?:trabajo\s+)?remoto|modalidad\s+remota|teletrabajo)|no\s+(?:se\s+admite|se\s+permite|hay|posibilidad\s+de)\s+(?:trabajo\s+remoto|modalidad\s+remota|teletrabajo)|trabajo\s+remoto\s+no\s+permitido|remote\s+work\s+is\s+not\s+(?:available|permitted|allowed)|not\s+a\s+remote\s+position|no\s+teletrabajo|no\s+remoto)\b/i;
 
 function detectarModalidadTexto(texto = '') {
     if (!texto || typeof texto !== 'string') return null;
@@ -1659,7 +1659,7 @@ function detectarModalidadTexto(texto = '') {
 function exigeAsistenciaPeriodica(texto = '') {
     const t = texto.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
     // shortcut: reconozco obligaciones y frecuencias explícitas, no cualquier visita u oficina mencionada.
-    const obligaciones = t.matchAll(/\b(no\s+(?:(?:se|hay)\s+)?)?(?:asistencia\s+obligatoria|debe\s+asistir|debera\s+asistir)\s+a\s+(?:la\s+)?oficina\s+(?:una\s+vez|\d+\s+dias?)\s+por\s+(?:semana|mes)\b/g);
+    const obligaciones = t.matchAll(/\b(no\s+(?:(?:se|hay)\s+)?)?(?:asistencia\s+obligatoria|debe\s+asistir|debera\s+asistir)\s+(?:a|en)\s+(?:la\s+)?oficina\s+(?:una\s+vez|\d+\s+dias?)\s+(?:por\s+(?:semana|mes)|al\s+mes)\b/g);
     return [...obligaciones].some(coincidencia => !coincidencia[1]);
 }
 

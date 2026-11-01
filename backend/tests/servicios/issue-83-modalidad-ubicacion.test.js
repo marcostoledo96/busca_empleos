@@ -265,6 +265,119 @@ test.each([true, false])('S5 admito Adzuna remoto con oficina opcional: proveedo
     }
 });
 
+const negacionesAuditoria = [
+    'No se permite modalidad remota',
+    'Sin posibilidad de modalidad remota',
+    'Trabajo remoto no permitido',
+];
+const asistenciasAuditoria = [
+    'Trabajo 100% remoto. Asistencia obligatoria en oficina una vez por semana',
+    '100% remoto. Debe asistir a la oficina 2 días al mes',
+];
+const asistenciasNegadas = [
+    'Trabajo 100% remoto. No hay asistencia obligatoria en oficina una vez por semana',
+    '100% remoto. No se debe asistir a la oficina 2 días al mes',
+];
+const casosAuditoria = [
+    ...negacionesAuditoria.flatMap(jobDescription => [
+        ['B1 sin metadato', { jobDescription }, null, false, false],
+        ['B1 presencial Córdoba', { jobDescription, workType: 'On-site' }, 'presencial', false, true],
+        ['B1 contradicción remota', { jobDescription, workType: 'Remote' }, null, true, false],
+    ]),
+    ...asistenciasAuditoria.map(jobDescription => ['B2 obligación', { jobDescription, workType: 'Remote' }, 'hibrido', true, false]),
+    ...asistenciasNegadas.map(jobDescription => ['B2 negación local', { jobDescription, workType: 'Remote' }, 'remoto', false, false]),
+    ['B2 visita voluntaria', { jobDescription: 'Trabajo 100% remoto. Visitas voluntarias a la oficina 2 días al mes.', workType: 'Remote' }, 'remoto', false, false],
+];
+
+describe('PR-AUDIT-V1: negaciones y obligaciones periódicas', () => {
+    beforeEach(() => {
+        jest.spyOn(console, 'warn').mockImplementation(() => {});
+        jest.spyOn(console, 'log').mockImplementation(() => {});
+        jest.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    async function comprobarRecorrido(caso, match, cacheada = false) {
+        const [, cambios, modalidad, conflicto, excluida] = caso;
+        const item = { ...itemBase, ...cambios };
+        const original = structuredClone(item);
+        const [oferta] = normalizarLote([item], 'linkedin');
+        const ofertaOriginal = structuredClone(oferta);
+        const almacenada = respuesta(match);
+        const almacenadaOriginal = structuredClone(almacenada);
+        if (cacheada) cache.buscarCache.mockResolvedValue(almacenada);
+        consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(match)));
+        const reglas = evaluarReglasExclusion(oferta, prefs);
+        const resultado = await evaluarOferta(oferta, undefined, undefined, prefs);
+        expect(oferta.modalidad).toBe(modalidad);
+        expect(oferta.datos_crudos.normalizacion_modalidad).toEqual(expect.objectContaining({
+            conflicto, metadatos: cambios.workType === 'Remote' ? 'remoto' : cambios.workType === 'On-site' ? 'presencial' : null,
+            descripcion: negacionesAuditoria.includes(cambios.jobDescription) ? null : modalidad,
+            negacion_remoto: negacionesAuditoria.includes(cambios.jobDescription),
+        }));
+        expect(reglas.excluida).toBe(excluida);
+        expect(reglas.reglas).toEqual(excluida ? ['ubicacion_modalidad'] : []);
+        expect(resultado.match).toBe(excluida ? false : match);
+        expect(resultado.porcentaje).toBe(excluida ? 10 : respuesta(match).porcentaje);
+        expect(resultado.razon).toBe(excluida ? reglas.razon : respuesta(match).razon);
+        expect(resultado.error || false).toBe(false);
+        expect(resultado.explicacion.por_confirmar).toHaveLength(conflicto ? 1 : 0);
+        if (conflicto) expect(resultado.explicacion.por_confirmar[0].requisito).toBe('Conflicto de modalidad');
+        expect(resultado.explicacion.exclusiones).toHaveLength(excluida ? 1 : 0);
+        expect(consultarDeepSeek).toHaveBeenCalledTimes(excluida || cacheada ? 0 : 1);
+        expect(cache.buscarCache).toHaveBeenCalledTimes(excluida ? 0 : 1);
+        expect(cache.guardarCache).toHaveBeenCalledTimes(excluida || cacheada ? 0 : 1);
+        expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
+        expect(console.warn).not.toHaveBeenCalled();
+        expect(console.error).not.toHaveBeenCalled();
+        expect(console.log).not.toHaveBeenCalled();
+        expect(item).toEqual(original);
+        expect(oferta).toEqual(ofertaOriginal);
+        expect(almacenada).toEqual(almacenadaOriginal);
+    }
+
+    test.each(casosAuditoria.flatMap(caso => [true, false].map(match => [caso, match])))(
+        'proveedor: %j, decisión %s', async (caso, match) => comprobarRecorrido(caso, match)
+    );
+
+    // Compruebo ambos signos de caché para cada regla, sin repetir la matriz del proveedor.
+    test.each([casosAuditoria[2], casosAuditoria[9]].flatMap(caso => [true, false].map(match => [caso, match])))(
+        'caché: %j, decisión %s', async (caso, match) => comprobarRecorrido(caso, match, true)
+    );
+
+    test.each([...negacionesAuditoria, ...asistenciasAuditoria, ...asistenciasNegadas])(
+        'admisión Adzuna: %s', jobDescription => {
+            const item = {
+                redirect_url: 'https://www.adzuna.es/details/83008888', title: 'Desarrollo Junior',
+                description: jobDescription,
+            };
+            const original = structuredClone(item);
+            const negada = negacionesAuditoria.includes(jobDescription);
+            const admitida = asistenciasNegadas.includes(jobDescription);
+            const normalizadas = normalizarLote([item], 'adzuna');
+            expect(normalizadas).toHaveLength(admitida ? 1 : 0);
+            if (admitida) {
+                expect(normalizadas[0].modalidad).toBe('remoto');
+                expect(normalizadas[0].datos_crudos.normalizacion_modalidad.conflicto).toBe(false);
+                expect(console.warn).not.toHaveBeenCalled();
+            } else {
+                const motivo = `Adzuna: oferta descartada por no ser trabajo a distancia${negada ? '' : ' (modalidad detectada: hibrido)'}`;
+                expect(console.warn.mock.calls).toEqual([
+                    [`${motivo} — url: ${item.redirect_url}`],
+                    [`Normalización: no pude normalizar item de adzuna: ${motivo}`],
+                ]);
+            }
+            expect(console.log).not.toHaveBeenCalled();
+            expect(console.error).not.toHaveBeenCalled();
+            expect(consultarDeepSeek).not.toHaveBeenCalled();
+            expect(cache.buscarCache).not.toHaveBeenCalled();
+            expect(cache.guardarCache).not.toHaveBeenCalled();
+            expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
+            expect(item).toEqual(original);
+        }
+    );
+});
+
 test('las nuevas reglas no reutilizan criterios v5', () => {
     const actual = construirIdentidadEvaluacion(itemBase, prefs, { instrucciones: 'Sistema sintético' });
     const anterior = construirIdentidadEvaluacion(itemBase, prefs, { instrucciones: 'Sistema sintético', version: 'evaluacion-v5' });
