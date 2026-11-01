@@ -813,3 +813,53 @@ y cero FAIL. La suite backend completa final pasa **3478 pruebas**, con
 a PASS; no sumo corridas ni heredo pruebas del HEAD anterior. Mantengo F1, v5 y
 #83 sin cambios, sin reparación histórica ni gramática universal.
 
+### Residuo F2: sustantivos de personas y vacante nominal (S10)
+
+Sobre `2dcc3fccc6a9b6fabc4bd27e1dfabd53b07814b6` reproduzco los siete casos del
+comentario `6558440120`: cinco falsos conflictos con perfiles, personal, colegas
+y desarrollador singular como terceros; dos conflictos omitidos en «Buscamos
+personal Junior para desarrollo web» y «Vacante para perfiles Junior con
+TypeScript». Comparto el vocabulario singular/plural únicamente dentro del
+conflicto Junior/Trainee, para reconocer personas y roles propios. No amplío
+`PATRON_ROL` ni los helpers compartidos de las demás exclusiones.
+
+Reconozco una búsqueda/vacante nominal directa, sin omitir negaciones ni
+opcionales. Conservo el contexto de actividad para terceros, los artículos en
+roles propios y la atribución Junior posterior a una coma, sin arrastrar hasta
+ella la actividad anterior. Senior/SR sigue excluido en 15; el conflicto real no
+fuerza aprobación ni cambia 80/25 del proveedor. Mantengo F1, Java, v5 y #83.
+
+Pruebas del delta intermedio, anterior a L35: RED **102 FAIL, 67 PASS, 1640 SKIPPED
+por filtro**. La primera pasada de GREEN detectó 10 regresiones del control S8
+«…, perfil Junior»; después de acotar la actividad, las seis suites pasan
+**1809 pruebas, 0 FAIL, 0 SKIPPED**. Cubro los siete casos Senior/SR, proveedor y
+caché positivos/negativos, persistencia e inmutabilidad, más controles de
+Trainee, singular/plural, tareas propias, negación, opcionales y otra cláusula
+con evidencia correcta. Uso la postvalidación vigente de exclusiones, sin
+inventar recaptura de conflictos por mutación durante el proveedor.
+
+El diferencial público de ese delta contra `2dcc3fc` conserva **30 controles**
+con stdout, stderr y exit code idénticos. Esa evidencia no certifica la corrección
+posterior L35 ni implica gramática universal o reparación histórica.
+
+#### Corrección acotada de la coma enumerativa (L35)
+
+Reproduzco «Buscamos desarrollador Senior para coordinar desarrolladores Junior,
+ingenieros Junior.»: el corte indiscriminado en la última coma inventaba un
+conflicto al llegar a ingenieros. Reutilizo `nombrePersona` para reconocer que
+la persona con nivel inmediatamente anterior a la coma continúa la enumeración
+de terceros bajo la actividad. No elimino el corte globalmente: «Buscamos
+desarrollador para coordinar tareas de pruebas, perfil Junior.» conserva un
+conflicto real, igual que las nuevas búsquedas/vacantes en otra cláusula.
+
+RED nuevo antes del ajuste: **10 FAIL, 1 PASS, 1809 SKIPPED por filtro**. GREEN
+final: seis suites, **1820 PASS, 0 FAIL, 0 SKIPPED**. La fila nueva reutiliza las
+matrices Senior/SR, reglas, proveedor/caché, persistencia e inmutabilidad;
+conserva cero conflictos y rechazo Senior en 15. Diferencial público contra
+`2dcc3fc`: **32 controles** con stdout, stderr y exit code idénticos, incluidos
+ambos usos de la coma. Mantengo los siete casos S10 y sus controles, F1, v5 y
+#83. El recheck independiente acotado pasa **90 pruebas**, con 130 SKIPPED por
+selección y cero FAIL. La suite backend completa final pasa **3658 pruebas**,
+con 166 SKIPPED y cero FAIL (88 suites PASS, 11 SKIPPED). Los omitidos no
+equivalen a PASS; no heredo los resultados de la fuente intermedia.
+

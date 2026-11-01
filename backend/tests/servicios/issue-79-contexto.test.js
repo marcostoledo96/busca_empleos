@@ -273,6 +273,14 @@ test.each(['Senior', 'SR'])('F2 S9 conservo evidencia de la otra vacante: %s', n
     expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).not.toContain('gestionar');
 });
 
+test.each(['Senior', 'SR'])('F2 S10 evidencia de la vacante personal real: %s', nivel => {
+    const [, descripcion] = casosF2.find(([nombre]) => nombre === 'F2 S10 otra vacante personal');
+    const resultado = reglas.evaluarReglasExclusion(crearOferta({ titulo: 'Desarrollo web', nivel_requerido: nivel, descripcion }), prefs);
+    expect(resultado.explicacion.por_confirmar).toHaveLength(1);
+    expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).toContain('buscamos personal junior para otra vacante');
+    expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).not.toContain('gestionar');
+});
+
 test('el contrato nuevo cambia la firma incluso con instrucciones explícitas', () => {
     const opciones = { instrucciones: 'Sistema explícito' };
     const actual = construirIdentidadEvaluacion(conflicto, prefs, opciones);

@@ -572,21 +572,29 @@ function construirDesgloseExclusion(exclusionesDetectadas = [], oferta = {}) {
  * @returns {{ excluida: boolean, match: boolean, porcentaje: number|null, razon: string, reglas: string[], explicacion: Object }}
  */
 function evaluarReglasExclusion(oferta, preferencias) {
+    const nombrePersona = String.raw`(?:desarrollador(?:es)?|developers?|ingenieros?|engineers?|personal|perfil(?:es)?|colegas?)`;
     // Conservo las dos fuentes; el metadato contradictorio no decide por sí solo.
     const junior = extraerClausulas(oferta).find(clausula =>
         [...clausula.texto.matchAll(/\b(?:junior|trainee)\b/g)]
             .some(coincidencia => {
-                if (!esRequisito(clausula, 'seniority', coincidencia)) return false;
                 const antes = clausula.texto.slice(0, coincidencia.index);
+                const personaAntes = antes.match(new RegExp(`\\b${nombrePersona}\\s*$`));
+                const vacanteNominal = personaAntes && /\b(?:busca\w*|queremos|puesto|posicion|rol|vacante)\s+(?:para\s+)?(?:(?:un|una|unos|unas)\s+)?$/.test(antes.slice(0, personaAntes.index));
+                // Amplío solo el conflicto: no altero los roles de las otras exclusiones.
+                if (!esRequisito(clausula, 'seniority', coincidencia) && (clausula.omitida || !vacanteNominal)) return false;
                 const ultimaVacante = [...antes.matchAll(/\b(?:busca\w*|queremos|puesto|posicion|rol|vacante)\b/g)].at(-1)?.index ?? -1;
                 const negacion = [...antes.matchAll(/\bno\s+(?:se\s+)?(?:busca\w*|queremos)\b/g)].at(-1);
                 const ultimoAjeno = [...antes.matchAll(new RegExp(`${PATRON_EMPRESA.source}|${PATRON_MENTORIA.source}|\\b(?:equipo|team|capacita\\w*|ensen\\w*|formar\\w*)\\b`, 'g'))].at(-1)?.index ?? -1;
                 const conduccionTerceros = antes.match(/\b(?:liderar|coordinar|train)\s+(?:(?:un|a|the)\s+)?(?:(?:grupo|equipo|group|team)\s+(?:de|of)\s+)?(?:(?:desarrollador\w*|developers?)\s+)?$/);
                 const despues = clausula.texto.slice(coincidencia.index + coincidencia[0].length);
-                const personas = /\b(?:desarrolladores|developers|ingenieros|engineers)\s*$/.test(antes)
-                    || /^\s+(?:desarrolladores|developers|ingenieros|engineers)\b/.test(despues);
-                const rolPropio = /\b(?:como|as|trabajar\s+de)\s+(?:(?:desarrolladores|developers|ingenieros|engineers)\s*)?$/.test(antes);
-                const complementoTerceros = personas && !rolPropio ? [...antes.matchAll(/\bpara\s+\w+(?:ar|er|ir)\b/g)].at(-1) : null;
+                const personas = personaAntes || new RegExp(`^\\s+${nombrePersona}\\b`).test(despues);
+                const rolPropio = new RegExp(`\\b(?:como|as|trabajar\\s+de)\\s+(?:(?:un|una|a|an|the)\\s+)?(?:${nombrePersona}\\s*)?$`).test(antes);
+                // Entre personas con nivel, la coma continúa la enumeración de terceros.
+                const enumeracionPersonas = personaAntes && antes.slice(0, personaAntes.index)
+                    .match(new RegExp(`\\b${nombrePersona}\\s+(?:junior|trainee)\\s*,\\s*$`));
+                const complementoTerceros = personas && !rolPropio ? [...antes.matchAll(/\bpara\s+\w+(?:ar|er|ir)\b/g)]
+                    .filter(actividad => actividad.index > antes.lastIndexOf(',')
+                        || (enumeracionPersonas && actividad.index < enumeracionPersonas.index)).at(-1) : null;
                 // Exijo una actividad infinitiva: «para desarrolladores» designa la vacante.
                 return (!negacion || negacion.index + negacion[0].length <= ultimaVacante)
                     && Math.max(ultimoAjeno, conduccionTerceros?.index ?? -1, complementoTerceros?.index ?? -1) <= ultimaVacante;
