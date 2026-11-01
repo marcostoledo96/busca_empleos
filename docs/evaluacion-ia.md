@@ -659,9 +659,9 @@ anterior y el parser de contradicciones de #81 permanece sin modificaciones.
 La caché JSON conserva el resultado completo, incluida la bandera interna;
 además derivo nuevamente la elegibilidad del desglose en cada hit, sin mutarlo.
 Conservo el booleano de afinidad para que una bandera omitida no convierta la
-incertidumbre en rechazo ni aprobación. Versiono el contrato actual como `evaluacion-v9`
-(v7 inicial y v8 de V1 son históricos), también con instrucciones explícitas:
-cambia la identidad y no reutilizo aprobaciones v8. El mensaje de usuario incluye las pautas
+incertidumbre en rechazo ni aprobación. Versiono el contrato actual como `evaluacion-v10`
+(v7 inicial, v8 de V1 y v9 de V2 son históricos), también con instrucciones explícitas:
+cambia la identidad y no reutilizo decisiones v9. El mensaje de usuario incluye las pautas
 de incertidumbre. No borro cachés ni reparo evaluaciones históricas.
 
 **Presentación:** el detalle muestra **Elegibilidad pendiente de confirmación**
@@ -801,6 +801,52 @@ El recheck independiente dirigido cierra el bloqueo con **144 PASS y 52 probes
 públicos PASS**, sin fallos; compara la fuente final con la probada. El navegador
 pasó 7 controles sobre la UI sin cambios, sin repetirlos por cambios sólo backend.
 No se abrió otra auditoría general ni se modificó UI/parser #81/esquema.
+
+### Auditoría V3: insuficiencia explícita con afinidad falsa (#80, comentario 6565252085)
+
+Sobre `5986fae`, el retorno temprano de `match:false` omitía el desglose. Una
+respuesta válida de afinidad baja que declaraba «Información suficiente de la
+oferta» pendiente se persistía como rechazo, sin incompatibilidad demostrada.
+Ahora reviso **sólo ese marcador canónico explícito no deseable** antes de retornar:
+si no hay incompatibilidad acreditada, conservo `match:false` y el porcentaje del
+proveedor, agrego `pendiente:true`, razón vigente y prioridad IA nula. El worker
+persiste `pendiente`, suma una evaluación válida y cero aprobadas/rechazadas/errores.
+La razón mantiene «Afinidad técnica estimada: 25%.» o «24%.»; no recalculo el score
+ni convierto la falta parcial de información en precisión inventada. Sólo la
+ausencia real de descripción conserva el guardia previo de score nulo/sin IA.
+
+Reutilizo el contraste del requisito con el aviso y la ausencia declarada literal
+del candidato para conservar incompatibilidades reales. En esta rama de afinidad
+baja exijo además que la cita exista en una cláusula del aviso: ni una categoría
+no vacía ni una cita inventada constituyen prueba. Un técnico obligatorio ausente
+confirmado o matrícula incompatible siguen rechazados aunque quede información
+por confirmar; un deseable no se vuelve exclusión. No generalizo el tratamiento a
+otros `match:false` sin el marcador, ni impongo longitud mínima a los extractos.
+No cambio parser #81, umbrales, exclusiones determinísticas, esquema ni interfaz.
+
+**RED 13 FAIL/144 PASS** antes de cambiar fuentes: dos casos por `evaluarOferta`,
+dos por worker, dos reinicios, seis comprobaciones de categoría/razón/flag y una
+de identidad. **GREEN inicial 157 PASS; final 158 PASS** en #80/identidad/#17/#18
+tras agregar un control de inglés deseable. **13 suites relacionadas: 1543 PASS**,
+sin fallos ni omitidas. Los dos casos conservan exactamente 25/24 por proveedor,
+hit con/sin flag sin mutación, forzado individual, selección/reintento del worker,
+persistencia y reinicio con modelo real de lote sobre pool simulado. Los
+contracasos verifican que un flag de caché pendiente tampoco anule incompatibilidad
+acreditada. Conservo positivos y negativos V1/V2, inglés obligatorio/deseable,
+extracto breve suficiente, descripción nula y las regresiones #79/#83.
+
+Contrato **v10** invalida v9 aun con instrucciones explícitas idénticas, sin borrar
+ni reparar históricos. Las cifras globales/CI/visuales de V2 son históricas; no
+certifican este delta. El padre observa backend completo **3864 PASS/166 SKIPPED**,
+90 suites PASS y 11 omitidas. La verificación independiente observa **158 PASS**
+focales y **284 comprobaciones funcionales PASS**, más ocho comparaciones idénticas
+a BASE fuera de la nueva aceptación (no son ocho PASS V3 ni defectos nuevos).
+El diferencial compara 30 escenarios y 292 ejecuciones por versión: 152 registros
+idénticos y 140 diferencias intencionales, exit 0 y stderr vacío. Su primer harness
+tenía una expectativa de mensaje de rehidratación demasiado estricta, corregida
+sólo en el scratch, no en producto. No quedan bloqueos en ese alcance.
+La entrega Git/PR sigue a cargo del padre. Navegador **NOT RUN V3** porque la UI no
+cambió; no repito builds ni uso proveedores/SQL reales.
 
 ## Distinción de errores técnicos y recuperación de lotes (#18)
 

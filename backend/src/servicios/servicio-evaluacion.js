@@ -150,8 +150,11 @@ function acreditarHechoActual(requisito, evidencia, hechos) {
 
 /** Conservo afinidad y evidencia sin confundir elegibilidad desconocida con rechazo. */
 function resolverElegibilidad(resultado, oferta, preferencias) {
-    if (resultado.error || resultado.invalido || resultado.inconsistente || !resultado.match) return resultado;
+    if (resultado.error || resultado.invalido || resultado.inconsistente) return resultado;
     const original = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+    const insuficienciaExplicita = original.por_confirmar?.some(item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable');
+    // No generalizo match:false: sólo reviso el marcador explícito antes de distinguir incertidumbre de incompatibilidad.
+    if (!resultado.match && !insuficienciaExplicita) return resultado;
     const candidato = construirPerfilEfectivoCanonico(preferencias).candidato;
     const hechos = [candidato.perfil_profesional, candidato.nivel_real_seniority, candidato.idioma_candidato,
         ...candidato.stack_tecnologico, ...candidato.tecnologias_detalle.filter(t => t.nivel !== 'ninguno').flatMap(t => [t.nombre, t.evidencia])];
@@ -179,6 +182,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 !/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/.test(clausula)
                 && (PATRON_OPCIONAL_EVIDENCIA.test(clausula) || PATRON_NEGACION_EVIDENCIA.test(clausula)));
             const ofertaAcreditada = contieneTokenNormalizado(ofertaCitada, requisito)
+                && (resultado.match || citasRelacionadas.length > 0)
                 && !validarCoherenciaRespuesta(false, resultado.porcentaje, { exclusiones: [item] }, textoOferta).invalido;
             // Solo pruebo ausencias declaradas o negaciones literales completas; no deduzco incompatibilidad por omisión.
             const ausenciaAcreditada = ausencias.includes(requisito) && perfil === requisito
