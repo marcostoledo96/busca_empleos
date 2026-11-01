@@ -67,7 +67,15 @@
                 </div>
             </div>
             <!-- Alerta cuando la evaluación está desactualizada o pendiente -->
-            @if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
+            @if (pendienteDeConfirmacion(o)) {
+                <div class="alerta-desactualizada" role="status" aria-live="polite">
+                    <span class="material-symbols-outlined" aria-hidden="true">help_outline</span>
+                    <div class="alerta-desactualizada-texto">
+                        <strong>Elegibilidad pendiente de confirmación</strong>
+                        <span>Necesito confirmar requisitos o completar información antes de aprobar o rechazar la oferta. Consultá el motivo y los aspectos por confirmar.</span>
+                    </div>
+                </div>
+            } @else if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">history</span>
                     <div class="alerta-desactualizada-texto">
@@ -109,7 +117,7 @@
 
                 @if (o.razon_evaluacion) {
                     <p class="detalle-razon">
-                        @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                        @if (!pendienteDeConfirmacion(o) && (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA')) {
                             <strong>Motivo de la evaluación anterior: </strong>
                         }
                         {{ o.razon_evaluacion }}

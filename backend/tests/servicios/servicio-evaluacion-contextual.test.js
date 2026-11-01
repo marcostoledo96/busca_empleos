@@ -16,7 +16,8 @@ const modeloPreferencia = require('../../src/modelos/preferencia');
 const cache = require('../../src/modelos/evaluacion-cache');
 const { evaluarOferta, evaluarOfertasPendientes } = require('../../src/servicios/servicio-evaluacion');
 const preferencias = { zonas_preferidas: ['Buenos Aires'], stack_tecnologico: ['Angular'], modelo_ia: 'simulado' };
-const crearOferta = descripcion => ({ id: 1, titulo: 'Frontend Junior', descripcion, modalidad: 'remoto', ubicacion: 'Buenos Aires, Argentina' });
+// Aíslo contexto de fuentes crudas del caso sin descripción cubierto por issue #80.
+const crearOferta = descripcion => ({ id: 1, titulo: 'Frontend Junior', descripcion: descripcion || 'Desarrollo web con Angular.', modalidad: 'remoto', ubicacion: 'Buenos Aires, Argentina' });
 const incidentales = [
     'Somos una empresa líder en salud. Buscamos alguien sin experiencia.',
     'Vas a aprender junto a nuestro desarrollador senior.',

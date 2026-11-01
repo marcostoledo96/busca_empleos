@@ -160,7 +160,7 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
 
 | Criterio | Resultado |
 |----------|----------|
-| Candidato cumple ≥60% de requisitos técnicos | `match: true` |
+| Candidato cumple ≥60% de requisitos técnicos | Afinidad suficiente; apruebo solo sin exclusiones ni obligaciones pendientes |
 | Nivel pedido compatible con seniority y evidencia declarados | Evaluación contextual, no aprobación automática |
 | Requiere Java (no JavaScript) como tecnología principal | `match: false` |
 | Requiere nivel Senior o >3 años de experiencia comprobable | `match: false` |
@@ -247,7 +247,7 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 2. Tomar una única copia del perfil guardado; si no hay ofertas → retornar resumen vacío
 3. Para CADA oferta (secuencialmente):
    a. Evaluar con DeepSeek
-   b. Determinar estado: match=true → 'aprobada', match=false → 'rechazada'
+   b. Determinar estado: fallo técnico o elegibilidad por confirmar → 'pendiente'; en los demás casos match=true → 'aprobada', match=false → 'rechazada'
    c. Actualizar en BD: actualizarEvaluacion(id, estado, razon, porcentaje)
    d. Sumar contadores
 4. Retornar resumen con totales
@@ -586,6 +586,267 @@ Cada ítem del desglose conserva: `requisito`, `tipo` (`obligatorio` | `deseable
 
 ### 6. Muestra de referencia para regresión (25 casos)
 - Se incorporó la suite sintética en `backend/tests/fixtures/casos-muestra-matching.js` con 25 casos representativos (QA, Soporte, Angular, exclusión Java, Java deseable, inglés excluyente vs deseable, empresas líderes vs candidato líder, restricciones territoriales, extractos parciales, porcentajes inconsistentes, etc.) con la marca `estado_revision: 'propuesta_pendiente_revision_humana'`.
+
+## Afinidad técnica y elegibilidad por confirmar (#80)
+
+Conservo los estados y los cuatro grupos de explicación existentes; no agrego
+columnas, migraciones ni datos personales. Distingo tres situaciones:
+
+- **Obligación desconocida:** residencia, autorización laboral, matrícula o título
+  específico sin respaldo del perfil se explican en `por_confirmar`, tipo
+  `obligatorio`. Una cita del aviso acredita la exigencia, no su cumplimiento.
+  No equiparo formación técnica con una licenciatura sin equivalencia confirmada.
+- **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
+  El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
+  su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,
+  incluidas las fuentes crudas disponibles aunque falte descripción.
+- **Información insuficiente:** sin descripción (`null`, ausente, vacía o blanca)
+  mantengo pendiente con porcentaje nulo y no consulto proveedor ni caché, incluso
+  al ejecutar nuevamente. Un extracto conocido sin evidencias de cumplimiento en
+  oferta y perfil queda pendiente; no uso un corte de longitud. Para otros textos
+  fragmentarios instruyo a la IA a registrar `Información suficiente de la oferta`
+  como obligación por confirmar. Un extracto breve suficientemente respaldado
+  puede aprobar. No certifico la interpretación semántica de cualquier texto.
+
+**Guardia de evidencia (auditoría B1, comentario 6563865508):** antes de aprobar
+reviso obligaciones en las cuatro categorías, no sólo `por_confirmar`. Reutilizo
+el candidato efectivo y los validadores contextuales existentes. Una obligación
+en `cumplidos` requiere citas relacionadas del cuerpo del aviso y de hechos
+confirmados del candidato. Para títulos y residencia exijo una afirmación del
+mismo hecho actual, no una mera mención; para otros requisitos conservo el nombre
+en ambas citas. No acepto una
+preferencia, el prompt personalizado, una capacidad ajena ni una equivalencia
+académica como prueba. Si no puedo acreditarlo, muevo el requisito a `por_confirmar`,
+retiro el falso cumplimiento/incumplimiento/exclusión y explico qué falta confirmar.
+No dejo el mismo requisito simultáneamente cumplido y pendiente o excluido.
+
+Una obligación en `no_cumplidos` o `exclusiones` tampoco aprueba por score alto.
+Sólo rechazo por una ausencia declarada relacionada y literalmente acreditada:
+`conocimientos_ausentes` o una ausencia explícita como «No cuento con matrícula
+profesional» / «Carezco de …» en `perfil_profesional` o `limitaciones_explicitas`,
+más la exigencia verificable del aviso. Una cita inventada, vacía,
+ajena, una negación ambigua o una paráfrasis que no puedo demostrar queda pendiente,
+no se convierte en incompatibilidad. Las defensas determinísticas previas permanecen.
+Si el contexto del aviso sólo declara deseable/no requerido un requisito mal rotulado
+como obligatorio, lo conservo por confirmar de tipo deseable, sin bloquear ni
+inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones.
+Esta comprobación literal es conservadora: no pretende interpretar cualquier
+redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
+
+Ante evidencia incierta el servicio agrega `pendiente: true` al resultado afín,
+sin invertir `match` ni recalcular su porcentaje válido. Ante incompatibilidad
+acreditada fija `match: false`, conserva el porcentaje técnico y emite la razón
+`Incompatibilidad confirmada: … Afinidad técnica estimada: …%.`, con categorías
+coherentes, sin prioridad IA ni error técnico. El worker considera esa
+bandera **antes** de aprobar: persiste `estado_evaluacion = 'pendiente'`, razón
+`Pendiente de confirmación: …`, explicación, afinidad y firma mediante
+`actualizarEvaluacion`, con `evaluacion_error_mensaje = null` y sin prioridad IA.
+No cuenta aprobación, rechazo ni error; suma `procesadas` y `evaluadas`, porque
+el contrato del lote cuenta en `evaluadas` todo resultado válido persistido,
+no sólo decisiones aprobadas/rechazadas. `pendientes` del progreso es
+`total - evaluadas`: trabajo sin resultado válido (incluidos fallos o trabajo
+no procesado), no la cantidad de ofertas con elegibilidad laboral pendiente.
+Una oferta puede seguir `pendiente` con avance 100% y pendientes de progreso 0.
+Conservo esos contadores al rehidratar desde el modelo de lotes existente, sin
+columnas nuevas ni reconstrucción a partir del porcentaje redondeado.
+La regresión con modelo real de lotes y pool simulado reproduce 6 FAIL/28 PASS;
+GREEN: 34 PASS, con obligación por confirmar, descripción ausente y lotes mixtos
+completados, cancelados, con error o interrumpidos activos.
+No agrego ciclos ni reintentos: ejecuciones posteriores reutilizan caché cuando
+existe; sin descripción nunca consumen IA. Los fallos técnicos conservan su flujo
+anterior y el parser de contradicciones de #81 permanece sin modificaciones.
+
+La caché JSON conserva el resultado completo, incluida la bandera interna;
+además derivo nuevamente la elegibilidad del desglose en cada hit, sin mutarlo.
+Conservo el booleano de afinidad para que una bandera omitida no convierta la
+incertidumbre en rechazo ni aprobación. Versiono el contrato actual como `evaluacion-v10`
+(v7 inicial, v8 de V1 y v9 de V2 son históricos), también con instrucciones explícitas:
+cambia la identidad y no reutilizo decisiones v9. El mensaje de usuario incluye las pautas
+de incertidumbre. No borro cachés ni reparo evaluaciones históricas.
+
+**Presentación:** el detalle muestra **Elegibilidad pendiente de confirmación**
+para pendientes sin error ni vigencia anterior cuya razón comienza con
+`Pendiente de confirmación:`. Conservo la razón actual y `por_confirmar`, sin
+badge de error ni porcentaje presentado como aprobación. El marcador de
+reevaluación, la vigencia anterior y el fallo técnico conservan sus avisos previos.
+No incorporo un campo persistido para distinguirlos. La focal Angular tiene RED
+2 FAIL/16 PASS y GREEN 18 PASS; las tres suites del detalle pasan 40 pruebas.
+El intento inicial de Playwright no arrancó por dependencia ausente (exit 127);
+posteriormente el padre verificó 7 PASS en navegador: los dos escenarios nuevos
+y cinco controles. Esa evidencia posterior no convierte el intento fallido en
+PASS ni constituye inspección visual. Esta corrección de contadores no toca UI.
+Evidencia histórica del candidato anterior a B1: backend completo 3791 PASS/166 SKIPPED,
+34 regresiones de #80 incluidas. La verificación independiente cerró el defecto
+de rehidratación con 106 PASS; el diferencial de 48 casos por versión preservó
+los controles de automatización, selección y reintento. Uso ofertas/perfiles
+inventados, proveedor y almacenamiento simulados, sin SQL ni llamadas pagas.
+Las suites SQL reales y el build local no se ejecutaron; la PR conserva los
+checks de CI habituales y queda abierta para auditoría externa.
+
+Para el delta B1 sobre `b54e00e`, observo RED exacto de las tres categorías
+(3 FAIL/34 PASS), matriz ampliada RED 27 FAIL/44 PASS y GREEN inicial 71 PASS.
+Agrego controles de evidencia ajena, prompt no factual, duplicados y deseables
+mal rotulados (RED 3 FAIL/72 PASS); focal del primer delta B1 #80 + identidad: **75 PASS**.
+Las 13 suites relacionadas pasan **1543 pruebas**, sin fallos ni omitidas. Un primer
+intento no cargó una suite por su mock incompleto del parser; lo reparo con
+`jest.requireActual`, sin debilitar aserciones ni agregar fallback productivo.
+Cubro proveedor/caché sin flag interno, persistencia, selección/reintento y
+reinicio con el modelo real de lotes sobre pool simulado. No modifico el parser #81.
+Repito el harness Playwright: **7 PASS**, con capturas específicas en los dos
+`@issue80`. El padre informa inspección personal del banner y razón actual,
+sin etiqueta histórica ni error técnico. No atribuyo aprobación de auditoría
+externa a estas pruebas. La suite completa del delta y su cierre independiente
+quedan a cargo del padre; los resultados históricos no los sustituyen.
+
+**Corrección acotada B2–B4:** la verificación posterior encontró siete discrepancias
+y 13 fallos de compatibilidad; la evidencia anterior de 75 PASS no cerraba esos
+casos. Ahora contrasto las citas también con los hechos literales, no con prefijos
+agregados por el contexto. «Aspiro a obtener …» y «… pendiente de finalizar» no
+acreditan una titulación; una ausencia literal declarada tampoco puede aprobar.
+Un encabezado «Deseables» del perfil no confirma capacidades ni permite aceptar
+una cita fabricada con el prefijo «deseable». En cláusulas mixtas no rebajo una
+obligación explícita por un deseable ajeno: si no puedo atribuirlo, queda pendiente.
+Conservo los años declarados en `anios_experiencia_reales`: 1 acredita «1 año de
+experiencia»; null, omisión, cero o proyectos prácticos no acreditan ese año.
+En aquella tanda no agregué equivalencias ni interpretación gramatical general;
+el contrato del delta V1 fue v8, sin cambiar el parser #81.
+
+Reproduzco los siete casos exactos y los 13 fallos anteriores: **RED 20 FAIL/105 PASS**.
+Luego pasan las cuatro suites #80/identidad/#17/#18: **125 PASS**, y las 13 suites
+relacionadas: **1543 PASS**, sin fallos ni omitidas. Los siete casos comprueban
+proveedor, caché sin flag y selección/reintento por interfaz pública, con estado,
+razón, score, explicación, error, prioridad y contadores; conservo las pruebas de
+reinicio con lotes reales sobre pool simulado. Los doce fixtures compatibles #17
+usaban citas vagas o no presentes («Angular en perfil», roles objetivo, zonas
+preferidas); ahora sus perfiles/avisos sintéticos acreditan literalmente la misma
+capacidad o disponibilidad. El caso de trayectoria empresarial conserva esa
+trayectoria y agrega una tarea JavaScript verificable, sin inferir experiencia
+del candidato desde su nivel. El reintento #18 cita Node.js/PostgreSQL reales de
+su stack y del cuerpo, no frases inventadas. No cambio aserciones ni los casos
+originales desconocidos. El cierre del padre observa backend completo **3831 PASS,
+166 SKIPPED**, con 90 suites PASS y 11 omitidas. El recheck independiente limitado
+cierra los bloqueos con **125 PASS y 35/35 probes públicos**, sin fallos pendientes.
+No repito navegador ni afirmo aprobación de la auditoría externa; los 7 E2E y las
+dos capturas pertenecen al mismo cambio de presentación, sin cambios UI posteriores.
+
+### Auditoría V2: afirmación del hecho actual (#80, comentario 6564469167)
+
+Sobre la base `97f4969`, no considero que `perfil_profesional` certifique un título
+obtenido o una residencia vigente por incluir su nombre. Un predicado positivo
+pequeño exige una afirmación completa del mismo hecho, además de las comprobaciones
+literales/contextuales y del candidato efectivo. Por ejemplo:
+
+- «Obtuve la Licenciatura en Sistemas.» o «Completé la Licenciatura en Sistemas.»
+  acreditan esa titulación declarada; no otra ni una equivalencia académica.
+- «Resido actualmente en provincia Delta.» acredita el requisito «Residir en
+  provincia Delta». Sólo cambio esa forma verbal, sin inferir otra ubicación.
+- Conservo la declaración explícita autónoma del mismo requisito «…: confirmado/a»;
+  una mención sola, cursada, condición de estudiante, formación o plan futuro
+  sin afirmación actual quedan **por confirmar**, nunca como exclusión inventada.
+
+No amplío una lista de sinónimos prohibidos: título/residencia sólo aprueban por
+las formas afirmativas completas reconocidas. Otras redacciones quedan pendientes
+para confirmación manual; esto no verifica diplomas ni domicilios reales.
+Los hechos técnicos y años canónicos conservan su contrato anterior, así como las
+ausencias explícitas acreditadas, exclusiones duras, deseables y reglas #79/#83.
+No modifico el parser #81, porcentajes, umbrales ni estados persistidos.
+
+Reproduzco las cuatro falsas aprobaciones (curso, estudiante, formación y mudanza
+futura) por worker público, y agrego controles positivos actuales y de mera
+mención. **RED 11 FAIL/127 PASS**, antes de cambiar fuentes; **GREEN 138 PASS**
+en las cuatro suites #80/identidad/#17/#18. Los cuatro casos inciertos verifican
+proveedor, hit de caché sin flag, selección/reintento y reinicio con el modelo real
+de lotes sobre pool simulado: estado pendiente, score 91, razón/categorías honestas,
+sin error técnico, falsa exclusión ni aprobaciones contadas. Un primer RED tuvo
+además cinco fallos del fixture por aridad desigual en `test.each`; los corregí
+antes del RED conductual, sin cambiar producción ni aumentar timeouts.
+Las 13 suites relacionadas pasan **1543 pruebas**, sin fallos ni omitidas.
+
+Contrato **v9**: una prueba asegura miss de v8 aun con instrucciones explícitas
+idénticas. No borro ni reparo históricos. No altero hechos/aserciones positivos
+ni fixtures #17/#18 para ocultar regresiones. Los PASS/CI de V1 son históricos;
+la suite backend completa, navegador y cierre independiente de V2 quedan al padre.
+No afirmo aprobación de auditoría externa ni pruebo proveedores o SQL reales.
+
+**Corrección contextual acotada posterior (L19):** el primer V2 todavía aprobaba
+una cita mutilada de `Cuando me gradúe podré decir:\n«Obtuve la Licenciatura en
+Sistemas».` y de `Todavía no puedo afirmar lo siguiente:\n«Obtuve la Licenciatura
+en Sistemas».`. El extractor separaba la introducción de la cita; acreditar
+solamente esa cláusula perdía su procedencia. Ahora, antes de acreditar títulos o
+residencia, comparo la evidencia con un **hecho fuente íntegro**, antes de partirlo:
+debe coincidir completo tras normalización, sin citas ni saltos de línea internos,
+y pasar el predicado afirmativo actual. No agrego «cuando/todavía» a una blacklist
+ni interpreto arbitrariamente párrafos. La incertidumbre no fabrica incompatibilidad.
+
+Este contrato no estructurado es deliberadamente conservador: una declaración
+válida embebida en un párrafo compuesto también queda pendiente de confirmación
+manual. Los dos controles antiguos «…: confirmado.» conservan su entrada compuesta
+y ahora verifican ese fallback; después el mismo hecho declarado de forma autónoma
+aprueba. No borro el caso compuesto ni cambio la titulación/residencia afirmada.
+Se mantienen los positivos realistas «Obtuve…», «Completé…» y «Resido actualmente…»,
+así como los hechos técnicos y años estructurados. Las comillas de los ejemplos
+de esta documentación son tipográficas, no parte del hecho fuente autónomo.
+
+**RED observado 4 FAIL/140 PASS** (dos casos exactos por proveedor y dos reinicios;
+los controles de futuro/negación en la misma línea ya pasaban). **GREEN final
+144 PASS en cuatro suites**: cada caso exacto comprueba proveedor, caché sin flag,
+selección de aprobada y reintento con error previo, más persistencia/rehidratación
+con modelo real de lote y pool simulado. Mantengo score 91, razón/categorías honestas,
+sin error técnico, falsa exclusión ni contador de aprobada. **13 suites relacionadas,
+1543 PASS**, sin fallos ni omitidas. Conservo v9 del delta aún no publicado; las
+instrucciones finales también reflejan este límite y se revalida cada hit de caché.
+El backend completo anterior de 3844 PASS/166 SKIPPED fue histórico. El cierre
+posterior del padre observa **3850 PASS/166 SKIPPED**, 90 suites PASS y 11 omitidas.
+El recheck independiente dirigido cierra el bloqueo con **144 PASS y 52 probes
+públicos PASS**, sin fallos; compara la fuente final con la probada. El navegador
+pasó 7 controles sobre la UI sin cambios, sin repetirlos por cambios sólo backend.
+No se abrió otra auditoría general ni se modificó UI/parser #81/esquema.
+
+### Auditoría V3: insuficiencia explícita con afinidad falsa (#80, comentario 6565252085)
+
+Sobre `5986fae`, el retorno temprano de `match:false` omitía el desglose. Una
+respuesta válida de afinidad baja que declaraba «Información suficiente de la
+oferta» pendiente se persistía como rechazo, sin incompatibilidad demostrada.
+Ahora reviso **sólo ese marcador canónico explícito no deseable** antes de retornar:
+si no hay incompatibilidad acreditada, conservo `match:false` y el porcentaje del
+proveedor, agrego `pendiente:true`, razón vigente y prioridad IA nula. El worker
+persiste `pendiente`, suma una evaluación válida y cero aprobadas/rechazadas/errores.
+La razón mantiene «Afinidad técnica estimada: 25%.» o «24%.»; no recalculo el score
+ni convierto la falta parcial de información en precisión inventada. Sólo la
+ausencia real de descripción conserva el guardia previo de score nulo/sin IA.
+
+Reutilizo el contraste del requisito con el aviso y la ausencia declarada literal
+del candidato para conservar incompatibilidades reales. En esta rama de afinidad
+baja exijo además que la cita exista en una cláusula del aviso: ni una categoría
+no vacía ni una cita inventada constituyen prueba. Un técnico obligatorio ausente
+confirmado o matrícula incompatible siguen rechazados aunque quede información
+por confirmar; un deseable no se vuelve exclusión. No generalizo el tratamiento a
+otros `match:false` sin el marcador, ni impongo longitud mínima a los extractos.
+No cambio parser #81, umbrales, exclusiones determinísticas, esquema ni interfaz.
+
+**RED 13 FAIL/144 PASS** antes de cambiar fuentes: dos casos por `evaluarOferta`,
+dos por worker, dos reinicios, seis comprobaciones de categoría/razón/flag y una
+de identidad. **GREEN inicial 157 PASS; final 158 PASS** en #80/identidad/#17/#18
+tras agregar un control de inglés deseable. **13 suites relacionadas: 1543 PASS**,
+sin fallos ni omitidas. Los dos casos conservan exactamente 25/24 por proveedor,
+hit con/sin flag sin mutación, forzado individual, selección/reintento del worker,
+persistencia y reinicio con modelo real de lote sobre pool simulado. Los
+contracasos verifican que un flag de caché pendiente tampoco anule incompatibilidad
+acreditada. Conservo positivos y negativos V1/V2, inglés obligatorio/deseable,
+extracto breve suficiente, descripción nula y las regresiones #79/#83.
+
+Contrato **v10** invalida v9 aun con instrucciones explícitas idénticas, sin borrar
+ni reparar históricos. Las cifras globales/CI/visuales de V2 son históricas; no
+certifican este delta. El padre observa backend completo **3864 PASS/166 SKIPPED**,
+90 suites PASS y 11 omitidas. La verificación independiente observa **158 PASS**
+focales y **284 comprobaciones funcionales PASS**, más ocho comparaciones idénticas
+a BASE fuera de la nueva aceptación (no son ocho PASS V3 ni defectos nuevos).
+El diferencial compara 30 escenarios y 292 ejecuciones por versión: 152 registros
+idénticos y 140 diferencias intencionales, exit 0 y stderr vacío. Su primer harness
+tenía una expectativa de mensaje de rehidratación demasiado estricta, corregida
+sólo en el scratch, no en producto. No quedan bloqueos en ese alcance.
+La entrega Git/PR sigue a cargo del padre. Navegador **NOT RUN V3** porque la UI no
+cambió; no repito builds ni uso proveedores/SQL reales.
 
 ## Distinción de errores técnicos y recuperación de lotes (#18)
 

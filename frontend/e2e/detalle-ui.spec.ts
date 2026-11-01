@@ -138,6 +138,32 @@ for (const [escenario, mensaje, score] of [
     });
 }
 
+for (const [escenario, requisito, razon] of [
+    ['confirmacion', 'Residencia en provincia Delta', 'Pendiente de confirmación: Residencia en provincia Delta. Afinidad técnica estimada: 91%.'],
+    ['sin-descripcion', 'Descripción de la oferta', 'Pendiente de confirmación: falta la descripción de la oferta.'],
+]) {
+    test(`#80 ${escenario}: confirmación actual sin falso error o evaluación anterior @issue80`, async ({ page }, testInfo) => {
+        await page.goto(`/?detalle=${escenario}`);
+        await page.getByText('Registro del fixture', { exact: true }).click();
+        await page.getByRole('tab', { name: /PENDIENTES/ }).click();
+        const dialogo = await abrirDetallePrincipal(page, 'pendiente');
+        await expect(dialogo.getByText('Elegibilidad pendiente de confirmación', { exact: true })).toBeVisible();
+        await expect(dialogo.locator('.detalle-razon')).toContainText(razon);
+        await expect(dialogo).not.toContainText('Motivo de la evaluación anterior');
+        await expect(dialogo).not.toContainText('Evaluación desactualizada');
+        await expect(dialogo.locator('.tag-detalle[data-estado="error"]')).toHaveCount(0);
+        await expect(dialogo.locator('.tag-detalle[data-estado="pendiente"]')).toHaveText('PENDIENTE');
+        await expect(dialogo.locator('.tag-match')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath(`elegibilidad-${escenario}.png`), animations: 'disabled' });
+        await desplegarPorTeclado(dialogo, 'Ver desglose y evidencias del matching');
+        const pendientes = dialogo.locator('.desglose-por-confirmar');
+        await expect(pendientes).toContainText(requisito);
+        await expect(pendientes).toBeVisible();
+        await cerrar(dialogo).click();
+        expect(await escrituras(page)).toEqual([]);
+    });
+}
+
 for (const falla of [false, true]) {
     test(`selector overlay: ${falla ? 'rollback HTTP' : 'estado confirmado'} independiente del matching @detalle-ui`, async ({ page }) => {
         const dialogo = await iniciar(page, 'aprobada', falla ? '&errorDetalle=postulacion' : '');

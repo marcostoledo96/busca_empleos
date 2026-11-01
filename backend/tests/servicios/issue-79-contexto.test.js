@@ -8,7 +8,10 @@ jest.mock('../../src/modelos/preferencia', () => ({ obtenerPreferencias: jest.fn
 jest.mock('../../src/modelos/evaluacion-cache', () => ({ buscarCache: jest.fn(), guardarCache: jest.fn() }));
 jest.mock('../../src/modelos/evaluacion-lote', () => ({ crearLote: jest.fn(), actualizarProgreso: jest.fn(), finalizarLote: jest.fn() }));
 
-const { casos, crearOferta, conflicto, casosF1, casosF2 } = require('../fixtures/issue-79-contexto');
+const { casos: casosOriginales, crearOferta, conflicto, casosF1, casosF2 } = require('../fixtures/issue-79-contexto');
+// Mantengo contenido sintético para probar alternativas crudas, no ausencia de descripción.
+const casos = casosOriginales.map(([nombre, cambios, regla]) => [nombre,
+    cambios.descripcion === '' ? { ...cambios, descripcion: 'Desarrollo web con TypeScript.' } : cambios, regla]);
 const reglas = require('../../src/servicios/evaluacion/reglas-exclusion');
 const servicio = require('../../src/servicios/servicio-evaluacion');
 const proveedor = require('../../src/config/deepseek');

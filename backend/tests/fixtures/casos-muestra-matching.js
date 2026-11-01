@@ -34,15 +34,15 @@ const CASOS_MUESTRA_MATCHING = [
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
         descripcion: 'Buscamos QA Tester Manual Junior para sumarse al equipo de calidad. Tareas: diseño y ejecución de casos de prueba, reporte de bugs en Jira, validación de APIs con Postman y consultas SQL básicas para verificación de datos. No se requiere experiencia previa en automatización.',
-        perfil: PERFIL_MARCOS_BASE,
+        perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'Diseño y ejecución de casos de prueba.' },
         respuesta_ia_simulada: JSON.stringify({
             match: true,
             porcentaje: 85,
             razon: 'El perfil de Marcos como QA Tester junior con manejo de SQL y testing funcional coincide con la vacante.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Testing manual', tipo: 'obligatorio', evidencia_oferta: 'diseño y ejecución de casos de prueba', evidencia_perfil: 'QA Tester Manual confirmado', explicacion: 'Coincide con el rol objetivo' },
-                    { requisito: 'SQL básico', tipo: 'obligatorio', evidencia_oferta: 'consultas SQL básicas', evidencia_perfil: 'SQL y PostgreSQL confirmados', explicacion: 'Cumple conocimientos de bases de datos' },
+                    { requisito: 'Diseño y ejecución de casos de prueba', tipo: 'obligatorio', evidencia_oferta: 'diseño y ejecución de casos de prueba', evidencia_perfil: 'Diseño y ejecución de casos de prueba.', explicacion: 'Práctica declarada en el perfil sintético' },
+                    { requisito: 'SQL', tipo: 'obligatorio', evidencia_oferta: 'consultas SQL básicas', evidencia_perfil: 'SQL', explicacion: 'Cumple conocimientos de bases de datos' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [
@@ -67,15 +67,15 @@ const CASOS_MUESTRA_MATCHING = [
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
         descripcion: 'Empresa logística busca Soporte IT Junior para atención a usuarios internos, configuración de software corporativo, resolución de incidencias en puestos de trabajo, redes LAN básicas y gestión de tickets. Modalidad presencial en Barracas, CABA.',
-        perfil: PERFIL_MARCOS_BASE,
+        perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'Soporte IT. Disponibilidad presencial en Barracas, CABA.' },
         respuesta_ia_simulada: JSON.stringify({
             match: true,
             porcentaje: 80,
             razon: 'Cumple con el perfil de Soporte IT y la ubicación presencial está dentro de CABA.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Soporte IT', tipo: 'obligatorio', evidencia_oferta: 'Soporte IT Junior para atención a usuarios', evidencia_perfil: 'Rol Soporte IT confirmado', explicacion: 'Coincidencia directa con perfil' },
-                    { requisito: 'Ubicación CABA', tipo: 'obligatorio', evidencia_oferta: 'Barracas, CABA', evidencia_perfil: 'Zonas preferidas CABA', explicacion: 'Zona habilitada' },
+                    { requisito: 'Soporte IT', tipo: 'obligatorio', evidencia_oferta: 'Soporte IT Junior para atención a usuarios', evidencia_perfil: 'Soporte IT.', explicacion: 'Coincidencia directa con perfil' },
+                    { requisito: 'Barracas', tipo: 'obligatorio', evidencia_oferta: 'Barracas, CABA', evidencia_perfil: 'Disponibilidad presencial en Barracas, CABA.', explicacion: 'Disponibilidad declarada; no infiero residencia desde zonas preferidas' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [],
@@ -105,8 +105,8 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'Fuerte coincidencia en stack tecnológico: Angular, TypeScript, HTML y CSS en posición Junior remota.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Angular', tipo: 'obligatorio', evidencia_oferta: 'conocimientos en Angular', evidencia_perfil: 'Angular confirmado en stack', explicacion: 'Stack principal' },
-                    { requisito: 'TypeScript', tipo: 'obligatorio', evidencia_oferta: 'TypeScript', evidencia_perfil: 'TypeScript confirmado', explicacion: 'Lenguaje dominado' },
+                    { requisito: 'Angular', tipo: 'obligatorio', evidencia_oferta: 'conocimientos en Angular', evidencia_perfil: 'Angular', explicacion: 'Stack principal' },
+                    { requisito: 'TypeScript', tipo: 'obligatorio', evidencia_oferta: 'TypeScript', evidencia_perfil: 'TypeScript', explicacion: 'Lenguaje declarado' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [],
@@ -154,7 +154,7 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'Cumple con los requisitos obligatorios de Angular y TypeScript. La mención de Java es solo deseable.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Angular', tipo: 'obligatorio', evidencia_oferta: 'Angular excluyente', evidencia_perfil: 'Angular en perfil', explicacion: 'Cumple' },
+                    { requisito: 'Angular', tipo: 'obligatorio', evidencia_oferta: 'Angular y TypeScript excluyentes', evidencia_perfil: 'Angular', explicacion: 'Cumple' },
                 ],
                 no_cumplidos: [
                     { requisito: 'Java', tipo: 'deseable', evidencia_oferta: 'nociones de Java no excluyente', evidencia_perfil: 'No trabaja con Java', explicacion: 'Deseable no cumplido, no excluye' },
@@ -204,7 +204,7 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'Cumple el stack frontend y la comunicación es en español; inglés avanzado es solo deseable.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'JavaScript', tipo: 'obligatorio', evidencia_oferta: 'JavaScript y React', evidencia_perfil: 'JavaScript confirmado', explicacion: 'Stack coincide' },
+                    { requisito: 'JavaScript', tipo: 'obligatorio', evidencia_oferta: 'JavaScript y React', evidencia_perfil: 'JavaScript', explicacion: 'Stack coincide' },
                 ],
                 no_cumplidos: [
                     { requisito: 'Inglés avanzado', tipo: 'deseable', evidencia_oferta: 'inglés intermedio o avanzado es un plus valorable, no excluyente', evidencia_perfil: 'Inglés técnico básico', explicacion: 'Requisito deseable no bloqueante' },
@@ -236,7 +236,7 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'La posición es Junior y la mención de Senior refiere al mentor del equipo, no a la experiencia del candidato.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Rol Junior', tipo: 'obligatorio', evidencia_oferta: 'Desarrollador Junior para integrarse', evidencia_perfil: 'Perfil Junior', explicacion: 'Coincide' },
+                    { requisito: 'Junior', tipo: 'obligatorio', evidencia_oferta: 'Desarrollador Junior para integrarse', evidencia_perfil: 'Junior', explicacion: 'Coincide' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [],
@@ -259,14 +259,14 @@ const CASOS_MUESTRA_MATCHING = [
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
         descripcion: 'Somos una empresa líder en el rubro retail tecnológico. Buscamos un Analista QA Junior para testing de nuestras aplicaciones web.',
-        perfil: PERFIL_MARCOS_BASE,
+        perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'Analista QA Junior.' },
         respuesta_ia_simulada: JSON.stringify({
             match: true,
             porcentaje: 80,
             razon: 'El adjetivo líder califica a la empresa y no impone un puesto de liderazgo al candidato.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'QA Junior', tipo: 'obligatorio', evidencia_oferta: 'Analista QA Junior', evidencia_perfil: 'QA confirmado', explicacion: 'Apto' },
+                    { requisito: 'QA Junior', tipo: 'obligatorio', evidencia_oferta: 'Analista QA Junior', evidencia_perfil: 'Analista QA Junior.', explicacion: 'Apto' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [],
@@ -288,7 +288,7 @@ const CASOS_MUESTRA_MATCHING = [
         modalidad: 'Presencial',
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
-        descripcion: 'Con más de 15 años de trayectoria en el mercado, incorporamos a un Trainee de Sistemas sin experiencia previa para capacitarlo.',
+        descripcion: 'Con más de 15 años de trayectoria en el mercado, incorporamos a un Trainee de Sistemas sin experiencia previa para capacitarlo. Desarrollo con JavaScript.',
         perfil: PERFIL_MARCOS_BASE,
         respuesta_ia_simulada: JSON.stringify({
             match: true,
@@ -296,7 +296,7 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'Los 15 años corresponden a la antigüedad de la empresa; no se exige experiencia al postulante.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Trainee sin experiencia', tipo: 'obligatorio', evidencia_oferta: 'sin experiencia previa', evidencia_perfil: 'Junior/Trainee', explicacion: 'Total compatibilidad' },
+                    { requisito: 'JavaScript', tipo: 'obligatorio', evidencia_oferta: 'Desarrollo con JavaScript', evidencia_perfil: 'JavaScript', explicacion: 'Acredito la tecnología, no infiero años desde Junior/Trainee' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [],
@@ -319,14 +319,14 @@ const CASOS_MUESTRA_MATCHING = [
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
         descripcion: 'Se busca técnico de soporte presencial para oficinas en Microcentro, Capital Federal. Configuración de PCs e impresoras.',
-        perfil: PERFIL_MARCOS_BASE,
+        perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'Disponibilidad presencial en Microcentro, Capital Federal.' },
         respuesta_ia_simulada: JSON.stringify({
             match: true,
             porcentaje: 75,
             razon: 'Puesto presencial en CABA, dentro de las zonas preferidas del candidato.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Ubicación CABA', tipo: 'obligatorio', evidencia_oferta: 'Microcentro, Capital Federal', evidencia_perfil: 'Zonas CABA', explicacion: 'Ubicación permitida' },
+                    { requisito: 'Microcentro', tipo: 'obligatorio', evidencia_oferta: 'Microcentro, Capital Federal', evidencia_perfil: 'Disponibilidad presencial en Microcentro, Capital Federal.', explicacion: 'Disponibilidad declarada' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [],
@@ -374,7 +374,7 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'El extracto parcial coincide en título y rol, sin requisitos no mencionados asumidos como ausentes.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'Angular', tipo: 'obligatorio', evidencia_oferta: 'Desarrollador Junior Angular', evidencia_perfil: 'Angular en perfil', explicacion: 'Coincide' },
+                    { requisito: 'Angular', tipo: 'obligatorio', evidencia_oferta: 'Desarrollador Junior Angular', evidencia_perfil: 'Angular', explicacion: 'Coincide' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [
@@ -415,9 +415,10 @@ const CASOS_MUESTRA_MATCHING = [
                 exclusiones: [],
             },
         }),
-        resultado_esperado: { match: true, excluida: false },
-        explicacion_esperada: { tiene_cumplidos: true, tiene_exclusiones: false },
+        resultado_esperado: { match: false, pendiente: true, porcentaje: null, excluida: false },
+        explicacion_esperada: { tiene_cumplidos: false, tiene_exclusiones: false },
         evidencias: ['Descripción ausente'],
+        // No consumo la respuesta simulada afín: sin descripción mantengo pendiente sin score.
         estado_revision: 'propuesta_pendiente_revision_humana',
     },
 
@@ -438,8 +439,8 @@ const CASOS_MUESTRA_MATCHING = [
             razon: 'Coincide en TypeScript y Node.js; Docker y AWS no están confirmados en el perfil y pasan a confirmación.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'TypeScript', tipo: 'obligatorio', evidencia_oferta: 'TypeScript', evidencia_perfil: 'TypeScript confirmado', explicacion: 'Cumple' },
-                    { requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', evidencia_perfil: 'Node.js confirmado', explicacion: 'Cumple' },
+                    { requisito: 'TypeScript', tipo: 'obligatorio', evidencia_oferta: 'TypeScript', evidencia_perfil: 'TypeScript', explicacion: 'Cumple' },
+                    { requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', evidencia_perfil: 'Node.js', explicacion: 'Cumple' },
                 ],
                 no_cumplidos: [],
                 por_confirmar: [
@@ -465,15 +466,16 @@ const CASOS_MUESTRA_MATCHING = [
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
         descripcion: 'Requisitos obligatorios: JavaScript, HTML5, CSS3. Requisitos deseables / plus: experiencia con GraphQL, Docker y microservicios.',
-        perfil: PERFIL_MARCOS_BASE,
+        perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'HTML5. CSS3.' },
         respuesta_ia_simulada: JSON.stringify({
             match: true,
             porcentaje: 75,
             razon: 'Cumple todos los requisitos obligatorios; los requisitos deseables no cumplidos no impiden el match.',
             explicacion: {
                 cumplidos: [
-                    { requisito: 'JavaScript', tipo: 'obligatorio', evidencia_oferta: 'JavaScript obligatorio', evidencia_perfil: 'JavaScript confirmado', explicacion: 'Cumple' },
-                    { requisito: 'HTML/CSS', tipo: 'obligatorio', evidencia_oferta: 'HTML5, CSS3', evidencia_perfil: 'HTML y CSS confirmados', explicacion: 'Cumple' },
+                    { requisito: 'JavaScript', tipo: 'obligatorio', evidencia_oferta: 'JavaScript', evidencia_perfil: 'JavaScript', explicacion: 'Cumple' },
+                    { requisito: 'HTML5', tipo: 'obligatorio', evidencia_oferta: 'HTML5', evidencia_perfil: 'HTML5.', explicacion: 'Cumple' },
+                    { requisito: 'CSS3', tipo: 'obligatorio', evidencia_oferta: 'CSS3', evidencia_perfil: 'CSS3.', explicacion: 'Cumple' },
                 ],
                 no_cumplidos: [
                     { requisito: 'GraphQL', tipo: 'deseable', evidencia_oferta: 'plus GraphQL', evidencia_perfil: 'No declarado', explicacion: 'Deseable ausente' },

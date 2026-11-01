@@ -109,6 +109,44 @@ interno. La edición permanece fuera del plegable y la reevaluación sigue siend
 explícita. Agrupo plataforma, nivel, salario y fechas en **Datos del aviso y fechas**.
 Abrir el modal o expandir cualquiera de sus secciones no guarda datos ni llama a IA.
 
+## Elegibilidad pendiente en el detalle — issue #80
+
+Distingo confirmación laboral de reevaluación y fallo técnico sin agregar estados.
+Cuando el estado es `pendiente`, no hay error ni vigencia `anterior` y la razón
+empieza con el texto contractual `Pendiente de confirmación:`, muestro
+**Elegibilidad pendiente de confirmación**. Presento esa razón sin llamarla
+«evaluación anterior» y conservo el desglose **Por confirmar**, también sin
+porcentaje o sin descripción. La afinidad pendiente sigue oculta como match
+aprobado; no cambio porcentajes, diseño ni acciones.
+
+El marcador `REEVALUACION_SOLICITADA`, la vigencia anterior y los errores técnicos
+conservan prioridad y sus avisos previos. Abrir o desplegar evidencias no ejecuta
+servicios. La focal Angular reproduce dos fallos de rótulos y pasa luego sus 18
+pruebas; las tres suites de detalle pasan 40. El intento inicial del harness
+Playwright no arrancó por dependencia ausente (exit 127); posteriormente el padre
+verificó 7 PASS en navegador, incluidos los dos escenarios nuevos y cinco controles.
+Mantengo ese fallo inicial como evidencia histórica, no como prueba ejecutada.
+
+Para la corrección B1 del comentario 6563865508, el servicio usa contrato v8 y
+reubica obligaciones no acreditadas en **Por confirmar**, retirando cumplimientos
+y exclusiones falsos antes de persistir; no agrego campos ni modifico componentes.
+Repito los dos escenarios `@issue80` y cinco controles: **7 PASS**. Cada escenario
+guarda `elegibilidad-confirmacion.png` o `elegibilidad-sin-descripcion.png` mediante
+`testInfo.outputPath`, bajo `.codegraph/issue80-audit-visual/` en la ejecución local.
+El padre informa que inspeccionó ambas imágenes: banner de elegibilidad y razón
+actual visibles, etiqueta pendiente, sin aviso histórico/rechazo/error técnico;
+la afinidad aparece sólo en la razón y no como match definitivo. Esa inspección
+puntual no sustituye la auditoría externa ni certifica otros tamaños/temas.
+El harness aislado muestra nombres de iconos Material por una limitación previa
+de su fuente; no cambio tipografía ni diseño para ocultarla.
+
+Los contadores del lote describen procesamiento: `evaluadas` cuenta resultados
+válidos persistidos y `pendientes = total - evaluadas` cuenta trabajo sin resultado
+válido, no elegibilidad laboral. Una oferta puede permanecer pendiente de
+confirmación aunque el lote tenga progreso 100% y pendientes 0; consulto el estado
+y desglose de la oferta para esa incertidumbre. El mismo contrato conserva los
+contadores al reiniciar, sin nuevos campos persistidos.
+
 ## Selección de DeepSeek por tarea — issue #26
 
 En Preferencias conservo selectores independientes **DeepSeek Flash**
@@ -1038,7 +1076,7 @@ Archivo: `frontend/src/app/componentes/detalle-oferta/`
     - **En contra del match:** requisitos no cumplidos y exclusiones obligatorias activadas.
     - **Por confirmar:** requisitos inciertos o no verificables en extractos.
   * Si es una evaluación histórica sin desglose, muestra la razón anterior con leyenda explicativa.
-  * Si la evaluación está desactualizada (`evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA'` o estado pendiente), muestra alerta y botón de **Reevaluar oferta**.
+  * Si la evaluación está desactualizada (`evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA'` o pendiente sin motivo laboral actual), conserva alerta y botón de **Reevaluar oferta**. La confirmación laboral de #80 tiene su aviso propio sin presentarse como error técnico.
 - **Edición manual de descripción (#17):**
   * Informa procedencia y completitud (`Extracto parcial de tarjeta`, `Descripción manual`, `Descripción completa`).
   * Botón **Completar descripción** para pegar el texto completo.
