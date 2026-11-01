@@ -78,6 +78,7 @@ const PATRON_EXPERIENCIA_EXCLUYENTE = [
     /\bmayor\s+(a|de)\s+[45]\s*(años?|anos?|years?|yr)\b/i,
     /\b(?:[6-9]|\d{2,})\s*\+\s*(años?|anos?|years?|yr)\b/i,
     /(?:>|\b(?:al\s+menos|minimo|at\s+least|minimum|mas\s+de|mayor\s+(?:a|de)))\s*(?:[4-9]|\d{2,})\s*(años?|anos?|years?|yr)\b/i,
+    /\b(?:experiencia|experience)\s+(?:de\s+)?(?:[4-9]|\d{2,})\s*(años?|anos?|years?|yr)\b|\b(?:[4-9]|\d{2,})\s*(años?|anos?|years?|yr)\b(?=\s+(?:de\s+experiencia|of\s+experience))/i,
 ];
 
 // Inglés excluyente: avanzado, fluido, bilingüe, conversational, upper-intermediate.
@@ -250,6 +251,24 @@ const PATRON_ROL = /\b(?:desarrollador\w*|developer|engineer|ingenier\w*|puesto|
 const PATRON_MENTORIA = /\b(?:mentor\w*|aprend\w*|junto\s+a|acompan\w*|guiad\w*|reportar\w*|report\s+to)\b/;
 const PATRON_EMPRESA = /\b(?:empresa|compania|organizacion|mercado|trayectoria|company|founded)\b/;
 
+// Reconozco alternativas locales, sin anular otra obligación de la misma oferta.
+const PATRON_NIVELES_ALTERNATIVOS = /\b(?:ssr|semi[\s-]*senior)(?:\s*(?:\/|[-–—]|\bo\b)\s*(?:sr|senior)\b)?|\b(?:sr|senior)\s*(?:\/|[-–—]|\bo\b)\s*(?:ssr|semi[\s-]*senior)\b/gi;
+const NOMBRE_TECNOLOGIA = String.raw`[a-z][\w#+-]*(?:\s+(?:boot|ee))?`;
+const PATRON_TECNOLOGIAS_ALTERNATIVAS = new RegExp(
+    String.raw`\b(?:al\s+menos\s+un[oa]\s+(?:entre|de)\s+${NOMBRE_TECNOLOGIA}(?:\s*(?:,|\b(?:y|o|or)\b)\s*${NOMBRE_TECNOLOGIA})+|${NOMBRE_TECNOLOGIA}\s+(?:o|or)\s+${NOMBRE_TECNOLOGIA})`, 'gi');
+
+function esAlternativa(texto, tipo, coincidencia) {
+    const patron = tipo === 'seniority' ? PATRON_NIVELES_ALTERNATIVOS : PATRON_TECNOLOGIAS_ALTERNATIVAS;
+    return [...texto.matchAll(new RegExp(patron.source, 'gi'))].some(alternativa => {
+        if (coincidencia.index < alternativa.index || coincidencia.index >= alternativa.index + alternativa[0].length) return false;
+        if (tipo === 'seniority') return true;
+        const tecnologias = alternativa[0].replace(/^al\s+menos\s+un[oa]\s+(?:entre|de)\s+/, '')
+            .split(/\s*(?:,|\b(?:y|o|or)\b)\s*/);
+        // Si todas las opciones son del ecosistema Java, conservo la exclusión.
+        return tecnologias.some(tecnologia => !PATRON_JAVA_EXCLUYENTE.some(patronJava => patronJava.test(tecnologia)));
+    });
+}
+
 function esRequisito(clausula, tipo, coincidencia) {
     const { texto, titulo, omitida, obligatorioHeredado, campoRequisitos } = clausula;
     if (omitida) return false;
@@ -264,10 +283,14 @@ function esRequisito(clausula, tipo, coincidencia) {
         const despuesCantidad = texto.slice(coincidencia.index + coincidencia[0].length);
         if (/^\s+(?:de\s+trayectoria|en\s+el\s+mercado|de\s+(?:la\s+)?empresa)\b/.test(despuesCantidad)) return false;
         const ultimaExigencia = [...antes.matchAll(new RegExp(PATRON_OBLIGATORIO.source, 'g'))].at(-1)?.index ?? -1;
-        if (ultimaEmpresa > Math.max(ultimoRol, ultimaExigencia)) return false;
-        return /\b(?:experiencia|experience)\b/.test(texto) || obligatorio;
+        const ultimaMentoria = [...antes.matchAll(new RegExp(PATRON_MENTORIA.source, 'g'))].at(-1)?.index ?? -1;
+        const otrosSujetos = [...antes.matchAll(/\b(?:tenemos|contamos|llevamos|(?:por|de)\s+profesionales|equipo|team)\b/g)].at(-1)?.index ?? -1;
+        if (Math.max(ultimaEmpresa, ultimaMentoria, otrosSujetos) > Math.max(ultimoRol, ultimaExigencia)) return false;
+        return /\b(?:experiencia|experience)\b/.test(texto) || obligatorio
+            || /\bcandidat\w*\b.*\b(?:acreditar|demostrar)\b/.test(antes);
     }
     if (tipo === 'seniority') {
+        if (esAlternativa(texto, tipo, coincidencia) || /\bno\s+(?:buscamos|se\s+busca)\b/.test(antes)) return false;
         // El sujeto anterior a la señal distingue candidato de empresa/mentor;
         // acompañar juniors DESPUÉS del nivel no vuelve opcional el puesto Senior.
         const despues = texto.slice(coincidencia.index + coincidencia[0].length);
@@ -279,9 +302,12 @@ function esRequisito(clausula, tipo, coincidencia) {
             && /^(?:junto\s+a|report\s+to|reportar\w*\s+a|guiad\w*\s+por)\b/.test(antes.slice(ultimaMentoria));
         if (rolMentor || ultimaMentoria > ultimoRol || ultimaEmpresa > ultimoRol) return false;
         const rolLocal = ultimoRol >= 0 || /^\s+(?:developer|engineer|desarrollador\w*)\b/.test(despues);
-        return titulo || obligatorio || rolLocal || /^(?:buscamos\s+|se\s+busca\s+)?(?:senior|sr|tech\s+lead|team\s+lead|lider\s+de\s+equipo|lead\s+(?:developer|engineer))\b/.test(texto);
+        return titulo || obligatorio || rolLocal || /^(?:buscamos\s+|se\s+busca\s+)?(?:junior|trainee|senior|sr|tech\s+lead|team\s+lead|lider\s+de\s+equipo|lead\s+(?:developer|engineer))\b/.test(texto);
     }
-    if (tipo === 'java') return titulo || obligatorio || (campoRequisitos && /^(?:java|spring\s*boot|j2ee|jee|jakarta\s*ee|hibernate)\b/.test(texto)) || rol || /\b(?:experiencia|conocimientos)\s+(?:en|con|de)\b/.test(texto);
+    if (tipo === 'java') {
+        if (esAlternativa(texto, tipo, coincidencia)) return false;
+        return titulo || obligatorio || (campoRequisitos && /^(?:java|spring\s*boot|j2ee|jee|jakarta\s*ee|hibernate)\b/.test(texto)) || rol || /\b(?:experiencia|conocimientos)\s+(?:en|con|de)\b/.test(texto);
+    }
     // Un nivel lingüístico declarado sin condición opcional es un requisito;
     // las menciones narrativas sin evidencia quedan para IA.
     return obligatorio || rol || /^(?:ingles|english|fluent|conversational|upper.?intermediate|bilingual|bilingue)\b/.test(texto)
@@ -537,6 +563,17 @@ function construirDesgloseExclusion(exclusionesDetectadas = [], oferta = {}) {
  * @returns {{ excluida: boolean, match: boolean, porcentaje: number|null, razon: string, reglas: string[], explicacion: Object }}
  */
 function evaluarReglasExclusion(oferta, preferencias) {
+    // Conservo las dos fuentes; el metadato contradictorio no decide por sí solo.
+    const junior = extraerClausulas(oferta).find(clausula =>
+        [...clausula.texto.matchAll(/\b(?:junior|trainee)\b/g)]
+            .some(coincidencia => esRequisito(clausula, 'seniority', coincidencia)));
+    const conflicto = junior && /^(?:senior|sr)$/i.test(String(oferta.nivel_requerido || '').trim()) ? [{
+        requisito: 'Conflicto de seniority',
+        tipo: 'desconocido',
+        evidencia_oferta: `Texto: ${junior.texto.slice(0, 240)}; nivel_requerido: ${oferta.nivel_requerido}`,
+        evidencia_perfil: '',
+        explicacion: 'El texto indica Junior/Trainee y el metadato indica Senior/SR; conservo el conflicto por confirmar, sin elegir silenciosamente el nivel más restrictivo.',
+    }] : [];
     const reglasActivadas = [];
     const exclusionesDetectadas = [];
     let excluida = false;
@@ -629,7 +666,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
             explicacion: {
                 cumplidos: [],
                 no_cumplidos: [],
-                por_confirmar: [],
+                por_confirmar: conflicto,
                 exclusiones: [],
             },
         };
@@ -643,7 +680,7 @@ function evaluarReglasExclusion(oferta, preferencias) {
         porcentaje,
         razon,
         reglas: reglasActivadas,
-        explicacion: construirDesgloseExclusion(exclusionesDetectadas, oferta),
+        explicacion: { ...construirDesgloseExclusion(exclusionesDetectadas, oferta), por_confirmar: conflicto },
     };
 }
 

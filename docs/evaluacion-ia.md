@@ -651,3 +651,62 @@ Los otros 159 casos omitidos no quedan verificados por esta ejecución. No ejecu
 frontend, builds, migraciones, proveedor real ni producción. La causa de los cinco
 fallos históricos sigue desconocida; estas pruebas no reconstruyen ese inventario.
 
+## Exclusiones contextuales y conflicto de fuentes (#79)
+
+Verifico con avisos inventados sobre BASE `fe93b04631d85dee4aa5a952077f7021fd8adb2c`.
+No uso el informe privado ni atribuyo sus decisiones históricas al código vigente.
+
+- **Ya funcionaban:** trayectoria empresarial («Nuestra organización lleva 27 años
+  prestando servicios; buscamos trainee sin experiencia»), empresa referente,
+  mentor Senior, coordinación puntual de pruebas, JavaScript, Java negado/deseable,
+  publicación en inglés y requisito explícito de inglés sin la palabra «oral».
+  La alternativa literal «dominio de al menos uno entre Java, TypeScript y Ruby»
+  tampoco excluía; sí fallaba al anteponer «Se requiere».
+- **Corrijo:** alternativas SSR/SR (también guiones, «o» y orden inverso),
+  Semi-Senior frente a Senior, Java como opción entre tecnologías, «El candidato
+  debe acreditar al menos 4 años» y cantidades explícitas mayores a tres vinculadas
+  a experiencia. Conservo 3 años sin calificador, 3+, mínimos y porcentajes vigentes.
+- Reconozco alternativas tecnológicas locales por «o/or» o «al menos uno
+  entre/de», con nombres simples de tecnologías (incluidos C# y Python), sin
+  una lista cerrada de lenguajes ni una gramática general. Verifico cada opción
+  con los patrones existentes del ecosistema Java: si todas pertenecen a ese
+  ecosistema, conservo la exclusión.
+  Otra obligación independiente, incluido Java, Senior/Lead o inglés, conserva
+  su rechazo. No apruebo automáticamente SSR ni altero scores por IA/Next.js.
+- Si título o cuerpo del puesto Junior/Trainee contradice `nivel_requerido`
+  Senior/SR, conservo ambas fuentes en `explicacion.por_confirmar` como
+  **Conflicto de seniority**, tipo desconocido. No convierto el metadato en una
+  exclusión automática ni fuerzo aprobación: respeto decisión y porcentaje del
+  proveedor o caché. Conservo el conflicto también si otra regla excluye y al
+  persistir un lote; no modifico el objeto cacheado recibido.
+- Reutilizo el evaluador antes/después del proveedor y antes de aceptar caché.
+  Actualizo el contrato a `evaluacion-v5`, también con instrucciones explícitas:
+  no reutilizo firmas anteriores ni borro entradas o reparo datos históricos.
+  No modifico geografía (#83), perfil ni manejo de fallos técnicos.
+
+**Evidencia focal:** primera reproducción: 50 FAIL y 88 PASS (138 pruebas).
+Después de la corrección: cinco suites focales PASS, 1246 pruebas PASS, cero
+FAIL/SKIPPED. Incluyo controles adicionales y aprobación/rechazo simulados,
+revalidación de caché, persistencia simulada y defensa posterior. Proveedor,
+modelos y caché están simulados; llamadas reales al proveedor y SQL: cero.
+La suite completa y la verificación independiente corresponden al cierre del
+orquestador; estos resultados focales no las sustituyen.
+
+**Corrección focal B1–B3 tras verificación independiente:** reproduzco 30 FAIL,
+22 PASS y 177 SKIPPED por filtro antes de corregir. La ampliación de experiencia
+había introducido tres regresiones frente a BASE: «Tenemos experiencia de 27
+años prestando servicios», experiencia del mentor y capacitación impartida por
+profesionales. Ahora vinculo esas cantidades al sujeto narrativo, no al candidato;
+conservo exigencias posteriores y profesionales buscados como postulantes.
+Distingo «Buscamos Junior» afirmado de «No buscamos perfil Junior», manteniendo
+el rechazo Senior legítimo y el conflicto solo cuando corresponde. Las opciones
+«Java or TypeScript» y «Java, C# y Python» eran defectos también presentes en BASE,
+no regresiones nuevas ni prueba sobre decisiones históricas. Conservo Java
+independientemente obligatorio, conjunciones y alternativas exclusivamente Java.
+Cierro esta tanda con seis suites focales PASS, 1337 pruebas PASS, cero FAIL/SKIPPED.
+El diferencial sintético contra BASE conserva 20 controles sin diferencias de
+salida, stderr ni código; confirma B1 sin exclusión en ambos y B3 corregido.
+El recheck independiente acotado a B1–B3 pasa 92 pruebas; otras 159 quedan
+SKIPPED por selección focal, no equivalen a PASS. La suite completa se informa
+por separado en la entrega de la PR.
+
