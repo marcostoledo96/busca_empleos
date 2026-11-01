@@ -581,8 +581,10 @@ function evaluarReglasExclusion(oferta, preferencias) {
                 const ultimaVacante = [...antes.matchAll(/\b(?:busca\w*|queremos|puesto|posicion|rol|vacante)\b/g)].at(-1)?.index ?? -1;
                 const negacion = [...antes.matchAll(/\bno\s+(?:se\s+)?(?:busca\w*|queremos)\b/g)].at(-1);
                 const ultimoAjeno = [...antes.matchAll(new RegExp(`${PATRON_EMPRESA.source}|${PATRON_MENTORIA.source}|\\b(?:equipo|team|capacita\\w*|ensen\\w*|formar\\w*)\\b`, 'g'))].at(-1)?.index ?? -1;
-                // El rol nominal de un mentoreado no reabre la vacante buscada.
-                return (!negacion || negacion.index + negacion[0].length <= ultimaVacante) && ultimoAjeno <= ultimaVacante;
+                const conduccionTerceros = antes.match(/\b(?:liderar|coordinar|train)\s+(?:(?:un|a|the)\s+)?(?:(?:grupo|equipo|group|team)\s+(?:de|of)\s+)?(?:(?:desarrollador\w*|developers?)\s+)?$/);
+                // Acoto la conducción a las personas Junior siguientes, no a tareas propias.
+                return (!negacion || negacion.index + negacion[0].length <= ultimaVacante)
+                    && Math.max(ultimoAjeno, conduccionTerceros?.index ?? -1) <= ultimaVacante;
             }));
     const conflicto = junior && /^(?:senior|sr)$/i.test(String(oferta.nivel_requerido || '').trim()) ? [{
         requisito: 'Conflicto de seniority',

@@ -21,6 +21,12 @@ const casosF1 = [
     ['F1 lista uno entre', { descripcion: 'Se requiere dominio de al menos uno entre Java, Spring Boot y TypeScript' }, null],
 ];
 const casosF2 = [
+    ['F2 residual liderazgo', 'Buscamos desarrollador Senior para liderar un grupo de desarrolladores Junior', 'seniority', false],
+    ['F2 residual coordinación', 'Buscamos desarrollador Senior para coordinar desarrolladores Junior', 'seniority', false],
+    ['F2 residual train', 'We seek a Senior developer to train Junior developers', 'seniority', false],
+    ['F2 S8 Junior coordina tareas', 'Buscamos desarrollador Junior para coordinar las pruebas de una entrega.', null, true],
+    ['F2 S8 Trainee coordina tareas', 'Buscamos perfil Trainee para coordinar tareas de pruebas.', null, true],
+    ['F2 S8 nivel después de tareas propias', 'Buscamos desarrollador para coordinar tareas de pruebas, perfil Junior.', null, true],
     ['F2 no se buscan', 'No se buscan desarrolladores Junior; buscamos perfil Senior', 'seniority', false],
     ['F2 no queremos', 'No queremos desarrolladores Junior; buscamos perfil Senior', 'seniority', false],
     ['F2 empresa capacitadora', 'Somos empresa que capacita desarrolladores Junior', null, false],

@@ -750,3 +750,22 @@ repetirlos. La suite backend completa final pasa **3299 pruebas**, con 166 SKIPP
 y cero FAIL (88 suites PASS, 11 SKIPPED). Estas omisiones no equivalen a PASS.
 Esto no garantiza interpretar cualquier redacción.
 
+### Residuo F2: personal dirigido o formado (reauditoría #84)
+
+Sobre `f9182792f3c33efa680f1839df719700963b9f6e` reproduzco los tres ejemplos
+sintéticos del comentario `6557211706`: Junior como personal a liderar,
+coordinar o formar mediante «train», no como nivel de la vacante Senior.
+Acoto esos verbos al grupo/personas Junior inmediatamente siguientes dentro de
+la cláusula. No silencio Junior/Trainee por tareas propias de coordinación,
+aunque esas tareas aparezcan antes del nivel declarado. Mantengo el rechazo
+Senior en 15 y las dos fuentes de los conflictos reales; no cambio F1 ni v5.
+
+RED: **30 FAIL, 33 PASS, 1461 SKIPPED por filtro**. GREEN: seis suites,
+**1524 PASS, 0 FAIL, 0 SKIPPED**, con reglas públicas, pre/post, proveedor,
+caché y persistencia simulados e inmutabilidad. El diferencial contra `f918279`
+conserva 16 controles Senior/SR con stdout, stderr y código idénticos.
+La verificación independiente reproduce 30 fallos sobre el HEAD previo y pasa
+**80 pruebas, cero FAIL/SKIPPED** con la fuente corregida. La suite backend
+completa pasa **3362 pruebas**, con 166 SKIPPED y cero FAIL (88 suites PASS,
+11 SKIPPED). No atribuyo PASS a los omitidos ni afirmo una gramática universal.
+
