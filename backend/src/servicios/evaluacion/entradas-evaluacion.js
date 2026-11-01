@@ -33,6 +33,9 @@ function construirInstruccionesDesdePreferencias(prefs = {}) {
         'Estructura de cada elemento en los arrays de explicacion (cumplidos, no_cumplidos, por_confirmar, exclusiones): {"requisito": "nombre del requisito", "tipo": "obligatorio" | "deseable" | "desconocido", "evidencia_oferta": "cita textual o resumen de la oferta", "evidencia_perfil": "hecho confirmado del perfil o vacío si no aplica", "explicacion": "justificación concisa"}.',
         'match: true requiere cumplir al menos el 60% de los requisitos técnicos y no activar ninguna exclusión.',
         'Requisitos deseables no cumplidos NO deben justificar un rechazo por sí solos ni considerarse exclusiones.',
+        'Una cita de la oferta prueba el requisito, no el cumplimiento del candidato. Residencia, autorización laboral, matrícula y titulación específica obligatorias sin evidencia confirmada del perfil van a por_confirmar con tipo obligatorio; desconocido no equivale a cumplido ni a incumplido. No inventes equivalencia académica entre formación técnica y una titulación específica. Si son deseables, conservá tipo deseable sin bloquear la elegibilidad.',
+        'El porcentaje mide afinidad técnica, no acredita elegibilidad. Si hay afinidad suficiente pero una obligación por confirmar, conservá match true y el porcentaje técnico con el requisito en por_confirmar: el servicio lo persistirá pendiente, no aprobado ni como error técnico. Una incompatibilidad real conserva su rechazo y exclusión, sin compensarla con afinidad.',
+        'Evaluá la suficiencia por el contenido, no por longitud ni solo por el título. Si un texto fragmentario no permite evaluar requisitos, registrá Información suficiente de la oferta en por_confirmar con tipo obligatorio. Un extracto breve con evidencia suficiente sí puede evaluarse; no inventes requisitos omitidos.',
         'Si la oferta contiene un extracto parcial o aviso incompleto, los requisitos no mencionados deben clasificarse en "por_confirmar", NUNCA en "no_cumplidos" (salvo exclusión explícita presente en el texto).',
         'No inventes conocimientos, herramientas, idiomas, empleos ni proyectos. null significa no declarado, [] significa sin entradas confirmadas. Evaluá niveles y evidencia, no solo nombres del stack.',
         'Los proyectos declarados en perfil_profesional y evidencia aportan experiencia práctica, pero NO equivalen automáticamente a años de empleo formal.',
@@ -70,7 +73,8 @@ function construirPromptEvaluacion(oferta) {
         encabezadoDescripcion = 'Descripción completa confirmada de la oferta:';
     }
 
-    partes.push('', encabezadoDescripcion, textoDescripcion);
+    partes.push('', encabezadoDescripcion, textoDescripcion,
+        '', 'La evidencia del aviso no acredita cumplimiento del candidato: obligaciones de residencia, autorización laboral o titulación sin prueba en el perfil van a por_confirmar con tipo obligatorio, sin inventar equivalencia académica. Los deseables no bloquean. Si el texto es insuficiente, registrá Información suficiente de la oferta en por_confirmar con tipo obligatorio; el título y la longitud no prueban suficiencia.');
     return partes.join('\n');
 }
 

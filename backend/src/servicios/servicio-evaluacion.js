@@ -130,6 +130,30 @@ function ubicacionEnZonas(ubicacion, zonas) {
     return estaEnZonasPreferidas(ubicacion, zonas) === true;
 }
 
+/** Conservo afinidad y evidencia sin confundir elegibilidad desconocida con rechazo. */
+function resolverElegibilidad(resultado, oferta) {
+    if (resultado.error || resultado.invalido || resultado.inconsistente || !resultado.match) return resultado;
+    const explicacion = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+    const parcial = oferta.descripcion_completitud === 'parcial' || oferta.origen_descripcion === 'tarjeta';
+    const evidenciaSuficiente = explicacion.cumplidos?.some(item => item.evidencia_oferta?.trim() && item.evidencia_perfil?.trim());
+    const faltaInformacion = (parcial && !evidenciaSuficiente) || explicacion.por_confirmar?.some(
+        item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable'
+    );
+    const obligatoriosPendientes = (explicacion.por_confirmar || []).filter(item => item.tipo === 'obligatorio');
+    if (!faltaInformacion && !obligatoriosPendientes.length) return resultado;
+    const porConfirmar = [...(explicacion.por_confirmar || [])];
+    if (faltaInformacion && !porConfirmar.some(item => item.requisito === 'Información suficiente de la oferta')) porConfirmar.push({
+        requisito: 'Información suficiente de la oferta', tipo: 'desconocido',
+        evidencia_oferta: '', evidencia_perfil: '',
+        explicacion: 'El extracto no aporta evidencia de cumplimiento suficiente; el título no acredita elegibilidad.',
+    });
+    return {
+        ...resultado, pendiente: true, prioridad_ia: null,
+        razon: `Pendiente de confirmación: ${porConfirmar.filter(item => item.tipo === 'obligatorio' || item.requisito === 'Información suficiente de la oferta').map(item => item.requisito).join('; ')}. Afinidad técnica estimada: ${resultado.porcentaje}%.`,
+        explicacion: { ...explicacion, por_confirmar: porConfirmar }, desglose_disponible: true,
+    };
+}
+
 /**
  * Evalúo una oferta individual con DeepSeek.
  *
@@ -142,7 +166,7 @@ function ubicacionEnZonas(ubicacion, zonas) {
  * @param {string} [modelo] - Modelo de IA a usar (ej: 'deepseek-flash').
  * @param {Object} [preferencias] - Preferencias guardadas del lote (para defensas programáticas).
  * @param {{forzar?: boolean, diferirCache?: boolean, guardarCache?: Function}} [opciones] - Difiero la caché del worker hasta persistir la oferta.
- * @returns {Object} Resultado con firma_criterios_evaluacion solo si fue exitoso.
+ * @returns {Object} Resultado firmado sin fallo técnico; pendiente impide aprobar aunque match indique afinidad.
  */
 async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opciones = {}) {
     let metadatos = {};
@@ -187,7 +211,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         }
         async function guardarResultado(resultado) {
             const firmado = {
-                ...incorporarConflictos(resultado),
+                ...resolverElegibilidad(incorporarConflictos(resultado), oferta),
                 firma_criterios_evaluacion: (resultado.error || resultado.invalido || resultado.inconsistente) ? null : firma,
             };
             // La caché es opcional; en el worker la confirmo después del UPDATE.
@@ -288,13 +312,28 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             }
         }
 
+        // Sin descripción conservo pendiente sin consumir IA, incluso en ejecuciones repetidas.
+        if (!oferta.descripcion?.trim()) {
+            return {
+                match: false, pendiente: true, porcentaje: null, error: false,
+                razon: 'Pendiente de confirmación: falta la descripción de la oferta.',
+                firma_criterios_evaluacion: firma,
+                explicacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                    ...conflictos,
+                    { requisito: 'Descripción de la oferta', tipo: 'desconocido', evidencia_oferta: '', evidencia_perfil: '',
+                        explicacion: 'Necesito la descripción para evaluar requisitos; el título no basta.' },
+                ] },
+                desglose_disponible: true,
+            };
+        }
+
         // ── Paso 2: Llamada a DeepSeek ──
         // Solo llego acá si las reglas de exclusión no se activaron.
         // Las defensas vigentes siempre se ejecutan antes de aceptar un hit.
         if (!opciones.forzar) {
             try {
                 const cacheado = await evaluacionCache.buscarCache(identidad.hash_oferta, firma, modeloFinal);
-                if (cacheado && !cacheado.error) return incorporarConflictos({ ...cacheado, firma_criterios_evaluacion: firma });
+                if (cacheado && !cacheado.error) return resolverElegibilidad(incorporarConflictos({ ...cacheado, firma_criterios_evaluacion: firma }), oferta);
             } catch (errorCache) {
                 console.warn('[Evaluación] No se pudo leer caché:', errorCache.message);
             }
@@ -492,7 +531,7 @@ async function evaluarOfertasPendientes(seleccionadas) {
                 && ['aprobada', 'rechazada'].includes(oferta.estado_evaluacion)
                 && Boolean(oferta.fecha_evaluacion)
                 && (!oferta.evaluacion_error_mensaje || oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
-            const estado = conservarAnterior ? oferta.estado_evaluacion : (tieneFallo ? 'pendiente' : (resultado.match ? 'aprobada' : 'rechazada'));
+            const estado = conservarAnterior ? oferta.estado_evaluacion : (tieneFallo || resultado.pendiente ? 'pendiente' : (resultado.match ? 'aprobada' : 'rechazada'));
             const errorMensaje = tieneFallo ? resultado.razon : null;
 
             const explicacionParaGuardar = (
@@ -580,11 +619,12 @@ async function evaluarOfertasPendientes(seleccionadas) {
                     progresoEvaluacion.errores++;
                     progresoEvaluacion.mensaje_error = resultado.razon;
                 } else {
+                    // Cuento todo resultado válido persistido, aunque su elegibilidad siga pendiente.
                     progresoEvaluacion.evaluadas++;
-                    if (resultado.match) {
+                    if (estado === 'aprobada') {
                         resumen.aprobadas++;
                         progresoEvaluacion.aprobadas++;
-                    } else {
+                    } else if (estado === 'rechazada') {
                         resumen.rechazadas++;
                         progresoEvaluacion.rechazadas++;
                     }

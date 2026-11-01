@@ -299,6 +299,12 @@ export class DetalleOferta implements OnDestroy {
         }
     }
 
+    pendienteDeConfirmacion(oferta: Oferta): boolean {
+        return oferta.estado_evaluacion === 'pendiente' && !oferta.evaluacion_error_mensaje
+            && oferta.vigencia_evaluacion !== 'anterior'
+            && !!oferta.razon_evaluacion?.startsWith('Pendiente de confirmación:');
+    }
+
     etiquetaEvaluacion(oferta: Oferta): string {
         if (oferta.evaluacion_error_mensaje && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
             && (oferta.estado_evaluacion === 'pendiente' || !oferta.firma_criterios_evaluacion)) {

@@ -42,6 +42,25 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             ] },
         },
         pendiente: { estado_evaluacion: 'pendiente', porcentaje_match: 97, razon_evaluacion: null, explicacion_evaluacion: null, firma_criterios_evaluacion: null },
+        confirmacion: {
+            estado_evaluacion: 'pendiente', porcentaje_match: 91, prioridad_ia: false, vigencia_evaluacion: 'desconocida',
+            firma_criterios_evaluacion: 'criterios-sinteticos-v7',
+            descripcion: 'Desarrollo junior con Angular y TypeScript. Residencia obligatoria en provincia Delta.',
+            evaluacion_error_mensaje: null,
+            razon_evaluacion: 'Pendiente de confirmación: Residencia en provincia Delta. Afinidad técnica estimada: 91%.',
+            explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                requisito('Residencia en provincia Delta', 'Residencia obligatoria en provincia Delta.', '', 'obligatorio'),
+            ] },
+        },
+        'sin-descripcion': {
+            estado_evaluacion: 'pendiente', descripcion: null, descripcion_completitud: 'ausente',
+            porcentaje_match: null, prioridad_ia: false, vigencia_evaluacion: 'desconocida', evaluacion_error_mensaje: null,
+            firma_criterios_evaluacion: 'criterios-sinteticos-v7',
+            razon_evaluacion: 'Pendiente de confirmación: falta la descripción de la oferta.',
+            explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                requisito('Descripción de la oferta', '', '', 'desconocido'),
+            ] },
+        },
         error: { estado_evaluacion: 'pendiente', porcentaje_match: null, razon_evaluacion: null, explicacion_evaluacion: null,
             firma_criterios_evaluacion: null, evaluacion_error_mensaje: 'Servicio sintético no disponible (HTTP 503).' },
         'reevaluacion-fallida': { evaluacion_error_mensaje: 'La reevaluación sintética falló por tiempo de espera.' },

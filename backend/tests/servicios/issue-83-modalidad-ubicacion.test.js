@@ -17,7 +17,7 @@ const ofertas = require('../../src/modelos/oferta');
 const { construirIdentidadEvaluacion } = require('../../src/servicios/evaluacion/identidad-evaluacion');
 const prefs = { zonas_preferidas: ['Capital Federal', 'Zona Oeste'], stack_tecnologico: ['TypeScript'] };
 const respuesta = match => ({ match, porcentaje: match ? 80 : 25, razon: 'Decisión sintética' });
-const itemBase = { jobUrl: 'https://www.linkedin.com/jobs/view/83000001', jobTitle: 'Desarrollo Junior', companyName: 'Estudio Ñandú 360', location: 'Córdoba, Argentina' };
+const itemBase = { jobUrl: 'https://www.linkedin.com/jobs/view/83000001', jobTitle: 'Desarrollo Junior', companyName: 'Estudio Ñandú 360', location: 'Córdoba, Argentina', jobDescription: 'Desarrollo web con TypeScript.' };
 
 beforeEach(() => {
     jest.clearAllMocks();

@@ -415,9 +415,10 @@ const CASOS_MUESTRA_MATCHING = [
                 exclusiones: [],
             },
         }),
-        resultado_esperado: { match: true, excluida: false },
-        explicacion_esperada: { tiene_cumplidos: true, tiene_exclusiones: false },
+        resultado_esperado: { match: false, pendiente: true, porcentaje: null, excluida: false },
+        explicacion_esperada: { tiene_cumplidos: false, tiene_exclusiones: false },
         evidencias: ['Descripción ausente'],
+        // No consumo la respuesta simulada afín: sin descripción mantengo pendiente sin score.
         estado_revision: 'propuesta_pendiente_revision_humana',
     },
 

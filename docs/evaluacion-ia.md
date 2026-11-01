@@ -160,7 +160,7 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
 
 | Criterio | Resultado |
 |----------|----------|
-| Candidato cumple ≥60% de requisitos técnicos | `match: true` |
+| Candidato cumple ≥60% de requisitos técnicos | Afinidad suficiente; apruebo solo sin exclusiones ni obligaciones pendientes |
 | Nivel pedido compatible con seniority y evidencia declarados | Evaluación contextual, no aprobación automática |
 | Requiere Java (no JavaScript) como tecnología principal | `match: false` |
 | Requiere nivel Senior o >3 años de experiencia comprobable | `match: false` |
@@ -247,7 +247,7 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 2. Tomar una única copia del perfil guardado; si no hay ofertas → retornar resumen vacío
 3. Para CADA oferta (secuencialmente):
    a. Evaluar con DeepSeek
-   b. Determinar estado: match=true → 'aprobada', match=false → 'rechazada'
+   b. Determinar estado: fallo técnico o elegibilidad por confirmar → 'pendiente'; en los demás casos match=true → 'aprobada', match=false → 'rechazada'
    c. Actualizar en BD: actualizarEvaluacion(id, estado, razon, porcentaje)
    d. Sumar contadores
 4. Retornar resumen con totales
@@ -586,6 +586,73 @@ Cada ítem del desglose conserva: `requisito`, `tipo` (`obligatorio` | `deseable
 
 ### 6. Muestra de referencia para regresión (25 casos)
 - Se incorporó la suite sintética en `backend/tests/fixtures/casos-muestra-matching.js` con 25 casos representativos (QA, Soporte, Angular, exclusión Java, Java deseable, inglés excluyente vs deseable, empresas líderes vs candidato líder, restricciones territoriales, extractos parciales, porcentajes inconsistentes, etc.) con la marca `estado_revision: 'propuesta_pendiente_revision_humana'`.
+
+## Afinidad técnica y elegibilidad por confirmar (#80)
+
+Conservo los estados y los cuatro grupos de explicación existentes; no agrego
+columnas, migraciones ni datos personales. Distingo tres situaciones:
+
+- **Obligación desconocida:** residencia, autorización laboral, matrícula o título
+  específico sin respaldo del perfil se explican en `por_confirmar`, tipo
+  `obligatorio`. Una cita del aviso acredita la exigencia, no su cumplimiento.
+  No equiparo formación técnica con una licenciatura sin equivalencia confirmada.
+- **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
+  El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
+  su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,
+  incluidas las fuentes crudas disponibles aunque falte descripción.
+- **Información insuficiente:** sin descripción (`null`, ausente, vacía o blanca)
+  mantengo pendiente con porcentaje nulo y no consulto proveedor ni caché, incluso
+  al ejecutar nuevamente. Un extracto conocido sin evidencias de cumplimiento en
+  oferta y perfil queda pendiente; no uso un corte de longitud. Para otros textos
+  fragmentarios instruyo a la IA a registrar `Información suficiente de la oferta`
+  como obligación por confirmar. Un extracto breve suficientemente respaldado
+  puede aprobar. No certifico la interpretación semántica de cualquier texto.
+
+El servicio agrega `pendiente: true` al resultado afín, sin invertir el booleano
+`match` del proveedor ni recalcular su porcentaje válido. El worker considera esa
+bandera **antes** de aprobar: persiste `estado_evaluacion = 'pendiente'`, razón
+`Pendiente de confirmación: …`, explicación, afinidad y firma mediante
+`actualizarEvaluacion`, con `evaluacion_error_mensaje = null` y sin prioridad IA.
+No cuenta aprobación, rechazo ni error; suma `procesadas` y `evaluadas`, porque
+el contrato del lote cuenta en `evaluadas` todo resultado válido persistido,
+no sólo decisiones aprobadas/rechazadas. `pendientes` del progreso es
+`total - evaluadas`: trabajo sin resultado válido (incluidos fallos o trabajo
+no procesado), no la cantidad de ofertas con elegibilidad laboral pendiente.
+Una oferta puede seguir `pendiente` con avance 100% y pendientes de progreso 0.
+Conservo esos contadores al rehidratar desde el modelo de lotes existente, sin
+columnas nuevas ni reconstrucción a partir del porcentaje redondeado.
+La regresión con modelo real de lotes y pool simulado reproduce 6 FAIL/28 PASS;
+GREEN: 34 PASS, con obligación por confirmar, descripción ausente y lotes mixtos
+completados, cancelados, con error o interrumpidos activos.
+No agrego ciclos ni reintentos: ejecuciones posteriores reutilizan caché cuando
+existe; sin descripción nunca consumen IA. Los fallos técnicos conservan su flujo
+anterior y el parser de contradicciones de #81 permanece sin modificaciones.
+
+La caché JSON conserva el resultado completo, incluida la bandera interna;
+además derivo nuevamente la elegibilidad del desglose en cada hit, sin mutarlo.
+Conservo el booleano de afinidad para que una bandera omitida no convierta la
+incertidumbre en rechazo ni aprobación. Versiono el contrato como `evaluacion-v7`
+también con instrucciones explícitas; el mensaje de usuario incluye las pautas
+de incertidumbre. No borro cachés ni reparo evaluaciones históricas.
+
+**Presentación:** el detalle muestra **Elegibilidad pendiente de confirmación**
+para pendientes sin error ni vigencia anterior cuya razón comienza con
+`Pendiente de confirmación:`. Conservo la razón actual y `por_confirmar`, sin
+badge de error ni porcentaje presentado como aprobación. El marcador de
+reevaluación, la vigencia anterior y el fallo técnico conservan sus avisos previos.
+No incorporo un campo persistido para distinguirlos. La focal Angular tiene RED
+2 FAIL/16 PASS y GREEN 18 PASS; las tres suites del detalle pasan 40 pruebas.
+El intento inicial de Playwright no arrancó por dependencia ausente (exit 127);
+posteriormente el padre verificó 7 PASS en navegador: los dos escenarios nuevos
+y cinco controles. Esa evidencia posterior no convierte el intento fallido en
+PASS ni constituye inspección visual. Esta corrección de contadores no toca UI.
+Verificación final del candidato: backend completo 3791 PASS/166 SKIPPED,
+34 regresiones de #80 incluidas. La verificación independiente cerró el defecto
+de rehidratación con 106 PASS; el diferencial de 48 casos por versión preservó
+los controles de automatización, selección y reintento. Uso ofertas/perfiles
+inventados, proveedor y almacenamiento simulados, sin SQL ni llamadas pagas.
+Las suites SQL reales y el build local no se ejecutaron; la PR conserva los
+checks de CI habituales y queda abierta para auditoría externa.
 
 ## Distinción de errores técnicos y recuperación de lotes (#18)
 

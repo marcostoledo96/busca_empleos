@@ -324,6 +324,80 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
         expect(btnReevaluar).toBeTruthy();
     });
 
+    const crearPendienteLaboral = (cambios: Partial<Oferta> = {}): Oferta => crearOfertaBase({
+        estado_evaluacion: 'pendiente', evaluacion_error_mensaje: null,
+        firma_criterios_evaluacion: 'criterios-sinteticos-v7', vigencia_evaluacion: 'desconocida',
+        razon_evaluacion: 'Pendiente de confirmación: Residencia en provincia Delta. Afinidad técnica estimada: 91%.',
+        porcentaje_match: 91,
+        explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+            { requisito: 'Residencia en provincia Delta', tipo: 'obligatorio', evidencia_oferta: 'Residencia obligatoria en provincia Delta.',
+                evidencia_perfil: '', explicacion: 'Residencia no declarada en el perfil sintético.' }
+        ] },
+        ...cambios,
+    });
+
+    it('#80: anuncia confirmación laboral sin atribuir cambios de criterios ni mostrar aprobación o error', async () => {
+        fixture.componentRef.setInput('oferta', crearPendienteLaboral());
+        component.visible.set(true);
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+
+        const texto = fixture.nativeElement.textContent as string;
+        const alerta = fixture.nativeElement.querySelector('[role="status"].alerta-desactualizada') as HTMLElement;
+        expect(alerta.textContent).toContain('Elegibilidad pendiente de confirmación');
+        expect(alerta.textContent).not.toContain('se modificaron');
+        expect(texto).not.toContain('Evaluación desactualizada');
+        expect(fixture.nativeElement.querySelector('.tag-match')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.tag-detalle[data-estado="error"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.tag-detalle[data-estado="pendiente"]')).not.toBeNull();
+        expect(mockEvaluacionService.ejecutarEvaluacion).not.toHaveBeenCalled();
+        expect(mockOfertasService.actualizarDescripcion).not.toHaveBeenCalled();
+        expect(mockOfertasService.actualizarPostulacion).not.toHaveBeenCalled();
+    });
+
+    it('#80: presenta la razón pendiente como actual y mantiene la evidencia por confirmar sin exigir score', async () => {
+        const oferta = crearPendienteLaboral({ descripcion: null, porcentaje_match: null,
+            razon_evaluacion: 'Pendiente de confirmación: falta la descripción de la oferta.',
+            explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                { requisito: 'Descripción de la oferta', tipo: 'desconocido', explicacion: 'Necesito la descripción para evaluar requisitos.' }
+            ] },
+        });
+        fixture.componentRef.setInput('oferta', oferta);
+        component.visible.set(true);
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+
+        const razon = fixture.nativeElement.querySelector('.detalle-razon') as HTMLElement;
+        expect(razon.textContent).toContain(oferta.razon_evaluacion!);
+        expect(razon.textContent).not.toContain('Motivo de la evaluación anterior');
+        const desglose = fixture.nativeElement.querySelector('.seccion-matching details') as HTMLDetailsElement;
+        desglose.querySelector('summary')!.click();
+        await fixture.whenStable();
+        expect(desglose.open).toBeTrue();
+        expect(desglose.textContent).toContain('Por confirmar (1)');
+        expect(desglose.textContent).toContain('Necesito la descripción para evaluar requisitos.');
+        expect(fixture.nativeElement.querySelector('.tag-match')).toBeNull();
+        expect(mockEvaluacionService.ejecutarEvaluacion).not.toHaveBeenCalled();
+    });
+
+    for (const [nombre, cambios, aviso] of [
+        ['reevaluación solicitada', { evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' }, 'Evaluación desactualizada — pendiente de reevaluación'],
+        ['vigencia anterior', { vigencia_evaluacion: 'anterior' }, 'Evaluación desactualizada — pendiente de reevaluación'],
+        ['fallo técnico', { evaluacion_error_mensaje: 'Servicio sintético no disponible (HTTP 503).' }, 'Evaluación no completada (fallo técnico)'],
+    ] as const) {
+        it(`#80 control: conservo ${nombre} aunque la razón anterior fuera laboral`, async () => {
+            fixture.componentRef.setInput('oferta', crearPendienteLaboral(cambios));
+            component.visible.set(true);
+            fixture.autoDetectChanges();
+            await fixture.whenStable();
+            const texto = fixture.nativeElement.textContent as string;
+            expect(texto).toContain(aviso);
+            expect(texto).toContain('Motivo de la evaluación anterior:');
+            expect(texto).not.toContain('Elegibilidad pendiente de confirmación');
+            expect(fixture.nativeElement.querySelector('.tag-match')).toBeNull();
+        });
+    }
+
     it('S6: ofrece un resumen breve y permite consultar la descripción completa sin ejecutar servicios', () => {
         const inicio = 'Buscamos una persona junior para desarrollar interfaces accesibles. ';
         const descripcion = inicio + 'El equipo trabaja con Angular y TypeScript en productos internos. '.repeat(24)
