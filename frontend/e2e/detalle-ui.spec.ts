@@ -38,6 +38,26 @@ test.beforeEach(async ({ context, page }) => {
     await page.clock.setFixedTime(new Date('2026-01-15T18:00:00.000Z'));
 });
 
+test('foco de descripción: el inicio pendiente respeta el teclado sin abrir otra pestaña @detalle-ui', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-01-15T18:00:00.000Z') });
+    await page.goto('/?detalle=aprobada');
+    await page.getByText('Registro del fixture', { exact: true }).click();
+    await page.clock.pauseAt(new Date('2026-01-15T18:01:00.000Z'));
+    const dialogo = await abrirDetallePrincipal(page, 'aprobada');
+    const resumen = dialogo.locator('summary').filter({ hasText: 'Leer descripción completa' });
+    await resumen.focus();
+    await expect(resumen).toBeFocused();
+    await page.clock.runFor(100);
+    await expect.soft(resumen).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect.soft(resumen.locator('..')).toHaveAttribute('open', '');
+    expect(page.context().pages()).toHaveLength(1);
+    expect(await escrituras(page)).toEqual([]);
+    await page.keyboard.press('Escape');
+    await expect(dialogo).toBeHidden();
+    await expect(page.getByRole('button', { name: `Ver detalle de ${titulo}`, exact: true })).toBeFocused();
+});
+
 test('cabecera inicial, enlace seguro único y cierre con retorno de foco @detalle-ui', async ({ page }) => {
     const dialogo = await iniciar(page);
     await expect(dialogo.getByRole('heading', { name: titulo, exact: true })).toBeVisible();

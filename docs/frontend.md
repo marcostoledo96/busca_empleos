@@ -74,6 +74,12 @@ sin recortes ni otro panel desplazable, y no empujan el footer fuera del modal.
 El enlace abre otra pestaña con `noopener noreferrer` y recibe el foco inicial arriba.
 Corrijo el autofocus interno y vuelvo al inicio del contenido sólo durante esa apertura;
 si ya usé teclado o puntero, cancelo ese foco programado para no interrumpir la interacción.
+Además, si el foco ya llegó a un control de este diálogo antes de vencer el callback
+inicial de 100 ms, lo conservo sin reiniciar el scroll. La regresión sintética pausa
+el reloj, enfoca **Leer descripción completa**, ejecuta ese callback y comprueba
+que Enter abre el plegable, no el enlace original ni otra pestaña, sin POST/PATCH;
+Escape conserva el retorno al disparador. Esta prueba verifica el fallo público de
+foco, no la intercalación interna exacta de `locator.press` del incidente de CI.
 
 Conservo `focusTrap=false`, `focusOnShow=false` y el overlay del selector en `body`.
 Un manejador local de Tab/Shift+Tab consulta los controles renderizados, habilitados y
