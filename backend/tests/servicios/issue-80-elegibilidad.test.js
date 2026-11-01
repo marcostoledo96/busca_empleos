@@ -67,6 +67,152 @@ test.each([
     expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ pendiente: true, porcentaje: 91 }));
 });
 
+test.each(['cumplidos', 'no_cumplidos', 'exclusiones'])('auditoría B1: obligación no acreditada en %s nunca aprueba', async categoria => {
+    const requisito = item('Licenciatura obligatoria');
+    const oferta = { ...ofertaBase, descripcion: 'TypeScript. Licenciatura obligatoria.' };
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(categoria, requisito)));
+    await comprobarPendiente(oferta, 91, requisito.requisito);
+    const explicacion = ofertas.actualizarEvaluacion.mock.calls[0][7];
+    expect(explicacion.cumplidos).toEqual([]);
+    expect(explicacion.no_cumplidos).toEqual([]);
+    expect(ofertas.actualizarEvaluacion.mock.calls[0][2]).toBe('Pendiente de confirmación: Licenciatura obligatoria. Afinidad técnica estimada: 91%.');
+    expect(explicacion.por_confirmar).toEqual([expect.objectContaining({ requisito: requisito.requisito, evidencia_perfil: '', explicacion: expect.stringContaining('Necesito confirmar') })]);
+    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ pendiente: true, porcentaje: 91, explicacion }));
+    const anteriorSinFlag = respuesta(categoria, requisito);
+    const original = structuredClone(anteriorSinFlag);
+    cache.buscarCache.mockResolvedValue(anteriorSinFlag);
+    await comprobarPendiente(oferta, 91, requisito.requisito);
+    expect(anteriorSinFlag).toEqual(original);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(cache.buscarCache).toHaveBeenCalledTimes(2);
+    expect(cache.guardarCache).toHaveBeenCalledTimes(1);
+});
+
+test.each(['cumplidos', 'no_cumplidos', 'exclusiones'].flatMap(categoria => [
+    ['perfil inventado', 'Licenciatura en Sistemas confirmada.', 'Licenciatura en Sistemas'],
+    ['perfil ajeno', 'Desarrollo web con TypeScript.', 'Licenciatura en Sistemas'],
+    ['equivalencia no confirmada', 'Formación técnica en programación.', 'Licenciatura en Sistemas'],
+    ['oferta ajena', 'Desarrollo web con TypeScript.', 'Docker obligatorio'],
+].map(([caso, evidencia_perfil, requisito]) => [categoria, caso, evidencia_perfil, requisito])))('%s con %s queda por confirmar, no acredita ni inventa rechazo', async (categoria, caso, evidencia_perfil, requisito) => {
+    const oferta = { ...ofertaBase, descripcion: 'Licenciatura en Sistemas obligatoria. TypeScript deseable.' };
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(categoria, { ...item(requisito), evidencia_perfil })));
+    await comprobarPendiente(oferta, 91, requisito);
+    const explicacion = ofertas.actualizarEvaluacion.mock.calls[0][7];
+    expect(explicacion.cumplidos).toEqual([]);
+    expect(explicacion.no_cumplidos).toEqual([]);
+    expect(cache.guardarCache.mock.calls[0][3].explicacion).toEqual(explicacion);
+});
+
+test.each(['cumplidos', 'no_cumplidos', 'exclusiones'])('corrijo obligación mal rotulada en %s si el aviso sólo la declara deseable', async categoria => {
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(categoria, { ...item('Docker'), evidencia_perfil: 'Docker inventado.' })));
+    ofertas.obtenerOfertasPendientes.mockResolvedValue([{ ...ofertaBase, descripcion: 'TypeScript.\nDeseables:\n- Docker' }]);
+    const resumen = await servicio.evaluarOfertasPendientes();
+    expect(resumen).toEqual(expect.objectContaining({ aprobadas: 1, rechazadas: 0, errores: 0, evaluadas: 1, procesadas: 1, pendientes: 0 }));
+    const guardada = ofertas.actualizarEvaluacion.mock.calls[0];
+    expect(guardada.slice(1, 5)).toEqual(['aprobada', 'Afinidad técnica con TypeScript.', 91, null]);
+    expect(guardada[7].cumplidos).toEqual([]);
+    expect(guardada[7].no_cumplidos).toEqual([]);
+    expect(guardada[7].exclusiones).toEqual([]);
+    expect(guardada[7].por_confirmar).toEqual([expect.objectContaining({ requisito: 'Docker', tipo: 'deseable', evidencia_perfil: '' })]);
+    expect(cache.guardarCache.mock.calls[0][3].explicacion).toEqual(guardada[7]);
+});
+
+test.each(['cumplidos', 'no_cumplidos', 'exclusiones'])('%s con incompatibilidad acreditada rechaza sin alterar afinidad', async categoria => {
+    const requisito = { ...item('Matrícula profesional'), evidencia_perfil: 'No cuento con matrícula profesional.', explicacion: 'El proveedor informa una categoría contradictoria.' };
+    preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, limitaciones_explicitas: requisito.evidencia_perfil });
+    ofertas.obtenerOfertasPendientes.mockResolvedValue([{ ...ofertaBase, descripcion: 'TypeScript. Matrícula profesional obligatoria.' }]);
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(categoria, requisito)));
+    const resumen = await servicio.evaluarOfertasPendientes();
+    expect(resumen).toEqual(expect.objectContaining({ aprobadas: 0, rechazadas: 1, errores: 0, evaluadas: 1, procesadas: 1, pendientes: 0, porcentaje: 100, estado: 'completado', mensaje_error: null }));
+    const guardada = ofertas.actualizarEvaluacion.mock.calls[0];
+    expect(guardada.slice(1, 7)).toEqual(['rechazada', 'Incompatibilidad confirmada: Matrícula profesional. Afinidad técnica estimada: 91%.', 91, null, null, expect.any(String)]);
+    expect(guardada[7].cumplidos).toEqual([]);
+    expect(guardada[7].por_confirmar).toEqual([]);
+    expect(guardada[7].exclusiones).toEqual([expect.objectContaining({ requisito: requisito.requisito, evidencia_perfil: requisito.evidencia_perfil })]);
+    expect(guardada[7].no_cumplidos).toEqual(guardada[7].exclusiones);
+    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ match: false, pendiente: false, porcentaje: 91, explicacion: guardada[7] }));
+    expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ evaluadas: 1, rechazadas: 1, aprobadas: 0, errores: 0 }));
+    expect(console.error).not.toHaveBeenCalled();
+    const anteriorSinFlag = respuesta(categoria, requisito);
+    const original = structuredClone(anteriorSinFlag);
+    cache.buscarCache.mockResolvedValue(anteriorSinFlag);
+    await servicio.evaluarOfertasPendientes();
+    expect(anteriorSinFlag).toEqual(original);
+    expect(ofertas.actualizarEvaluacion.mock.calls[1].slice(1, 5)).toEqual(guardada.slice(1, 5));
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(cache.guardarCache).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+    ['no_cumplidos', { limitaciones_explicitas: 'No cuento con matrícula profesional.' }, 'No cuento con matrícula profesional.'],
+    ['exclusiones', { usar_prompt_personalizado: true, prompt_personalizado: 'Licenciatura en Sistemas: confirmado.' }, 'Licenciatura en Sistemas: confirmado.'],
+])('%s no convierte negación ambigua, ausencia ajena ni prompt en prueba', async (categoria, datos, evidencia_perfil) => {
+    preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, ...datos });
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(categoria, { ...item('Licenciatura en Sistemas'), evidencia_perfil })));
+    await comprobarPendiente({ ...ofertaBase, descripcion: 'TypeScript. Licenciatura en Sistemas obligatoria.' }, 91, 'Licenciatura en Sistemas');
+    const explicacion = ofertas.actualizarEvaluacion.mock.calls[0][7];
+    expect(explicacion.cumplidos).toEqual([]);
+    expect(explicacion.no_cumplidos).toEqual([]);
+});
+
+test('no conservo un falso cumplido duplicado junto a la obligación pendiente', async () => {
+    const datos = respuesta('cumplidos', { ...item('TypeScript'), evidencia_perfil: 'Desarrollo web con TypeScript.' });
+    datos.explicacion.por_confirmar = [item('TypeScript')];
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+    await comprobarPendiente({ ...ofertaBase, descripcion: 'TypeScript obligatorio.' }, 91, 'TypeScript');
+    expect(ofertas.actualizarEvaluacion.mock.calls[0][7].cumplidos).toEqual([]);
+    expect(ofertas.actualizarEvaluacion.mock.calls[0][7].por_confirmar).toHaveLength(1);
+});
+
+test.each([
+    ['B2 aspiración', 'Aspiro a obtener Licenciatura en Sistemas.', null, null, 'pendiente'],
+    ['B2 formación incompleta', 'Licenciatura en Sistemas pendiente de finalizar.', null, null, 'pendiente'],
+    ['B2 ausencia literal', 'Carezco de Licenciatura en Sistemas.', null, null, 'rechazada'],
+    ['B2 prefijo contextual inventado', 'Deseables:\n- Licenciatura en Sistemas', 'deseable Licenciatura en Sistemas', null, 'pendiente'],
+    ['B3 deseable ajeno', '', '', 'Licenciatura en Sistemas obligatoria y Docker deseable.', 'pendiente'],
+    ['B4 años canónicos', '', '1 año de experiencia', 'TypeScript. Requisito obligatorio: 1 año de experiencia.', 'aprobada'],
+    ['B4 ausencia en perfil', 'No cuento con Licenciatura en Sistemas.', null, null, 'rechazada'],
+])('%s: proveedor, caché sin flag y selección mantienen evidencia honesta', async (caso, perfil, evidencia, descripcion, estado) => {
+    const requisito = caso === 'B4 años canónicos' ? '1 año de experiencia' : 'Licenciatura en Sistemas';
+    const oferta = { ...ofertaBase, descripcion: descripcion || 'TypeScript. Licenciatura en Sistemas obligatoria.' };
+    preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: perfil, ...(caso === 'B4 años canónicos' ? { anios_experiencia_reales: 1 } : {}) });
+    const datos = respuesta('cumplidos', { ...item(requisito), evidencia_perfil: evidencia ?? perfil });
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+    const comprobar = async seleccion => {
+        ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
+        const resumen = await servicio.evaluarOfertasPendientes(seleccion);
+        expect(resumen).toEqual(expect.objectContaining({ total: 1, evaluadas: 1, procesadas: 1, pendientes: 0, errores: 0, aprobadas: estado === 'aprobada' ? 1 : 0, rechazadas: estado === 'rechazada' ? 1 : 0, porcentaje: 100, estado: 'completado', mensaje_error: null }));
+        const guardada = ofertas.actualizarEvaluacion.mock.calls.at(-1);
+        const razon = estado === 'aprobada' ? datos.razon : `${estado === 'pendiente' ? 'Pendiente de confirmación' : 'Incompatibilidad confirmada'}: ${requisito}. Afinidad técnica estimada: 91%.`;
+        const prioridad = estado === 'aprobada' ? { detectada: false, puntaje: 0, categorias: [], evidencias: [], version: 'prioridad-ia-v1' } : null;
+        expect(guardada).toEqual([oferta.id, estado, razon, 91, null, prioridad, expect.any(String), expect.any(Object), oferta.descripcion]);
+        expect(guardada[7][estado === 'aprobada' ? 'cumplidos' : estado === 'pendiente' ? 'por_confirmar' : 'exclusiones']).toEqual([expect.objectContaining({ requisito })]);
+        if (estado !== 'aprobada') expect(guardada[7].cumplidos).toEqual([]);
+        if (estado !== 'rechazada') expect(guardada[7].exclusiones).toEqual([]);
+        expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ evaluadas: 1, procesadas: 1, errores: 0, aprobadas: resumen.aprobadas, rechazadas: resumen.rechazadas }));
+        expect(lotes.finalizarLote).toHaveBeenLastCalledWith(80, 'completado');
+        return guardada[7];
+    };
+    const explicacion = await comprobar();
+    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ porcentaje: 91, explicacion }));
+    datos.prioridad_ia = cache.guardarCache.mock.calls[0][3].prioridad_ia;
+    const original = structuredClone(datos);
+    cache.buscarCache.mockResolvedValue(datos);
+    await comprobar();
+    expect(datos).toEqual(original);
+    await comprobar([{ ...oferta, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'TIMEOUT anterior' }]);
+    expect(cache.buscarCache).toHaveBeenCalledTimes(2);
+    expect(cache.guardarCache).toHaveBeenCalledTimes(2);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
+    expect(console.error).not.toHaveBeenCalled();
+});
+
+test.each([undefined, null, 0])('años ausentes o insuficientes (%s) no se inventan desde proyectos', async anios => {
+    preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, anios_experiencia_reales: anios, perfil_profesional: 'Proyecto práctico de TypeScript.' });
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta('cumplidos', { ...item('1 año de experiencia'), evidencia_perfil: '1 año de experiencia' })));
+    await comprobarPendiente({ ...ofertaBase, descripcion: 'TypeScript. Requisito obligatorio: 1 año de experiencia.' }, 91, '1 año de experiencia');
+});
+
 test('un hit conserva la decisión pendiente sin mutar ni repetir proveedor', async () => {
     const almacenada = respuesta();
     const original = structuredClone(almacenada);
@@ -93,7 +239,7 @@ test('extracto fragmentario sin evidencia de cumplimiento no aprueba por título
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
 });
 
-test.each(['por_confirmar', 'no_cumplidos'])('un deseable en %s no bloquea ni rechaza', async categoria => {
+test.each(['por_confirmar', 'no_cumplidos', 'exclusiones'])('un deseable en %s no bloquea ni rechaza', async categoria => {
     ofertas.obtenerOfertasPendientes.mockResolvedValue([{ ...ofertaBase, descripcion: 'Desarrollo con TypeScript. Docker deseable.' }]);
     proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(categoria, item('Docker deseable', 'deseable'))));
     const resumen = await servicio.evaluarOfertasPendientes();
@@ -180,8 +326,9 @@ test('sin descripción no omito exclusiones confirmadas en fuentes crudas', asyn
     expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
 });
 
-test('selección forzada conserva pendiente sin ocultarlo como error ni aprobación', async () => {
-    const resumen = await servicio.evaluarOfertasPendientes([{ ...ofertaBase, estado_evaluacion: 'aprobada', fecha_evaluacion: '2026-01-01', razon_evaluacion: 'Anterior' }]);
+test.each([null, 'TIMEOUT previo'])('selección/reintento (%s) revalida cumplimiento inventado sin falso error ni aprobación', async errorPrevio => {
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta('cumplidos', item('Licenciatura obligatoria'))));
+    const resumen = await servicio.evaluarOfertasPendientes([{ ...ofertaBase, estado_evaluacion: 'aprobada', evaluacion_error_mensaje: errorPrevio, fecha_evaluacion: '2026-01-01', razon_evaluacion: 'Anterior' }]);
     expect(resumen).toEqual(expect.objectContaining({ aprobadas: 0, rechazadas: 0, errores: 0, pendientes: 0 }));
     expect(ofertas.actualizarEvaluacion.mock.calls[0].slice(1, 5)).toEqual(['pendiente', expect.stringContaining('Pendiente de confirmación'), 91, null]);
     expect(cache.buscarCache).not.toHaveBeenCalled();
@@ -242,8 +389,10 @@ describe('rehidratación con modelo real de lotes y pool simulado', () => {
         });
     });
 
-    test.each([['obligación por confirmar', ofertaBase, 91], ['descripción ausente', { ...ofertaBase, descripcion: null }, null]])(
+    test.each([['obligación por confirmar', ofertaBase, 91], ['descripción ausente', { ...ofertaBase, descripcion: null }, null],
+        ...['cumplidos', 'no_cumplidos', 'exclusiones'].map(categoria => [categoria, ofertaBase, 91])])(
         '%s conserva progreso persistido después de reiniciar', async (nombre, oferta, porcentaje) => {
+            if (['cumplidos', 'no_cumplidos', 'exclusiones'].includes(nombre)) proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(respuesta(nombre, item('Licenciatura obligatoria'))));
             ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
             await servicio.evaluarOfertasPendientes();
             servicio._resetearEstadoInterno();

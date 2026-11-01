@@ -51,6 +51,7 @@ jest.mock('../../src/modelos/evaluacion-lote', () => ({
 // Mockeo el parser de respuesta IA: por defecto, parsea correctamente.
 // Los tests pueden sobreescribir este mock para simular errores.
 jest.mock('../../src/servicios/evaluacion/parser-respuesta-ia', () => ({
+    ...jest.requireActual('../../src/servicios/evaluacion/parser-respuesta-ia'),
     parsearRespuestaEvaluacionIa: jest.fn(),
 }));
 

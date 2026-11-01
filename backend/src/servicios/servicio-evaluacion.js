@@ -22,12 +22,13 @@ const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
-const { parsearRespuestaEvaluacionIa } = require('./evaluacion/parser-respuesta-ia');
+const { parsearRespuestaEvaluacionIa, validarCoherenciaRespuesta, normalizarTextoComparacion, PATRON_OPCIONAL_EVIDENCIA, PATRON_NEGACION_EVIDENCIA,
+    _internas: { contieneTokenNormalizado, extraerClausulasConContexto } } = require('./evaluacion/parser-respuesta-ia');
 const reglasExclusion = require('./evaluacion/reglas-exclusion');
 const { resolverModalidadOferta } = require('./servicio-normalizacion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
-const { construirPerfilDesdePreferencias, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
+const { construirPerfilDesdePreferencias, construirPerfilEfectivoCanonico, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
 const { construirIdentidadEvaluacion } = require('./evaluacion/identidad-evaluacion');
 
 // Progreso de la evaluación en curso.
@@ -131,16 +132,81 @@ function ubicacionEnZonas(ubicacion, zonas) {
 }
 
 /** Conservo afinidad y evidencia sin confundir elegibilidad desconocida con rechazo. */
-function resolverElegibilidad(resultado, oferta) {
+function resolverElegibilidad(resultado, oferta, preferencias) {
     if (resultado.error || resultado.invalido || resultado.inconsistente || !resultado.match) return resultado;
-    const explicacion = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+    const original = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+    const candidato = construirPerfilEfectivoCanonico(preferencias).candidato;
+    const hechos = [candidato.perfil_profesional, candidato.nivel_real_seniority, candidato.idioma_candidato,
+        ...candidato.stack_tecnologico, ...candidato.tecnologias_detalle.filter(t => t.nivel !== 'ninguno').flatMap(t => [t.nombre, t.evidencia])];
+    if (Number.isFinite(candidato.anios_experiencia_reales) && candidato.anios_experiencia_reales >= 0) {
+        const anios = candidato.anios_experiencia_reales;
+        hechos.push(`${anios} ${anios === 1 ? 'año' : 'años'} de experiencia`);
+    }
+    const hechosLiterales = hechos.filter(texto => typeof texto === 'string').map(normalizarTextoComparacion);
+    const clausulasPerfil = hechos.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto);
+    const ausencias = candidato.conocimientos_ausentes.map(normalizarTextoComparacion);
+    const limitaciones = [candidato.perfil_profesional, candidato.limitaciones_explicitas].flatMap(extraerClausulasConContexto);
+    // El título no convierte una mención deseable del cuerpo en obligación acreditada.
+    const textoOferta = oferta.descripcion;
+    const clausulasOferta = extraerClausulasConContexto(textoOferta);
+    const revisados = new Map();
+    for (const categoria of ['cumplidos', 'no_cumplidos', 'exclusiones', 'por_confirmar']) {
+        for (const item of original[categoria] || []) {
+            if (item.tipo !== 'obligatorio') continue;
+            const requisito = normalizarTextoComparacion(item.requisito);
+            const perfil = normalizarTextoComparacion(item.evidencia_perfil);
+            const ofertaCitada = normalizarTextoComparacion(item.evidencia_oferta);
+            const citasRelacionadas = clausulasOferta.filter(clausula => contieneTokenNormalizado(clausula, ofertaCitada) && contieneTokenNormalizado(ofertaCitada, requisito));
+            // Una cláusula mixta no permite atribuir el deseable de otro requisito a una obligación explícita.
+            const soloDeseable = citasRelacionadas.length > 0 && citasRelacionadas.every(clausula =>
+                !/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/.test(clausula)
+                && (PATRON_OPCIONAL_EVIDENCIA.test(clausula) || PATRON_NEGACION_EVIDENCIA.test(clausula)));
+            const ofertaAcreditada = contieneTokenNormalizado(ofertaCitada, requisito)
+                && !validarCoherenciaRespuesta(false, resultado.porcentaje, { exclusiones: [item] }, textoOferta).invalido;
+            // Solo pruebo ausencias declaradas o negaciones literales completas; no deduzco incompatibilidad por omisión.
+            const ausenciaAcreditada = ausencias.includes(requisito) && perfil === requisito
+                || limitaciones.includes(perfil)
+                && [candidato.perfil_profesional, candidato.limitaciones_explicitas].some(texto => contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
+                && ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => perfil === `${prefijo}${requisito}`);
+            const cumplimientoAcreditado = ofertaAcreditada && contieneTokenNormalizado(perfil, requisito)
+                // El contexto puede agregar prefijos; sólo una cita también presente en los hechos literales acredita cumplimiento.
+                && hechosLiterales.some(texto => contieneTokenNormalizado(texto, perfil)) && clausulasPerfil.includes(perfil)
+                && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)
+                && !PATRON_OPCIONAL_EVIDENCIA.test(perfil)
+                && !ausencias.includes(requisito);
+            const destino = soloDeseable ? 'por_confirmar' : ofertaAcreditada && ausenciaAcreditada ? 'exclusiones'
+                : categoria === 'cumplidos' && cumplimientoAcreditado ? 'cumplidos' : 'por_confirmar';
+            const prioridad = { cumplidos: 1, por_confirmar: 2, exclusiones: 3 };
+            if (prioridad[revisados.get(requisito)?.destino] > prioridad[destino]) continue;
+            revisados.set(requisito, { destino, item: destino === 'cumplidos' ? item : {
+                ...item, tipo: soloDeseable ? 'deseable' : item.tipo,
+                evidencia_oferta: ofertaAcreditada || soloDeseable ? item.evidencia_oferta : '',
+                evidencia_perfil: destino === 'exclusiones' ? item.evidencia_perfil : '',
+                explicacion: destino === 'exclusiones' ? 'Incompatibilidad respaldada por una ausencia declarada del candidato.'
+                    : 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
+            } });
+        }
+    }
+    const explicacion = Object.fromEntries(['cumplidos', 'no_cumplidos', 'por_confirmar', 'exclusiones']
+        .map(categoria => [categoria, (original[categoria] || []).filter(item => item.tipo !== 'obligatorio')]));
+    // Un deseable no constituye una exclusión, tampoco en la presentación.
+    explicacion.no_cumplidos.push(...explicacion.exclusiones.filter(item => item.tipo === 'deseable'));
+    explicacion.exclusiones = explicacion.exclusiones.filter(item => item.tipo !== 'deseable');
+    for (const { destino, item } of revisados.values()) {
+        explicacion[destino].push(item);
+        if (destino === 'exclusiones') explicacion.no_cumplidos.push(item);
+    }
+    if (explicacion.exclusiones.some(item => item.tipo === 'obligatorio')) return {
+        ...resultado, match: false, pendiente: false, prioridad_ia: null, explicacion, desglose_disponible: true,
+        razon: `Incompatibilidad confirmada: ${explicacion.exclusiones.filter(item => item.tipo === 'obligatorio').map(item => item.requisito).join('; ')}. Afinidad técnica estimada: ${resultado.porcentaje}%.`,
+    };
     const parcial = oferta.descripcion_completitud === 'parcial' || oferta.origen_descripcion === 'tarjeta';
     const evidenciaSuficiente = explicacion.cumplidos?.some(item => item.evidencia_oferta?.trim() && item.evidencia_perfil?.trim());
     const faltaInformacion = (parcial && !evidenciaSuficiente) || explicacion.por_confirmar?.some(
         item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable'
     );
     const obligatoriosPendientes = (explicacion.por_confirmar || []).filter(item => item.tipo === 'obligatorio');
-    if (!faltaInformacion && !obligatoriosPendientes.length) return resultado;
+    if (!faltaInformacion && !obligatoriosPendientes.length) return { ...resultado, explicacion };
     const porConfirmar = [...(explicacion.por_confirmar || [])];
     if (faltaInformacion && !porConfirmar.some(item => item.requisito === 'Información suficiente de la oferta')) porConfirmar.push({
         requisito: 'Información suficiente de la oferta', tipo: 'desconocido',
@@ -211,7 +277,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         }
         async function guardarResultado(resultado) {
             const firmado = {
-                ...resolverElegibilidad(incorporarConflictos(resultado), oferta),
+                ...resolverElegibilidad(incorporarConflictos(resultado), oferta, preferenciasFinal),
                 firma_criterios_evaluacion: (resultado.error || resultado.invalido || resultado.inconsistente) ? null : firma,
             };
             // La caché es opcional; en el worker la confirmo después del UPDATE.
@@ -333,7 +399,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         if (!opciones.forzar) {
             try {
                 const cacheado = await evaluacionCache.buscarCache(identidad.hash_oferta, firma, modeloFinal);
-                if (cacheado && !cacheado.error) return resolverElegibilidad(incorporarConflictos({ ...cacheado, firma_criterios_evaluacion: firma }), oferta);
+                if (cacheado && !cacheado.error) return resolverElegibilidad(incorporarConflictos({ ...cacheado, firma_criterios_evaluacion: firma }), oferta, preferenciasFinal);
             } catch (errorCache) {
                 console.warn('[Evaluación] No se pudo leer caché:', errorCache.message);
             }

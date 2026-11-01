@@ -142,7 +142,7 @@ for (const [escenario, requisito, razon] of [
     ['confirmacion', 'Residencia en provincia Delta', 'Pendiente de confirmación: Residencia en provincia Delta. Afinidad técnica estimada: 91%.'],
     ['sin-descripcion', 'Descripción de la oferta', 'Pendiente de confirmación: falta la descripción de la oferta.'],
 ]) {
-    test(`#80 ${escenario}: confirmación actual sin falso error o evaluación anterior @issue80`, async ({ page }) => {
+    test(`#80 ${escenario}: confirmación actual sin falso error o evaluación anterior @issue80`, async ({ page }, testInfo) => {
         await page.goto(`/?detalle=${escenario}`);
         await page.getByText('Registro del fixture', { exact: true }).click();
         await page.getByRole('tab', { name: /PENDIENTES/ }).click();
@@ -154,6 +154,7 @@ for (const [escenario, requisito, razon] of [
         await expect(dialogo.locator('.tag-detalle[data-estado="error"]')).toHaveCount(0);
         await expect(dialogo.locator('.tag-detalle[data-estado="pendiente"]')).toHaveText('PENDIENTE');
         await expect(dialogo.locator('.tag-match')).toHaveCount(0);
+        await page.screenshot({ path: testInfo.outputPath(`elegibilidad-${escenario}.png`), animations: 'disabled' });
         await desplegarPorTeclado(dialogo, 'Ver desglose y evidencias del matching');
         const pendientes = dialogo.locator('.desglose-por-confirmar');
         await expect(pendientes).toContainText(requisito);

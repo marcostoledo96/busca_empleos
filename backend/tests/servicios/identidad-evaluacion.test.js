@@ -43,6 +43,14 @@ test.each([
     expect(firmaNueva).not.toBe(identidad.crearFirmaCriterios(prefs));
 });
 
+test('v8 invalida aprobación v7 incluso con instrucciones explícitas idénticas', () => {
+    const opciones = { instrucciones: 'Sistema sintético explícito' };
+    const actual = identidad.construirIdentidadEvaluacion(oferta, prefs, opciones);
+    const anterior = identidad.construirIdentidadEvaluacion(oferta, prefs, { ...opciones, version: 'evaluacion-v7' });
+    expect(actual.criterios.version).toBe('evaluacion-v8');
+    expect(actual.firma_criterios_evaluacion).not.toBe(anterior.firma_criterios_evaluacion);
+});
+
 test('versionar reglas provoca miss sin modificar mensajes reales', () => {
     const actual = identidad.construirIdentidadEvaluacion(oferta, prefs);
     const nueva = identidad.construirIdentidadEvaluacion(oferta, prefs, { version: 'contrato-prueba-v2' });

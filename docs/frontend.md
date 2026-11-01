@@ -127,6 +127,19 @@ Playwright no arrancó por dependencia ausente (exit 127); posteriormente el pad
 verificó 7 PASS en navegador, incluidos los dos escenarios nuevos y cinco controles.
 Mantengo ese fallo inicial como evidencia histórica, no como prueba ejecutada.
 
+Para la corrección B1 del comentario 6563865508, el servicio usa contrato v8 y
+reubica obligaciones no acreditadas en **Por confirmar**, retirando cumplimientos
+y exclusiones falsos antes de persistir; no agrego campos ni modifico componentes.
+Repito los dos escenarios `@issue80` y cinco controles: **7 PASS**. Cada escenario
+guarda `elegibilidad-confirmacion.png` o `elegibilidad-sin-descripcion.png` mediante
+`testInfo.outputPath`, bajo `.codegraph/issue80-audit-visual/` en la ejecución local.
+El padre informa que inspeccionó ambas imágenes: banner de elegibilidad y razón
+actual visibles, etiqueta pendiente, sin aviso histórico/rechazo/error técnico;
+la afinidad aparece sólo en la razón y no como match definitivo. Esa inspección
+puntual no sustituye la auditoría externa ni certifica otros tamaños/temas.
+El harness aislado muestra nombres de iconos Material por una limitación previa
+de su fuente; no cambio tipografía ni diseño para ocultarla.
+
 Los contadores del lote describen procesamiento: `evaluadas` cuenta resultados
 válidos persistidos y `pendientes = total - evaluadas` cuenta trabajo sin resultado
 válido, no elegibilidad laboral. Una oferta puede permanecer pendiente de

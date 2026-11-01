@@ -608,8 +608,34 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   como obligación por confirmar. Un extracto breve suficientemente respaldado
   puede aprobar. No certifico la interpretación semántica de cualquier texto.
 
-El servicio agrega `pendiente: true` al resultado afín, sin invertir el booleano
-`match` del proveedor ni recalcular su porcentaje válido. El worker considera esa
+**Guardia de evidencia (auditoría B1, comentario 6563865508):** antes de aprobar
+reviso obligaciones en las cuatro categorías, no sólo `por_confirmar`. Reutilizo
+el candidato efectivo y los validadores contextuales existentes. Una obligación
+en `cumplidos` requiere citas relacionadas del cuerpo del aviso y de hechos
+confirmados del candidato, con el requisito presente en ambas. No acepto una
+preferencia, el prompt personalizado, una capacidad ajena ni una equivalencia
+académica como prueba. Si no puedo acreditarlo, muevo el requisito a `por_confirmar`,
+retiro el falso cumplimiento/incumplimiento/exclusión y explico qué falta confirmar.
+No dejo el mismo requisito simultáneamente cumplido y pendiente o excluido.
+
+Una obligación en `no_cumplidos` o `exclusiones` tampoco aprueba por score alto.
+Sólo rechazo por una ausencia declarada relacionada y literalmente acreditada:
+`conocimientos_ausentes` o una ausencia explícita como «No cuento con matrícula
+profesional» / «Carezco de …» en `perfil_profesional` o `limitaciones_explicitas`,
+más la exigencia verificable del aviso. Una cita inventada, vacía,
+ajena, una negación ambigua o una paráfrasis que no puedo demostrar queda pendiente,
+no se convierte en incompatibilidad. Las defensas determinísticas previas permanecen.
+Si el contexto del aviso sólo declara deseable/no requerido un requisito mal rotulado
+como obligatorio, lo conservo por confirmar de tipo deseable, sin bloquear ni
+inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones.
+Esta comprobación literal es conservadora: no pretende interpretar cualquier
+redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
+
+Ante evidencia incierta el servicio agrega `pendiente: true` al resultado afín,
+sin invertir `match` ni recalcular su porcentaje válido. Ante incompatibilidad
+acreditada fija `match: false`, conserva el porcentaje técnico y emite la razón
+`Incompatibilidad confirmada: … Afinidad técnica estimada: …%.`, con categorías
+coherentes, sin prioridad IA ni error técnico. El worker considera esa
 bandera **antes** de aprobar: persiste `estado_evaluacion = 'pendiente'`, razón
 `Pendiente de confirmación: …`, explicación, afinidad y firma mediante
 `actualizarEvaluacion`, con `evaluacion_error_mensaje = null` y sin prioridad IA.
@@ -631,8 +657,9 @@ anterior y el parser de contradicciones de #81 permanece sin modificaciones.
 La caché JSON conserva el resultado completo, incluida la bandera interna;
 además derivo nuevamente la elegibilidad del desglose en cada hit, sin mutarlo.
 Conservo el booleano de afinidad para que una bandera omitida no convierta la
-incertidumbre en rechazo ni aprobación. Versiono el contrato como `evaluacion-v7`
-también con instrucciones explícitas; el mensaje de usuario incluye las pautas
+incertidumbre en rechazo ni aprobación. Versiono el contrato actual como `evaluacion-v8`
+(v7 fue el contrato inicial de #80), también con instrucciones explícitas: cambia
+la identidad y no reutilizo aprobaciones v7. El mensaje de usuario incluye las pautas
 de incertidumbre. No borro cachés ni reparo evaluaciones históricas.
 
 **Presentación:** el detalle muestra **Elegibilidad pendiente de confirmación**
@@ -646,13 +673,59 @@ El intento inicial de Playwright no arrancó por dependencia ausente (exit 127);
 posteriormente el padre verificó 7 PASS en navegador: los dos escenarios nuevos
 y cinco controles. Esa evidencia posterior no convierte el intento fallido en
 PASS ni constituye inspección visual. Esta corrección de contadores no toca UI.
-Verificación final del candidato: backend completo 3791 PASS/166 SKIPPED,
+Evidencia histórica del candidato anterior a B1: backend completo 3791 PASS/166 SKIPPED,
 34 regresiones de #80 incluidas. La verificación independiente cerró el defecto
 de rehidratación con 106 PASS; el diferencial de 48 casos por versión preservó
 los controles de automatización, selección y reintento. Uso ofertas/perfiles
 inventados, proveedor y almacenamiento simulados, sin SQL ni llamadas pagas.
 Las suites SQL reales y el build local no se ejecutaron; la PR conserva los
 checks de CI habituales y queda abierta para auditoría externa.
+
+Para el delta B1 sobre `b54e00e`, observo RED exacto de las tres categorías
+(3 FAIL/34 PASS), matriz ampliada RED 27 FAIL/44 PASS y GREEN inicial 71 PASS.
+Agrego controles de evidencia ajena, prompt no factual, duplicados y deseables
+mal rotulados (RED 3 FAIL/72 PASS); focal del primer delta B1 #80 + identidad: **75 PASS**.
+Las 13 suites relacionadas pasan **1543 pruebas**, sin fallos ni omitidas. Un primer
+intento no cargó una suite por su mock incompleto del parser; lo reparo con
+`jest.requireActual`, sin debilitar aserciones ni agregar fallback productivo.
+Cubro proveedor/caché sin flag interno, persistencia, selección/reintento y
+reinicio con el modelo real de lotes sobre pool simulado. No modifico el parser #81.
+Repito el harness Playwright: **7 PASS**, con capturas específicas en los dos
+`@issue80`. El padre informa inspección personal del banner y razón actual,
+sin etiqueta histórica ni error técnico. No atribuyo aprobación de auditoría
+externa a estas pruebas. La suite completa del delta y su cierre independiente
+quedan a cargo del padre; los resultados históricos no los sustituyen.
+
+**Corrección acotada B2–B4:** la verificación posterior encontró siete discrepancias
+y 13 fallos de compatibilidad; la evidencia anterior de 75 PASS no cerraba esos
+casos. Ahora contrasto las citas también con los hechos literales, no con prefijos
+agregados por el contexto. «Aspiro a obtener …» y «… pendiente de finalizar» no
+acreditan una titulación; una ausencia literal declarada tampoco puede aprobar.
+Un encabezado «Deseables» del perfil no confirma capacidades ni permite aceptar
+una cita fabricada con el prefijo «deseable». En cláusulas mixtas no rebajo una
+obligación explícita por un deseable ajeno: si no puedo atribuirlo, queda pendiente.
+Conservo los años declarados en `anios_experiencia_reales`: 1 acredita «1 año de
+experiencia»; null, omisión, cero o proyectos prácticos no acreditan ese año.
+No agrego equivalencias ni interpretación gramatical general; mantengo v8 como
+contrato del delta corregido, sin cambiar el parser #81.
+
+Reproduzco los siete casos exactos y los 13 fallos anteriores: **RED 20 FAIL/105 PASS**.
+Luego pasan las cuatro suites #80/identidad/#17/#18: **125 PASS**, y las 13 suites
+relacionadas: **1543 PASS**, sin fallos ni omitidas. Los siete casos comprueban
+proveedor, caché sin flag y selección/reintento por interfaz pública, con estado,
+razón, score, explicación, error, prioridad y contadores; conservo las pruebas de
+reinicio con lotes reales sobre pool simulado. Los doce fixtures compatibles #17
+usaban citas vagas o no presentes («Angular en perfil», roles objetivo, zonas
+preferidas); ahora sus perfiles/avisos sintéticos acreditan literalmente la misma
+capacidad o disponibilidad. El caso de trayectoria empresarial conserva esa
+trayectoria y agrega una tarea JavaScript verificable, sin inferir experiencia
+del candidato desde su nivel. El reintento #18 cita Node.js/PostgreSQL reales de
+su stack y del cuerpo, no frases inventadas. No cambio aserciones ni los casos
+originales desconocidos. El cierre del padre observa backend completo **3831 PASS,
+166 SKIPPED**, con 90 suites PASS y 11 omitidas. El recheck independiente limitado
+cierra los bloqueos con **125 PASS y 35/35 probes públicos**, sin fallos pendientes.
+No repito navegador ni afirmo aprobación de la auditoría externa; los 7 E2E y las
+dos capturas pertenecen al mismo cambio de presentación, sin cambios UI posteriores.
 
 ## Distinción de errores técnicos y recuperación de lotes (#18)
 

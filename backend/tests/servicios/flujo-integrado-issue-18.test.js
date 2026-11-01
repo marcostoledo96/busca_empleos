@@ -228,15 +228,15 @@ describe('Flujos integrados de evaluación con IA — Issue 18', () => {
                             {
                                 requisito: 'Node.js',
                                 tipo: 'obligatorio',
-                                evidencia_oferta: 'Desarrollador Backend Node.js Junior',
-                                evidencia_perfil: 'Node.js en stack tecnológico',
+                                evidencia_oferta: 'Node.js',
+                                evidencia_perfil: 'Node.js',
                                 explicacion: 'Experiencia coincidente en backend con Node.js.',
                             },
                             {
                                 requisito: 'PostgreSQL',
                                 tipo: 'obligatorio',
                                 evidencia_oferta: 'Bases de datos PostgreSQL',
-                                evidencia_perfil: 'PostgreSQL en stack tecnológico',
+                                evidencia_perfil: 'PostgreSQL',
                                 explicacion: 'Manejo de base de datos PostgreSQL verificado.',
                             },
                         ],
