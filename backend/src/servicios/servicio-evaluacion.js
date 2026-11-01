@@ -171,9 +171,22 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         });
         modeloFinal = identidad.criterios.modelo;
         const firma = identidad.firma_criterios_evaluacion;
+        let conflictos = [];
+        function incorporarConflictos(resultado) {
+            if (!conflictos.length) return resultado;
+            const explicacion = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+            return {
+                ...resultado,
+                explicacion: { ...explicacion, por_confirmar: [
+                    ...(explicacion.por_confirmar || []).filter(item => item.requisito !== 'Conflicto de seniority'),
+                    ...conflictos,
+                ] },
+                desglose_disponible: true,
+            };
+        }
         async function guardarResultado(resultado) {
             const firmado = {
-                ...resultado,
+                ...incorporarConflictos(resultado),
                 firma_criterios_evaluacion: (resultado.error || resultado.invalido || resultado.inconsistente) ? null : firma,
             };
             // La caché es opcional; en el worker la confirmo después del UPDATE.
@@ -198,6 +211,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         // la rechazo SIN llamar a DeepSeek.
         if (preferenciasFinal) {
             const resultadoExclusion = reglasExclusion.evaluarReglasExclusion(oferta, preferenciasFinal);
+            conflictos = resultadoExclusion.explicacion?.por_confirmar || [];
             if (resultadoExclusion.excluida) {
                 const rechazo = {
                     match: false,
@@ -278,7 +292,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         if (!opciones.forzar) {
             try {
                 const cacheado = await evaluacionCache.buscarCache(identidad.hash_oferta, firma, modeloFinal);
-                if (cacheado && !cacheado.error) return { ...cacheado, firma_criterios_evaluacion: firma };
+                if (cacheado && !cacheado.error) return incorporarConflictos({ ...cacheado, firma_criterios_evaluacion: firma });
             } catch (errorCache) {
                 console.warn('[Evaluación] No se pudo leer caché:', errorCache.message);
             }

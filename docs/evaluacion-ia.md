@@ -651,3 +651,215 @@ Los otros 159 casos omitidos no quedan verificados por esta ejecución. No ejecu
 frontend, builds, migraciones, proveedor real ni producción. La causa de los cinco
 fallos históricos sigue desconocida; estas pruebas no reconstruyen ese inventario.
 
+## Exclusiones contextuales y conflicto de fuentes (#79)
+
+Verifico con avisos inventados sobre BASE `fe93b04631d85dee4aa5a952077f7021fd8adb2c`.
+No uso el informe privado ni atribuyo sus decisiones históricas al código vigente.
+
+- **Ya funcionaban:** trayectoria empresarial («Nuestra organización lleva 27 años
+  prestando servicios; buscamos trainee sin experiencia»), empresa referente,
+  mentor Senior, coordinación puntual de pruebas, JavaScript, Java negado/deseable,
+  publicación en inglés y requisito explícito de inglés sin la palabra «oral».
+  La alternativa literal «dominio de al menos uno entre Java, TypeScript y Ruby»
+  tampoco excluía; sí fallaba al anteponer «Se requiere».
+- **Corrijo:** alternativas SSR/SR (también guiones, «o» y orden inverso),
+  Semi-Senior frente a Senior, Java como opción entre tecnologías, «El candidato
+  debe acreditar al menos 4 años» y cantidades explícitas mayores a tres vinculadas
+  a experiencia. Conservo 3 años sin calificador, 3+, mínimos y porcentajes vigentes.
+- Reconozco alternativas tecnológicas locales por «o/or» o «al menos uno
+  entre/de», con nombres simples de tecnologías (incluidos C# y Python), sin
+  una lista cerrada de lenguajes ni una gramática general. Verifico cada opción
+  con los patrones existentes del ecosistema Java: si todas pertenecen a ese
+  ecosistema, conservo la exclusión.
+  Otra obligación independiente, incluido Java, Senior/Lead o inglés, conserva
+  su rechazo. No apruebo automáticamente SSR ni altero scores por IA/Next.js.
+- Si título o cuerpo del puesto Junior/Trainee contradice `nivel_requerido`
+  Senior/SR, conservo ambas fuentes en `explicacion.por_confirmar` como
+  **Conflicto de seniority**, tipo desconocido. No convierto el metadato en una
+  exclusión automática ni fuerzo aprobación: respeto decisión y porcentaje del
+  proveedor o caché. Conservo el conflicto también si otra regla excluye y al
+  persistir un lote; no modifico el objeto cacheado recibido.
+- Reutilizo el evaluador antes/después del proveedor y antes de aceptar caché.
+  Actualizo el contrato a `evaluacion-v5`, también con instrucciones explícitas:
+  no reutilizo firmas anteriores ni borro entradas o reparo datos históricos.
+  No modifico geografía (#83), perfil ni manejo de fallos técnicos.
+
+**Evidencia focal:** primera reproducción: 50 FAIL y 88 PASS (138 pruebas).
+Después de la corrección: cinco suites focales PASS, 1246 pruebas PASS, cero
+FAIL/SKIPPED. Incluyo controles adicionales y aprobación/rechazo simulados,
+revalidación de caché, persistencia simulada y defensa posterior. Proveedor,
+modelos y caché están simulados; llamadas reales al proveedor y SQL: cero.
+La suite completa y la verificación independiente corresponden al cierre del
+orquestador; estos resultados focales no las sustituyen.
+
+**Corrección focal B1–B3 tras verificación independiente:** reproduzco 30 FAIL,
+22 PASS y 177 SKIPPED por filtro antes de corregir. La ampliación de experiencia
+había introducido tres regresiones frente a BASE: «Tenemos experiencia de 27
+años prestando servicios», experiencia del mentor y capacitación impartida por
+profesionales. Ahora vinculo esas cantidades al sujeto narrativo, no al candidato;
+conservo exigencias posteriores y profesionales buscados como postulantes.
+Distingo «Buscamos Junior» afirmado de «No buscamos perfil Junior», manteniendo
+el rechazo Senior legítimo y el conflicto solo cuando corresponde. Las opciones
+«Java or TypeScript» y «Java, C# y Python» eran defectos también presentes en BASE,
+no regresiones nuevas ni prueba sobre decisiones históricas. Conservo Java
+independientemente obligatorio, conjunciones y alternativas exclusivamente Java.
+Cierro esta tanda con seis suites focales PASS, 1337 pruebas PASS, cero FAIL/SKIPPED.
+El diferencial sintético contra BASE conserva 20 controles sin diferencias de
+salida, stderr ni código; confirma B1 sin exclusión en ambos y B3 corregido.
+El recheck independiente acotado a B1–B3 pasa 92 pruebas; otras 159 quedan
+SKIPPED por selección focal, no equivalen a PASS. La suite completa se informa
+por separado en la entrega de la PR.
+
+### Corrección del comentario de auditoría F1/F2 de PR #84
+
+Reproduzco los seis ejemplos del comentario `6552708131` sobre
+`6f6bf39845848f37c174ea4475987f62621c8861`, con BASE
+`fe93b04631d85dee4aa5a952077f7021fd8adb2c`, antes de corregirlos.
+
+- **F1:** reconozco la cadena local completa «Java o Spring Boot o TypeScript»
+  (también «or»), en lugar de pares no solapados. Conservo unidas las listas
+  explícitas «al menos uno entre» al separar cláusulas. Evalúo todas sus opciones;
+  una obligación Java independiente o una cadena exclusivamente Java sigue
+  excluyendo. Esto no equivale a aprobación automática.
+- **F2:** afirmo Junior/Trainee de la vacante, no de personas que la empresa
+  capacita ni de postulantes negados mediante «No se buscan» o «No queremos».
+  No uso el rol nominal de los mentoreados para reabrir la vacante. Conservo
+  conflictos reales, incluida una vacante Junior que capacita usuarios, y el
+  rechazo de puestos Senior legítimos. No cambio porcentajes ni geografía.
+
+RED focal: **55 FAIL, 41 PASS, 1336 SKIPPED por filtro**. GREEN final:
+**1451 PASS, 0 FAIL, 0 SKIPPED**, seis suites. Verifico reglas públicas,
+pre/postevaluación, proveedor simulado que aprueba/rechaza, hits de caché y
+persistencia simulada, sin mutar ofertas ni objetos cacheados. El diferencial
+público contra `6f6bf39` conserva 20 controles con stdout, stderr y código de
+salida idénticos. Mantengo `evaluacion-v5`: esta corrección integra el mismo
+contrato aún no mergeado. No heredo el PASS anterior ni afirmo reparación
+histórica; el cierre final de este delta se informa al final de esta sección.
+No ejecuto proveedores, SQL real ni reevaluaciones de datos privados.
+
+**Ajuste de límites F1 tras verificación independiente:** una lista explícita
+no absorbe `Java obligatorio` coordinado después de «y» o coma. Conservo esa
+obligación local aunque el reconocimiento de alternativas abarque su texto;
+no convierto un sufijo colectivo de una cadena «o/or» en Java obligatorio.
+Agrego las dos variantes exactas a la matriz pública existente: RED **11 FAIL,
+1450 SKIPPED por filtro**; GREEN **1461 PASS, 0 FAIL, 0 SKIPPED**, seis suites.
+El diferencial contra `6f6bf39` conserva 24 controles con stdout, stderr y código
+idénticos. No modifico F2. El recheck independiente acotado pasa **48 pruebas**,
+con 94 SKIPPED por selección; conservo el PASS anterior de los 70 checks F2 sin
+repetirlos. La suite backend completa final pasa **3299 pruebas**, con 166 SKIPPED
+y cero FAIL (88 suites PASS, 11 SKIPPED). Estas omisiones no equivalen a PASS.
+Esto no garantiza interpretar cualquier redacción.
+
+### Residuo F2: personal dirigido o formado (reauditoría #84)
+
+Sobre `f9182792f3c33efa680f1839df719700963b9f6e` reproduzco los tres ejemplos
+sintéticos del comentario `6557211706`: Junior como personal a liderar,
+coordinar o formar mediante «train», no como nivel de la vacante Senior.
+Acoto esos verbos al grupo/personas Junior inmediatamente siguientes dentro de
+la cláusula. No silencio Junior/Trainee por tareas propias de coordinación,
+aunque esas tareas aparezcan antes del nivel declarado. Mantengo el rechazo
+Senior en 15 y las dos fuentes de los conflictos reales; no cambio F1 ni v5.
+
+RED: **30 FAIL, 33 PASS, 1461 SKIPPED por filtro**. GREEN: seis suites,
+**1524 PASS, 0 FAIL, 0 SKIPPED**, con reglas públicas, pre/post, proveedor,
+caché y persistencia simulados e inmutabilidad. El diferencial contra `f918279`
+conserva 16 controles Senior/SR con stdout, stderr y código idénticos.
+La verificación independiente reproduce 30 fallos sobre el HEAD previo y pasa
+**80 pruebas, cero FAIL/SKIPPED** con la fuente corregida. La suite backend
+completa pasa **3362 pruebas**, con 166 SKIPPED y cero FAIL (88 suites PASS,
+11 SKIPPED). No atribuyo PASS a los omitidos ni afirmo una gramática universal.
+
+### Residuo F2: complementos de personas y tareas (S9)
+
+Reproduzco sobre `ddc216b811ebcc662abe07897e37ef0835a0e4ff` los tres cuerpos
+del comentario `6557925842`: «coordinar las tareas de desarrolladores Junior»,
+«gestionar desarrolladores Junior» y «trabajar con desarrolladores Junior».
+No amplio la lista de verbos: identifico el grupo de personas junto al nivel
+como complemento local de una actividad infinitiva introducida por «para»,
+comparándolo con la última búsqueda de vacante de esa cláusula. Conservo el
+reconocimiento previo (incluido «train»), los roles propios declarados mediante
+«como/as/trabajar de», los títulos Junior y
+una nueva búsqueda Junior en otra cláusula, con evidencia de esa vacante real.
+No cambio F1, v5, porcentajes ni geografía; Senior/SR obligatorio sigue en 15 y
+Java obligatorio en 10, incluso cuando coexiste con un conflicto real.
+
+Prueba del delta intermedio, anterior a la corrección L28: RED **32 FAIL,
+44 PASS, 1524 SKIPPED por filtro**; GREEN de seis suites **1610 PASS, 0 FAIL,
+0 SKIPPED**. Reutilizo matrices públicas Senior/SR con
+proveedor, caché y persistencia simulados e inmutabilidad. El diferencial contra
+`ddc216b` conserva 20 controles con stdout, stderr y código idénticos. Estos
+resultados intermedios no sustituyen el cierre de la fuente final informado abajo;
+no heredo los resultados del HEAD anterior ni reparo históricos.
+
+#### Corrección acotada de la regresión de vacante propia (L28)
+
+Reproduzco que «Vacante para desarrolladores Junior con TypeScript.» y su
+variante Trainee perdían el conflicto real; también «Buscamos candidatos para
+trabajar de desarrolladores Junior.». La causa era aceptar cualquier «para/to»
+sin actividad. Exijo un infinitivo tras «para» y reconozco «trabajar de» como rol
+propio, sin confundirlo con «las tareas de» ni con «trabajar con» terceros.
+Conservo un conflicto Senior/SR, sin exclusión inventada ni cambios a la decisión
+del proveedor o sus porcentajes 80/25. Mantengo los tres negativos S9 en cero
+conflictos y Senior en 15, además de la evidencia de otra vacante Junior.
+
+RED nuevo: **30 FAIL, 0 PASS, 1610 SKIPPED por filtro**, antes del ajuste.
+GREEN final de seis suites: **1640 PASS, 0 FAIL, 0 SKIPPED**. Las matrices
+existentes cubren reglas, proveedor/caché positivos y negativos, persistencia e
+inmutabilidad. Diferencial público contra `ddc216b`: **26 controles**, stdout,
+stderr y exit code idénticos, incluidos los seis controles de vacante/rol propio.
+El recheck independiente acotado pasa **90 pruebas**, con 40 SKIPPED por selección
+y cero FAIL. La suite backend completa final pasa **3478 pruebas**, con
+166 SKIPPED y cero FAIL (88 suites PASS, 11 SKIPPED). Los omitidos no equivalen
+a PASS; no sumo corridas ni heredo pruebas del HEAD anterior. Mantengo F1, v5 y
+#83 sin cambios, sin reparación histórica ni gramática universal.
+
+### Residuo F2: sustantivos de personas y vacante nominal (S10)
+
+Sobre `2dcc3fccc6a9b6fabc4bd27e1dfabd53b07814b6` reproduzco los siete casos del
+comentario `6558440120`: cinco falsos conflictos con perfiles, personal, colegas
+y desarrollador singular como terceros; dos conflictos omitidos en «Buscamos
+personal Junior para desarrollo web» y «Vacante para perfiles Junior con
+TypeScript». Comparto el vocabulario singular/plural únicamente dentro del
+conflicto Junior/Trainee, para reconocer personas y roles propios. No amplío
+`PATRON_ROL` ni los helpers compartidos de las demás exclusiones.
+
+Reconozco una búsqueda/vacante nominal directa, sin omitir negaciones ni
+opcionales. Conservo el contexto de actividad para terceros, los artículos en
+roles propios y la atribución Junior posterior a una coma, sin arrastrar hasta
+ella la actividad anterior. Senior/SR sigue excluido en 15; el conflicto real no
+fuerza aprobación ni cambia 80/25 del proveedor. Mantengo F1, Java, v5 y #83.
+
+Pruebas del delta intermedio, anterior a L35: RED **102 FAIL, 67 PASS, 1640 SKIPPED
+por filtro**. La primera pasada de GREEN detectó 10 regresiones del control S8
+«…, perfil Junior»; después de acotar la actividad, las seis suites pasan
+**1809 pruebas, 0 FAIL, 0 SKIPPED**. Cubro los siete casos Senior/SR, proveedor y
+caché positivos/negativos, persistencia e inmutabilidad, más controles de
+Trainee, singular/plural, tareas propias, negación, opcionales y otra cláusula
+con evidencia correcta. Uso la postvalidación vigente de exclusiones, sin
+inventar recaptura de conflictos por mutación durante el proveedor.
+
+El diferencial público de ese delta contra `2dcc3fc` conserva **30 controles**
+con stdout, stderr y exit code idénticos. Esa evidencia no certifica la corrección
+posterior L35 ni implica gramática universal o reparación histórica.
+
+#### Corrección acotada de la coma enumerativa (L35)
+
+Reproduzco «Buscamos desarrollador Senior para coordinar desarrolladores Junior,
+ingenieros Junior.»: el corte indiscriminado en la última coma inventaba un
+conflicto al llegar a ingenieros. Reutilizo `nombrePersona` para reconocer que
+la persona con nivel inmediatamente anterior a la coma continúa la enumeración
+de terceros bajo la actividad. No elimino el corte globalmente: «Buscamos
+desarrollador para coordinar tareas de pruebas, perfil Junior.» conserva un
+conflicto real, igual que las nuevas búsquedas/vacantes en otra cláusula.
+
+RED nuevo antes del ajuste: **10 FAIL, 1 PASS, 1809 SKIPPED por filtro**. GREEN
+final: seis suites, **1820 PASS, 0 FAIL, 0 SKIPPED**. La fila nueva reutiliza las
+matrices Senior/SR, reglas, proveedor/caché, persistencia e inmutabilidad;
+conserva cero conflictos y rechazo Senior en 15. Diferencial público contra
+`2dcc3fc`: **32 controles** con stdout, stderr y exit code idénticos, incluidos
+ambos usos de la coma. Mantengo los siete casos S10 y sus controles, F1, v5 y
+#83. El recheck independiente acotado pasa **90 pruebas**, con 130 SKIPPED por
+selección y cero FAIL. La suite backend completa final pasa **3658 pruebas**,
+con 166 SKIPPED y cero FAIL (88 suites PASS, 11 SKIPPED). Los omitidos no
+equivalen a PASS; no heredo los resultados de la fuente intermedia.
+
