@@ -8,7 +8,7 @@ jest.mock('../../src/modelos/preferencia', () => ({ obtenerPreferencias: jest.fn
 jest.mock('../../src/modelos/evaluacion-cache', () => ({ buscarCache: jest.fn(), guardarCache: jest.fn() }));
 jest.mock('../../src/modelos/evaluacion-lote', () => ({ crearLote: jest.fn(), actualizarProgreso: jest.fn(), finalizarLote: jest.fn() }));
 
-const { casos, crearOferta, conflicto } = require('../fixtures/issue-79-contexto');
+const { casos, crearOferta, conflicto, casosF1, casosF2 } = require('../fixtures/issue-79-contexto');
 const reglas = require('../../src/servicios/evaluacion/reglas-exclusion');
 const servicio = require('../../src/servicios/servicio-evaluacion');
 const proveedor = require('../../src/config/deepseek');
@@ -60,7 +60,9 @@ test.each(casos.flatMap(caso => [true, false].map(match => [...caso, match])))('
 test.each(casos)('caché y persistencia pública: %s', async (nombre, cambios, regla) => {
     const oferta = crearOferta(cambios);
     ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
-    cache.buscarCache.mockResolvedValue(respuesta(true));
+    const almacenada = respuesta(true);
+    const original = structuredClone(oferta);
+    cache.buscarCache.mockResolvedValue(almacenada);
     const resumen = await servicio.evaluarOfertasPendientes();
     expect(resumen.aprobadas).toBe(regla ? 0 : 1);
     expect(resumen.rechazadas).toBe(regla ? 1 : 0);
@@ -69,6 +71,8 @@ test.each(casos)('caché y persistencia pública: %s', async (nombre, cambios, r
         regla ? porcentajes[regla] : 80, null, null, expect.any(String), regla ? expect.anything() : null, oferta.descripcion);
     expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
     expect(cache.guardarCache).not.toHaveBeenCalled();
+    expect(oferta).toEqual(original);
+    expect(almacenada).toEqual(respuesta(true));
 });
 
 function verificarConflicto(resultado) {
@@ -180,6 +184,82 @@ test.each(casosB2.flatMap(caso => [true, false].flatMap(match => [false, true].m
         expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
         expect(oferta).toEqual(original);
         expect(almacenada).toEqual(respuesta(match));
+    }
+);
+
+test.each(casosF1)('%s: reglas posteriores sin modificar scores del proveedor', async (nombre, cambios, regla) => {
+    const oferta = crearOferta({ titulo: 'Desarrollo web' });
+    proveedor.consultarDeepSeek.mockImplementationOnce(async () => {
+        // Simulo el cambio entre defensas únicamente para alcanzar la postvalidación.
+        Object.assign(oferta, cambios);
+        return JSON.stringify(respuesta(true));
+    });
+    const resultado = await servicio.evaluarOferta(oferta, undefined, undefined, prefs);
+    expect(resultado.match).toBe(!regla);
+    expect(resultado.porcentaje).toBe(regla ? 10 : 80);
+    expect(resultado.explicacion.exclusiones).toHaveLength(regla ? 1 : 0);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(cache.guardarCache).toHaveBeenCalledTimes(1);
+    expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
+});
+
+test.each(casosF2.filter(([, , , hayConflicto]) => !hayConflicto))('%s: defensa posterior sin conflicto inventado', async (nombre, descripcion, regla) => {
+    const oferta = crearOferta({ titulo: 'Desarrollo web', nivel_requerido: 'Senior' });
+    proveedor.consultarDeepSeek.mockImplementationOnce(async () => {
+        oferta.descripcion = descripcion;
+        return JSON.stringify(respuesta(true));
+    });
+    const resultado = await servicio.evaluarOferta(oferta, undefined, undefined, prefs);
+    expect(resultado.match).toBe(!regla);
+    expect(resultado.porcentaje).toBe(regla ? 15 : 80);
+    expect(resultado.explicacion.por_confirmar).toEqual([]);
+    expect(resultado.explicacion.exclusiones).toHaveLength(regla ? 1 : 0);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(cache.guardarCache).toHaveBeenCalledTimes(1);
+    expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
+});
+
+test.each(casosF2.flatMap(caso => ['Senior', 'SR'].map(nivel => [...caso, nivel])))(
+    '%s: regla pública con metadato %s/%s/%s/%s',
+    (nombre, descripcion, regla, hayConflicto, nivel) => {
+        const oferta = crearOferta({ titulo: 'Desarrollo web', nivel_requerido: nivel, descripcion });
+        const original = structuredClone(oferta);
+        const resultado = reglas.evaluarReglasExclusion(oferta, prefs);
+        expect(resultado.reglas).toEqual(regla ? [regla] : []);
+        expect(resultado.porcentaje).toBe(regla ? 15 : null);
+        expect(resultado.explicacion.por_confirmar).toHaveLength(hayConflicto ? 1 : 0);
+        if (hayConflicto) expect(resultado.explicacion.por_confirmar[0].evidencia_oferta).toContain(`nivel_requerido: ${nivel}`);
+        expect(oferta).toEqual(original);
+    }
+);
+
+test.each(casosF2.flatMap(caso => ['Senior', 'SR'].flatMap(nivel => [true, false].flatMap(match =>
+    [true, false].map(hit => [...caso, nivel, match, hit])))))(
+    '%s: lote público (%s/%s/%s/%s/%s/%s)',
+    async (nombre, descripcion, regla, hayConflicto, nivel, match, hit) => {
+        const oferta = crearOferta({ titulo: 'Desarrollo web', nivel_requerido: nivel, descripcion });
+        const original = structuredClone(oferta);
+        const almacenada = { ...respuesta(match), explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] } };
+        const cacheOriginal = structuredClone(almacenada);
+        cache.buscarCache.mockResolvedValue(hit ? almacenada : null);
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(almacenada));
+        ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
+        const resumen = await servicio.evaluarOfertasPendientes();
+        const aprobada = !regla && match;
+        expect(resumen.aprobadas).toBe(aprobada ? 1 : 0);
+        expect(resumen.rechazadas).toBe(aprobada ? 0 : 1);
+        expect(resumen.errores).toBe(0);
+        expect(ofertas.actualizarEvaluacion).toHaveBeenCalledTimes(1);
+        const guardada = ofertas.actualizarEvaluacion.mock.calls[0];
+        expect(guardada[1]).toBe(aprobada ? 'aprobada' : 'rechazada');
+        expect(guardada[3]).toBe(regla ? 15 : respuesta(match).porcentaje);
+        expect(guardada[7]?.por_confirmar || []).toHaveLength(hayConflicto ? 1 : 0);
+        expect(guardada[7]?.exclusiones || []).toHaveLength(regla ? 1 : 0);
+        if (hayConflicto) expect(guardada[7].por_confirmar[0].evidencia_oferta).toContain(`nivel_requerido: ${nivel}`);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(regla || hit ? 0 : 1);
+        expect(cache.guardarCache).toHaveBeenCalledTimes(regla || hit ? 0 : 1);
+        expect(oferta).toEqual(original);
+        expect(almacenada).toEqual(cacheOriginal);
     }
 );
 

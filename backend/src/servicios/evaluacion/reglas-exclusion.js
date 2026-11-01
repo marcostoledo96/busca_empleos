@@ -209,7 +209,11 @@ function extraerClausulas(oferta) {
                 // Separo coordinaciones por señales, no por frases de prefijos.
                 // Los sufijos sin señal ("no excluyente") siguen con su requisito.
                 const fragmentos = [];
-                for (const parte of coordinada.split(/,|\b[ye]\b|\band\b/i)) {
+                const alternativas = [...coordinada.matchAll(new RegExp(PATRON_TECNOLOGIAS_ALTERNATIVAS.source, 'gi'))];
+                // No corto una lista explícita de alternativas por sus separadores internos.
+                const separada = coordinada.replace(/,|\b[ye]\b|\band\b/gi, (separador, indice) =>
+                    alternativas.some(item => indice >= item.index && indice < item.index + item[0].length) ? separador : '\n');
+                for (const parte of separada.split('\n')) {
                     if (fragmentos.length && !PATRON_SENAL.test(normalizarTexto(parte))) {
                         fragmentos[fragmentos.length - 1] += `, ${parte}`;
                     } else {
@@ -255,13 +259,18 @@ const PATRON_EMPRESA = /\b(?:empresa|compania|organizacion|mercado|trayectoria|c
 const PATRON_NIVELES_ALTERNATIVOS = /\b(?:ssr|semi[\s-]*senior)(?:\s*(?:\/|[-–—]|\bo\b)\s*(?:sr|senior)\b)?|\b(?:sr|senior)\s*(?:\/|[-–—]|\bo\b)\s*(?:ssr|semi[\s-]*senior)\b/gi;
 const NOMBRE_TECNOLOGIA = String.raw`[a-z][\w#+-]*(?:\s+(?:boot|ee))?`;
 const PATRON_TECNOLOGIAS_ALTERNATIVAS = new RegExp(
-    String.raw`\b(?:al\s+menos\s+un[oa]\s+(?:entre|de)\s+${NOMBRE_TECNOLOGIA}(?:\s*(?:,|\b(?:y|o|or)\b)\s*${NOMBRE_TECNOLOGIA})+|${NOMBRE_TECNOLOGIA}\s+(?:o|or)\s+${NOMBRE_TECNOLOGIA})`, 'gi');
+    String.raw`\b(?:al\s+menos\s+un[oa]\s+(?:entre|de)\s+${NOMBRE_TECNOLOGIA}(?:\s*(?:,|\b(?:y|o|or)\b)\s*${NOMBRE_TECNOLOGIA})+|${NOMBRE_TECNOLOGIA}(?:\s+(?:o|or)\s+${NOMBRE_TECNOLOGIA})+)`, 'gi');
 
 function esAlternativa(texto, tipo, coincidencia) {
     const patron = tipo === 'seniority' ? PATRON_NIVELES_ALTERNATIVOS : PATRON_TECNOLOGIAS_ALTERNATIVAS;
     return [...texto.matchAll(new RegExp(patron.source, 'gi'))].some(alternativa => {
         if (coincidencia.index < alternativa.index || coincidencia.index >= alternativa.index + alternativa[0].length) return false;
         if (tipo === 'seniority') return true;
+        const antesOpcion = texto.slice(alternativa.index, coincidencia.index);
+        const despuesOpcion = texto.slice(coincidencia.index + coincidencia[0].length);
+        // Una obligación propia coordinada no es otra opción de la lista.
+        if (/(?:,|\by\b)\s*$/.test(antesOpcion)
+            && new RegExp(`^\\s*(?:${PATRON_OBLIGATORIO.source})`).test(despuesOpcion)) return false;
         const tecnologias = alternativa[0].replace(/^al\s+menos\s+un[oa]\s+(?:entre|de)\s+/, '')
             .split(/\s*(?:,|\b(?:y|o|or)\b)\s*/);
         // Si todas las opciones son del ecosistema Java, conservo la exclusión.
@@ -566,7 +575,15 @@ function evaluarReglasExclusion(oferta, preferencias) {
     // Conservo las dos fuentes; el metadato contradictorio no decide por sí solo.
     const junior = extraerClausulas(oferta).find(clausula =>
         [...clausula.texto.matchAll(/\b(?:junior|trainee)\b/g)]
-            .some(coincidencia => esRequisito(clausula, 'seniority', coincidencia)));
+            .some(coincidencia => {
+                if (!esRequisito(clausula, 'seniority', coincidencia)) return false;
+                const antes = clausula.texto.slice(0, coincidencia.index);
+                const ultimaVacante = [...antes.matchAll(/\b(?:busca\w*|queremos|puesto|posicion|rol|vacante)\b/g)].at(-1)?.index ?? -1;
+                const negacion = [...antes.matchAll(/\bno\s+(?:se\s+)?(?:busca\w*|queremos)\b/g)].at(-1);
+                const ultimoAjeno = [...antes.matchAll(new RegExp(`${PATRON_EMPRESA.source}|${PATRON_MENTORIA.source}|\\b(?:equipo|team|capacita\\w*|ensen\\w*|formar\\w*)\\b`, 'g'))].at(-1)?.index ?? -1;
+                // El rol nominal de un mentoreado no reabre la vacante buscada.
+                return (!negacion || negacion.index + negacion[0].length <= ultimaVacante) && ultimoAjeno <= ultimaVacante;
+            }));
     const conflicto = junior && /^(?:senior|sr)$/i.test(String(oferta.nivel_requerido || '').trim()) ? [{
         requisito: 'Conflicto de seniority',
         tipo: 'desconocido',

@@ -8,7 +8,29 @@ const crearOferta = cambios => ({
     modalidad: 'remoto',
     ...cambios,
 });
+const casosF1 = [
+    ['F1 lista con obligación Java coordinada', { descripcion: 'Se requiere dominio de al menos uno entre Java, Spring Boot y TypeScript y Java obligatorio' }, 'java'],
+    ['F1 lista con obligación Java tras coma', { descripcion: 'Se requiere dominio de al menos uno entre Java, Spring Boot y TypeScript, Java obligatorio' }, 'java'],
+    ['F1 cadena Java/Spring/TypeScript', { descripcion: 'Se requiere Java o Spring Boot o TypeScript' }, null],
+    ['F1 cadena Java/TypeScript/Spring', { descripcion: 'Java o TypeScript o Spring Boot' }, null],
+    ['F1 cadena inglesa', { descripcion: 'Required proficiency in Java or Spring Boot or TypeScript' }, null],
+    ['F1 cadena exclusivamente Java', { descripcion: 'Se requiere Java o Spring Boot o Hibernate' }, 'java'],
+    ['F1 conjunción obligatoria', { descripcion: 'Java y TypeScript obligatorios' }, 'java'],
+    ['F1 obligación en misma cláusula', { descripcion: 'Se requiere Java o Spring Boot o TypeScript y Java obligatorio' }, 'java'],
+    ['F1 obligación independiente', { descripcion: 'Se requiere Java o Spring Boot o TypeScript; Java obligatorio.' }, 'java'],
+    ['F1 lista uno entre', { descripcion: 'Se requiere dominio de al menos uno entre Java, Spring Boot y TypeScript' }, null],
+];
+const casosF2 = [
+    ['F2 no se buscan', 'No se buscan desarrolladores Junior; buscamos perfil Senior', 'seniority', false],
+    ['F2 no queremos', 'No queremos desarrolladores Junior; buscamos perfil Senior', 'seniority', false],
+    ['F2 empresa capacitadora', 'Somos empresa que capacita desarrolladores Junior', null, false],
+    ['F2 destinatarios de capacitación', 'Buscamos desarrollador Senior para capacitar desarrolladores Junior', 'seniority', false],
+    ['F2 conflicto real Junior', 'Buscamos desarrollador Junior con TypeScript.', null, true],
+    ['F2 Junior que capacita', 'Buscamos desarrollador Junior para capacitar usuarios.', null, true],
+    ['F2 conflicto real Trainee', 'Buscamos perfil Trainee con TypeScript.', null, true],
+];
 const casos = [
+    ...casosF1,
     ['B1 trayectoria sin empresa explícita', { descripcion: 'Tenemos experiencia de 27 años prestando servicios; buscamos trainee sin experiencia.' }, null],
     ['B1 experiencia del mentor', { descripcion: 'Trabajarás junto a un mentor con experiencia de 6 años.' }, null],
     ['B1 experiencia de profesionales', { descripcion: 'El programa incluye capacitación impartida por profesionales con 4 años de experiencia.' }, null],
@@ -65,4 +87,4 @@ const casos = [
 ];
 const conflicto = crearOferta({ nivel_requerido: 'Senior', descripcion: 'Buscamos desarrollador Junior con TypeScript.' });
 
-module.exports = { crearOferta, casos, conflicto };
+module.exports = { crearOferta, casos, conflicto, casosF1, casosF2 };

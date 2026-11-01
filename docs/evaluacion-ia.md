@@ -710,3 +710,43 @@ El recheck independiente acotado a B1–B3 pasa 92 pruebas; otras 159 quedan
 SKIPPED por selección focal, no equivalen a PASS. La suite completa se informa
 por separado en la entrega de la PR.
 
+### Corrección del comentario de auditoría F1/F2 de PR #84
+
+Reproduzco los seis ejemplos del comentario `6552708131` sobre
+`6f6bf39845848f37c174ea4475987f62621c8861`, con BASE
+`fe93b04631d85dee4aa5a952077f7021fd8adb2c`, antes de corregirlos.
+
+- **F1:** reconozco la cadena local completa «Java o Spring Boot o TypeScript»
+  (también «or»), en lugar de pares no solapados. Conservo unidas las listas
+  explícitas «al menos uno entre» al separar cláusulas. Evalúo todas sus opciones;
+  una obligación Java independiente o una cadena exclusivamente Java sigue
+  excluyendo. Esto no equivale a aprobación automática.
+- **F2:** afirmo Junior/Trainee de la vacante, no de personas que la empresa
+  capacita ni de postulantes negados mediante «No se buscan» o «No queremos».
+  No uso el rol nominal de los mentoreados para reabrir la vacante. Conservo
+  conflictos reales, incluida una vacante Junior que capacita usuarios, y el
+  rechazo de puestos Senior legítimos. No cambio porcentajes ni geografía.
+
+RED focal: **55 FAIL, 41 PASS, 1336 SKIPPED por filtro**. GREEN final:
+**1451 PASS, 0 FAIL, 0 SKIPPED**, seis suites. Verifico reglas públicas,
+pre/postevaluación, proveedor simulado que aprueba/rechaza, hits de caché y
+persistencia simulada, sin mutar ofertas ni objetos cacheados. El diferencial
+público contra `6f6bf39` conserva 20 controles con stdout, stderr y código de
+salida idénticos. Mantengo `evaluacion-v5`: esta corrección integra el mismo
+contrato aún no mergeado. No heredo el PASS anterior ni afirmo reparación
+histórica; el cierre final de este delta se informa al final de esta sección.
+No ejecuto proveedores, SQL real ni reevaluaciones de datos privados.
+
+**Ajuste de límites F1 tras verificación independiente:** una lista explícita
+no absorbe `Java obligatorio` coordinado después de «y» o coma. Conservo esa
+obligación local aunque el reconocimiento de alternativas abarque su texto;
+no convierto un sufijo colectivo de una cadena «o/or» en Java obligatorio.
+Agrego las dos variantes exactas a la matriz pública existente: RED **11 FAIL,
+1450 SKIPPED por filtro**; GREEN **1461 PASS, 0 FAIL, 0 SKIPPED**, seis suites.
+El diferencial contra `6f6bf39` conserva 24 controles con stdout, stderr y código
+idénticos. No modifico F2. El recheck independiente acotado pasa **48 pruebas**,
+con 94 SKIPPED por selección; conservo el PASS anterior de los 70 checks F2 sin
+repetirlos. La suite backend completa final pasa **3299 pruebas**, con 166 SKIPPED
+y cero FAIL (88 suites PASS, 11 SKIPPED). Estas omisiones no equivalen a PASS.
+Esto no garantiza interpretar cualquier redacción.
+
