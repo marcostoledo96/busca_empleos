@@ -787,6 +787,13 @@ literales/contextuales y del candidato efectivo. Por ejemplo:
 
 - «Obtuve la Licenciatura en Sistemas.» o «Completé la Licenciatura en Sistemas.»
   acreditan esa titulación declarada; no otra ni una equivalencia académica.
+- «Soy Técnico Superior en Desarrollo de Software.» y «Soy Técnica Superior en
+  Desarrollo de Software.» acreditan únicamente su respectiva denominación exacta.
+  «Obtuve el Título de Técnico Superior en Desarrollo de Software.» acredita ese
+  mismo título. Reconozco Técnico/Técnica Superior como denominaciones académicas,
+  no cualquier puesto técnico: «Técnico de soporte» conserva su validación de capacidad.
+  Estudiante, cursada, hipótesis, citas y extractos de párrafos compuestos siguen
+  pendientes; no equiparo Técnico Superior, Tecnicatura, Licenciatura ni Ingeniería.
 - «Resido actualmente en provincia Delta.» acredita el requisito «Residir en
   provincia Delta». Sólo cambio esa forma verbal, sin inferir otra ubicación.
 - Conservo la declaración explícita autónoma del mismo requisito «…: confirmado/a»;
@@ -836,6 +843,13 @@ Se mantienen los positivos realistas «Obtuve…», «Completé…» y «Resido 
 así como los hechos técnicos y años estructurados. Las comillas de los ejemplos
 de esta documentación son tipográficas, no parte del hecho fuente autónomo.
 
+**Corrección de titulación terciaria (#82):** incremento el contrato de v11 a v12
+para no reutilizar decisiones anteriores al ajuste de elegibilidad, incluso con
+instrucciones explícitas idénticas. Cambian intencionalmente la firma de criterios
+y el hash de oferta (ambos incluyen versión), no su algoritmo ni la configuración
+del proveedor. No modifico evaluaciones históricas ni preferencias; la narrativa
+compuesta del perfil sigue requiriendo confirmación manual.
+
 **RED observado 4 FAIL/140 PASS** (dos casos exactos por proveedor y dos reinicios;
 los controles de futuro/negación en la misma línea ya pasaban). **GREEN final
 144 PASS en cuatro suites**: cada caso exacto comprueba proveedor, caché sin flag,
@@ -850,6 +864,63 @@ El recheck independiente dirigido cierra el bloqueo con **144 PASS y 52 probes
 públicos PASS**, sin fallos; compara la fuente final con la probada. El navegador
 pasó 7 controles sobre la UI sin cambios, sin repetirlos por cambios sólo backend.
 No se abrió otra auditoría general ni se modificó UI/parser #81/esquema.
+
+### Formación confirmada dentro del perfil (#82, contrato v13)
+
+Reconozco una única excepción explícita al límite del párrafo compuesto, dentro
+del mismo `perfil_profesional` string. El formato completo es exactamente:
+
+```text
+Formación confirmada:
+Soy Técnico Superior en Desarrollo de Software.
+
+Experiencia y proyectos:
+Desarrollo una aplicación con TypeScript. Documento sus pruebas y proyectos.
+```
+
+Los datos del ejemplo son inventados. Conservo todo el relato original, incluidos
+sus saltos de línea y espacios, en el perfil efectivo y el prompt; no agrego campos
+persistentes, migraciones ni cambios de preferencias. Sólo normalizo CRLF a LF en
+la lectura interna del marco, sin cambiar los bytes de la entrada.
+
+Exijo encabezados exactos (mayúsculas y tildes incluidas), únicos, en ese orden,
+desde el primer carácter del perfil; una sola línea de afirmación, una línea vacía
+y un relato no vacío. La línea académica empieza por una letra, no por marcadores de
+lista o encabezado. Prefijos visibles/ocultos, envolturas con comillas o cercos,
+encabezados repetidos/faltantes/invertidos, bloques vacíos y afirmaciones en varias
+líneas no habilitan la excepción. El título presente sólo en la narrativa tampoco.
+Rechazo en crudo la línea académica con marcador de cita Markdown `>` inicial
+(aun precedido por espacios), backticks de código, marcadores de tachado `~~` o
+los delimitadores de comentario HTML `<!--` y `-->`, antes de normalizarla.
+Además, comparo la fuente cruda completa y la cita completa con la misma forma de
+la afirmación construida desde el requisito original. Sólo tolero NFC/NFD, mayúsculas,
+acentos latinos canónicos (incluida `İ`), espacios horizontales y un punto final
+opcional tanto en el requisito como en la afirmación y su cita; conservo
+la puntuación propia del título (por ejemplo, `C#`). No borro prefijos no latinos,
+marcas visibles como `❌`, marcas combinantes residuales ni caracteres invisibles
+para acreditar. Mantengo las salvaguardas de cláusula anteriores, sin ampliar las
+formas con puntuación que ya quedaban pendientes.
+
+La línea debe superar el mismo predicado autónomo v12 y las salvaguardas literales
+y de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior; `Obtuve la`,
+`Obtuve el`, `Completé la`, `Finalicé la`, `Me gradué de la` seguidos del requisito
+exacto, o el requisito seguido de `obtenida`, `obtenido`, `completada`, `completado`,
+`confirmado` o `confirmada`. Una mención, cursada, estudiante, pendiente, negación,
+hipótesis o cita permanece por confirmar, sin inventar rechazo ni cambiar el score.
+No equiparo Técnico, Técnica, Tecnicatura, Licenciatura o Ingeniería. El encabezado
+es una declaración del usuario, **no certificación** de egreso.
+
+Sólo incorporo la línea como fuente adicional para obligaciones académicas; no
+amplío los hechos generales que acreditan residencia o capacidades. Estas conservan
+sus reglas anteriores; tampoco traslado educación a seniority, stack, idioma o años.
+El proveedor puede citar la línea académica íntegra del marco, no extraer un título
+de párrafos ordinarios. Las declaraciones autónomas antiguas siguen admitidas.
+
+Incremento a **evaluacion-v13**: cambian intencionalmente firma de criterios y hash
+de oferta, aun con instrucciones explícitas iguales; no cambia el algoritmo ni la
+configuración del proveedor. No migro históricos ni aplico este formato a producción.
+La verificación offline usa únicamente perfiles inventados y proveedor/SQL simulados;
+no demuestra calidad de un modelo real ni equivalencia académica real.
 
 ### Auditoría V3: insuficiencia explícita con afinidad falsa (#80, comentario 6565252085)
 
