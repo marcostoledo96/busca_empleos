@@ -152,7 +152,8 @@ para validar el marco. MUST rechazar como fuente adicional los prefijos visibles
 ocultos, comillas/cercos envolventes, encabezados duplicados/faltantes/invertidos,
 bloques vacíos, líneas adicionales y títulos presentes sólo en la narrativa.
 En la línea académica nueva MUST rechazar antes de normalizar un marcador inicial
-`>` (incluso con espacios previos) o backticks de código; MUST NOT borrarlos para acreditar.
+`>` (incluso con espacios previos), backticks de código, tachado `~~` o delimitadores
+HTML `<!--` y `-->`; MUST NOT borrarlos para acreditar.
 
 La afirmación MUST superar el predicado de título actual exacto v12, sin citas y con
 salvaguardas literales/de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior;

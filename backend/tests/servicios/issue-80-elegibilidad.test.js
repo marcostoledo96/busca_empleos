@@ -643,6 +643,8 @@ test.each([
     ['cita Markdown no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`> ${afirmacionTecnica}`)], false],
     ['cita Markdown con espacios no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`  >   ${afirmacionTecnica}`)], false],
     ['código en línea no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`\`${afirmacionTecnica}\``)], false],
+    ['afirmación tachada no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`~~${afirmacionTecnica}~~`)].flatMap(perfil => [perfil, perfil.replace(/\n/g, '\r\n')]), false],
+    ['comentario HTML no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`<!--${afirmacionTecnica}-->`)].flatMap(perfil => [perfil, perfil.replace(/\n/g, '\r\n')]), false],
     ['sin equivalencia licenciatura', 'Licenciatura en Sistemas', afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], false],
     ['sin equivalencia ingeniería', 'Título de Ingeniería en Sistemas', afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], false],
     ['sin equivalencia inversa', tecnicoSuperior, 'Obtuve la Licenciatura en Sistemas.', [enmarcarFormacion('Obtuve la Licenciatura en Sistemas.')], false],
@@ -694,18 +696,28 @@ test('formación canónica: worker persiste aprobada frente al relato compuesto 
     const datos = respuesta('cumplidos', { ...item(tecnicoSuperior), evidencia_perfil: afirmacionTecnica });
     proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
     ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
-    for (const [perfil, estado] of [[`${afirmacionTecnica} ${relatoFormacion}`, 'pendiente'], [enmarcarFormacion(afirmacionTecnica), 'aprobada']]) {
-        preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: perfil });
+    for (const [perfil, estado] of [
+        [`${afirmacionTecnica} ${relatoFormacion}`, 'pendiente'],
+        [enmarcarFormacion(`~~${afirmacionTecnica}~~`), 'pendiente'],
+        [enmarcarFormacion(`<!--${afirmacionTecnica}-->`).replace(/\n/g, '\r\n'), 'pendiente'],
+        [enmarcarFormacion(afirmacionTecnica), 'aprobada'],
+    ]) {
+        const perfilSintetico = { ...prefs, perfil_profesional: perfil };
+        const antes = structuredClone({ perfilSintetico, oferta, datos });
+        preferencias.obtenerPreferencias.mockResolvedValue(perfilSintetico);
         const resumen = await servicio.evaluarOfertasPendientes();
         expect(resumen).toEqual(expect.objectContaining({ aprobadas: estado === 'aprobada' ? 1 : 0, rechazadas: 0, errores: 0, evaluadas: 1, procesadas: 1, pendientes: 0, porcentaje: 100, estado: 'completado' }));
         const guardada = ofertas.actualizarEvaluacion.mock.calls.at(-1);
         expect(guardada).toEqual([oferta.id, estado, estado === 'aprobada' ? datos.razon : `Pendiente de confirmación: ${tecnicoSuperior}. Afinidad técnica estimada: 91%.`, 91, null, estado === 'aprobada' ? expect.any(Object) : null, expect.any(String), expect.any(Object), oferta.descripcion]);
         expect(guardada[7][estado === 'aprobada' ? 'cumplidos' : 'por_confirmar']).toEqual([expect.objectContaining({ requisito: tecnicoSuperior })]);
         expect(guardada[7].exclusiones).toEqual([]);
+        expect(guardada[7].no_cumplidos).toEqual([]);
+        expect(guardada[7][estado === 'aprobada' ? 'por_confirmar' : 'cumplidos']).toEqual([]);
+        expect({ perfilSintetico, oferta, datos }).toEqual(antes);
         expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ aprobadas: resumen.aprobadas, rechazadas: 0, errores: 0, procesadas: 1, evaluadas: 1 }));
         expect(lotes.finalizarLote).toHaveBeenLastCalledWith(80, 'completado');
     }
-    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(4);
     expect(pool.query).not.toHaveBeenCalled();
 });
 

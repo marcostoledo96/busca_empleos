@@ -137,8 +137,8 @@ function extraerFormacionConfirmada(perfil) {
     const texto = perfil.replace(/\r\n/g, '\n');
     if (texto.split('Formación confirmada:').length !== 2 || texto.split('Experiencia y proyectos:').length !== 2) return null;
     const bloque = texto.match(/^Formación confirmada:\n([^\r\n]+)\n\nExperiencia y proyectos:\n([\s\S]+)$/);
-    // Rechazo citas Markdown antes de que la normalización borre sus marcadores.
-    if (!bloque || /^\s*>|`/.test(bloque[1])) return null;
+    // Rechazo citas, tachados y texto oculto antes de que la normalización borre sus marcadores.
+    if (!bloque || /^\s*>|`|~~|<!--|-->/.test(bloque[1])) return null;
     return bloque[1].trim() && bloque[2].trim() ? bloque[1] : null;
 }
 

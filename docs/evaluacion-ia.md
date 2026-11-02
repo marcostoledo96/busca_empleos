@@ -889,7 +889,8 @@ y un relato no vacío. Prefijos visibles/ocultos, envolturas con comillas o cerc
 encabezados repetidos/faltantes/invertidos, bloques vacíos y afirmaciones en varias
 líneas no habilitan la excepción. El título presente sólo en la narrativa tampoco.
 Rechazo en crudo la línea académica con marcador de cita Markdown `>` inicial
-(aun precedido por espacios) o backticks de código, antes de normalizarla.
+(aun precedido por espacios), backticks de código, marcadores de tachado `~~` o
+los delimitadores de comentario HTML `<!--` y `-->`, antes de normalizarla.
 
 La línea debe superar el mismo predicado autónomo v12 y las salvaguardas literales
 y de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior; `Obtuve la`,
