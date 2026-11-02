@@ -146,6 +146,32 @@ function esRequisitoAcademico(requisito) {
     return /\b(?:tecnic[oa] superior|licenciatura|licenciad[oa]|titulo|titulacion|grado|doctorado|maestria|tecnicatura)\b/.test(requisito);
 }
 
+function formasAfirmacionAcademica(requisito, tituloSuperior) {
+    return [
+        ...(tituloSuperior ? [`soy ${requisito}`] : []),
+        ...['obtuve la ', 'obtuve el ', 'complete la ', 'finalice la ', 'me gradue de la '].map(prefijo => `${prefijo}${requisito}`),
+        ...[' confirmado', ' confirmada', ' obtenida', ' obtenido', ' completada', ' completado'].map(sufijo => `${requisito}${sufijo}`),
+    ];
+}
+
+/** Tolero sólo diferencias tipográficas; no borro puntuación ni marcas semánticas. */
+function plegarAfirmacionLiteral(texto) {
+    if (typeof texto !== 'string') return null;
+    return texto.normalize('NFC').replace(/\p{L}/gu, letra => {
+        const descompuesta = letra.normalize('NFD');
+        return /^[a-z][\u0300-\u036f]+$/i.test(descompuesta) ? descompuesta[0] : letra;
+    }).toLowerCase().replace(/[\t\p{Zs}]+/gu, ' ').replace(/^ +| +$/g, '');
+}
+
+function acreditarFormacionLiteral(requisito, evidencia, fuente) {
+    const titulo = plegarAfirmacionLiteral(requisito)?.replace(/\.$/, '');
+    const cita = plegarAfirmacionLiteral(evidencia);
+    const afirmacion = plegarAfirmacionLiteral(fuente);
+    if (!titulo || !cita || !afirmacion) return false;
+    return formasAfirmacionAcademica(titulo, /\btecnic[oa] superior\b/.test(titulo)).some(forma =>
+        [forma, `${forma}.`].includes(afirmacion) && [forma, `${forma}.`].includes(cita));
+}
+
 /** Exijo una afirmación completa del hecho actual; una mención literal no acredita título ni residencia. */
 function acreditarHechoActual(requisito, evidencia, hechos) {
     const tituloSuperior = /\btecnic[oa] superior\b/.test(requisito);
@@ -156,10 +182,7 @@ function acreditarHechoActual(requisito, evidencia, hechos) {
     if (!hechos.some(texto => typeof texto === 'string' && !/[«»“”"'‘’\r\n]/.test(texto.trim())
         && normalizarTextoComparacion(texto) === evidencia)) return false;
     const confirmado = [' confirmado', ' confirmada'].some(sufijo => evidencia === `${requisito}${sufijo}`);
-    if (titulacion) return confirmado
-        || (tituloSuperior && evidencia === `soy ${requisito}`)
-        || ['obtuve la ', 'obtuve el ', 'complete la ', 'finalice la ', 'me gradue de la '].some(prefijo => evidencia === `${prefijo}${requisito}`)
-        || [' obtenida', ' obtenido', ' completada', ' completado'].some(sufijo => evidencia === `${requisito}${sufijo}`);
+    if (titulacion) return formasAfirmacionAcademica(requisito, tituloSuperior).includes(evidencia);
     const lugar = requisito.match(/^(?:residir|residencia(?: actual)?) (en .+)$/)?.[1];
     return confirmado || Boolean(lugar && ['resido ', 'resido actualmente ', 'vivo actualmente ']
         .some(prefijo => evidencia === `${prefijo}${lugar}`));
@@ -206,7 +229,9 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 && [candidato.perfil_profesional, candidato.limitaciones_explicitas].some(texto => contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
                 && ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => perfil === `${prefijo}${requisito}`);
             // La nueva fuente sólo participa en obligaciones académicas, nunca en residencia o capacidades.
-            const fuentesCumplimiento = esRequisitoAcademico(requisito) && formacionConfirmada ? [...hechos, formacionConfirmada] : hechos;
+            const fuentesCumplimiento = esRequisitoAcademico(requisito) && formacionConfirmada
+                && acreditarFormacionLiteral(item.requisito, item.evidencia_perfil, formacionConfirmada)
+                ? [...hechos, formacionConfirmada] : hechos;
             const cumplimientoAcreditado = ofertaAcreditada && acreditarHechoActual(requisito, perfil, fuentesCumplimiento)
                 // Mantengo procedencia literal y cláusula autónoma también para la línea académica.
                 && fuentesCumplimiento.some(texto => typeof texto === 'string' && contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))

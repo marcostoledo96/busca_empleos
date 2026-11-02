@@ -155,6 +155,14 @@ La línea MUST empezar por una letra, no por prefijos de lista o encabezado.
 En la línea académica nueva MUST rechazar antes de normalizar un marcador inicial
 `>` (incluso con espacios previos), backticks de código, tachado `~~` o delimitadores
 HTML `<!--` y `-->`; MUST NOT borrarlos para acreditar.
+MUST comparar fuente cruda completa y cita completa contra la misma afirmación
+permitida construida desde el requisito original, antes de la normalización destructiva.
+MAY tolerar NFC/NFD, caso, acentos latinos canónicos (incluida `İ`), espacios
+horizontales y un punto final opcional en requisito, afirmación y cita.
+MUST conservar la puntuación interna del título (por ejemplo `C#` o `.NET`)
+y MUST NOT descartar prefijos no latinos, `❌`, marcas combinantes residuales o
+caracteres invisibles para acreditar. MUST conservar las salvaguardas de cláusula
+previas, sin ampliar formas con puntuación antes pendientes.
 
 La afirmación MUST superar el predicado de título actual exacto v12, sin citas y con
 salvaguardas literales/de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior;

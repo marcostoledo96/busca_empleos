@@ -892,6 +892,14 @@ líneas no habilitan la excepción. El título presente sólo en la narrativa ta
 Rechazo en crudo la línea académica con marcador de cita Markdown `>` inicial
 (aun precedido por espacios), backticks de código, marcadores de tachado `~~` o
 los delimitadores de comentario HTML `<!--` y `-->`, antes de normalizarla.
+Además, comparo la fuente cruda completa y la cita completa con la misma forma de
+la afirmación construida desde el requisito original. Sólo tolero NFC/NFD, mayúsculas,
+acentos latinos canónicos (incluida `İ`), espacios horizontales y un punto final
+opcional tanto en el requisito como en la afirmación y su cita; conservo
+la puntuación propia del título (por ejemplo, `C#`). No borro prefijos no latinos,
+marcas visibles como `❌`, marcas combinantes residuales ni caracteres invisibles
+para acreditar. Mantengo las salvaguardas de cláusula anteriores, sin ampliar las
+formas con puntuación que ya quedaban pendientes.
 
 La línea debe superar el mismo predicado autónomo v12 y las salvaguardas literales
 y de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior; `Obtuve la`,

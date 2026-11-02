@@ -634,9 +634,24 @@ test.each([
 const relatoFormacion = 'Desarrollo una aplicación con TypeScript.\nDocumento sus pruebas y proyectos.  ';
 const enmarcarFormacion = (afirmacion, relato = relatoFormacion) => `Formación confirmada:\n${afirmacion}\n\nExperiencia y proyectos:\n${relato}`;
 const afirmacionTecnica = `Soy ${tecnicoSuperior}.`;
+const casosCrudosB3 = [
+    ['prefijo cirílico Ж', `Ж ${afirmacionTecnica}`],
+    ['prefijo ideográfico 界', `界 ${afirmacionTecnica}`],
+    ['marca final ❌', `${afirmacionTecnica} ❌`],
+];
 
 test.each([
     ['denominación exacta', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], true],
+    ['preservación punto del requisito sin punto en afirmación', `${tecnicoSuperior}.`, `Soy ${tecnicoSuperior}`, [enmarcarFormacion(`Soy ${tecnicoSuperior}`), enmarcarFormacion(`Soy ${tecnicoSuperior}`).replace(/\n/g, '\r\n')], true],
+    ['preservación İ latina con acento canónico', 'Técnico Superior en Informática', 'Soy Técnico Superior en İNFORMÁTICA.', [enmarcarFormacion('Soy Técnico Superior en İNFORMÁTICA.')], true],
+    ...casosCrudosB3.map(([nombre, texto]) => [`B3 fuente ${nombre}`, tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(texto), enmarcarFormacion(texto).replace(/\n/g, '\r\n')], false]),
+    ...casosCrudosB3.map(([nombre, texto]) => [`B3 cita ${nombre}`, tecnicoSuperior, texto, [enmarcarFormacion(afirmacionTecnica), enmarcarFormacion(afirmacionTecnica).replace(/\n/g, '\r\n')], false]),
+    ['NFD con encabezados NFC y tipografía benigna', tecnicoSuperior, afirmacionTecnica.normalize('NFD'), [
+        enmarcarFormacion(afirmacionTecnica.normalize('NFD')),
+        enmarcarFormacion(`  SOY\t${tecnicoSuperior.toUpperCase()}  `),
+    ], true],
+    ['puntuación literal C#', 'Técnico Superior en C#', 'Soy Técnico Superior en C#.', [enmarcarFormacion('Soy Técnico Superior en C#.')], true],
+    ['marcas no tipográficas', tecnicoSuperior, afirmacionTecnica, ['\u0338', '\u200b', '\u2028'].map(marca => enmarcarFormacion(`Soy${marca} ${tecnicoSuperior}.`)), false],
     ['título adquirido masculino', tituloTecnico, `Obtuve el ${tituloTecnico}.`, [enmarcarFormacion(`Obtuve el ${tituloTecnico}.`)], true],
     ['denominación femenina exacta', tecnicaSuperior, `Soy ${tecnicaSuperior}.`, [enmarcarFormacion(`Soy ${tecnicaSuperior}.`)], true],
     ['CRLF sin alterar fuente', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica).replace(/\n/g, '\r\n')], true],
@@ -695,18 +710,23 @@ test.each([
     }
 });
 
-test('formación canónica: worker persiste aprobada frente al relato compuesto pendiente', async () => {
+test('formación canónica: worker conserva B1/B2, rechaza fuentes/citas B3 Ж/界/❌ y admite NFD', async () => {
     const oferta = { ...ofertaBase, descripcion: `TypeScript. ${tecnicoSuperior} obligatorio.` };
     const datos = respuesta('cumplidos', { ...item(tecnicoSuperior), evidencia_perfil: afirmacionTecnica });
     proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
     ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
-    for (const [perfil, estado] of [
+    for (const [perfil, estado, evidencia = afirmacionTecnica] of [
         [`${afirmacionTecnica} ${relatoFormacion}`, 'pendiente'],
         [enmarcarFormacion(`~~${afirmacionTecnica}~~`), 'pendiente'],
         [enmarcarFormacion(`<!--${afirmacionTecnica}-->`).replace(/\n/g, '\r\n'), 'pendiente'],
         ...['-', '*', '+', '#'].map(prefijo => [enmarcarFormacion(`${prefijo} ${afirmacionTecnica}`), 'pendiente']),
+        ...casosCrudosB3.map(([, texto]) => [enmarcarFormacion(texto), 'pendiente']),
+        ...casosCrudosB3.map(([, texto]) => [enmarcarFormacion(afirmacionTecnica), 'pendiente', texto]),
+        [enmarcarFormacion(afirmacionTecnica.normalize('NFD')), 'aprobada', afirmacionTecnica.normalize('NFD')],
         [enmarcarFormacion(afirmacionTecnica), 'aprobada'],
     ]) {
+        datos.explicacion.cumplidos[0].evidencia_perfil = evidencia;
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
         const perfilSintetico = { ...prefs, perfil_profesional: perfil };
         const antes = structuredClone({ perfilSintetico, oferta, datos });
         preferencias.obtenerPreferencias.mockResolvedValue(perfilSintetico);
@@ -714,7 +734,12 @@ test('formación canónica: worker persiste aprobada frente al relato compuesto 
         expect(resumen).toEqual(expect.objectContaining({ aprobadas: estado === 'aprobada' ? 1 : 0, rechazadas: 0, errores: 0, evaluadas: 1, procesadas: 1, pendientes: 0, porcentaje: 100, estado: 'completado' }));
         const guardada = ofertas.actualizarEvaluacion.mock.calls.at(-1);
         expect(guardada).toEqual([oferta.id, estado, estado === 'aprobada' ? datos.razon : `Pendiente de confirmación: ${tecnicoSuperior}. Afinidad técnica estimada: 91%.`, 91, null, estado === 'aprobada' ? expect.any(Object) : null, expect.any(String), expect.any(Object), oferta.descripcion]);
-        expect(guardada[7][estado === 'aprobada' ? 'cumplidos' : 'por_confirmar']).toEqual([expect.objectContaining({ requisito: tecnicoSuperior })]);
+        expect(guardada[7][estado === 'aprobada' ? 'cumplidos' : 'por_confirmar']).toEqual([
+            estado === 'aprobada' ? datos.explicacion.cumplidos[0] : {
+                ...datos.explicacion.cumplidos[0], evidencia_perfil: '',
+                explicacion: 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
+            },
+        ]);
         expect(guardada[7].exclusiones).toEqual([]);
         expect(guardada[7].no_cumplidos).toEqual([]);
         expect(guardada[7][estado === 'aprobada' ? 'por_confirmar' : 'cumplidos']).toEqual([]);
@@ -722,7 +747,7 @@ test('formación canónica: worker persiste aprobada frente al relato compuesto 
         expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ aprobadas: resumen.aprobadas, rechazadas: 0, errores: 0, procesadas: 1, evaluadas: 1 }));
         expect(lotes.finalizarLote).toHaveBeenLastCalledWith(80, 'completado');
     }
-    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(8);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(15);
     expect(pool.query).not.toHaveBeenCalled();
 });
 
