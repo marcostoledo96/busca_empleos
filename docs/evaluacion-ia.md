@@ -787,6 +787,13 @@ literales/contextuales y del candidato efectivo. Por ejemplo:
 
 - «Obtuve la Licenciatura en Sistemas.» o «Completé la Licenciatura en Sistemas.»
   acreditan esa titulación declarada; no otra ni una equivalencia académica.
+- «Soy Técnico Superior en Desarrollo de Software.» y «Soy Técnica Superior en
+  Desarrollo de Software.» acreditan únicamente su respectiva denominación exacta.
+  «Obtuve el Título de Técnico Superior en Desarrollo de Software.» acredita ese
+  mismo título. Reconozco Técnico/Técnica Superior como denominaciones académicas,
+  no cualquier puesto técnico: «Técnico de soporte» conserva su validación de capacidad.
+  Estudiante, cursada, hipótesis, citas y extractos de párrafos compuestos siguen
+  pendientes; no equiparo Técnico Superior, Tecnicatura, Licenciatura ni Ingeniería.
 - «Resido actualmente en provincia Delta.» acredita el requisito «Residir en
   provincia Delta». Sólo cambio esa forma verbal, sin inferir otra ubicación.
 - Conservo la declaración explícita autónoma del mismo requisito «…: confirmado/a»;
@@ -835,6 +842,13 @@ aprueba. No borro el caso compuesto ni cambio la titulación/residencia afirmada
 Se mantienen los positivos realistas «Obtuve…», «Completé…» y «Resido actualmente…»,
 así como los hechos técnicos y años estructurados. Las comillas de los ejemplos
 de esta documentación son tipográficas, no parte del hecho fuente autónomo.
+
+**Corrección de titulación terciaria (#82):** incremento el contrato de v11 a v12
+para no reutilizar decisiones anteriores al ajuste de elegibilidad, incluso con
+instrucciones explícitas idénticas. Cambian intencionalmente la firma de criterios
+y el hash de oferta (ambos incluyen versión), no su algoritmo ni la configuración
+del proveedor. No modifico evaluaciones históricas ni preferencias; la narrativa
+compuesta del perfil sigue requiriendo confirmación manual.
 
 **RED observado 4 FAIL/140 PASS** (dos casos exactos por proveedor y dos reinicios;
 los controles de futuro/negación en la misma línea ya pasaban). **GREEN final

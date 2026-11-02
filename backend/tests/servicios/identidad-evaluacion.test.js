@@ -43,11 +43,11 @@ test.each([
     expect(firmaNueva).not.toBe(identidad.crearFirmaCriterios(prefs));
 });
 
-test('v11 invalida decisiones v10 incluso con instrucciones explícitas idénticas', () => {
+test('v12 invalida decisiones v11 incluso con instrucciones explícitas idénticas', () => {
     const opciones = { instrucciones: 'Sistema sintético explícito' };
     const actual = identidad.construirIdentidadEvaluacion(oferta, prefs, opciones);
-    const anterior = identidad.construirIdentidadEvaluacion(oferta, prefs, { ...opciones, version: 'evaluacion-v10' });
-    expect(actual.criterios.version).toBe('evaluacion-v11');
+    const anterior = identidad.construirIdentidadEvaluacion(oferta, prefs, { ...opciones, version: 'evaluacion-v11' });
+    expect(actual.criterios.version).toBe('evaluacion-v12');
     expect(actual.firma_criterios_evaluacion).not.toBe(anterior.firma_criterios_evaluacion);
 });
 

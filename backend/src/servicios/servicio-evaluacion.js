@@ -133,7 +133,8 @@ function ubicacionEnZonas(ubicacion, zonas) {
 
 /** Exijo una afirmación completa del hecho actual; una mención literal no acredita título ni residencia. */
 function acreditarHechoActual(requisito, evidencia, hechos) {
-    const titulacion = /\b(?:licenciatura|licenciad[oa]|titulo|titulacion|grado|doctorado|maestria|tecnicatura)\b/.test(requisito);
+    const tituloSuperior = /\btecnic[oa] superior\b/.test(requisito);
+    const titulacion = tituloSuperior || /\b(?:licenciatura|licenciad[oa]|titulo|titulacion|grado|doctorado|maestria|tecnicatura)\b/.test(requisito);
     const residencia = /\b(?:residir|residencia)\b/.test(requisito);
     if (!titulacion && !residencia) return contieneTokenNormalizado(evidencia, requisito);
     // shortcut: sólo acredito hechos fuente completos y sin citas; un párrafo ambiguo requiere confirmación manual.
@@ -141,7 +142,8 @@ function acreditarHechoActual(requisito, evidencia, hechos) {
         && normalizarTextoComparacion(texto) === evidencia)) return false;
     const confirmado = [' confirmado', ' confirmada'].some(sufijo => evidencia === `${requisito}${sufijo}`);
     if (titulacion) return confirmado
-        || ['obtuve la ', 'complete la ', 'finalice la ', 'me gradue de la '].some(prefijo => evidencia === `${prefijo}${requisito}`)
+        || (tituloSuperior && evidencia === `soy ${requisito}`)
+        || ['obtuve la ', 'obtuve el ', 'complete la ', 'finalice la ', 'me gradue de la '].some(prefijo => evidencia === `${prefijo}${requisito}`)
         || [' obtenida', ' obtenido', ' completada', ' completado'].some(sufijo => evidencia === `${requisito}${sufijo}`);
     const lugar = requisito.match(/^(?:residir|residencia(?: actual)?) (en .+)$/)?.[1];
     return confirmado || Boolean(lugar && ['resido ', 'resido actualmente ', 'vivo actualmente ']

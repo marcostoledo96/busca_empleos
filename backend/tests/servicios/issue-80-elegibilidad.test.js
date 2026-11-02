@@ -576,6 +576,61 @@ describe('rehidratación con modelo real de lotes y pool simulado', () => {
     });
 });
 
+const tecnicoSuperior = 'Técnico Superior en Desarrollo de Software';
+const tecnicaSuperior = 'Técnica Superior en Desarrollo de Software';
+const tituloTecnico = `Título de ${tecnicoSuperior}`;
+const tecnicaturaSuperior = 'Tecnicatura Superior en Desarrollo de Software';
+
+// Reproduzco sólo declaraciones sintéticas; no traslado perfiles personales a fixtures.
+test.each([
+    ['01 masculino', tecnicoSuperior, `Soy ${tecnicoSuperior}.`, null, true],
+    ['02 femenino', tecnicaSuperior, `Soy ${tecnicaSuperior}.`, null, true],
+    ['03 obtuve el título', tituloTecnico, `Obtuve el ${tituloTecnico}.`, null, true],
+    ['04 título obtenido', tituloTecnico, `${tituloTecnico} obtenido.`, null, true],
+    ['05 tecnicatura completada', tecnicaturaSuperior, `Completé la ${tecnicaturaSuperior}.`, null, true],
+    ['06 estudiante de tecnicatura', tecnicaturaSuperior, `Soy estudiante de ${tecnicaturaSuperior}.`, null, false],
+    ['07 estudiante de técnico', tecnicoSuperior, `Soy estudiante de ${tecnicoSuperior}.`, null, false],
+    ['08 carrera en curso', tecnicoSuperior, `Actualmente curso la carrera de ${tecnicoSuperior}.`, null, false],
+    ['09 pendiente de finalizar', tecnicoSuperior, `${tecnicoSuperior} pendiente de finalizar.`, null, false],
+    ['10 hipótesis', tecnicoSuperior, `Cuando termine podré afirmar que soy ${tecnicoSuperior}.`, null, false],
+    ['11 cita hipotética', tecnicoSuperior, `Cuando termine podré decir: «Soy ${tecnicoSuperior}».`, `Soy ${tecnicoSuperior}`, false],
+    ['12 sin equivalencia licenciatura', 'Licenciatura en Sistemas', `Soy ${tecnicoSuperior}.`, null, false],
+    ['13 sin equivalencia ingeniería', 'Título de Ingeniería en Sistemas', `Soy ${tecnicoSuperior}.`, null, false],
+    ['14 tecnicatura compuesta', tecnicaturaSuperior, `Completé la ${tecnicaturaSuperior}. Desarrollo aplicaciones con TypeScript.`, `Completé la ${tecnicaturaSuperior}.`, false],
+    ['15 técnico compuesto', tecnicoSuperior, `Soy ${tecnicoSuperior}. Desarrollo aplicaciones con TypeScript.`, `Soy ${tecnicoSuperior}.`, false],
+    ['16 evidencia inventada', tecnicoSuperior, 'Desarrollo aplicaciones con TypeScript.', `Soy ${tecnicoSuperior}.`, false],
+    ['17 capacidad no educativa', 'Técnico de soporte', 'Trabajo como Técnico de soporte.', null, true],
+])('titulación terciaria %s: contrato público exacto sin mutaciones', async (caso, requisito, perfil, evidencia, aprobado) => {
+    const perfilSintetico = { ...prefs, perfil_profesional: perfil };
+    const oferta = { ...ofertaBase, descripcion: `Desarrollo con TypeScript. Requisito obligatorio: ${requisito}.` };
+    const cumplimiento = { ...item(requisito), evidencia_perfil: evidencia ?? perfil };
+    const datos = { ...respuesta('cumplidos', cumplimiento), porcentaje: 80, razon: 'Afinidad técnica sintética.' };
+    const antes = structuredClone({ perfilSintetico, oferta, datos });
+    const progreso = servicio.obtenerProgresoEvaluacion();
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+    const resultado = await servicio.evaluarOferta(oferta, undefined, undefined, perfilSintetico, { forzar: true, diferirCache: true });
+    const esperado = aprobado ? cumplimiento : {
+        ...cumplimiento, evidencia_perfil: '',
+        explicacion: 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
+    };
+    expect(resultado).toEqual({
+        match: true, porcentaje: 80,
+        razon: aprobado ? datos.razon : `Pendiente de confirmación: ${requisito}. Afinidad técnica estimada: 80%.`,
+        prioridad_ia: aprobado ? { detectada: false, puntaje: 0, categorias: [], evidencias: [], version: 'prioridad-ia-v1' } : null,
+        explicacion: { cumplidos: aprobado ? [esperado] : [], no_cumplidos: [], por_confirmar: aprobado ? [] : [esperado], exclusiones: [] },
+        desglose_disponible: true,
+        firma_criterios_evaluacion: construirIdentidadEvaluacion(oferta, perfilSintetico).firma_criterios_evaluacion,
+        ...(!aprobado ? { pendiente: true } : {}),
+    });
+    expect({ perfilSintetico, oferta, datos }).toEqual(antes);
+    expect(servicio.obtenerProgresoEvaluacion()).toEqual(progreso);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    for (const modelo of [ofertas, preferencias, cache, lotes, pool]) {
+        for (const metodo of Object.values(modelo)) expect(metodo).not.toHaveBeenCalled();
+    }
+    expect(console.error).not.toHaveBeenCalled();
+});
+
 test('instruyo separar evidencia del aviso de cumplimiento y suficiencia, sin equivalencias inventadas', () => {
     const instrucciones = construirInstruccionesDesdePreferencias(prefs);
     expect(instrucciones).toContain('Una cita de la oferta prueba el requisito, no el cumplimiento del candidato');

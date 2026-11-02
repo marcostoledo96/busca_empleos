@@ -104,10 +104,40 @@ El prompt de evaluación MUST indicar que Next.js pertenece al stack/perfil y qu
 - WHEN el sistema construye el prompt
 - THEN MUST NOT incluir instrucciones, pesos ni umbrales de scoring previo.
 
+### Requirement: Titulación específica actual y autónoma
+
+El sistema MUST validar Técnico/Técnica Superior como denominaciones académicas
+específicas, sin equipararlas a Tecnicatura, Licenciatura o Ingeniería. MUST exigir
+una afirmación actual del mismo requisito y una fuente íntegra autónoma sin citas.
+MUST NOT extraer un título de un párrafo compuesto, hipotético o negado, ni acreditar
+una cursada o condición de estudiante como título obtenido. La capacidad genérica
+«Técnico de soporte» MUST conservar su validación no educativa.
+
+#### Scenario: denominación exacta afirmada
+
+- GIVEN el requisito «Técnico Superior en Desarrollo de Software» o su denominación femenina exacta
+- AND el perfil declara autónomamente «Soy Técnico Superior en Desarrollo de Software.» o, respectivamente, «Soy Técnica Superior en Desarrollo de Software.»
+- WHEN el proveedor cita esa declaración como cumplimiento
+- THEN el sistema MUST conservar el cumplimiento del mismo requisito, no una equivalencia.
+
+#### Scenario: título obtenido con artículo masculino
+
+- GIVEN el requisito «Título de Técnico Superior en Desarrollo de Software»
+- AND el perfil declara autónomamente «Obtuve el Título de Técnico Superior en Desarrollo de Software.»
+- WHEN el sistema valida el cumplimiento
+- THEN MUST admitir esa afirmación sin perder las formas femeninas previamente admitidas.
+
+#### Scenario: formación no acreditada
+
+- GIVEN evidencia de estudiante, cursada, hipótesis, cita, párrafo compuesto o título distinto
+- WHEN el proveedor afirma cumplimiento de una titulación obligatoria
+- THEN el sistema MUST dejarla por confirmar, sin inventar incompatibilidad ni alterar el porcentaje de afinidad.
+
 ## Traceability to Tests
 
 | Scenario | Suggested test |
 |---|---|
+| denominación exacta afirmada; título obtenido con artículo masculino; formación no acreditada | `backend/tests/servicios/issue-80-elegibilidad.test.js` |
 | oferta compatible recibe bonus IA | `backend/tests/servicios/servicio-evaluacion.test.js` |
 | bonus IA no anula Java excluyente | `backend/tests/servicios/servicio-evaluacion.test.js` |
 | bonus IA no anula seniority o experiencia excluyente | `backend/tests/servicios/servicio-evaluacion.test.js` |
