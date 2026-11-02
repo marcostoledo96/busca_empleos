@@ -15,6 +15,7 @@ const {
     normalizarOfertaGetonbrd,
     normalizarOfertaJooble,
     normalizarOfertaAdzuna,
+    normalizarOfertaGoogleJobs,
     normalizarLote,
     detectarIdioma,
     _canonizarUrlLinkedin,
@@ -1292,5 +1293,51 @@ describe('Servicio de normalización', () => {
             const normalizada = normalizarOfertaComputrabajo(item, ahora);
             expect(normalizada.fecha_publicacion).toBeNull();
         });
+    });
+});
+
+describe('normalizarOfertaGoogleJobs', () => {
+    // Fila real de johnvc/google-jobs-scraper (recortada): no trae
+    // application_link; el link para postularse viene en apply_options.
+    const itemGoogleJobs = {
+        title: 'Data Analyst – Analytics Engineering & AI',
+        company_name: 'Thermo Fisher Scientific',
+        location: 'Bengaluru, Karnataka, India',
+        via: 'Thermo Fisher Scientific',
+        description: 'Work Schedule\n\nStandard (Mon-Fri)',
+        share_link: 'https://www.google.com/search?ibp=htl;jobs&q=Data+Analyst+jobs+in+India&htidocid=yPy5PihjhiZpLrPMAAAAAA%3D%3D',
+        extensions: ['12 days ago', 'Full-time'],
+        source_link: 'https://jobs.thermofisher.com/global/en/job/R-01369315/Data-Analyst-Analytics-Engineering-AI',
+        apply_options: [
+            {
+                title: 'Thermo Fisher Scientific',
+                link: 'https://jobs.thermofisher.com/global/en/job/R-01369315/Data-Analyst-Analytics-Engineering-AI?utm_campaign=google_jobs_apply&utm_source=google_jobs_apply&utm_medium=organic',
+            },
+            {
+                title: 'Foundit',
+                link: 'https://www.foundit.in/job/data-analyst-analytics-engineering-ai-thermo-fisher-scientific-bengaluru-bangalore-69326309',
+            },
+        ],
+    };
+
+    test('usa el primer link de apply_options como URL', () => {
+        const oferta = normalizarOfertaGoogleJobs(itemGoogleJobs);
+        expect(oferta.plataforma).toBe('google_jobs');
+        expect(oferta.titulo).toBe('Data Analyst – Analytics Engineering & AI');
+        expect(oferta.empresa).toBe('Thermo Fisher Scientific');
+        expect(oferta.url).toContain('jobs.thermofisher.com/global/en/job/R-01369315');
+    });
+
+    test('sin apply_options usa source_link y después share_link', () => {
+        const { apply_options, ...sinOpciones } = itemGoogleJobs;
+        expect(normalizarOfertaGoogleJobs(sinOpciones).url)
+            .toContain('jobs.thermofisher.com/global/en/job/R-01369315');
+
+        const { source_link, ...soloGoogle } = sinOpciones;
+        expect(normalizarOfertaGoogleJobs(soloGoogle).url).toContain('google.com/search');
+    });
+
+    test('sin ningún link sigue lanzando error', () => {
+        expect(() => normalizarOfertaGoogleJobs({ title: 'Sin link' })).toThrow();
     });
 });

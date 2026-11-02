@@ -1028,12 +1028,18 @@ function detectarModalidadGetonbrd(modalidad) {
  * @throws {Error} Si el item no tiene URL.
  */
 function normalizarOfertaGoogleJobs(item) {
-    // johnvc/google-jobs-scraper devuelve: title, company_name, location,
-    // description, application_link, salary (string), job_type, posted_date,
-    // company_logo, requirements.
-    const urlCruda = item.application_link || null;
+    // johnvc/google-jobs-scraper devuelve: title, company_name, location, via,
+    // description, apply_options ([{ title, link }]), source_link, share_link,
+    // extensions (ej: ["12 days ago", "Full-time"]) y job_id. No trae
+    // application_link: uso el primer link de postulación, después el de la
+    // fuente y, como último recurso, el link de Google Jobs.
+    const urlCruda = item.application_link
+        || item.apply_options?.[0]?.link
+        || item.source_link
+        || item.share_link
+        || null;
     if (!urlCruda) {
-        throw new Error('El item de Google Jobs no tiene application_link.');
+        throw new Error('El item de Google Jobs no tiene link de postulación.');
     }
 
     const url = canonizarUrlPlataforma(urlCruda, 'google_jobs');
