@@ -201,9 +201,11 @@ function contieneTokenNormalizado(textoNormalizado, evidenciaNormalizada) {
  * con punto como "Node.js" o "ASP.NET".
  *
  * @param {string} textoOferta - Texto del aviso.
- * @returns {string[]} Lista de cláusulas normalizadas para verificación contextual.
+ * @param {boolean} [conOrigen=false] - Conservo rangos fuente para validar citas que abarcan varias cláusulas.
+ * @returns {Array} Cláusulas normalizadas o registros con texto contextual y rango fuente.
  */
-function extraerClausulasConContexto(textoOferta) {
+function extraerClausulasConContexto(textoOferta, conOrigen = false) {
+    conOrigen = conOrigen === true;
     if (typeof textoOferta !== 'string' || !textoOferta.trim()) {
         return [];
     }
@@ -215,6 +217,13 @@ function extraerClausulasConContexto(textoOferta) {
 
     const lineas = textoConSaltos.split(/\r?\n+/);
     const clausulas = [];
+    const origen = normalizarTextoComparacion(textoConSaltos);
+    let cursorOrigen = 0;
+    const agregar = (texto, literal, desde, encabezado = false) => {
+        if (!conOrigen) return clausulas.push(texto);
+        const inicio = origen.indexOf(literal, desde);
+        if (inicio >= 0) clausulas.push({ texto, inicio, fin: inicio + literal.length, encabezado });
+    };
     let seccionActual = null; // 'opcional' | 'obligatoria' | null
 
     for (const lineaCruda of lineas) {
@@ -223,6 +232,9 @@ function extraerClausulasConContexto(textoOferta) {
 
         const lineaNorm = normalizarTextoComparacion(linea);
         if (!lineaNorm) continue;
+        const inicioLinea = origen.indexOf(lineaNorm, cursorOrigen);
+        cursorOrigen = inicioLinea + lineaNorm.length;
+        let cursorParte = inicioLinea;
 
         let lineaAProcesar = linea;
         let huboEncabezadoEnLinea = false;
@@ -252,6 +264,8 @@ function extraerClausulasConContexto(textoOferta) {
                     seccionActual = null;
                 }
 
+                if (conOrigen) agregar(encabezadoNorm, encabezadoNorm, inicioLinea, true);
+                cursorParte = inicioLinea + encabezadoNorm.length;
                 if (!contenidoRestante) {
                     // Si no hay contenido tras los dos puntos, es un encabezado puro de lista
                     continue;
@@ -278,6 +292,7 @@ function extraerClausulasConContexto(textoOferta) {
                 } else {
                     seccionActual = null;
                 }
+                if (conOrigen) agregar(lineaNorm, lineaNorm, inicioLinea, true);
                 continue;
             }
         }
@@ -298,13 +313,10 @@ function extraerClausulasConContexto(textoOferta) {
             const parteNorm = normalizarTextoComparacion(parte);
             if (!parteNorm) continue;
 
-            if (seccionActual === 'opcional') {
-                clausulas.push(`deseable ${parteNorm}`);
-            } else if (seccionActual === 'obligatoria') {
-                clausulas.push(`obligatorio ${parteNorm}`);
-            } else {
-                clausulas.push(parteNorm);
-            }
+            const contextual = seccionActual === 'opcional' ? `deseable ${parteNorm}`
+                : seccionActual === 'obligatoria' ? `obligatorio ${parteNorm}` : parteNorm;
+            agregar(contextual, parteNorm, cursorParte);
+            cursorParte = origen.indexOf(parteNorm, cursorParte) + parteNorm.length;
         }
 
         // Si el encabezado inline contenía un párrafo extenso sin viñeta, restablecemos para siguientes líneas
@@ -374,8 +386,23 @@ function validarCoherenciaRespuesta(match, porcentaje, explicacion, textoOferta 
                     const oraciones = extraerClausulasConContexto(textoOferta);
                     const oracionesConEvidencia = oraciones.filter((o) => contieneTokenNormalizado(o, evidenciaNormalizada));
 
-                    // Regla fail-closed: la ausencia de una cláusula que contenga completa la cita no equivale a prueba validada
                     if (oracionesConEvidencia.length === 0) {
+                        // La cita sigue siendo literal; verifico cada contexto fuente de una misma aparición, no fragmentos sueltos.
+                        const contextos = extraerClausulasConContexto(textoOferta, true);
+                        const fuente = normalizarTextoComparacion(textoOferta
+                            .replace(/•|<li\b[^>]*>/gi, '\n- ')
+                            .replace(/<\/?(?:p|div|ul|ol|br|h[1-6])\b[^>]*>/gi, '\n'));
+                        const patron = new RegExp(`(?:^| )(${escaparRegex(evidenciaNormalizada)})(?= |$)`, 'g');
+                        for (const aparicion of fuente.matchAll(patron)) {
+                            const inicio = aparicion.index + aparicion[0].length - aparicion[1].length;
+                            const fin = inicio + evidenciaNormalizada.length;
+                            const relacionados = contextos.filter(c => c.inicio < fin && c.fin > inicio);
+                            if (!relacionados.some(c => !c.encabezado) || relacionados.some(c =>
+                                PATRON_OPCIONAL_EVIDENCIA.test(c.texto) || PATRON_NEGACION_EVIDENCIA.test(c.texto))) continue;
+                            // Fail-closed: ningún token de la cita puede quedar sin contexto reconocido.
+                            const cubierto = relacionados.reduce((hasta, c) => c.inicio <= hasta + 1 ? Math.max(hasta, c.fin) : hasta, inicio);
+                            if (cubierto >= fin) return true;
+                        }
                         return false;
                     }
 
