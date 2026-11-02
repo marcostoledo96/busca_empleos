@@ -885,7 +885,8 @@ la lectura interna del marco, sin cambiar los bytes de la entrada.
 
 Exijo encabezados exactos (mayúsculas y tildes incluidas), únicos, en ese orden,
 desde el primer carácter del perfil; una sola línea de afirmación, una línea vacía
-y un relato no vacío. Prefijos visibles/ocultos, envolturas con comillas o cercos,
+y un relato no vacío. La línea académica empieza por una letra, no por marcadores de
+lista o encabezado. Prefijos visibles/ocultos, envolturas con comillas o cercos,
 encabezados repetidos/faltantes/invertidos, bloques vacíos y afirmaciones en varias
 líneas no habilitan la excepción. El título presente sólo en la narrativa tampoco.
 Rechazo en crudo la línea académica con marcador de cita Markdown `>` inicial

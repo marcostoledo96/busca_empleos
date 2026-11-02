@@ -645,6 +645,10 @@ test.each([
     ['código en línea no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`\`${afirmacionTecnica}\``)], false],
     ['afirmación tachada no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`~~${afirmacionTecnica}~~`)].flatMap(perfil => [perfil, perfil.replace(/\n/g, '\r\n')]), false],
     ['comentario HTML no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`<!--${afirmacionTecnica}-->`)].flatMap(perfil => [perfil, perfil.replace(/\n/g, '\r\n')]), false],
+    ...['-', '*', '+', '#'].map(prefijo => [
+        `prefijo ${prefijo} en la línea no acredita egreso`, tecnicoSuperior, afirmacionTecnica,
+        [enmarcarFormacion(`${prefijo} ${afirmacionTecnica}`)].flatMap(perfil => [perfil, perfil.replace(/\n/g, '\r\n')]), false,
+    ]),
     ['sin equivalencia licenciatura', 'Licenciatura en Sistemas', afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], false],
     ['sin equivalencia ingeniería', 'Título de Ingeniería en Sistemas', afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], false],
     ['sin equivalencia inversa', tecnicoSuperior, 'Obtuve la Licenciatura en Sistemas.', [enmarcarFormacion('Obtuve la Licenciatura en Sistemas.')], false],
@@ -700,6 +704,7 @@ test('formación canónica: worker persiste aprobada frente al relato compuesto 
         [`${afirmacionTecnica} ${relatoFormacion}`, 'pendiente'],
         [enmarcarFormacion(`~~${afirmacionTecnica}~~`), 'pendiente'],
         [enmarcarFormacion(`<!--${afirmacionTecnica}-->`).replace(/\n/g, '\r\n'), 'pendiente'],
+        ...['-', '*', '+', '#'].map(prefijo => [enmarcarFormacion(`${prefijo} ${afirmacionTecnica}`), 'pendiente']),
         [enmarcarFormacion(afirmacionTecnica), 'aprobada'],
     ]) {
         const perfilSintetico = { ...prefs, perfil_profesional: perfil };
@@ -717,7 +722,7 @@ test('formación canónica: worker persiste aprobada frente al relato compuesto 
         expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ aprobadas: resumen.aprobadas, rechazadas: 0, errores: 0, procesadas: 1, evaluadas: 1 }));
         expect(lotes.finalizarLote).toHaveBeenLastCalledWith(80, 'completado');
     }
-    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(4);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(8);
     expect(pool.query).not.toHaveBeenCalled();
 });
 

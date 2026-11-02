@@ -151,6 +151,7 @@ persistentes nuevos, migraciones ni cambios productivos. MAY normalizar CRLF só
 para validar el marco. MUST rechazar como fuente adicional los prefijos visibles u
 ocultos, comillas/cercos envolventes, encabezados duplicados/faltantes/invertidos,
 bloques vacíos, líneas adicionales y títulos presentes sólo en la narrativa.
+La línea MUST empezar por una letra, no por prefijos de lista o encabezado.
 En la línea académica nueva MUST rechazar antes de normalizar un marcador inicial
 `>` (incluso con espacios previos), backticks de código, tachado `~~` o delimitadores
 HTML `<!--` y `-->`; MUST NOT borrarlos para acreditar.
