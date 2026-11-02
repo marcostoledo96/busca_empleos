@@ -192,6 +192,22 @@ describe('Entradas para evaluación con IA', () => {
         });
     });
 
+    test('formación canónica conserva bytes y preferencias e instruye una excepción sólo académica', () => {
+        const relato = 'Desarrollo pruebas con TypeScript.\r\nMantengo proyectos.  ';
+        const perfil = `Formación confirmada:\r\nSoy Técnico Superior en Desarrollo de Software.\r\n\r\nExperiencia y proyectos:\r\n${relato}`;
+        const prefs = { ...perfilBase, nombre: 'Perfil inventado', perfil_profesional: perfil, nivel_real_seniority: 'Junior', idioma_candidato: 'Básico', anios_experiencia_reales: 0 };
+        const antes = structuredClone(prefs);
+        const efectivo = construirPerfilEfectivoCanonico(prefs);
+        const instrucciones = construirInstruccionesDesdePreferencias(prefs);
+        expect(efectivo.candidato).toEqual(expect.objectContaining({ perfil_profesional: perfil, nivel_real_seniority: 'Junior', idioma_candidato: 'Básico', anios_experiencia_reales: 0, stack_tecnologico: prefs.stack_tecnologico }));
+        expect(instrucciones).toContain(construirPerfilDesdePreferencias(prefs));
+        expect(instrucciones).toContain(JSON.stringify(perfil));
+        expect(instrucciones).toContain('Formación confirmada:\\n<una afirmación académica autónoma>\\n\\nExperiencia y proyectos:\\n<relato completo no vacío>');
+        expect(instrucciones).toContain('citá la línea académica íntegra');
+        expect(instrucciones).toContain('no acredita residencia ni otras capacidades');
+        expect(prefs).toEqual(antes);
+    });
+
     // ──────────────────────────────────────────────────────────
     // ordenarObjeto
     // ──────────────────────────────────────────────────────────

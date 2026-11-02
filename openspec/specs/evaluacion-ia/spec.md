@@ -133,10 +133,59 @@ una cursada o condición de estudiante como título obtenido. La capacidad gené
 - WHEN el proveedor afirma cumplimiento de una titulación obligatoria
 - THEN el sistema MUST dejarla por confirmar, sin inventar incompatibilidad ni alterar el porcentaje de afinidad.
 
+### Requirement: Marco académico explícito dentro del perfil existente
+
+El sistema MUST reconocer únicamente el marco completo anclado al primer carácter
+de `perfil_profesional`, con encabezados exactos y únicos en este orden:
+
+```text
+Formación confirmada:
+<una afirmación académica autónoma>
+
+Experiencia y proyectos:
+<relato completo no vacío>
+```
+
+MUST conservar el string original íntegro en el perfil efectivo y prompt, sin campos
+persistentes nuevos, migraciones ni cambios productivos. MAY normalizar CRLF sólo
+para validar el marco. MUST rechazar como fuente adicional los prefijos visibles u
+ocultos, comillas/cercos envolventes, encabezados duplicados/faltantes/invertidos,
+bloques vacíos, líneas adicionales y títulos presentes sólo en la narrativa.
+En la línea académica nueva MUST rechazar antes de normalizar un marcador inicial
+`>` (incluso con espacios previos) o backticks de código; MUST NOT borrarlos para acreditar.
+
+La afirmación MUST superar el predicado de título actual exacto v12, sin citas y con
+salvaguardas literales/de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior;
+`Obtuve la/el`, `Completé la`, `Finalicé la`, `Me gradué de la` seguidos del requisito,
+o requisito seguido de `obtenida/o`, `completada/o` o `confirmada/o`. MUST NOT inferir
+equivalencias ni acreditar estudiante, cursada, pendiente, negación o hipótesis.
+El encabezado MUST ser tratado como declaración, no certificación de egreso.
+
+La nueva fuente MUST usarse sólo para obligaciones académicas, no incorporarse a
+los hechos generales de residencia/capacidades ni trasladarse a seniority, tecnologías,
+idioma o años. MUST conservar las declaraciones autónomas y demás reglas anteriores.
+El contrato MUST ser `evaluacion-v13`, cambiando firma de criterios y hash de oferta
+sin modificar proveedor/configuración ni históricos.
+
+#### Scenario: línea académica válida y relato conservado
+
+- GIVEN el marco exacto con `Soy Técnico Superior en Desarrollo de Software.` y un relato no vacío
+- WHEN el proveedor cita íntegra esa línea para el mismo requisito académico obligatorio
+- THEN el sistema MUST conservar cumplimiento, afinidad y relato íntegro
+- AND el worker MUST persistir aprobada sin inventar datos ni alterar otros hechos.
+
+#### Scenario: marco inválido o fuente no académica
+
+- GIVEN un marco inválido, una afirmación no autónoma o un título no equivalente
+- WHEN el proveedor afirma cumplimiento académico obligatorio
+- THEN el sistema MUST dejarlo por confirmar con el porcentaje intacto y sin exclusión inventada
+- AND la excepción MUST NOT acreditar residencia ni ampliar capacidades.
+
 ## Traceability to Tests
 
 | Scenario | Suggested test |
 |---|---|
+| marco académico explícito, límites, persistencia e invariantes | `backend/tests/servicios/issue-80-elegibilidad.test.js`, `backend/tests/servicios/entradas-evaluacion.test.js` |
 | denominación exacta afirmada; título obtenido con artículo masculino; formación no acreditada | `backend/tests/servicios/issue-80-elegibilidad.test.js` |
 | oferta compatible recibe bonus IA | `backend/tests/servicios/servicio-evaluacion.test.js` |
 | bonus IA no anula Java excluyente | `backend/tests/servicios/servicio-evaluacion.test.js` |

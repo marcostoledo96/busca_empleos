@@ -631,6 +631,84 @@ test.each([
     expect(console.error).not.toHaveBeenCalled();
 });
 
+const relatoFormacion = 'Desarrollo una aplicación con TypeScript.\nDocumento sus pruebas y proyectos.  ';
+const enmarcarFormacion = (afirmacion, relato = relatoFormacion) => `Formación confirmada:\n${afirmacion}\n\nExperiencia y proyectos:\n${relato}`;
+const afirmacionTecnica = `Soy ${tecnicoSuperior}.`;
+
+test.each([
+    ['denominación exacta', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], true],
+    ['título adquirido masculino', tituloTecnico, `Obtuve el ${tituloTecnico}.`, [enmarcarFormacion(`Obtuve el ${tituloTecnico}.`)], true],
+    ['denominación femenina exacta', tecnicaSuperior, `Soy ${tecnicaSuperior}.`, [enmarcarFormacion(`Soy ${tecnicaSuperior}.`)], true],
+    ['CRLF sin alterar fuente', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica).replace(/\n/g, '\r\n')], true],
+    ['cita Markdown no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`> ${afirmacionTecnica}`)], false],
+    ['cita Markdown con espacios no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`  >   ${afirmacionTecnica}`)], false],
+    ['código en línea no acredita egreso', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`\`${afirmacionTecnica}\``)], false],
+    ['sin equivalencia licenciatura', 'Licenciatura en Sistemas', afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], false],
+    ['sin equivalencia ingeniería', 'Título de Ingeniería en Sistemas', afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica)], false],
+    ['sin equivalencia inversa', tecnicoSuperior, 'Obtuve la Licenciatura en Sistemas.', [enmarcarFormacion('Obtuve la Licenciatura en Sistemas.')], false],
+    ['no acredita cursada ni hipótesis', tecnicoSuperior, afirmacionTecnica, [
+        `Soy estudiante de ${tecnicoSuperior}.`, `Actualmente curso la carrera de ${tecnicoSuperior}.`,
+        `${tecnicoSuperior} pendiente de finalizar.`, `Todavía no obtuve el título de ${tecnicoSuperior}.`,
+        `Cuando termine podré decir: ${afirmacionTecnica}`, `«${afirmacionTecnica}»`, `${tecnicoSuperior}.`,
+    ].map(texto => enmarcarFormacion(texto)), false],
+    ['sin prefijos ni envolturas', tecnicoSuperior, afirmacionTecnica, ['Contexto previo\n', '\u200b', '\ufeff', '«', '```\n', ' '].map(prefijo => `${prefijo}${enmarcarFormacion(afirmacionTecnica)}`), false],
+    ['encabezados únicos', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(afirmacionTecnica, `${relatoFormacion}\nFormación confirmada:\n${afirmacionTecnica}`), enmarcarFormacion(afirmacionTecnica, `${relatoFormacion}\nExperiencia y proyectos:\nOtro relato.`)], false],
+    ['encabezados completos y ordenados', tecnicoSuperior, afirmacionTecnica, [`Formación confirmada:\n${afirmacionTecnica}\n\n${relatoFormacion}`, `Experiencia y proyectos:\n${relatoFormacion}\n\nFormación confirmada:\n${afirmacionTecnica}`, enmarcarFormacion(afirmacionTecnica).replace('Formación', 'Formacion')], false],
+    ['sin bloques vacíos', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(''), enmarcarFormacion(afirmacionTecnica, ''), enmarcarFormacion(afirmacionTecnica, '  \n ')], false],
+    ['sin extracción de otra línea o párrafo', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion(`Declaración:\n${afirmacionTecnica}`), enmarcarFormacion(`${afirmacionTecnica} Desarrollo software.`), enmarcarFormacion(afirmacionTecnica).replace('\n\nExperiencia', '\nExperiencia')], false],
+    ['título sólo en narrativa', tecnicoSuperior, afirmacionTecnica, [enmarcarFormacion('Formación en progreso.', afirmacionTecnica)], false],
+    ['residencia no acreditada por sección', 'Residir en provincia Delta', 'Resido actualmente en provincia Delta.', [enmarcarFormacion('Resido actualmente en provincia Delta.')], false],
+    ['capacidad genérica conserva contrato previo', 'Técnico de soporte', 'Trabajo como Técnico de soporte.', [enmarcarFormacion('Trabajo como Técnico de soporte.')], true],
+])('formación canónica %s: API pública e invariantes', async (caso, requisito, evidencia, perfiles, aprobado) => {
+    for (const perfil of perfiles) {
+        proveedor.consultarDeepSeek.mockClear();
+        const perfilSintetico = { ...prefs, perfil_profesional: perfil, nivel_real_seniority: 'Junior', idioma_candidato: 'Básico', anios_experiencia_reales: 0 };
+        const oferta = { ...ofertaBase, descripcion: `TypeScript. Requisito obligatorio: ${requisito}.` };
+        const cita = caso === 'no acredita cursada ni hipótesis' ? perfil.split('\n')[1] : evidencia;
+        const cumplimiento = { ...item(requisito), evidencia_perfil: cita };
+        const datos = respuesta('cumplidos', cumplimiento);
+        const antes = structuredClone({ perfilSintetico, oferta, datos });
+        const progreso = servicio.obtenerProgresoEvaluacion();
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+        const resultado = await servicio.evaluarOferta(oferta, undefined, undefined, perfilSintetico, { forzar: true, diferirCache: true });
+        const esperado = aprobado ? cumplimiento : { ...cumplimiento, evidencia_perfil: '', explicacion: 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.' };
+        expect(resultado).toEqual({
+            match: true, porcentaje: 91, razon: aprobado ? datos.razon : `Pendiente de confirmación: ${requisito}. Afinidad técnica estimada: 91%.`,
+            prioridad_ia: aprobado ? { detectada: false, puntaje: 0, categorias: [], evidencias: [], version: 'prioridad-ia-v1' } : null,
+            explicacion: { cumplidos: aprobado ? [esperado] : [], no_cumplidos: [], por_confirmar: aprobado ? [] : [esperado], exclusiones: [] },
+            desglose_disponible: true, firma_criterios_evaluacion: construirIdentidadEvaluacion(oferta, perfilSintetico).firma_criterios_evaluacion,
+            ...(!aprobado ? { pendiente: true } : {}),
+        });
+        expect({ perfilSintetico, oferta, datos }).toEqual(antes);
+        expect(servicio.obtenerProgresoEvaluacion()).toEqual(progreso);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+        for (const modelo of [ofertas, preferencias, cache, lotes, pool]) {
+            for (const metodo of Object.values(modelo)) expect(metodo).not.toHaveBeenCalled();
+        }
+        expect(console.error).not.toHaveBeenCalled();
+    }
+});
+
+test('formación canónica: worker persiste aprobada frente al relato compuesto pendiente', async () => {
+    const oferta = { ...ofertaBase, descripcion: `TypeScript. ${tecnicoSuperior} obligatorio.` };
+    const datos = respuesta('cumplidos', { ...item(tecnicoSuperior), evidencia_perfil: afirmacionTecnica });
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(datos));
+    ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
+    for (const [perfil, estado] of [[`${afirmacionTecnica} ${relatoFormacion}`, 'pendiente'], [enmarcarFormacion(afirmacionTecnica), 'aprobada']]) {
+        preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, perfil_profesional: perfil });
+        const resumen = await servicio.evaluarOfertasPendientes();
+        expect(resumen).toEqual(expect.objectContaining({ aprobadas: estado === 'aprobada' ? 1 : 0, rechazadas: 0, errores: 0, evaluadas: 1, procesadas: 1, pendientes: 0, porcentaje: 100, estado: 'completado' }));
+        const guardada = ofertas.actualizarEvaluacion.mock.calls.at(-1);
+        expect(guardada).toEqual([oferta.id, estado, estado === 'aprobada' ? datos.razon : `Pendiente de confirmación: ${tecnicoSuperior}. Afinidad técnica estimada: 91%.`, 91, null, estado === 'aprobada' ? expect.any(Object) : null, expect.any(String), expect.any(Object), oferta.descripcion]);
+        expect(guardada[7][estado === 'aprobada' ? 'cumplidos' : 'por_confirmar']).toEqual([expect.objectContaining({ requisito: tecnicoSuperior })]);
+        expect(guardada[7].exclusiones).toEqual([]);
+        expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ aprobadas: resumen.aprobadas, rechazadas: 0, errores: 0, procesadas: 1, evaluadas: 1 }));
+        expect(lotes.finalizarLote).toHaveBeenLastCalledWith(80, 'completado');
+    }
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
+    expect(pool.query).not.toHaveBeenCalled();
+});
+
 test('instruyo separar evidencia del aviso de cumplimiento y suficiencia, sin equivalencias inventadas', () => {
     const instrucciones = construirInstruccionesDesdePreferencias(prefs);
     expect(instrucciones).toContain('Una cita de la oferta prueba el requisito, no el cumplimiento del candidato');

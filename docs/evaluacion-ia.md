@@ -865,6 +865,53 @@ públicos PASS**, sin fallos; compara la fuente final con la probada. El navegad
 pasó 7 controles sobre la UI sin cambios, sin repetirlos por cambios sólo backend.
 No se abrió otra auditoría general ni se modificó UI/parser #81/esquema.
 
+### Formación confirmada dentro del perfil (#82, contrato v13)
+
+Reconozco una única excepción explícita al límite del párrafo compuesto, dentro
+del mismo `perfil_profesional` string. El formato completo es exactamente:
+
+```text
+Formación confirmada:
+Soy Técnico Superior en Desarrollo de Software.
+
+Experiencia y proyectos:
+Desarrollo una aplicación con TypeScript. Documento sus pruebas y proyectos.
+```
+
+Los datos del ejemplo son inventados. Conservo todo el relato original, incluidos
+sus saltos de línea y espacios, en el perfil efectivo y el prompt; no agrego campos
+persistentes, migraciones ni cambios de preferencias. Sólo normalizo CRLF a LF en
+la lectura interna del marco, sin cambiar los bytes de la entrada.
+
+Exijo encabezados exactos (mayúsculas y tildes incluidas), únicos, en ese orden,
+desde el primer carácter del perfil; una sola línea de afirmación, una línea vacía
+y un relato no vacío. Prefijos visibles/ocultos, envolturas con comillas o cercos,
+encabezados repetidos/faltantes/invertidos, bloques vacíos y afirmaciones en varias
+líneas no habilitan la excepción. El título presente sólo en la narrativa tampoco.
+Rechazo en crudo la línea académica con marcador de cita Markdown `>` inicial
+(aun precedido por espacios) o backticks de código, antes de normalizarla.
+
+La línea debe superar el mismo predicado autónomo v12 y las salvaguardas literales
+y de cláusula: `Soy <requisito>` sólo para Técnico/Técnica Superior; `Obtuve la`,
+`Obtuve el`, `Completé la`, `Finalicé la`, `Me gradué de la` seguidos del requisito
+exacto, o el requisito seguido de `obtenida`, `obtenido`, `completada`, `completado`,
+`confirmado` o `confirmada`. Una mención, cursada, estudiante, pendiente, negación,
+hipótesis o cita permanece por confirmar, sin inventar rechazo ni cambiar el score.
+No equiparo Técnico, Técnica, Tecnicatura, Licenciatura o Ingeniería. El encabezado
+es una declaración del usuario, **no certificación** de egreso.
+
+Sólo incorporo la línea como fuente adicional para obligaciones académicas; no
+amplío los hechos generales que acreditan residencia o capacidades. Estas conservan
+sus reglas anteriores; tampoco traslado educación a seniority, stack, idioma o años.
+El proveedor puede citar la línea académica íntegra del marco, no extraer un título
+de párrafos ordinarios. Las declaraciones autónomas antiguas siguen admitidas.
+
+Incremento a **evaluacion-v13**: cambian intencionalmente firma de criterios y hash
+de oferta, aun con instrucciones explícitas iguales; no cambia el algoritmo ni la
+configuración del proveedor. No migro históricos ni aplico este formato a producción.
+La verificación offline usa únicamente perfiles inventados y proveedor/SQL simulados;
+no demuestra calidad de un modelo real ni equivalencia académica real.
+
 ### Auditoría V3: insuficiencia explícita con afinidad falsa (#80, comentario 6565252085)
 
 Sobre `5986fae`, el retorno temprano de `match:false` omitía el desglose. Una

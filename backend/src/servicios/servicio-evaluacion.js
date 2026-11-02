@@ -131,10 +131,25 @@ function ubicacionEnZonas(ubicacion, zonas) {
     return estaEnZonasPreferidas(ubicacion, zonas) === true;
 }
 
+/** Reconozco sólo el marco declarado completo; no interpreto secciones arbitrarias del relato. */
+function extraerFormacionConfirmada(perfil) {
+    if (typeof perfil !== 'string') return null;
+    const texto = perfil.replace(/\r\n/g, '\n');
+    if (texto.split('Formación confirmada:').length !== 2 || texto.split('Experiencia y proyectos:').length !== 2) return null;
+    const bloque = texto.match(/^Formación confirmada:\n([^\r\n]+)\n\nExperiencia y proyectos:\n([\s\S]+)$/);
+    // Rechazo citas Markdown antes de que la normalización borre sus marcadores.
+    if (!bloque || /^\s*>|`/.test(bloque[1])) return null;
+    return bloque[1].trim() && bloque[2].trim() ? bloque[1] : null;
+}
+
+function esRequisitoAcademico(requisito) {
+    return /\b(?:tecnic[oa] superior|licenciatura|licenciad[oa]|titulo|titulacion|grado|doctorado|maestria|tecnicatura)\b/.test(requisito);
+}
+
 /** Exijo una afirmación completa del hecho actual; una mención literal no acredita título ni residencia. */
 function acreditarHechoActual(requisito, evidencia, hechos) {
     const tituloSuperior = /\btecnic[oa] superior\b/.test(requisito);
-    const titulacion = tituloSuperior || /\b(?:licenciatura|licenciad[oa]|titulo|titulacion|grado|doctorado|maestria|tecnicatura)\b/.test(requisito);
+    const titulacion = esRequisitoAcademico(requisito);
     const residencia = /\b(?:residir|residencia)\b/.test(requisito);
     if (!titulacion && !residencia) return contieneTokenNormalizado(evidencia, requisito);
     // shortcut: sólo acredito hechos fuente completos y sin citas; un párrafo ambiguo requiere confirmación manual.
@@ -164,8 +179,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         const anios = candidato.anios_experiencia_reales;
         hechos.push(`${anios} ${anios === 1 ? 'año' : 'años'} de experiencia`);
     }
-    const hechosLiterales = hechos.filter(texto => typeof texto === 'string').map(normalizarTextoComparacion);
-    const clausulasPerfil = hechos.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto);
+    const formacionConfirmada = extraerFormacionConfirmada(candidato.perfil_profesional);
     const ausencias = candidato.conocimientos_ausentes.map(normalizarTextoComparacion);
     const limitaciones = [candidato.perfil_profesional, candidato.limitaciones_explicitas].flatMap(extraerClausulasConContexto);
     // El título no convierte una mención deseable del cuerpo en obligación acreditada.
@@ -191,9 +205,12 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 || limitaciones.includes(perfil)
                 && [candidato.perfil_profesional, candidato.limitaciones_explicitas].some(texto => contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
                 && ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => perfil === `${prefijo}${requisito}`);
-            const cumplimientoAcreditado = ofertaAcreditada && acreditarHechoActual(requisito, perfil, hechos)
-                // El contexto puede agregar prefijos; sólo una cita también presente en los hechos literales acredita cumplimiento.
-                && hechosLiterales.some(texto => contieneTokenNormalizado(texto, perfil)) && clausulasPerfil.includes(perfil)
+            // La nueva fuente sólo participa en obligaciones académicas, nunca en residencia o capacidades.
+            const fuentesCumplimiento = esRequisitoAcademico(requisito) && formacionConfirmada ? [...hechos, formacionConfirmada] : hechos;
+            const cumplimientoAcreditado = ofertaAcreditada && acreditarHechoActual(requisito, perfil, fuentesCumplimiento)
+                // Mantengo procedencia literal y cláusula autónoma también para la línea académica.
+                && fuentesCumplimiento.some(texto => typeof texto === 'string' && contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
+                && fuentesCumplimiento.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto).includes(perfil)
                 && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)
                 && !PATRON_OPCIONAL_EVIDENCIA.test(perfil)
                 && !ausencias.includes(requisito);
