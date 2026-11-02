@@ -343,6 +343,55 @@ Antes de parsear, elimina fences Markdown (```json ... ```) automáticamente.
 
 Si el JSON es inválido o no cumple el schema, retorna `{ match: false, porcentaje: null, razon: "Error de parseo: ...", error: true }`.
 
+### Citas completas entre cláusulas y encabezados (#81)
+
+Conservo citas literales normalizadas que abarcan varias oraciones o incluyen
+encabezados. Por ejemplo, «Matrícula profesional obligatoria. Debe estar vigente.»
+y «Requisitos: Matrícula profesional» justifican una exclusión obligatoria sin
+cambiar la afinidad técnica 91. Antes, la cita completa no coincidía con ninguna
+cláusula después de segmentar oraciones o retirar el encabezado: el parser marcaba
+inconsistencia y el worker guardaba pendiente técnica, porcentaje y firma nulos.
+
+Reutilizo el extractor contextual con rangos de origen opcionales. Exijo primero
+la aparición literal completa normalizada en el aviso; para esa misma aparición
+compruebo todas las cláusulas y encabezados intersectados, con cobertura sin
+huecos y al menos una cláusula de contenido. No uno fragmentos de lugares distintos
+ni descarto el contexto anterior/posterior a una cita recortada. Los contextos
+opcionales o negados siguen invalidando la exclusión; tampoco acepto evidencia
+vacía, inventada o ajena. El extractor conserva su retorno anterior por defecto.
+
+El contrato pasa de **v10 a v11**, sin migraciones, borrado de caché ni reparación
+de evaluaciones históricas. Mantengo porcentajes, umbral y contratos #80: una
+incertidumbre laboral queda pendiente sin error; una respuesta incompleta o un
+fallo de transporte conserva pendiente técnica sin convertirse en rechazo.
+Las exclusiones geográficas de #83 que ya operaban antes del proveedor no cambian;
+la regresión de provincia ficticia Delta llega al parser tanto con modalidad
+nula como remota explícita, sin atribuir presencialidad a una ubicación.
+
+**Evidencia sintética sobre BASE `e922211`:** RED ampliado **8 FAIL/40 PASS**;
+GREEN focal **48 PASS** y cinco suites relacionadas **1003 PASS**, sin FAIL,
+SKIPPED ni PENDING. Compruebo parser y recorrido proveedor → servicio → worker →
+modelo de ofertas real con pool simulado: estado, razón, score, explicación,
+error, firma y contadores. No uso SQL ni proveedor reales. El backend completo
+observó 3877 PASS/166 SKIPPED y una suite sin cargar por `pdf-parse` ausente en las
+dependencias prestadas. Reutilicé dependencias ya instaladas del mismo clon y
+corrí sólo esa suite: 35 PASS. Cobertura combinada: **3912 PASS/166 SKIPPED**,
+91 suites PASS y 11 omitidas; no oculto el exit 1 ambiental de la primera ejecución.
+No repetí las suites válidas ni instalé paquetes. Incorporé además seis controles
+independientes de citas repetidas, HTML local y elegibilidad/caché: 6 PASS. La
+cobertura combinada final queda en **3918 PASS/166 SKIPPED**, 92 suites PASS y 11
+omitidas; no es una segunda ejecución monolítica de `npm test`.
+
+Verificación independiente: 48 focales y seis controles PASS; diferencial público
+BASE/final de 30 escenarios y 90 ejecuciones por versión, 300 comprobaciones PASS,
+22 controles idénticos y ocho deltas autorizados, sin diferencias inesperadas.
+Su primer focal falló por enlace de dependencias en scratch (exit 127); el primer
+diferencial tuvo 176 PASS/4 FAIL por un índice erróneo del harness, corregido sin
+cambiar producto. No cuento esos intentos como PASS. La cita visible atravesando
+`</p><p>` sigue sin validarse por el guardia literal previo, igual que en BASE:
+es un límite preexistente, no ampliado aquí. La heurística conserva el vocabulario
+contextual existente, no una gramática general de requisitos.
+
 ## Reglas determinísticas de exclusión (`reglas-exclusion.js`)
 
 ### Exclusiones fuertes
