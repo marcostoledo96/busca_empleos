@@ -17,17 +17,18 @@ Apify es una plataforma en la nube que ejecuta "Actores" (scripts de scraping) e
 | Bumeran | apify/web-scraper (genérico + Puppeteer) | `apify/web-scraper` | GRATIS (actor genérico) | — |
 | Glassdoor | cheap_scraper/glassdoor-jobs-scraper-remove-duplicate-jobs | `bYSAbQqxwImLaf2nb` | ~$0.001/resultado + $0.05 fijo | 5.0 (187 usuarios) |
 
-## GetOnBrd — piloto API-only bloqueado
+## GetOnBrd — operación API-only controlada
 
-El adaptador está **deshabilitado**: no hace scraping HTML, no usa Apify, no descarga
-producción, no guarda en PostgreSQL y no figura como fuente activa de UI ni cron. El único
-contrato implementado procesa sandbox/fixtures inyectables para validar el flujo.
+El adaptador usa únicamente la API oficial `GET /api/v0/search/jobs` de
+`https://www.getonbrd.com`. No hace scraping HTML, no usa Apify ni autenticación. Antes de
+`fetch` o PostgreSQL valida el flag `GETONBRD_ENABLED=true`, la attestation pública no secreta,
+host, scope, digest y revisión vigente. Cualquier fallo devuelve `bloqueado` con cero requests y
+cero escrituras.
 
-La guarda acepta únicamente `https://sandbox.getonbrd.test/api/v0`. Cualquier otro host se
-deniega antes de invocar al cliente. La producción requerirá en el futuro `GETONBRD_ENABLED=true`
-**y** evidencia auditable con `evidence_id`, `received_at`, `allowed_host`, `scope` que incluya
-`GET /api/v0/search/jobs`, `valid_until` vigente y `document_sha256` válido. El booleano aislado
-no habilita nada.
+La attestation versionada contiene el payload canónico UTF-8 y el SHA-256
+`282b2eb4907a1a5fe1053ec28b6d2a02820aef97dfedab6542e46c3786449618`; delimita el host
+`https://www.getonbrd.com`, scope `GET /api/v0/search/jobs` y revisión de 2026-07-15. No incluye
+identidad, token ni datos privados.
 
 ### Límites y resultado del piloto
 
@@ -42,10 +43,10 @@ no habilita nada.
 
 ### Rollout y rollback
 
-No habilitar producción sin autorización escrita verificable revisada fuera del código. El rollout
-debe empezar con sandbox y conservar la evidencia junto al cambio de configuración. Para rollback,
-mantener `activa: false`, retirar cualquier configuración de evidencia y deshabilitar el endpoint;
-no hay datos productivos que borrar.
+El rollout es cron detenido y flag falso → health/smoke → canary manual de una consulta y una página
+acotadas → revisión de métricas/checkpoint → cron solo tras aprobación explícita. Para rollback,
+configuro `GETONBRD_ENABLED=false`, detengo el cron y verifico el contrato `bloqueado` con cero
+requests. No borro ofertas ni checkpoints.
 
 ### Estructura de la respuesta
 
@@ -97,9 +98,9 @@ Cada item de búsqueda devuelve objetos con esta estructura:
 
 ### Flujo del piloto (`ejecutarScrapingGetonbrd`)
 
-El servicio valida el destino antes de invocar el cliente inyectado. Cada página válida se
-normaliza, se filtra por 30 días, se deduplica por URL canónica y confirma el checkpoint. Nunca
-llama a `crearOferta`; el endpoint actual permanece bloqueado y responde el contrato vacío.
+El servicio valida la configuración canónica antes de invocar el cliente. Cada página válida se
+normaliza, se filtra por 30 días, se deduplica por URL canónica y confirma el checkpoint. El
+controlador persiste únicamente ofertas de una ejecución autorizada.
 
 ## Archivos involucrados
 
@@ -108,7 +109,7 @@ llama a `crearOferta`; el endpoint actual permanece bloqueado y responde el cont
 | `backend/src/config/getonbrd.js` | Guarda deny-by-default, límites y evidencia de autorización. |
 | `backend/src/servicios/servicio-scraping.js` | Procesa cliente inyectable, normalización, checkpoints y métricas sin persistencia. |
 | `backend/src/servicios/servicio-normalizacion.js` | Transforma datos crudos de cada plataforma al formato de la tabla `ofertas`. |
-| `backend/src/controladores/controlador-scraping.js` | Responde el contrato bloqueado de GetOnBrd sin invocar cliente ni BD. |
+| `backend/src/controladores/controlador-scraping.js` | Devuelve el Result Contract y persiste solo ofertas autorizadas. |
 
 ## Términos de búsqueda
 
@@ -363,7 +364,7 @@ El registry de plataformas (`backend/src/config/plataformas.js`) define qué pla
 |------------|-----|-----------|--------|
 | Google Jobs | `google_jobs` | `google-jobs` | Desactivado por costo y baja utilidad |
 | InfoJobs | `infojobs` | `infojobs` | Portal developers suspendido |
-| GetOnBrd | `getonbrd` | `getonbrd` | Piloto API-only sin autorización verificable |
+| GetOnBrd | `getonbrd` | `getonbrd` | API-only con guard canónico y rollback por flag |
 
 **Comportamiento cuando se invoca una plataforma inactiva:**
 

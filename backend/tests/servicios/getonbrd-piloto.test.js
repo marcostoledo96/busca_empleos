@@ -1,11 +1,20 @@
 const { ejecutarScrapingGetonbrd } = require('../../src/servicios/servicio-scraping');
-const { DESTINO_SANDBOX, DESTINO_PRODUCCION } = require('../../src/config/getonbrd');
+const { DESTINO_PRODUCCION } = require('../../src/config/getonbrd');
 const { PAGINAS_GETONBRD, crearRespuestaGetonbrd, crearOfertaGetonbrd } = require('../fixtures/getonbrd/paginas');
 
 describe('Piloto seguro de GetOnBrd', () => {
+    beforeEach(() => {
+        process.env.GETONBRD_ENABLED = 'true';
+    });
+
+    afterEach(() => {
+        delete process.env.GETONBRD_ENABLED;
+    });
+
     test('bloquea producción antes de invocar al cliente', async () => {
+        process.env.GETONBRD_ENABLED = 'false';
         const cliente = jest.fn();
-        const resultado = await ejecutarScrapingGetonbrd({ destino: DESTINO_PRODUCCION, cliente });
+        const resultado = await ejecutarScrapingGetonbrd({ cliente });
 
         expect(resultado).toMatchObject({ estado: 'bloqueado', motivo_terminacion: 'politica_destino' });
         expect(cliente).not.toHaveBeenCalled();
@@ -17,7 +26,6 @@ describe('Piloto seguro de GetOnBrd', () => {
             .mockResolvedValueOnce(PAGINAS_GETONBRD.paginaVacia);
 
         const resultado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente,
             terminos: ['qa'],
             ahora: new Date(),
@@ -37,7 +45,6 @@ describe('Piloto seguro de GetOnBrd', () => {
             .mockResolvedValueOnce(crearRespuestaGetonbrd([crearOfertaGetonbrd({ id: 'segunda' })], 1));
 
         const resultado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente,
             terminos: ['sin-resultados', 'qa'],
         });
@@ -62,19 +69,16 @@ describe('Piloto seguro de GetOnBrd', () => {
             });
 
         const cancelado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente,
             signal: cancelador.signal,
             terminos: ['qa'],
             alConfirmarCheckpoint: checkpoint => checkpoints.push(checkpoint),
         });
         const http = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: jest.fn().mockResolvedValue(PAGINAS_GETONBRD.errorHttp),
             terminos: ['qa'],
         });
         const timeout = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: PAGINAS_GETONBRD.timeout,
             terminos: ['qa'],
             timeoutMs: 1,
@@ -89,7 +93,6 @@ describe('Piloto seguro de GetOnBrd', () => {
     test('respeta los techos de páginas e ítems y reanuda desde el checkpoint confirmado', async () => {
         const pagina = crearRespuestaGetonbrd([crearOfertaGetonbrd({ id: 'a' })], 99);
         const resultado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: jest.fn().mockResolvedValue(pagina),
             terminos: ['qa'],
             limitePaginas: 1,
@@ -104,13 +107,11 @@ describe('Piloto seguro de GetOnBrd', () => {
         const items = Array.from({ length: 120 }, (_, indice) => crearOfertaGetonbrd({ id: `oferta-${indice}` }));
         const pagina = crearRespuestaGetonbrd(items, 1);
         const primeraCorrida = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: jest.fn().mockResolvedValue(pagina),
             terminos: ['qa'],
             maxResultados: 1,
         });
         const segundaCorrida = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: jest.fn().mockResolvedValue(pagina),
             terminos: ['qa'],
             maxResultados: 120,
@@ -128,7 +129,6 @@ describe('Piloto seguro de GetOnBrd', () => {
         const cliente = jest.fn().mockResolvedValue(crearRespuestaGetonbrd([], 2));
 
         const resultado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente,
             terminos: ['qa', 'frontend'],
             limitePaginas: 1,
@@ -145,7 +145,6 @@ describe('Piloto seguro de GetOnBrd', () => {
         };
 
         const resultado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: jest.fn().mockResolvedValue(respuesta),
             terminos: ['qa'],
             timeoutMs: 1,
@@ -164,7 +163,6 @@ describe('Piloto seguro de GetOnBrd', () => {
         const vigente = crearOfertaGetonbrd({ id: 'vigente', url, publicadaHaceDias: 1 });
 
         const resultado = await ejecutarScrapingGetonbrd({
-            destino: DESTINO_SANDBOX,
             cliente: jest.fn().mockResolvedValue(crearRespuestaGetonbrd([vencida, vigente], 1)),
             terminos: ['qa'],
         });

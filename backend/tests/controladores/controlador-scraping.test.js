@@ -439,7 +439,11 @@ describe('Controlador de scraping', () => {
     // === POST /api/scraping/getonbrd ===
 
     describe('POST /api/scraping/getonbrd', () => {
-        test('retorna Result Contract bloqueado sin invocar servicio ni BD', async () => {
+        test('retorna Result Contract bloqueado sin persistir ofertas', async () => {
+            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue({
+                mode: 'auto', persistence: 'both', estado: 'bloqueado', motivo_terminacion: 'politica_destino',
+                destino: 'bloqueado', ofertas: [], metricas: { requests: 0 },
+            });
             const res = await request(app).post('/api/scraping/getonbrd').send({});
 
             expect(res.status).toBe(200);
@@ -449,8 +453,21 @@ describe('Controlador de scraping', () => {
                 destino: 'bloqueado',
                 ofertas: [],
             });
-            expect(servicioScraping.ejecutarScrapingGetonbrd).not.toHaveBeenCalled();
+            expect(servicioScraping.ejecutarScrapingGetonbrd).toHaveBeenCalledWith();
             expect(modeloOferta.crearOferta).not.toHaveBeenCalled();
+        });
+
+        test('persiste únicamente las ofertas de una ejecución autorizada', async () => {
+            servicioScraping.ejecutarScrapingGetonbrd.mockResolvedValue({
+                mode: 'auto', persistence: 'both', estado: 'completado', motivo_terminacion: 'pagina_vacia',
+                destino: 'produccion', ofertas: [{ titulo: 'QA', url: 'https://www.getonbrd.com/jobs/qa' }], metricas: { requests: 1 },
+            });
+
+            const res = await request(app).post('/api/scraping/getonbrd').send({});
+
+            expect(res.status).toBe(200);
+            expect(res.body.datos.estado).toBe('completado');
+            expect(modeloOferta.crearOferta).toHaveBeenCalledWith({ titulo: 'QA', url: 'https://www.getonbrd.com/jobs/qa' });
         });
     });
 });

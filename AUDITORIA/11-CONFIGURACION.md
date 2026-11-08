@@ -131,7 +131,7 @@
 ## Deploy
 
 ### Backend → Railway
-- **URL**: `https://busca-empleos-production.up.railway.app`
+- **URL**: `https://buscaempleos-production.up.railway.app`
 - **Build**: `npm install`
 - **Start**: `npm start`
 - **Variables**: Se configuran en el dashboard de Railway

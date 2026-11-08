@@ -222,7 +222,7 @@ Railway no expone el servicio automáticamente. Hay que generar la URL pública:
 3. Hacer clic en **Generate Domain**
 4. Railway genera una URL del tipo:
    ```
-   https://busca-empleos-production.up.railway.app
+    https://buscaempleos-production.up.railway.app
    ```
 5. Copiar y guardar esta URL — la vas a necesitar en los pasos 7 y 8.
 
@@ -237,7 +237,7 @@ Railway no expone el servicio automáticamente. Hay que generar la URL pública:
 Una vez que los logs muestren `Servidor escuchando en el puerto 3000`, abrir en el navegador:
 
 ```
-https://busca-empleos-production.up.railway.app/api/salud
+https://buscaempleos-production.up.railway.app/api/salud
 ```
 
 Debería responder:
@@ -264,7 +264,7 @@ Antes de conectar el repositorio, definir las variables de entorno que va a leer
 
 | Variable de Vercel | Valor |
 |-------------------|-------|
-| `API_URL` | `https://busca-empleos-production.up.railway.app/api` |
+| `API_URL` | `https://buscaempleos-production.up.railway.app/api` |
 | `FIREBASE_API_KEY` | La API key del proyecto Firebase |
 | `FIREBASE_AUTH_DOMAIN` | `busca-empleo-a4fbe.firebaseapp.com` |
 | `FIREBASE_PROJECT_ID` | `busca-empleo-a4fbe` |
@@ -325,7 +325,7 @@ Firebase Authentication rechaza logins desde dominios no autorizados.
 
 ### 8.3 Checklist de verificación final
 
-- [ ] `GET https://busca-empleos-production.up.railway.app/api/salud` responde `{ "estado": "ok" }`
+- [ ] `GET https://buscaempleos-production.up.railway.app/api/salud` responde `{ "estado": "ok" }`
 - [ ] Login en el frontend funciona (Firebase auth)
 - [ ] El dashboard carga y muestra las ofertas (token JWT se envía correctamente)
 - [ ] Ejecutar un scraping manual (consume Apify, verificar que no hay error 500)

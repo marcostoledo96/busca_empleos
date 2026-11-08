@@ -61,8 +61,35 @@ async function asegurarTablaSchemaMigrations(pool) {
     console.log('[Migración] Tabla schema_migrations verificada/creada.');
 }
 
+/**
+ * Crea y configura la pileta de conexiones a PostgreSQL.
+ * Soporta DATABASE_URL con certificados autofirmados (típico de Railway/PaaS)
+ * y variables PG* locales o remotas con SSL configurable.
+ *
+ * @returns {import('pg').Pool}
+ */
+function crearPool() {
+    const databaseUrl = (process.env.DATABASE_URL || '').trim();
+    const configuracionPool = {};
+
+    if (databaseUrl) {
+        configuracionPool.connectionString = databaseUrl;
+        configuracionPool.ssl = { rejectUnauthorized: false };
+    } else {
+        const modoSsl = (process.env.PGSSLMODE || '').trim().toLowerCase();
+        const host = (process.env.PGHOST || '').trim().toLowerCase();
+        const esLocal = !host || ['localhost', '127.0.0.1', '::1'].includes(host);
+
+        if (modoSsl === 'require' || (!esLocal && modoSsl !== 'disable')) {
+            configuracionPool.ssl = { rejectUnauthorized: false };
+        }
+    }
+
+    return new Pool(configuracionPool);
+}
+
 async function migrar() {
-    const pool = new Pool();
+    const pool = crearPool();
 
     try {
         // 1. Asegurar que schema_migrations existe antes de consultarla.

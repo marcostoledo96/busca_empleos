@@ -106,7 +106,7 @@ Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. D
 - El `id` (snake_case) se usa como valor interno en filtros, preferencias, DTOs y BD. Ejemplo: `google_jobs`.
 - El `slugHttp` (kebab-case) se usa solo en URLs de la API (`/api/scraping/:slug`). Ejemplo: `google-jobs`.
 - Para la mayoría de las plataformas, `id` y `slugHttp` coinciden. Google Jobs es la excepción.
-- Plataformas con `activa: false` (Google Jobs, InfoJobs) NO aparecen en selectores de scraping ni en preferencias como opción seleccionable.
+- Plataformas con `activa: false` (Google Jobs, InfoJobs) NO aparecen en selectores de scraping ni en preferencias como opción seleccionable. GetOnBrd aparece como API-only y el backend comunica cualquier bloqueo sin éxito falso.
 - Los filtros de ofertas incluyen todas las plataformas (activas e inactivas) para permitir filtrar datos históricos.
 
 **Funciones principales:**
@@ -136,6 +136,9 @@ Fuente de verdad del frontend para ids, slugs, labels y estado de plataformas. D
 | RemoteOK | `remoteok` | `remoteok` | ✅ | — |
 | InfoJobs | `infojobs` | `infojobs` | ❌ | Portal developers suspendido |
 | Adzuna | `adzuna` | `adzuna` | ✅ | — |
+
+GetOnBrd comunica estados `bloqueado`, `completado`, `parcial` o `cancelado` mediante feedback del
+panel; un bloqueo informa que no se ejecutó ninguna consulta y no emite recarga como éxito.
 
 Archivo: `frontend/src/app/modelos/respuesta-api.model.ts`
 

@@ -222,24 +222,20 @@ async function scrapearGlassdoor(req, res) {
 
 /**
  * POST /api/scraping/getonbrd
- * Devuelvo el contrato bloqueado mientras el piloto permanece sin autorización.
- * No invoco cliente externo ni persisto ofertas.
+ * Ejecuto GetOnBrd únicamente a través de su guard canónico y persisto solo ofertas autorizadas.
  */
 async function scrapearGetonbrd(req, res) {
+    const resultado = await servicioScraping.ejecutarScrapingGetonbrd();
+
+    if (resultado.estado !== 'bloqueado') {
+        for (const oferta of resultado.ofertas) {
+            await modeloOferta.crearOferta(oferta);
+        }
+    }
+
     res.json({
         exito: true,
-        datos: {
-            run_id: null,
-            estado: 'bloqueado',
-            motivo_terminacion: 'politica_destino',
-            destino: 'bloqueado',
-            ofertas: [],
-            checkpoint: { termino_indice: 0, termino: null, pagina_confirmada: 0, pagina_siguiente: 1 },
-            metricas: {
-                requests: 0, paginas: 0, recibidas: 0, normalizadas: 0, dentro_ventana: 0,
-                fuera_ventana: 0, duplicadas_intra_run: 0, invalidas: 0, latencia_ms: 0,
-            },
-        },
+        datos: resultado,
     });
 }
 

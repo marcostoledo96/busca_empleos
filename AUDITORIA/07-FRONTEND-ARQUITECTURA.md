@@ -141,7 +141,7 @@ especializaciones para scraping, evaluación, automatización.
 | Archivo | Entorno | `urlApi` |
 |---------|---------|----------|
 | `environment.ts` | Desarrollo | `http://localhost:3000/api` |
-| `environment.prod.ts` | Producción | `https://busca-empleos-production.up.railway.app/api` |
+| `environment.prod.ts` | Producción | `https://buscaempleos-production.up.railway.app/api` |
 
 Ambos incluyen `firebaseConfig` con valores reales. Están en `.gitignore`.
 

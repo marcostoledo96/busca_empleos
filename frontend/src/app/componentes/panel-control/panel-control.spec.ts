@@ -17,6 +17,7 @@ describe('PanelControl — Selector mobile de scraping', () => {
         scrapearIndeed:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0 } }),
         scrapearBumeran:      () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearGlassdoor:    () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
+        scrapearGetonbrd:     () => of({ exito: true, datos: { estado: 'bloqueado', motivo_terminacion: 'politica_destino', metricas: { requests: 0 } } }),
         scrapearJooble:       () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearGoogleJobs:   () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
         scrapearRemotive:     () => of({ exito: true, datos: { total_extraidas: 0, ofertas_nuevas: 0, ofertas_duplicadas: 0 } }),
@@ -82,8 +83,8 @@ describe('PanelControl — Selector mobile de scraping', () => {
 
     // --- opciones del p-select ---
 
-    it('opcionesPlataforma debería contener las 9 plataformas activas', () => {
-        expect(component.opcionesPlataforma.length).toBe(9);
+    it('opcionesPlataforma debería contener las 10 plataformas activas', () => {
+        expect(component.opcionesPlataforma.length).toBe(10);
     });
 
     it('opcionesPlataforma debería incluir LinkedIn con valor linkedin', () => {
@@ -118,6 +119,23 @@ describe('PanelControl — Selector mobile de scraping', () => {
         component.plataformaSeleccionada.set('indeed');
         component.scrapearPlataformaSeleccionada();
         expect(component.scrapearIndeed).toHaveBeenCalled();
+    });
+
+    it('scrapearPlataformaSeleccionada() con getonbrd llama a scrapearGetonbrd()', () => {
+        spyOn(component, 'scrapearGetonbrd');
+        component.plataformaSeleccionada.set('getonbrd');
+        component.scrapearPlataformaSeleccionada();
+        expect(component.scrapearGetonbrd).toHaveBeenCalled();
+    });
+
+    it('GetOnBrd bloqueado informa el bloqueo sin anunciar éxito', () => {
+        const mensajesSpy = spyOn((component as any).mensajes, 'add');
+        const accionCompletadaSpy = spyOn(component.accionCompletada, 'emit');
+
+        component.scrapearGetonbrd();
+
+        expect(mensajesSpy).toHaveBeenCalledWith(jasmine.objectContaining({ severity: 'info', summary: 'GetOnBrd bloqueado' }));
+        expect(accionCompletadaSpy).not.toHaveBeenCalled();
     });
 
     // --- Estado de carga ---

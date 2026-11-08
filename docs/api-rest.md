@@ -52,7 +52,7 @@ Todas las respuestas siguen este formato:
 | POST | `/api/scraping/indeed` | Ejecutar scraping de Indeed | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/bumeran` | Ejecutar scraping de Bumeran | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/glassdoor` | Ejecutar scraping de Glassdoor | **Sí** | **Sí** (5/min) |
-| POST | `/api/scraping/getonbrd` | Consultar estado bloqueado del piloto GetOnBrd | **Sí** | **Inactivo** |
+| POST | `/api/scraping/getonbrd` | Ejecutar GetOnBrd API-only bajo guard canónico | **Sí** | **Sí** |
 | POST | `/api/scraping/jooble` | Ejecutar scraping de Jooble | **Sí** | **Sí** (5/min) |
 | POST | `/api/scraping/google-jobs` | Ejecutar scraping de Google Jobs | **Sí** | **Inactivo** — responde sin invocar Apify |
 | POST | `/api/evaluacion/ejecutar` | Evaluar ofertas pendientes con IA | **Sí** | **Sí** (5/min) |
@@ -456,9 +456,9 @@ Ejecuta el scraping de Glassdoor Argentina usando el actor de Apify, normaliza y
 
 ### POST /api/scraping/getonbrd
 
-El endpoint es un **shadow endpoint**: devuelve un Result Contract bloqueado y no llama a red,
-servicios externos ni `crearOferta`. Acepta autenticación normal, pero no body operativo mientras
-el registry esté inactivo.
+El endpoint usa exclusivamente `GET https://www.getonbrd.com/api/v0/search/jobs` bajo el guard
+canónico. No usa HTML, autenticación ni otros endpoints. Cuando el flag, host, scope, hash o
+revisión no son válidos, devuelve un Result Contract bloqueado sin llamar a red ni `crearOferta`.
 
 ```json
 {
@@ -475,9 +475,11 @@ el registry esté inactivo.
 }
 ```
 
-La activación futura requiere API oficial con sandbox/fixtures, evidencia escrita auditable y
-rollout explícito. El rollback es deshabilitar el registry y retirar la evidencia; no hay datos
-productivos generados por este piloto.
+La attestation pública no secreta usa SHA-256
+`282b2eb4907a1a5fe1053ec28b6d2a02820aef97dfedab6542e46c3786449618`, host
+`https://www.getonbrd.com`, scope `GET /api/v0/search/jobs` y revisión de 2026-07-15. El rollout
+empieza con cron detenido, health/smoke y un canary manual acotado. Rollback: configurar
+`GETONBRD_ENABLED=false`, detener el cron y conservar ofertas y checkpoints.
 
 ---
 

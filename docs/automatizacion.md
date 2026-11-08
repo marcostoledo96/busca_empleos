@@ -86,7 +86,7 @@ Es el "corazón" de la automatización. Se ejecuta cada vez que el cron dispara,
 | Indeed | `indeed` | Sí | `ejecutarScrapingIndeed` |
 | Bumeran | `bumeran` | Sí | `ejecutarScrapingBumeran` |
 | Glassdoor | `glassdoor` | Sí | `ejecutarScrapingGlassdoor` |
-| GetOnBrd | `getonbrd` | No | Piloto API-only bloqueado |
+| GetOnBrd | `getonbrd` | Condicional | API oficial, guard canónico y flag activo |
 | Jooble | `jooble` | Sí | `ejecutarScrapingJooble` |
 | Remotive | `remotive` | Sí | `ejecutarScrapingRemotive` |
 | RemoteOK | `remoteok` | Sí | `ejecutarScrapingRemoteOK` |
@@ -120,7 +120,7 @@ Para activar/desactivar una plataforma, solo hay que cambiar `activa: true/false
         indeed: 12,                // Ofertas extraídas de Indeed
         bumeran: 8,                // Ofertas extraídas de Bumeran
         glassdoor: 11,             // Ofertas extraídas de Glassdoor
-        getonbrd: 0,               // Piloto bloqueado, nunca se invoca desde cron
+        getonbrd: 0,               // 0 si el guard canónico bloquea la ejecución
         jooble: 5,                 // Ofertas extraídas de Jooble
         google_jobs: 0,            // Desactivado (siempre 0, no se invoca)
         remotive: 7,               // Ofertas extraídas de Remotive
@@ -255,9 +255,10 @@ El email se envía en formato HTML con fallback a texto plano. Los datos dinámi
 - [API REST](api-rest.md) — Endpoints de automatización.
 - [Frontend](frontend.md) — Cómo el dashboard controla el cron.
 
-## Piloto GetOnBrd excluido
+## GetOnBrd condicionado por guard
 
-GetOnBrd permanece en el registry para transparencia, pero inactivo: el cron y el ciclo manual
-registran `0` sin invocar su scraper. El piloto seguro solo admite fixtures/sandbox inyectables,
-no persiste ofertas y exige evidencia escrita verificable para cualquier rollout futuro. El
-rollback consiste en conservarlo inactivo y retirar evidencia/configuración de autorización.
+GetOnBrd figura en el registry, pero el ciclo la omite y registra `getonbrd: 0` cuando el flag o la
+attestation canónica son inválidos. Con validación vigente consulta exclusivamente la API oficial,
+dentro de 120 ítems por página, 10 páginas, 1.200 ítems y 5 segundos por request. El cron comienza
+detenido: health/smoke y un canary manual de una consulta/página preceden toda activación. Rollback:
+`GETONBRD_ENABLED=false`, detener cron y no borrar ofertas ni checkpoints.

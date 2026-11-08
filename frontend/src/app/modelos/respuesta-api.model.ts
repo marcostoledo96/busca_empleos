@@ -39,6 +39,15 @@ export interface RespuestaScraping {
     advertencia?: string;
 }
 
+export interface ResultadoGetonbrd {
+    mode: 'auto';
+    persistence: 'both';
+    estado: 'bloqueado' | 'completado' | 'parcial' | 'cancelado';
+    motivo_terminacion: string;
+    ofertas: unknown[];
+    metricas: { requests: number };
+}
+
 // Respuesta específica del endpoint de evaluación.
 export interface RespuestaEvaluacion {
     mensaje: string;

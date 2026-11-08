@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
-import { RespuestaApi, RespuestaScraping } from '../modelos/respuesta-api.model';
+import { RespuestaApi, RespuestaScraping, ResultadoGetonbrd } from '../modelos/respuesta-api.model';
 
 @Injectable({ providedIn: 'root' })
 export class ScrapingService {
@@ -33,6 +33,10 @@ export class ScrapingService {
     // Ejecuta el scraping de Glassdoor Argentina. Llama al Actor de Apify y guarda en BD.
     scrapearGlassdoor(): Observable<RespuestaApi<RespuestaScraping>> {
         return this.http.post<RespuestaApi<RespuestaScraping>>(`${this.urlBase}/glassdoor`, {});
+    }
+
+    scrapearGetonbrd(): Observable<RespuestaApi<ResultadoGetonbrd>> {
+        return this.http.post<RespuestaApi<ResultadoGetonbrd>>(`${this.urlBase}/getonbrd`, {});
     }
 
     // Ejecuta el scraping de Jooble usando su API REST oficial y guarda en BD.

@@ -30,7 +30,7 @@ const {
 const { normalizarLote } = require('./servicio-normalizacion');
 const cheerio = require('cheerio');
 const { randomUUID } = require('crypto');
-const { DESTINO_SANDBOX, LIMITES_GETONBRD, validarDestinoGetonbrd } = require('../config/getonbrd');
+const { DESTINO_PRODUCCION, LIMITES_GETONBRD, obtenerConfiguracionGetonbrd, validarDestinoGetonbrd } = require('../config/getonbrd');
 
 // Headers comunes para las requests de scraping directo (sin Apify).
 // Simulan un navegador real para evitar bloqueos por User-Agent genérico.
@@ -522,16 +522,11 @@ async function ejecutarScrapingGlassdoor(opciones = {}) {
 }
 
 /**
- * Ejecuto el piloto GetOnBrd solo sobre un cliente inyectable y destino validado.
+ * Ejecuto GetOnBrd solo con la configuración canónica y la API oficial autorizada.
  */
 async function ejecutarScrapingGetonbrd(opciones = {}) {
     const ahora = opciones.ahora instanceof Date ? opciones.ahora : new Date();
-    const guardia = validarDestinoGetonbrd({
-        destino: opciones.destino || DESTINO_SANDBOX,
-        evidencia: opciones.evidencia,
-        habilitado: opciones.habilitado,
-        ahora,
-    });
+    const guardia = validarDestinoGetonbrd(obtenerConfiguracionGetonbrd(), ahora);
     const checkpoint = {
         termino_indice: opciones.checkpointInicial?.termino_indice || 0,
         termino: opciones.checkpointInicial?.termino || null,
@@ -540,14 +535,14 @@ async function ejecutarScrapingGetonbrd(opciones = {}) {
         item_offset: opciones.checkpointInicial?.item_offset || 0,
     };
     const resultado = {
-        run_id: randomUUID(), estado: guardia.permitido ? 'completado' : 'bloqueado',
+        mode: 'auto', persistence: 'both', run_id: randomUUID(), estado: guardia.permitido ? 'completado' : 'bloqueado',
         motivo_terminacion: guardia.permitido ? 'paginas_agotadas' : guardia.motivo,
         destino: guardia.destino, ofertas: [], checkpoint,
         metricas: { requests: 0, paginas: 0, recibidas: 0, normalizadas: 0, dentro_ventana: 0, fuera_ventana: 0, duplicadas_intra_run: 0, invalidas: 0, latencia_ms: 0 },
     };
     if (!guardia.permitido) return resultado;
 
-    const destino = opciones.destino || DESTINO_SANDBOX;
+    const destino = DESTINO_PRODUCCION;
     const limitePaginas = Math.max(1, Math.min(opciones.limitePaginas || LIMITES_GETONBRD.paginas, LIMITES_GETONBRD.paginas));
     const limiteItems = Math.max(1, Math.min(opciones.maxResultados || opciones.limiteItems || LIMITES_GETONBRD.items, LIMITES_GETONBRD.items));
     const timeoutMs = Math.max(1, Math.min(opciones.timeoutMs || LIMITES_GETONBRD.timeoutMs, LIMITES_GETONBRD.timeoutMs));

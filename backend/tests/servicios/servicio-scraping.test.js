@@ -257,10 +257,12 @@ describe('Servicio de scraping', () => {
         `;
 
         beforeEach(() => {
+            process.env.GETONBRD_ENABLED = 'true';
             global.fetch = jest.fn();
         });
 
         afterEach(() => {
+            delete process.env.GETONBRD_ENABLED;
             delete global.fetch;
         });
 

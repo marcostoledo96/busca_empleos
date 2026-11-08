@@ -36,6 +36,7 @@ const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const servicioNotificacionEmail = require('./servicio-notificacion-email');
 const { PLATAFORMAS_ACTIVAS, PLATAFORMAS, esPlataformaActiva } = require('../config/plataformas');
+const { getonbrdEstaHabilitado } = require('../config/getonbrd');
 
 // ── Mapa local de scrapers: vincula cada id de plataforma con su función ──
 // No está en config/plataformas.js porque eso crearía una dependencia circular
@@ -46,6 +47,10 @@ const SCRAPERS = {
     indeed: servicioScraping.ejecutarScrapingIndeed,
     bumeran: servicioScraping.ejecutarScrapingBumeran,
     glassdoor: servicioScraping.ejecutarScrapingGlassdoor,
+    getonbrd: async opciones => {
+        const resultado = await servicioScraping.ejecutarScrapingGetonbrd(opciones);
+        return resultado.estado === 'bloqueado' ? [] : resultado.ofertas;
+    },
     jooble: servicioScraping.ejecutarScrapingJooble,
     remotive: servicioScraping.ejecutarScrapingRemotive,
     remoteok: servicioScraping.ejecutarScrapingRemoteOK,
@@ -268,6 +273,12 @@ async function ejecutarCicloCompleto() {
 
     for (const plataforma of PLATAFORMAS_ACTIVAS) {
         const { id, label } = plataforma;
+
+        if (id === 'getonbrd' && !getonbrdEstaHabilitado()) {
+            resultado.scraping.getonbrd = 0;
+            actualizarPasoPorgreso('getonbrd', 'completada', 0);
+            continue;
+        }
         actualizarPasoPorgreso(id, 'procesando');
 
         // Busco la función de scraping correspondiente.

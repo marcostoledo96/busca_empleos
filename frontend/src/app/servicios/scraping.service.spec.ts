@@ -77,6 +77,17 @@ describe('ScrapingService', () => {
         req.flush({ exito: true, datos: { ofertas_nuevas: 4, plataforma: 'glassdoor' } });
     });
 
+    it('debería ejecutar scraping de GetOnBrd (POST) y conservar su Result Contract', () => {
+        servicio.scrapearGetonbrd().subscribe((resp) => {
+            expect(resp.datos.estado).toBe('bloqueado');
+            expect(resp.datos.metricas.requests).toBe(0);
+        });
+
+        const req = httpMock.expectOne(`${urlBase}/getonbrd`);
+        expect(req.request.method).toBe('POST');
+        req.flush({ exito: true, datos: { estado: 'bloqueado', metricas: { requests: 0 } } });
+    });
+
     it('debería ejecutar scraping de Jooble (POST)', () => {
         servicio.scrapearJooble().subscribe((resp) => {
             expect(resp.exito).toBeTrue();
