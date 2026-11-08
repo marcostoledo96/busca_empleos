@@ -1,0 +1,7 @@
+{
+    "extends": "./tsconfig.app.json",
+    "compilerOptions": { "outDir": "./e2e/build/ts" },
+    "files": ["e2e/main.ts"],
+    "include": [],
+    "exclude": ["**/*.spec.ts"]
+}

@@ -79,6 +79,14 @@
               "optimization": false,
               "extractLicenses": false,
               "sourceMap": true
+            },
+            "e2e": {
+              "browser": "e2e/main.ts",
+              "tsConfig": "tsconfig.e2e.json",
+              "outputPath": "e2e/build",
+              "optimization": false,
+              "extractLicenses": false,
+              "sourceMap": true
             }
           },
           "defaultConfiguration": "production"
@@ -91,6 +99,9 @@
             },
             "development": {
               "buildTarget": "frontend:build:development"
+            },
+            "e2e": {
+              "buildTarget": "frontend:build:e2e"
             }
           },
           "defaultConfiguration": "development"
@@ -121,6 +132,7 @@
     }
   },
   "cli": {
+    "cache": { "path": "e2e/cache" },
     "analytics": "72fffdd1-9914-456c-add6-122f37566926"
   }
 }
