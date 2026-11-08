@@ -48,7 +48,7 @@ function pdf(texto: string) {
     return Buffer.from(salida);
 }
 
-test.beforeEach(async ({ request, context }) => {
+test.beforeEach(async ({ request, context }, info) => {
     validarEntorno();
     await control(request, { reset: true });
     const preferencias = await request.put(`${api}/api/preferencias`, { headers, data: {
@@ -60,6 +60,14 @@ test.beforeEach(async ({ request, context }) => {
     expect(preferencias.status()).toBe(200);
     const cv = await request.put(`${api}/api/preferencias/cv-base`, { headers: { ...headers, 'Content-Type': 'text/markdown; charset=utf-8' }, data: fuente });
     expect(cv.status()).toBe(200);
+    if (/^(QA AE|T9 importación)/.test(info.title)) {
+        // Creo un centinela por HTTP real con el proveedor sintético existente, sin SQL ad hoc.
+        const centinela = await request.post(`${api}/api/scraping/linkedin`, { headers, data: { maxResultados: 1 } });
+        expect(centinela.status()).toBe(200);
+        const datos = await sql(request);
+        expect(datos.ofertas).toHaveLength(1);
+        expect(datos.evaluaciones).toHaveLength(1);
+    }
     await context.route('**/*', async ruta => {
         const destino = new URL(ruta.request().url());
         if (destino.origin === 'http://127.0.0.1:4357') return ruta.continue();
@@ -174,6 +182,164 @@ for (const falla of [false, true]) {
         expect(puts).toBe(1);
         expect((await sql(request)).preferencias).toEqual(despues.preferencias);
         await info.attach('SQL-PUT-retenido', { body: JSON.stringify({ antes, despues, payload, puts }), contentType: 'application/json' });
+    });
+}
+
+// Excluyo sólo metadatos que el modelo actualiza explícitamente al guardar.
+function comprobarSnapshot(antes: any, despues: any, cambios: object) {
+    const fila = ({ fecha_actualizacion, backup_preferencias, ...datos }: any) => datos;
+    expect(despues.preferencias.map(fila)).toEqual(antes.preferencias.map((p: any) => ({ ...fila(p), ...cambios })));
+    for (const clave of ['cvBase', 'ofertas', 'evaluaciones', 'historial', 'cron', 'llamadas']) expect(despues[clave]).toEqual(antes[clave]);
+}
+
+for (const caso of ['A', 'B', '400', '500', 'red-antes', 'red-despues'] as const) {
+    test(`QA AE ${caso}: PUT pendiente editable, snapshot, doble clic y recuperación`, async ({ page, request }, info) => {
+        await page.goto('/preferencias');
+        const nombre = page.getByLabel('Nombre completo');
+        const guardar = page.getByRole('button', { name: 'Guardar preferencias', exact: true });
+        await expect(nombre).toHaveValue('Candidatura sintética T3');
+        const antes = await sql(request);
+        const estructurado = caso === 'B';
+        const errores = ['400', '500', 'red-antes', 'red-despues'].includes(caso);
+        if (caso === '500') await control(request, { fallo: 'preferencias_cv' });
+        const editar = async (posterior: boolean) => {
+            if (!estructurado) return nombre.fill(posterior ? 'Posterior QA AE' : 'Enviado QA AE');
+            await tab(page, 'BÚSQUEDA');
+            const terminos = page.locator('.campo').filter({ has: page.getByText('Términos de búsqueda', { exact: true }) });
+            const valor = posterior ? 'Posterior QA AE' : 'Enviado QA AE';
+            await terminos.getByRole('combobox').fill(valor);
+            await page.locator('.p-autocomplete-overlay').getByRole('option', { name: valor, exact: true }).click();
+            await tab(page, 'PERFIL');
+            await page.getByPlaceholder('Ej: A2', { exact: true }).fill(posterior ? 'B1' : 'A2');
+        };
+        await editar(false);
+        if (caso === '400') {
+            await page.getByLabel('Salario mínimo', { exact: true }).fill('200');
+            await page.getByLabel('Salario máximo', { exact: true }).fill('100');
+        }
+        let liberar!: () => void;
+        let recibida!: () => void;
+        const retenida = new Promise<void>(r => { liberar = r; });
+        const lista = new Promise<void>(r => { recibida = r; });
+        const payloads: any[] = [];
+        let estado: number | null = null;
+        await page.route('**/api/preferencias', async ruta => {
+            if (ruta.request().method() !== 'PUT') return ruta.continue();
+            payloads.push(ruta.request().postDataJSON());
+            if (payloads.length !== 1) return ruta.continue();
+            const respuesta = caso === 'red-antes' ? null : await ruta.fetch();
+            estado = respuesta?.status() ?? null;
+            recibida();
+            await retenida;
+            if (caso.startsWith('red-')) await ruta.abort('failed');
+            else await ruta.fulfill({ response: respuesta! });
+        });
+        // Dos clics DOM públicos consecutivos: el botón/handler debe impedir el segundo PUT.
+        await guardar.evaluate((boton: HTMLButtonElement) => { boton.click(); boton.click(); });
+        await lista;
+        await expect(guardar).toBeDisabled();
+        await expect(page.getByRole('status').filter({ hasText: 'Guardando preferencias…' })).toBeVisible();
+        await expect(page.getByRole('status').filter({ hasText: 'Preferencias actualizadas correctamente.' })).toHaveCount(0);
+        await editar(true);
+        const cambios = estructurado ? {
+            terminos_busqueda: ['desarrollo junior', 'Enviado QA AE'], nivel_ingles_detalle: { ...antes.preferencias[0].nivel_ingles_detalle, reading: 'A2' },
+        } : { nombre: 'Enviado QA AE' };
+        const confirmado = !['400', '500', 'red-antes'].includes(caso);
+        const pendiente = await sql(request);
+        await info.attach('SQL-pendiente', { body: JSON.stringify({ antes, pendiente, payloads, estado }), contentType: 'application/json' });
+        if (confirmado) comprobarSnapshot(antes, pendiente, cambios);
+        else expect(pendiente).toEqual(antes);
+        expect(payloads).toHaveLength(1);
+        expect(estado).toBe(caso === 'red-antes' ? null : caso === '400' ? 400 : caso === '500' ? 500 : 200);
+        await captura(page, info, `qa-${caso}-pendiente`);
+        liberar();
+        await expect(page.getByRole('status').filter({ hasText: errores ? 'No se pudieron guardar las preferencias.' : 'Guardé las preferencias enviadas. Quedan cambios posteriores sin guardar.' })).toBeVisible();
+        await expect(guardar).toBeEnabled();
+        await expect(page.getByText('Cambios sin guardar.', { exact: true })).toBeVisible();
+        if (estructurado) await expect(page.getByPlaceholder('Ej: A2', { exact: true })).toHaveValue('B1');
+        else await expect(nombre).toHaveValue('Posterior QA AE');
+        const dialogos: string[] = [];
+        const cancelar = async (d: any) => { dialogos.push(d.message()); await d.dismiss(); };
+        page.on('dialog', cancelar);
+        await page.getByRole('link', { name: 'Preparar CV imprimible con los datos guardados' }).click();
+        await expect(page).toHaveURL(/\/preferencias/);
+        expect(dialogos).toEqual(['Hay cambios de preferencias, del CV base o de la revisión de importación sin confirmar. ¿Salir y descartarlos?']);
+        page.off('dialog', cancelar);
+        const resuelta = await sql(request);
+        expect(resuelta).toEqual(pendiente);
+        if (caso === '400') await page.getByLabel('Salario máximo', { exact: true }).fill('300');
+        await control(request, {});
+        const respuestaFinal = page.waitForResponse(r => r.url().endsWith('/api/preferencias') && r.request().method() === 'PUT');
+        await guardar.click();
+        expect((await respuestaFinal).status()).toBe(200);
+        await expect(page.getByRole('status').filter({ hasText: 'Preferencias actualizadas correctamente.' })).toBeVisible();
+        await expect(page.getByText('Cambios sin guardar.', { exact: true })).toHaveCount(0);
+        const final = await sql(request);
+        const cambiosFinales = estructurado ? {
+            terminos_busqueda: ['desarrollo junior', 'Enviado QA AE', 'Posterior QA AE'], nivel_ingles_detalle: { ...antes.preferencias[0].nivel_ingles_detalle, reading: 'B1' },
+        } : { nombre: 'Posterior QA AE', ...(caso === '400' ? { expectativa_salarial_min: '200', expectativa_salarial_max: '300' } : {}) };
+        comprobarSnapshot(antes, final, cambiosFinales);
+        expect(payloads).toHaveLength(2);
+        await info.attach('SQL-final', { body: JSON.stringify({ antes, pendiente, resuelta, final, payloads, estado }), contentType: 'application/json' });
+        await captura(page, info, `qa-${caso}-final`);
+        await page.reload();
+        await expect(nombre).toHaveValue(estructurado ? 'Candidatura sintética T3' : 'Posterior QA AE');
+        expect((await sql(request)).preferencias).toEqual(final.preferencias);
+    });
+}
+
+for (const destino of ['dashboard', 'cv']) {
+    test(`QA AE C navegación ${destino} durante PUT: cancelar, descartar y respuesta tardía`, async ({ page, request }, info) => {
+        await page.setViewportSize({ width: 1440, height: 900 });
+        await page.goto('/preferencias');
+        const nombre = page.getByLabel('Nombre completo');
+        await expect(nombre).toHaveValue('Candidatura sintética T3');
+        const antes = await sql(request);
+        let liberar!: () => void;
+        let recibida!: () => void;
+        const retenida = new Promise<void>(r => { liberar = r; });
+        const lista = new Promise<void>(r => { recibida = r; });
+        let puts = 0;
+        await page.route('**/api/preferencias', async ruta => {
+            if (ruta.request().method() !== 'PUT') return ruta.continue();
+            puts++;
+            const respuesta = await ruta.fetch();
+            expect(respuesta.status()).toBe(200);
+            recibida();
+            await retenida;
+            await ruta.fulfill({ response: respuesta });
+        });
+        await nombre.fill('Enviado navegación QA AE');
+        await page.getByRole('button', { name: 'Guardar preferencias', exact: true }).click();
+        await lista;
+        await nombre.fill('Posterior navegación QA AE');
+        await expect(page.getByRole('status').filter({ hasText: 'Guardando preferencias…' })).toBeVisible();
+        const enlace = destino === 'cv' ? page.getByRole('link', { name: 'Preparar CV imprimible con los datos guardados' }) : page.locator('a[href="/"]').first();
+        const dialogos: string[] = [];
+        page.once('dialog', async d => { dialogos.push(d.message()); await d.dismiss(); });
+        await enlace.click();
+        await expect(page).toHaveURL(/\/preferencias/);
+        await expect(nombre).toHaveValue('Posterior navegación QA AE');
+        const pendiente = await sql(request);
+        await info.attach('SQL-navegacion-pendiente', { body: JSON.stringify({ antes, pendiente, puts }), contentType: 'application/json' });
+        comprobarSnapshot(antes, pendiente, { nombre: 'Enviado navegación QA AE' });
+        await captura(page, info, `qa-c-${destino}-cancelada`);
+        page.once('dialog', async d => { dialogos.push(d.message()); await d.accept(); });
+        await enlace.click();
+        await expect(page).toHaveURL(destino === 'cv' ? /\/cv$/ : /4357\/$/);
+        expect(dialogos).toEqual(Array(2).fill('Hay cambios de preferencias, del CV base o de la revisión de importación sin confirmar. ¿Salir y descartarlos?'));
+        const entregada = page.waitForResponse(r => r.url().endsWith('/api/preferencias') && r.request().method() === 'PUT');
+        liberar();
+        expect((await entregada).status()).toBe(200);
+        // Dejo procesar la respuesta sin inventar un timeout del servicio.
+        await page.evaluate(() => new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => r()))));
+        await expect(page.getByText('Preferencias actualizadas correctamente.', { exact: true })).toHaveCount(0);
+        await expect(page.getByText('Guardé las preferencias enviadas. Quedan cambios posteriores sin guardar.', { exact: true })).toHaveCount(0);
+        expect(puts).toBe(1);
+        expect((await sql(request)).preferencias).toEqual(pendiente.preferencias);
+        await captura(page, info, `qa-c-${destino}-tardia`);
+        await page.goto('/preferencias');
+        await expect(nombre).toHaveValue('Enviado navegación QA AE');
     });
 }
 

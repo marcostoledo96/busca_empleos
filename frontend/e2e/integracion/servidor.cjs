@@ -6,7 +6,9 @@ const { validarEntorno } = require('../../../backend/tests/helpers/issue-57-ento
 validarEntorno();
 const api = process.argv[2] === 'api';
 if (!api && process.argv[2] !== 'angular') throw new Error('Servidor de prueba desconocido.');
-const entorno = { PATH: process.env.PATH, NG_CLI_ANALYTICS: 'false' };
+const entorno = { PATH: process.env.PATH, NG_CLI_ANALYTICS: 'false',
+    HOME: process.env.HOME, TMPDIR: process.env.TMPDIR,
+    NODE_COMPILE_CACHE: process.env.NODE_COMPILE_CACHE, NO_UPDATE_NOTIFIER: process.env.NO_UPDATE_NOTIFIER };
 if (api) {
     for (const clave of ['NODE_ENV', 'DB_TEST_SINTETICA', 'PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD', 'PGSSLMODE']) {
         entorno[clave] = process.env[clave];

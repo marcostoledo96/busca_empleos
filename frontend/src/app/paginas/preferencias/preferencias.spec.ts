@@ -9,9 +9,10 @@ import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
+import { environment } from '../../../environments/environment';
 
 describe('Preferencias — CV base persistido', () => {
-    const url = 'http://localhost:3000/api/preferencias/cv-base';
+    const url = `${environment.urlApi}/preferencias/cv-base`;
     const fecha = '2026-01-01T00:00:00Z';
 
     async function abrir(texto: string | null = null, preferencias: Record<string, unknown> = {}) {
@@ -23,7 +24,7 @@ describe('Preferencias — CV base persistido', () => {
         const fixture = TestBed.createComponent(Preferencias);
         fixture.autoDetectChanges();
         const http = TestBed.inject(HttpTestingController);
-        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: preferencias });
+        http.expectOne(`${environment.urlApi}/preferencias`).flush({ exito: true, datos: preferencias });
         http.expectOne(url).flush({ exito: true, datos: { cv_base: texto, cv_base_actualizado_en: texto === null ? null : fecha } });
         await fixture.whenStable();
         return { fixture, componente: fixture.componentInstance, http };
@@ -55,6 +56,45 @@ describe('Preferencias — CV base persistido', () => {
         expect(componente.nombre).toBe('Edición posterior');
         expect(componente.cambiosSinGuardar).toBeTrue();
         expect(componente.mensajeAccesible()).toBe('No se pudieron guardar las preferencias.');
+        http.verify();
+    });
+
+    it('QA AE B conserva mutaciones in-place de listas y objetos durante PUT y permite segundo guardado', async () => {
+        const { componente, http } = await abrir(null, {
+            terminos_busqueda: ['inicial'], nivel_ingles_detalle: { reading: 'A1' },
+        });
+        componente.terminosBusqueda.push('enviado');
+        componente.nivelInglesDetalle.reading = 'A2';
+        const lista = componente.terminosBusqueda;
+        const objeto = componente.nivelInglesDetalle;
+        componente.guardar();
+        const put = http.expectOne(r => r.method === 'PUT');
+        expect(componente.guardando()).toBeTrue();
+        componente.terminosBusqueda.push('posterior');
+        componente.nivelInglesDetalle.reading = 'B1';
+        expect(componente.terminosBusqueda).toBe(lista);
+        expect(componente.nivelInglesDetalle).toBe(objeto);
+        expect(put.request.body).toEqual({
+            terminos_busqueda: ['inicial', 'enviado'], nivel_ingles_detalle: { reading: 'A2' },
+        });
+        put.flush({ exito: true, datos: put.request.body });
+        expect(componente.terminosBusqueda).toEqual(['inicial', 'enviado', 'posterior']);
+        expect(componente.nivelInglesDetalle.reading).toBe('B1');
+        expect(componente.guardando()).toBeFalse();
+        expect(componente.cambiosSinGuardar).toBeTrue();
+        expect(componente.mensajeAccesible()).toBe('Guardé las preferencias enviadas. Quedan cambios posteriores sin guardar.');
+        const salida = new Event('beforeunload', { cancelable: true }) as BeforeUnloadEvent;
+        componente.advertirSalidaCv(salida);
+        expect(salida.defaultPrevented).toBeTrue();
+        componente.guardar();
+        const segundo = http.expectOne(r => r.method === 'PUT');
+        expect(segundo.request.body).toEqual({
+            terminos_busqueda: ['inicial', 'enviado', 'posterior'], nivel_ingles_detalle: { reading: 'B1' },
+        });
+        segundo.flush({ exito: true, datos: segundo.request.body });
+        expect(componente.cambiosSinGuardar).toBeFalse();
+        expect(componente.guardando()).toBeFalse();
+        expect(componente.mensajeAccesible()).toBe('Preferencias actualizadas correctamente.');
         http.verify();
     });
 
@@ -144,7 +184,7 @@ describe('Preferencias — CV base persistido', () => {
         const nuevas = { ...anteriores, modelo_ia_evaluacion: 'deepseek-flash', modelo_ia_importacion: 'deepseek-flash' };
         guardado.flush({ exito: true, datos: nuevas, cambio_criterios: false });
         componente.cargarPreferencias();
-        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: nuevas });
+        http.expectOne(`${environment.urlApi}/preferencias`).flush({ exito: true, datos: nuevas });
         await fixture.whenStable();
         expect(componente.modeloIaImportacion as string).toBe('deepseek-flash');
         expect(componente.modeloIaEvaluacion as string).toBe('deepseek-flash');
@@ -335,13 +375,13 @@ describe('Preferencias — CV base persistido', () => {
         const fixture = TestBed.createComponent(Preferencias);
         fixture.detectChanges();
         const http = TestBed.inject(HttpTestingController);
-        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: {} });
+        http.expectOne(`${environment.urlApi}/preferencias`).flush({ exito: true, datos: {} });
         fixture.detectChanges();
         await fixture.whenStable();
         const editor = fixture.nativeElement.querySelector('#cv-base') as HTMLTextAreaElement;
         expect(editor).not.toBeNull();
         if (editor) expect(editor.disabled).toBeTrue();
-        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({ error: 'Error de carga' }, { status: 500, statusText: 'Error' });
+        http.expectOne(`${environment.urlApi}/preferencias/cv-base`).flush({ error: 'Error de carga' }, { status: 500, statusText: 'Error' });
         fixture.detectChanges();
         await fixture.whenStable();
         expect(editor.disabled).toBeTrue();
@@ -351,7 +391,7 @@ describe('Preferencias — CV base persistido', () => {
         http.expectNone(r => r.method === 'PUT');
         fixture.componentInstance.cargarCvBase();
         fixture.componentInstance.editarCvBase('Edición programática antes del GET');
-        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({
+        http.expectOne(`${environment.urlApi}/preferencias/cv-base`).flush({
             exito: true, datos: { cv_base: null, cv_base_actualizado_en: null },
         });
         fixture.detectChanges();
@@ -881,8 +921,8 @@ describe('Preferencias — Accesibilidad aria-live dinámico', () => {
             plataformas_excluidas: ['computrabajo'], expectativa_salarial_min: 900,
             roles_objetivo_detalle: [{ rol: 'QA', prioridad: 'alta', aliases: [] }],
             terminos_busqueda: ['QA'], reglas_exclusion: ['Java'] };
-        http.expectOne('http://localhost:3000/api/preferencias').flush({ exito: true, datos: fila });
-        const urlFuente = 'http://localhost:3000/api/preferencias/cv-base';
+        http.expectOne(`${environment.urlApi}/preferencias`).flush({ exito: true, datos: fila });
+        const urlFuente = `${environment.urlApi}/preferencias/cv-base`;
         http.expectOne(urlFuente).flush({ exito: true, datos: { cv_base: null, cv_base_actualizado_en: null } });
         await fixture.whenStable();
         const editor = fixture.nativeElement.querySelector('#cv-base') as HTMLTextAreaElement;
@@ -1407,11 +1447,11 @@ describe('Preferencias — Filtro de nivel de LinkedIn (Issue #14)', () => {
         const comp = fixture.componentInstance;
         fixture.autoDetectChanges();
 
-        http.expectOne('http://localhost:3000/api/preferencias').flush({
+        http.expectOne(`${environment.urlApi}/preferencias`).flush({
             exito: true,
             datos: { id: 1, filtrar_nivel_linkedin: false },
         });
-        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({
+        http.expectOne(`${environment.urlApi}/preferencias/cv-base`).flush({
             exito: true,
             datos: { cv_base: null, cv_base_actualizado_en: null },
         });
@@ -1437,11 +1477,11 @@ describe('Preferencias — Filtro de nivel de LinkedIn (Issue #14)', () => {
         const comp = fixture.componentInstance;
         fixture.autoDetectChanges();
 
-        http.expectOne('http://localhost:3000/api/preferencias').flush({
+        http.expectOne(`${environment.urlApi}/preferencias`).flush({
             exito: true,
             datos: { id: 1, terminos_busqueda: ['QA manual', 'C#'] },
         });
-        http.expectOne('http://localhost:3000/api/preferencias/cv-base').flush({
+        http.expectOne(`${environment.urlApi}/preferencias/cv-base`).flush({
             exito: true,
             datos: { cv_base: null, cv_base_actualizado_en: null },
         });
