@@ -23,6 +23,8 @@ docs/*.docx
 
 # Artefactos de herramientas de desarrollo
 .playwright-mcp/
+.atl/skill-registry.md
+.atl/.skill-registry.cache.json
 
 # Prototipos y archivos temporales de diseño
 docs/login
