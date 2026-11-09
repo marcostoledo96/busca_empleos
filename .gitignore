@@ -31,3 +31,5 @@ docs/login
 node_modules/
 # Salidas privadas de auditoría y socket de prueba sintética (nunca publicar).
 .qa-runtime/
+# Local AI runtime state
+.atl/
