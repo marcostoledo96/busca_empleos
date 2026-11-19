@@ -15,7 +15,7 @@ Uso DeepSeek mediante una API compatible con el formato de Chat Completions de O
 |---------|----------------|
 | `backend/src/config/deepseek.js` | Función `consultarDeepSeek()` que envía mensajes y retorna la respuesta en texto. |
 | `backend/src/servicios/servicio-evaluacion.js` | Construye prompts, evalúa ofertas, integra parser + reglas, actualiza la BD. |
-| `backend/src/servicios/evaluacion/parser-respuesta-ia.js` | Parser estricto: limpia fences, valida schema JSON (match boolean real, porcentaje 0-100 o null, razon string con fallback). |
+| `backend/src/servicios/evaluacion/parser-respuesta-ia.js` | Limpia fences Markdown y valida la respuesta: `match` booleano, porcentaje válido en `[0, 100]` y razón con texto de respaldo. |
 | `backend/src/servicios/evaluacion/reglas-exclusion.js` | Reglas determinísticas de exclusión fuerte (Java, Senior/SR/Lead, 3+ años, inglés excluyente, ubicación/modalidad). |
 | `backend/src/controladores/controlador-evaluacion.js` | Recibe request HTTP y dispara la evaluación de todas las pendientes. |
 
@@ -179,7 +179,7 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
   - **70-89:** Buen match. Cumple la mayoría de requisitos.
   - **50-69:** Match parcial. Algunas tecnologías coinciden.
   - **0-49:** No es match. Requiere tecnologías o experiencia fuera del perfil.
-- El backend aplica un clamp `Math.max(0, Math.min(100, porcentaje))` para asegurar rango válido.
+- El [parser](#parser-estricto-de-respuesta-ia-parser-respuesta-iajs) valida el rango inclusivo `[0, 100]` antes de redondear. Un porcentaje inválido da `null` y un error de validación; no se ajusta a los límites.
 
 ## Requisitos contextuales (issue #7)
 
@@ -208,13 +208,14 @@ Interpreto las señales de Java, seniority, experiencia e inglés dentro de clá
 1. Construir prompt con datos de la oferta (título, empresa, ubicación, modalidad, nivel, descripción)
 2. Ejecutar reglas de exclusión determinísticas (pre-validación):
    - Si la oferta es excluida → retornar rechazo sin llamar DeepSeek.
-   - Si no → continuar.
-3. Enviar a DeepSeek: sistema = instrucciones + perfil, usuario = datos de la oferta
+   - Si falta la descripción → dejar pendiente sin llamar a DeepSeek.
+   - Si corresponde y hay un resultado reutilizable en caché → no hacer una nueva consulta.
+3. Si se necesita una consulta, enviar a DeepSeek: sistema = instrucciones + perfil, usuario = datos de la oferta
 4. Recibir respuesta en texto
-5. Limpiar fences Markdown y parsear JSON con parser estricto (parser-respuesta-ia.js)
-   - match debe ser boolean real (rechaza "true"/"false" string)
-   - porcentaje entero 0-100 o null
-   - razon string con fallback si vacía
+5. Limpiar fences Markdown y validar el JSON con el parser estricto (parser-respuesta-ia.js)
+   - match debe ser un booleano real (rechaza las cadenas "true" y "false")
+   - porcentaje se valida antes de redondear; si es inválido, queda en null y se marca error
+   - razon usa texto de respaldo según match si falta, no es textual o queda vacía al recortar espacios
 6. Post-validación: reaplicar reglas de exclusión sobre resultado IA
    - Si DeepSeek aprobó una oferta excluida → sobrescribir con rechazo determinístico.
 7. Retornar resultado
@@ -246,7 +247,7 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 1. Usar la selección reciente validada por el controlador, o buscar pendientes extraídas en los últimos 30 días
 2. Tomar una única copia del perfil guardado; si no hay ofertas → retornar resumen vacío
 3. Para CADA oferta (secuencialmente):
-   a. Evaluar con DeepSeek
+   a. Evaluar con evaluarOferta (reglas, caché o consulta a DeepSeek, según corresponda)
    b. Determinar estado: fallo técnico o elegibilidad por confirmar → 'pendiente'; en los demás casos match=true → 'aprobada', match=false → 'rechazada'
    c. Actualizar en BD: actualizarEvaluacion(id, estado, razon, porcentaje)
    d. Sumar contadores
@@ -272,11 +273,11 @@ Campos opcionales (empresa, ubicación, etc.) se omiten si son null.
 
 ## Limpieza de respuesta
 
-DeepSeek a veces envuelve el JSON en bloques de código markdown:
+DeepSeek puede envolver el JSON en un bloque de código Markdown. Ejemplo abreviado para ilustrar la limpieza:
 
 ````
 ```json
-{"match": true, "razon": "..."}
+{"match": true, "razon": "...", "porcentaje": 85}
 ```
 ````
 
@@ -291,10 +292,9 @@ const jsonLimpio = respuestaTexto
 
 ## Bonus de IA y Next.js
 
-> **Nota:** El sistema de scoring previo fue deprecado en B1. Los bonus de IA/Next.js
-> ya no se configuran desde la UI de preferencias. DeepSeek + reglas-exclusion son el
-> único flujo de evaluación. La prioridad IA vigente pertenece al ranking separado;
-> no equivale a un bonus fijo de match ni a una habilidad del candidato.
+> **Antecedente:** El scoring previo y sus bonus configurables de IA/Next.js se
+> retiraron del flujo de evaluación. La prioridad IA vigente pertenece al ranking
+> separado; no equivale a un bonus fijo de match ni a una habilidad del candidato.
 >
 > La migración 016 elimina físicamente del esquema las columnas legacy de scoring previo
 > (`score_previo`, `analisis_previo`, `scoring_version` en `ofertas` y `scoring_config`
@@ -329,11 +329,11 @@ La interfaz de preferencias muestra:
 
 ### Schema validado
 
-| Campo | Tipo | Regla |
-|-------|------|-------|
-| `match` | boolean | **Rechaza** `"true"` o `"false"` como string. Solo acepta `true`/`false` literales. |
-| `porcentaje` | number \| null | Entero 0-100. Clamp si fuera de rango. Null permitido. |
-| `razon` | string | Fallback descriptivo si vacía o solo espacios. |
+| Campo | Entrada | Regla |
+|-------|---------|-------|
+| `match` | Booleano | Solo acepta `true` o `false` literales; rechaza las cadenas `"true"` y `"false"`. |
+| `porcentaje` | Número finito o cadena numérica no vacía | Comprueba el rango inclusivo `[0, 100]` antes de redondear al entero más cercano. Si falta, es `null`, está vacío (incluso solo espacios), no es numérico o está fuera de rango, el resultado es `null` y la respuesta se marca inválida. |
+| `razon` | Cadena de texto | Recorta espacios; si falta, no es textual o queda vacía, usa un texto de respaldo según `match`. |
 
 ### Limpieza previa
 
@@ -341,7 +341,11 @@ Antes de parsear, elimina fences Markdown (```json ... ```) automáticamente.
 
 ### Manejo de errores
 
-Si el JSON es inválido o no cumple el schema, retorna `{ match: false, porcentaje: null, razon: "Error de parseo: ...", error: true }`.
+Si el JSON es inválido, no es un objeto o `match` no es booleano, el parser
+retorna `match: false`, `porcentaje: null` y una razón técnica. Si el porcentaje
+es inválido, conserva el booleano recibido, devuelve `porcentaje: null` y añade
+el motivo de inconsistencia a la razón. En ambos casos marca `error`, `invalido`
+e `inconsistente`; el fallo técnico no equivale a un rechazo laboral.
 
 ### Citas completas entre cláusulas y encabezados (#81)
 
@@ -609,7 +613,7 @@ Cada ítem del desglose conserva: `requisito`, `tipo` (`obligatorio` | `deseable
 
 ### 2. Regla de coherencia y semántica de compatibilidad
 - **Compatibilidad estimada:** El porcentaje numérico representa únicamente la afinidad técnica estimada entre la vacante y el perfil. Nunca se interpreta ni presenta como "probabilidad de contratación" ni como "probabilidad de ser contratado".
-- **Validación estricta de porcentaje:** Se eliminó la coerción silenciosa de cadenas vacías `""` a `0`. Valores no numéricos, vacíos o fuera del rango `[0, 100]` invalidan la coherencia de la respuesta en lugar de forzarse mediante *clamping*.
+- **Validación estricta de porcentaje:** El parser acepta un número finito o una cadena numérica no vacía y comprueba `[0, 100]` antes de redondear. Un valor ausente, `null`, vacío, no numérico o fuera de rango devuelve `null` y marca la respuesta inválida, sin forzarla a los límites.
 - **Coherencia lógica entre decisión y score:**
   * `match: true` con porcentaje < 60% se marca como inconsistente.
   * `match: false` con porcentaje >= 60% solo es admisible si existe una exclusión obligatoria justificada en `exclusiones` (ej. 90% de coincidencia técnica pero rechazada por exigir Java obligatoriamente). Si no hay exclusión, se marca como inconsistente.

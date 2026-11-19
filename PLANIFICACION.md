@@ -1,14 +1,48 @@
 # PLANIFICACION.md — Hoja de ruta del proyecto Busca Empleos
 
-## Resumen del proyecto
+## Estado vigente
 
-Sistema automatizado que extrae ofertas de empleo de LinkedIn y Computrabajo,
-las evalúa con IA (DeepSeek) contra mi perfil, y muestra las aprobadas
-en un dashboard web.
+Busca Empleos ya cuenta con una [API REST](docs/api-rest.md) en Node.js/Express y un
+[dashboard Angular](docs/frontend.md) para buscar y filtrar ofertas, consultar el
+historial de búsquedas, hacer seguimiento de postulaciones y revisar la importación
+del CV o generar una plantilla imprimible con datos confirmados. La persistencia
+usa [PostgreSQL en Railway](docs/base-de-datos.md#motor-y-conexión). La
+[evaluación](docs/evaluacion-ia.md) combina reglas determinísticas, caché y DeepSeek
+cuando corresponde; la afinidad técnica, la elegibilidad y el ranking son distintos.
+
+### Evidencia y límites
+
+El historial registra la integración de búsqueda e historial ([PR #64](https://github.com/marcostoledo96/busca_empleos/pull/64))
+y de seguimiento y CV (#42, #43 y #44). También están integradas las PR #84
+(exclusiones contextuales), #86 (elegibilidad), #90 (título terciario) y #93
+(instrucciones del proyecto). Los commits `7cdc6bc` y `4ae83b2` registran pruebas
+sintéticas de contratos de proveedores y recorridos E2E con persistencia aislada,
+respectivamente. Esta evidencia no confirma despliegues recientes, disponibilidad
+de proveedores, credenciales ni resultados actuales de producción.
+
+### Pendientes
+
+- [#94 — Estado vigente](https://github.com/marcostoledo96/busca_empleos/issues/94):
+  actualización documental. Se requiere aprobar el candidato local antes de
+  publicar y autorizar cada acción de publicación por separado.
+- [#91 — Reconciliación privada del perfil](https://github.com/marcostoledo96/busca_empleos/issues/91):
+  pendiente de evidencia privada y confirmación explícita del propietario. No
+  implica cambios de producto ni autoriza reevaluaciones.
+- [#88 — Google Jobs](https://github.com/marcostoledo96/busca_empleos/issues/88):
+  sigue inactivo hasta una decisión explícita de producto sobre costos, presupuesto
+  y utilidad. La [PR #89](https://github.com/marcostoledo96/busca_empleos/pull/89)
+  se cerró sin integrar.
+
+Las issues #75, #82 y #92 están cerradas y no se reabren por esta actualización.
 
 ---
 
 ## Fases de desarrollo
+
+> **Plan histórico:** desde la [fase 0](#fase-0--setup-del-proyecto) hasta la
+> [fase 7](#fase-7--polish-y-cierre), con su orden original, se conserva el plan
+> inicial. Sus tareas y entregables no constituyen un checklist de avance ni una
+> validación de producción. Para el estado actual, ver [Estado vigente](#estado-vigente).
 
 ### Fase 0 — Setup del proyecto
 
@@ -178,9 +212,3 @@ Fase 0 (Setup) → Fase 1 (BD) → Fase 2 (Scraping) → Fase 3 (IA)
                                                           ↓
                                                      Fase 7 (Polish)
 ```
-
----
-
-## Fase actual
-
-> **Estamos en: Fase 0 — Setup del proyecto.**
