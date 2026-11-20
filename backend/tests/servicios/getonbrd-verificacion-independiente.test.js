@@ -13,7 +13,10 @@ const item = (id, dias = 1) => ({ id, attributes: { title: 'Desarrollador junior
 const respuesta = (data, total_pages = 1) => ({ ok: true, status: 200, json: async () => ({ data, meta: { total_pages } }) });
 const opciones = cliente => ({ destino: cfg.DESTINO_SANDBOX, cliente, ahora, terminos: ['C# junior'] });
 beforeEach(() => { pool.reiniciar(); delete process.env.GETONBRD_ENABLED; });
-afterEach(() => jest.restoreAllMocks());
+afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+});
 // S3-S4: la guarda usa bytes conservados y rechaza destinos antes del HTTP.
 test('los cinco documentos conservados coinciden en bytes y SHA256', () => {
     for (const d of cfg.EVIDENCIA_AUTORIZACION.documentos) {
@@ -117,6 +120,7 @@ test('flujo común conserva parcial y datos válidos en listado e historial sin 
 
 // S2,S4,S5,S10: contrato del controlador con HTTP inyectado global y sin servidor.
 test('búsqueda individual usa el término guardado, persiste y retorna el mismo resumen común', async () => {
+    jest.useFakeTimers({ now: ahora, doNotFake: ['setTimeout', 'clearTimeout'] });
     process.env.GETONBRD_ENABLED = 'true';
     const http = jest.spyOn(global, 'fetch').mockResolvedValue(respuesta([item('individual')]));
     const res = { status: jest.fn().mockReturnThis(), json: jest.fn() };
