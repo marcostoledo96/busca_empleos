@@ -6,7 +6,7 @@ Busca Empleos ya cuenta con una [API REST](docs/api-rest.md) en Node.js/Express 
 [dashboard Angular](docs/frontend.md) para buscar y filtrar ofertas, consultar el
 historial de búsquedas, hacer seguimiento de postulaciones y revisar la importación
 del CV o generar una plantilla imprimible con datos confirmados. La persistencia
-usa [PostgreSQL en Railway](docs/base-de-datos.md#motor-y-conexión). La
+usa [PostgreSQL en Railway](AGENTS.md#8-base-de-datos). La
 [evaluación](docs/evaluacion-ia.md) combina reglas determinísticas, caché y DeepSeek
 cuando corresponde; la afinidad técnica, la elegibilidad y el ranking son distintos.
 
@@ -23,8 +23,7 @@ de proveedores, credenciales ni resultados actuales de producción.
 ### Pendientes
 
 - [#94 — Estado vigente](https://github.com/marcostoledo96/busca_empleos/issues/94):
-  actualización documental. Se requiere aprobar el candidato local antes de
-  publicar y autorizar cada acción de publicación por separado.
+  actualización documental en revisión mediante la [PR #95](https://github.com/marcostoledo96/busca_empleos/pull/95).
 - [#91 — Reconciliación privada del perfil](https://github.com/marcostoledo96/busca_empleos/issues/91):
   pendiente de evidencia privada y confirmación explícita del propietario. No
   implica cambios de producto ni autoriza reevaluaciones.
