@@ -1,20 +1,20 @@
 # Busco Trabajo — AI Job Scraper
 
-Plataforma full-stack personal para automatizar la búsqueda activa de empleo IT. El sistema extrae periódicamente cientos de ofertas laborales de múltiples portales, las filtra mediante Inteligencia Artificial (DeepSeek) comparándolas con un perfil técnico configurado, y centraliza los resultados en un dashboard interactivo.
+Plataforma personal para automatizar la búsqueda de empleo IT. Una API REST y un dashboard Angular centralizan la extracción, la evaluación y el seguimiento de ofertas. El [estado vigente y los pendientes](PLANIFICACION.md#estado-vigente) se distinguen del plan inicial.
 
 ## 🚀 Características principales
 
-1. **Scraping automatizado** — Extrae ofertas de LinkedIn, Computrabajo, Indeed, Bumeran, Glassdoor y GetOnBrd sin riesgo de bloqueo IP, utilizando la API de Apify.
-2. **Evaluación semántica con IA** — Cada oferta es analizada por DeepSeek, que compara los requisitos técnicos y la experiencia solicitada con el perfil del candidato. Descarta falsos positivos (ej. QA de laboratorio vs. QA de software) y roles fuera del sector IT.
-3. **Dashboard de gestión** — Interfaz web en Angular para visualizar, filtrar, buscar y hacer seguimiento a las postulaciones aprobadas.
+1. **Búsqueda automatizada** — El [registro de plataformas](backend/src/config/plataformas.js) indica qué fuentes están configuradas y cuáles figuran como activas. Algunas usan Apify; otras, como Computrabajo, usan extracción directa. Una fuente activa en el registro no implica que pueda ejecutarse: depende del entorno y del proveedor. Apify no garantiza ausencia de bloqueos ni de fallos.
+2. **Evaluación de ofertas** — Compara los requisitos con el perfil confirmado. Las reglas determinísticas pueden resolver una exclusión y la caché puede reutilizar un resultado sin una nueva consulta a DeepSeek.
+3. **Dashboard de gestión** — Permite buscar y filtrar ofertas, consultar el historial de búsquedas, dar seguimiento a postulaciones y revisar la importación del CV.
 
 ## 💻 Tech Stack
 
 | Capa | Tecnología |
 |------|-----------|
 | **Backend** | Node.js + Express 5 |
-| **Base de datos** | PostgreSQL (driver `pg`, consultas parametrizadas) |
-| **Scraping** | Apify API (`apify-client`) |
+| **Base de datos** | PostgreSQL en Railway (driver `pg`, consultas parametrizadas) |
+| **Scraping** | Apify (`apify-client`) y mecanismos específicos por fuente |
 | **Inteligencia Artificial** | DeepSeek API |
 | **Autenticación** | Firebase Auth (JWT) |
 | **Frontend** | Angular 20 + PrimeNG |
@@ -32,79 +32,43 @@ busca_empleos/
 └── docs/          ← Documentación técnica del proyecto
 ```
 
-## ⚙️ Requisitos previos
+## ⚙️ Entorno e inicio
 
-- Node.js v22+
-- PostgreSQL instalado y corriendo localmente
-- Cuenta en [Apify](https://apify.com/) con token de API
-- Cuenta en [DeepSeek](https://platform.deepseek.com/) con API key
-- Proyecto en Firebase (para autenticación)
+Se recomienda Node.js 22 desde la versión 22.12.0. PostgreSQL local no es un
+requisito general: el backend se conecta a la base del entorno mediante
+`DATABASE_URL`. Las credenciales de Firebase y de los proveedores se configuran
+solo para el entorno autorizado; no se incluyen credenciales de producción en
+archivos versionados ni en ejemplos.
 
-## 📦 Instalación
+Se permite inspeccionar los archivos pertinentes sin acceder a secretos ni datos
+personales. Esta guía no autoriza instalar dependencias, ejecutar comandos con
+efectos ni publicar cambios; se aplican los límites de [AGENTS.md](AGENTS.md).
 
-### 1. Clonar el repositorio
+| Carpeta | Comando (solo con autorización) | Uso |
+|---------|---------------------------------|-----|
+| `backend/` y `frontend/`, por separado | `npm ci` | Instala las dependencias del lockfile de cada carpeta. |
+| `backend/` | `npm run dev` o `npm start` | Inicia el backend; puede reanudar automatizaciones, escribir datos o llamar a proveedores. |
+| `frontend/` | `npm start` | Inicia el servidor de desarrollo Angular. |
 
-```bash
-git clone https://github.com/marcostoledo96/busca_empleos.git
-cd busca_empleos
-```
+### Base de datos y despliegue
 
-### 2. Configurar el backend
+El runner canónico se invoca desde `backend/` con `npm run db:migrate`
+(`npm run db:migrate:apply` para aplicar pendientes). **Incluso sin `--apply`
+puede escribir** al crear `schema_migrations`; no es una simulación ni una
+inspección de solo lectura. Antes de ejecutarlo, se requiere aprobación explícita
+para el destino y los efectos, según [AGENTS.md](AGENTS.md#7-verificación-según-el-alcance).
+Consultar el [runner de migraciones](docs/base-de-datos.md#runner-de-migraciones)
+y la [guía de despliegue](docs/deploy.md#4-ejecutar-las-migraciones-sql). No usar
+la instalación inicial sobre una base existente; para producción, seguir el
+procedimiento de reconciliación indicado en la guía.
 
-```bash
-cd backend
-npm install
-cp .env.example .env
-```
+## Transición de dominio (registro histórico)
 
-Editar `.env` con las credenciales reales (ver `.env.example` para referencia).
-
-Descargar el archivo de credenciales del Service Account de Firebase desde:
-`Firebase Console → Configuración del proyecto → Cuentas de servicio → Generar nueva clave privada`
-
-Guardarlo como `backend/firebase-service-account.json`.
-
-Crear la base de datos:
-
-```bash
-# Conectarse a PostgreSQL y ejecutar los scripts en orden:
-psql -U postgres -f sql/crear-tablas.sql
-psql -U postgres -f sql/migracion-002-postulacion-y-porcentaje.sql
-psql -U postgres -f sql/migracion-003-preferencias.sql
-psql -U postgres -f sql/migracion-007-modelo-deepseek-v4-flash.sql
-```
-
-Iniciar el servidor:
-
-```bash
-npm run dev       # Desarrollo (nodemon)
-npm start         # Producción
-```
-
-### 3. Configurar el frontend
-
-```bash
-cd frontend
-npm install
-```
-
-El frontend espera el backend en `http://localhost:3000`. Si usás otro puerto, actualizar `frontend/src/environments/environment.ts`.
-
-```bash
-ng serve          # Inicia en http://localhost:4200
-```
-
-## Estado del dominio
-
-La dirección final es **https://busco-trabajo.vercel.app**. Conservo
-https://busca-empleos.vercel.app como alias del mismo proyecto Vercel.
-Ambos sirven `/preferencias` por HTTPS con COOP preservado. Railway ya permite
-ambos orígenes; Marcos confirmó el dominio autorizado y Google en Firebase,
-y el recorrido de acceso, ofertas existentes, preferencias/recarga y salida.
-Distingo esa confirmación humana de los checks HTTP independientes.
-La marca nueva se publica con el merge y despliegue automático; no doy por
-verificada su activación antes de comprobar producción. Registro evidencia en
-[la guía de deploy](docs/deploy.md#transición-de-marca-y-dominio--issue-27).
+En la [transición de marca y dominio](docs/deploy.md#transición-de-marca-y-dominio--issue-27)
+se definió **https://busco-trabajo.vercel.app** como dirección final y
+https://busca-empleos.vercel.app como alias del mismo proyecto Vercel. La guía
+separa la confirmación humana del acceso y del recorrido en Firebase de los
+controles HTTP independientes. Ese registro no verifica un despliegue nuevo.
 
 ## 📚 Documentación técnica
 
@@ -113,19 +77,17 @@ verificada su activación antes de comprobar producción. Registro evidencia en
 | [docs/arquitectura.md](docs/arquitectura.md) | Visión general del sistema |
 | [docs/api-rest.md](docs/api-rest.md) | Referencia completa de endpoints |
 | [docs/base-de-datos.md](docs/base-de-datos.md) | Esquema de tablas y modelos |
-| [docs/scraping.md](docs/scraping.md) | Configuración de actores de Apify |
+| [docs/scraping.md](docs/scraping.md) | Integración de fuentes y extracción |
 | [docs/evaluacion-ia.md](docs/evaluacion-ia.md) | Lógica de evaluación con DeepSeek |
 | [docs/frontend.md](docs/frontend.md) | Componentes y páginas del dashboard |
 
 ## 🧪 Tests
 
-```bash
-# Backend (desde backend/)
-npm test
-
-# Tests de modelos (requieren BD activa)
-npm run test:modelos
-```
+Para una ejecución autorizada, consultar los comandos por carpeta, las exclusiones
+predeterminadas del script del backend y las posibles omisiones en
+[AGENTS.md](AGENTS.md#5-entorno-y-comandos). `ALLOW_DB_TESTS=false` no garantiza
+el aislamiento de red. Las pruebas que puedan tocar una base o un proveedor real
+requieren confirmación previa del destino, los datos afectados y los efectos.
 
 ## 👤 Autor
 
