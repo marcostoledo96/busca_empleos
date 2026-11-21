@@ -1,4 +1,9 @@
 {
+    "git": {
+        "deploymentEnabled": {
+            "feat/busco-trabajo-mcp": false
+        }
+    },
     "headers": [
         {
             "source": "/(.*)",

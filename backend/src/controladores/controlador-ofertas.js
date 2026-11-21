@@ -200,7 +200,7 @@ async function obtenerOferta(req, res) {
 
     res.json({
         exito: true,
-        datos: (await agregarVigencia([oferta]))[0],
+        datos: (await agregarVigencia([oferta], true))[0],
     });
 }
 

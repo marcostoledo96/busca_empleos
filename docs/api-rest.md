@@ -652,7 +652,7 @@ persistidas detecta al momento de la consulta.
 
 ### GET /api/ofertas/:id
 
-Retorna una oferta específica.
+Retorna una oferta específica. La ruta sigue protegida por Firebase y no crea preferencias durante la lectura.
 
 **Validación:** El ID debe ser un número entero positivo (se valida en el boundary).
 
@@ -677,6 +677,13 @@ Retorna una oferta específica.
 ```json
 { "exito": false, "error": "Oferta no encontrada." }
 ```
+
+**Error — preferencias requeridas no disponibles (503):**
+```json
+{ "exito": false, "error": "No pude leer las preferencias requeridas. No modifiqué datos." }
+```
+
+El [núcleo de consulta pública](consulta-publica.md) es interno: no agrega endpoints y no usa preferencias.
 
 ### PATCH /api/ofertas/:id/seguimiento
 
