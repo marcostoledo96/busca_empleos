@@ -1,0 +1,53 @@
+# Piloto local de ChatGPT: alcance y puertas de avance
+
+La [issue #104](https://github.com/marcostoledo96/busca_empleos/issues/104) separa la simulación, la prueba con una cuenta real y la integración con Busco Trabajo. Firebase sigue siendo el único inicio de sesión de la app. El piloto no reemplaza DeepSeek, no arranca con el backend y no habilita ejecución automática.
+
+| Escenario | Estado | Qué falta y quién lo verifica |
+| --- | --- | --- |
+| Ubuntu, manual | Candidato inicial; la simulación no acredita uso real | Marcos confirma condiciones y consentimiento. Luego se verifica el catálogo de la cuenta y, con permiso de consumo, cada inferencia. |
+| Ubuntu, programado | Fuera del piloto | Acreditar soporte y condiciones para ejecución desatendida, presupuesto y consentimiento específico. |
+| Railway/Vercel, manual | Bloqueado | Marcos debe contar con habilitación y condiciones aplicables de OpenAI para esta app alojada. La guía de VM no acredita esa habilitación. |
+| Railway/Vercel, cron | Bloqueado por separado | Además de la habilitación alojada, acreditar ejecución desatendida y obtener permiso específico. |
+
+El [alcance oficial](https://developers.openai.com/siwc/token-sharing-open-source) describe clientes open source/locales y remite las apps pagas o remotamente alojadas a un formulario de interés. No se envió el formulario. El repositorio es público pero no tiene `LICENSE` raíz; el ISC declarado por el paquete backend no demuestra una licencia para todo el proyecto. **No se ha acreditado el encuadre del proyecto ni se adopta una licencia en esta entrega.**
+
+## Conexión y desconexión (solo después de habilitar la prueba real)
+
+1. Iniciá vos el vínculo en Ubuntu. Usá el navegador del sistema, elegí la cuenta y el workspace, y revisá el consentimiento. La autorización vuelve al listener temporal en `127.0.0.1`, no a Angular.
+2. En [ChatGPT Settings → Usage](https://chatgpt.com/settings/usage), confirmá el acceso de la app al plan, sus límites y **que los créditos estén deshabilitados**. Ni Firebase, ni la firma del ID token, ni un scope prueban por sí solos la elegibilidad o un modelo disponible.
+3. Consultá el catálogo de esa cuenta. Elegí el slug publicado de Luna para ofertas y el de Sol para CV. Si no aparece alguno, frená y revisá alternativas sin sustituirlo automáticamente. El catálogo no demuestra que se pueda completar una inferencia.
+4. Para desvincular, detené las solicitudes y cerrá la conexión local al proveedor sin cerrar Firebase. Se intenta revocar el refresh token y retirar los tokens locales. Si no se puede confirmar la revocación, desconectá la app en ChatGPT Settings. No copies los archivos protegidos a Git, al chat, a CI ni al hosting.
+
+Ruta predeterminada del módulo local: `~/.config/busco-trabajo/sesion.json`, con directorio privado `0700`, archivo `0600` y reemplazo atómico. Los tokens no se muestran al navegador ni se almacenan en el frontend. El identificador opaco del host y la referencia de registro pueden sobrevivir a la desconexión sin reutilizar los tokens eliminados. Un solo proceso puede abrir el almacén; si un cierre abrupto deja `propietario.lock`, no vuelvas a vincular ni retires el lock hasta confirmar que no queda ningún proceso propietario. No hay recuperación automática.
+
+En esta fase no hay botón en Angular ni comando para vincular una cuenta real. Los módulos `backend/piloto-chatgpt/oauth.js` y `responses.js` están sin montar y requieren transporte inyectado. En una futura ejecución autorizada, cada operación debe ejecutarse dentro de `sesion.conToken` y pasar el `AbortSignal` recibido al transporte; no se debe guardar el bearer por fuera de esa operación. Ante `invalid_grant` en el canje inicial, `iniciarVinculo({ reintentar: true })` inicia una autorización nueva, solo por acción explícita, con el ID emitido retenido en memoria. Si otra cuenta se está desvinculando, esperá que termine y solicitá la desvinculación de la cuenta correspondiente: su resultado no se comparte entre cuentas.
+
+## Propuesta para una validación real posterior — no autorizada ni ejecutada
+
+- Ubuntu, proceso manual separado, perfil y ofertas enteramente ficticios. Sin rutas de evaluación, sin acceso a la base de la app, sin trabajos en segundo plano y sin escritura de resultados laborales. Si se usa PostgreSQL para el entorno de prueba, que sea efímero y exclusivo.
+- Una consulta de catálogo (`GET /v1/models`) tras el vínculo personal. Después, como máximo **dos inferencias**, una por modelo, sin reintento automático ni fallback. Los intercambios OAuth y la verificación de identidad no son inferencias.
+- **Luna:** `Oferta ficticia: Soporte IT Junior, presencial en CABA; Active Directory se menciona sin indicar si es obligatorio. Perfil ficticio: soporte básico, experiencia con Active Directory desconocida. Devolvé únicamente un objeto JSON con estado "por_confirmar" y motivo breve; no inventes experiencia.`
+- **Sol:** `CV ficticio: un curso de SQL y tres meses de práctica con un proyecto de clase. No consta nivel de inglés ni modalidad preferida. Devolvé únicamente un objeto JSON con habilidades ["SQL"], ingles null y modalidad null. No guardes ni infieras preferencias.`
+- Slugs exactos: pendientes del catálogo. Esfuerzo solicitado en la primera prueba: **omitido**, sin afirmar valor efectivo. El primer request no dará por supuesto `text.format` estricto; solicita JSON y lo valida en servidor. Si hace falta probar parámetros de esfuerzo o Structured Outputs, se define el request y se autoriza el consumo por separado; no se infiere soporte de otra modalidad.
+- Observar latencia, evento terminal, validación local, código e ID de solicitud sanitizados, y el cambio visible en Usage si existe. Una diferencia de cuota no observable se registra como **no medida**. Cancelar interrumpe la espera y descarta resultados tardíos; no garantiza recuperar cuota ya consumida. Ante denegación, ineligibilidad, cuota, cancelación o fallo, no enviar la siguiente inferencia automáticamente.
+
+## Verificación local de la Fase A
+
+Base: `896752d4816f7303a4fcf4a9dbebdc61e5bc5f47`. Node `24.18.0`. Las pruebas usan datos ficticios y `bwrap --unshare-net` con solo loopback, sin ruta externa. No se arrancó el backend de la aplicación.
+
+| Control | Resultado |
+| --- | --- |
+| `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js backend/piloto-chatgpt/oauth.browser-check.js` | Exit 0, 21 aprobadas en el candidato corregido: 12 OAuth, 8 Responses, 1 navegador. Incluye Chrome real: redirect simulado, callback real en loopback, consentimiento denegado, sin canje ni salida externa. El check de Chrome requiere Playwright ya instalado, `NODE_PATH` apuntando a sus dependencias de `frontend` y un ejecutable Chrome (`CHROME_BIN` o `/usr/bin/google-chrome`). |
+| `NODE_ENV=test ALLOW_DB_TESTS=false npm test -- --runInBand` desde `backend/` | Exit 0, 3973 aprobadas, 166 omitidas (92 suites aprobadas, 11 omitidas), en checkout Git efímero escribible. Los dos ensayos previos fallaron por el entorno de prueba: `git archive` no daba `HEAD` y el montaje de solo lectura impedía a la suite de #59 crear su directorio de evidencia. |
+| `npm test -- --watch=false --browsers=ChromeHeadless --include=src/app/interceptores/auth.interceptor.spec.ts` | Exit 0, 10/10 con Firebase simulado (Node 22.22.1, Karma 6.4.4, Chrome 158). Se usó el `environment.ts.example` versionado. Los primeros intentos fallaron por configuración ausente y por el sandbox SUID del lanzador; el ensayo exitoso alojó Chrome en un `bwrap` externo con red, PID, IPC y UTS aislados, sin montar el home del host. |
+| Revisión técnica independiente, `gpt-6.2-sol/high` | El primer candidato fue **no apto** por cinco defectos; el candidato corregido es **apto en la reverificación focal** (20/20, exit 0). No es un dictamen de integración ni una revisión Codex. |
+| PostgreSQL, lotes, vigencia/caché y editor de CV con proveedor nuevo | No ejecutados. El módulo simulado no monta rutas, no toca PostgreSQL y no está conectado al editor; esas comprobaciones corresponden a la integración condicionada de la Fase C. |
+| OAuth, cuenta y catálogo OpenAI reales; inferencia; Firebase real | No probados. No se usaron credenciales, datos personales ni cupo. |
+
+## Contrato y límites
+
+[Responses directos](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference): `store: false`, `stream: true`, `input` como array y éxito solo con `response.completed` más validación del servidor. El esfuerzo y Structured Outputs no son configurables en esta fase: si el llamador pasa `reasoning` o `text`, se rechaza antes de enviar. Un fallo técnico no es una decisión laboral. Un HTTP 401 del proveedor queda como error de dominio con estado local 502. El diagnóstico conserva estado y, cuando son seguros, código e ID de solicitud upstream. Se distingue un cuerpo de admisión `detail` sin conservar su texto. No se usan endpoints privados, cookies, sesiones de otras apps, API key de OpenAI Platform ni fallback pago.
+
+[Registro y consentimiento](https://developers.openai.com/siwc/token-sharing-open-source/sign-in) · [Sesión y revocación](https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions) · [Límites preview](https://developers.openai.com/siwc/token-sharing-open-source/preview-limitations) · [Errores](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery).
+
+**Publicación:** la [Etapa 0 de #106](https://github.com/marcostoledo96/busca_empleos/issues/106) es independiente. En la base revisada, CI no incluye PRs con destino a la integradora y `frontend/vercel.json` configura COOP, no un bloqueo de previews. La consulta de solo lectura confirmó que el backend de producción en Railway sigue `master`, pero no expuso el ajuste de entornos efímeros para PRs. Vercel identificó el proyecto vinculado al repositorio, pero no expuso el ajuste efectivo de previews ni una regla de exclusión para la rama. Esto no acredita ausencia de despliegues: no hacer push ni abrir PR para averiguarlo. La [calibración #105](https://github.com/marcostoledo96/busca_empleos/issues/105) puede continuar sin OAuth real ni cambios de caché, evaluación o CV de este piloto.
