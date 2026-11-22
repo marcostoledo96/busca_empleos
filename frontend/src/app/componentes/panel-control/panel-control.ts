@@ -659,9 +659,10 @@ export class PanelControl implements OnInit, OnDestroy {
         this.progresoEvaluacion.set(p);
         const esInterrumpido = !!p.mensaje_error?.toLowerCase().includes('reinicio');
         const fallo = esInterrumpido || p.estado === 'error' || p.errores > 0;
-        const cancelada = !fallo && (p.estado === 'cancelado' || p.evaluadas < p.total);
+        const cancelada = !fallo && (p.estado === 'cancelado' || (p.estado !== 'completado' && p.evaluadas < p.total));
         const pendientes = p.pendientes ?? Math.max(0, p.total - p.evaluadas);
-        const conteos = `${p.evaluadas} resultado(s) actualizado(s), ${pendientes} pendiente(s)`;
+        const pendientesDelLote = `${pendientes} pendiente(s) del lote`;
+        const conteos = `${p.evaluadas} resultado(s) actualizado(s), ${pendientesDelLote}`;
 
         let summary: string;
         let detalle: string;
@@ -683,7 +684,7 @@ export class PanelControl implements OnInit, OnDestroy {
             summary = 'Evaluación completada';
             const desglose = p.bajo_umbral == null ? '' : ` (${p.bajo_umbral} bajo el umbral)`;
             const porConfirmar = p.por_confirmar == null ? '' : `, ${p.por_confirmar} por confirmar`;
-            detalle = `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas${desglose}${porConfirmar} de ${p.total}`;
+            detalle = `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas${desglose}${porConfirmar} de ${p.total}${pendientes > 0 ? ` · ${pendientesDelLote}` : ''}`;
             severity = 'success';
         }
 

@@ -4,7 +4,7 @@ export async function abrirDetallePrincipal(page: Page, escenario: string) {
     const filtros: Record<string, RegExp> = {
         rechazada: /RECHAZADAS/, pendiente: /PENDIENTES/, error: /FALLOS TÉCNICOS/i,
         desactualizada: /REEVALUACIÓN SOLICITADA/i, confirmacion: /POR CONFIRMAR/i,
-        'sin-descripcion': /POR CONFIRMAR/i, postulada: /POSTULADAS/,
+        'sin-descripcion': /PENDIENTES/i, postulada: /POSTULADAS/,
     };
     if (filtros[escenario]) await page.getByRole('tab', { name: filtros[escenario] }).click();
     // Identifico la oferta 501 por su título único, nunca por la posición ordenada de la lista.

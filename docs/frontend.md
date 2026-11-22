@@ -373,6 +373,9 @@ no cambia esa categoría: el resultado conservado, su vigencia y el diagnóstico
 El resumen de lotes muestra `por_confirmar` y `bajo_umbral` cuando el progreso los informa
 (incluye cero explícito y omite lo que no se conoce). **Bajo el umbral** desglosa una parte
 de las rechazadas del lote; no se vuelve a sumar. Los errores técnicos no son resultados laborales.
+Un lote completado puede dejar ofertas sin evaluar (por ejemplo, por falta de descripción).
+**Pendientes del lote** describe ese procesamiento, no la categoría laboral de la oferta:
+si un intento falla, su último resultado válido se conserva cuando existe.
 
 Reutilizo la sincronización y persistencia actuales: el backend incluye recientes y
 postulaciones históricas válidas. IndexedDB, fallback de memoria y caché local conservan

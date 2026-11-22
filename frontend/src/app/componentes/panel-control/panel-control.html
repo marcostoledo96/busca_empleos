@@ -7,7 +7,7 @@
     <p class="panel-aviso-eval" role="status" aria-live="polite">{{ avisoRed }}</p>
 }
 @if (progresoEvaluacion()?.estado === 'cancelado' && !errorEvaluacion()) {
-    <p class="panel-aviso-eval" role="status">Evaluación cancelada: {{ progresoEvaluacion()?.evaluadas }} resultado(s) actualizado(s), {{ progresoEvaluacion()?.pendientes ?? 0 }} pendiente(s).</p>
+    <p class="panel-aviso-eval" role="status">Evaluación cancelada: {{ progresoEvaluacion()?.evaluadas }} resultado(s) actualizado(s), {{ progresoEvaluacion()?.pendientes ?? 0 }} pendiente(s) del lote.</p>
 }
 
 @if (progresoEvaluacion(); as progreso) {

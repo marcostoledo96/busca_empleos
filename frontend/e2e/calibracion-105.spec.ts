@@ -11,6 +11,43 @@ test.beforeEach(async ({ context, page }) => {
 });
 
 for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 }]) {
+    test(`Kubernetes por confirmar y oferta sin evaluar · ${viewport.width}×${viewport.height}`, async ({ page }) => {
+        await page.setViewportSize(viewport);
+        await page.goto('/?detalle=calibracion-105-kubernetes');
+        const confirmacion = page.getByRole('tab', { name: /por confirmar/i });
+        const pendientes = page.getByRole('tab', { name: /pendientes/i });
+        await expect(confirmacion).toHaveAccessibleName(/por confirmar.*\b1\b/i);
+        await expect(pendientes).toHaveAccessibleName(/pendientes.*\b1\b/i);
+
+        const movil = viewport.width < 769;
+        const oferta = (tituloOferta: string) => movil
+            ? page.getByRole('listitem', { name: `Oferta: ${tituloOferta}`, exact: true })
+            : page.getByRole('row').filter({ hasText: tituloOferta });
+        const kubernetes = 'Operaciones de plataforma junior';
+        const sinDescripcion = 'Oferta sin descripción';
+        await confirmacion.click();
+        await expect(oferta(sinDescripcion)).toHaveCount(0);
+        await expect(oferta(kubernetes)).toContainText('Buena afinidad · Por confirmar');
+        await expect(oferta(kubernetes)).toContainText(afinidad);
+        await expect(oferta(kubernetes)).toContainText('Confirmar si Kubernetes es obligatorio');
+        await (movil ? oferta(kubernetes) : oferta(kubernetes).getByRole('button', { name: `Ver detalle de ${kubernetes}` })).click();
+        const detalle = page.getByRole('dialog');
+        await expect(detalle).toContainText('80 % de afinidad');
+        await detalle.locator('summary', { hasText: 'Ver desglose y evidencias del matching' }).click();
+        const duda = detalle.locator('.desglose-por-confirmar');
+        await expect(duda.getByText('Kubernetes', { exact: true })).toBeVisible();
+        await expect(duda.getByText('El aviso menciona Kubernetes sin indicar si es obligatorio.', { exact: false })).toBeVisible();
+        await expect(duda.getByText('Perfil:', { exact: true })).toHaveCount(0);
+        await page.keyboard.press('Escape');
+        await expect(detalle).toBeHidden();
+
+        await pendientes.click();
+        await expect(oferta(kubernetes)).toHaveCount(0);
+        await expect(oferta(sinDescripcion)).toContainText('Sin evaluar');
+        await expect(oferta(sinDescripcion)).not.toContainText(/por confirmar|afinidad|fallo técnico/i);
+        expect(await page.getByLabel('Llamadas simuladas').textContent()).not.toMatch(/(^|\n)(POST|PATCH) /);
+    });
+
     for (const tema of ['light', 'dark'] as const) {
         test(`afinidad por confirmar · ${viewport.width}×${viewport.height} · ${tema}`, async ({ page }, info) => {
             await page.setViewportSize(viewport);

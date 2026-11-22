@@ -1141,7 +1141,8 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         fixture.autoDetectChanges();
         await fixture.whenStable();
         expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Fallo SQL sintético');
-        expect(fixture.nativeElement.textContent).toContain('3 resultado(s) actualizado(s), 7 pendiente(s)');
+        expect(fixture.nativeElement.textContent).toContain('3 resultado(s) actualizado(s), 7 pendiente(s) del lote');
+        expect(fixture.nativeElement.textContent).toContain('Conservo el último resultado válido cuando existe.');
         expect(fixture.nativeElement.textContent).not.toContain('Evaluación completada');
         expect(component.evaluando()).toBeFalse();
         evalSpy.ejecutarEvaluacion.and.returnValue(of({ exito: true, en_curso: true, mensaje: 'Iniciada' }));
@@ -1151,6 +1152,36 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         expect(component.progresoEvaluacion()).toBeNull();
         expect(component.evaluando()).toBeTrue();
     });
+
+    for (const [estado, summary, detail] of [
+        ['completado', 'Evaluación completada', '2 aprobadas, 1 rechazadas de 4 · 1 pendiente(s) del lote'],
+        ['cancelado', 'Evaluación cancelada', 'Evaluación cancelada: 3 resultado(s) actualizado(s), 1 pendiente(s) del lote.'],
+        [undefined, 'Evaluación cancelada', 'Evaluación cancelada: 3 resultado(s) actualizado(s), 1 pendiente(s) del lote.'],
+    ] as const) {
+        it(`informa el cierre del lote con ofertas sin evaluar: ${estado ?? 'respuesta legada'}`, fakeAsync(() => {
+            evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: {
+                ...progresoActivoMock, activo: false, estado: 'inactivo', porcentaje: 0,
+            } }));
+            evalSpy.ejecutarEvaluacion.and.returnValue(of({ exito: true, en_curso: true, mensaje: 'Iniciada' }));
+            fixture = TestBed.createComponent(PanelControl);
+            component = fixture.componentInstance;
+            fixture.detectChanges();
+            const mensajes = spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+            const accion = spyOn(component.accionCompletada, 'emit');
+            const completado = estado === 'completado';
+            evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: {
+                ...progresoActivoMock, activo: false, estado, total: 4,
+                procesadas: completado ? 4 : 3, pendientes: 1, porcentaje: completado ? 100 : 75,
+            } }));
+            component.ejecutarEvaluacion([1, 2, 3, 4]);
+            tick(2000);
+            expect(mensajes).toHaveBeenCalledOnceWith(jasmine.objectContaining({ summary, detail }));
+            expect(accion).toHaveBeenCalledTimes(1);
+            expect(evalSpy.ejecutarEvaluacion).toHaveBeenCalledTimes(1);
+            expect(component.errorEvaluacion()).toBeNull();
+            tick(1500);
+        }));
+    }
 
     it('S7: muestra resultados nuevos sólo cuando el lote los informa y separa el diagnóstico', async () => {
         const progreso = { ...progresoActivoMock, activo: false, estado: 'error', errores: 1,

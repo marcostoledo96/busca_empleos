@@ -119,6 +119,7 @@ test('exclusión crítica visible y evidencia completa operable por teclado @det
 
 for (const [escenario, mensaje, score] of [
     ['pendiente', 'Sin evaluar', false],
+    ['sin-descripcion', 'Sin evaluar', false],
     ['error', 'Evaluación no completada (fallo técnico)', false],
     ['reevaluacion-fallida', 'Se conserva la evaluación anterior válida.', true],
     ['desactualizada', 'Reevaluación solicitada', false],
@@ -130,6 +131,12 @@ for (const [escenario, mensaje, score] of [
         await expect(dialogo.getByText(mensaje, { exact: false })).toBeVisible();
         await expect(dialogo.locator('.tag-match')).toHaveCount(score ? 1 : 0);
         await expect(dialogo.locator('.tag-detalle[data-estado="rechazada"]')).toHaveCount(0);
+        if (escenario === 'sin-descripcion') {
+            await expect(dialogo.getByText('Sin descripción registrada.', { exact: false })).toBeVisible();
+            await expect(dialogo.getByRole('button', { name: 'Completar o editar descripción' })).toContainText('Completar descripción');
+            await expect(dialogo.locator('.tag-detalle[data-estado="por_confirmar"], .tag-detalle[data-estado="error"]')).toHaveCount(0);
+            await expect(dialogo.locator('summary', { hasText: 'Ver desglose' })).toHaveCount(0);
+        }
         if (escenario === 'error') await expect(dialogo.getByText('ERROR TÉCNICO', { exact: true })).toBeVisible();
         if (escenario === 'reevaluacion-fallida') await expect(dialogo).not.toContainText('Evaluación desactualizada');
         if (escenario === 'historica') await expect(dialogo.locator('summary', { hasText: 'Ver desglose' })).toHaveCount(0);
@@ -138,31 +145,23 @@ for (const [escenario, mensaje, score] of [
     });
 }
 
-for (const [escenario, requisito, razon] of [
-    ['confirmacion', 'Residencia en provincia Delta', 'Pendiente de confirmación: Residencia en provincia Delta. Afinidad técnica estimada: 91%.'],
-    ['sin-descripcion', 'Descripción de la oferta', 'Pendiente de confirmación: falta la descripción de la oferta.'],
-]) {
-    test(`#80 ${escenario}: confirmación actual sin falso error o evaluación anterior @issue80`, async ({ page }, testInfo) => {
-        await page.goto(`/?detalle=${escenario}`);
-        await page.getByText('Registro del fixture', { exact: true }).click();
-        const dialogo = await abrirDetallePrincipal(page, escenario);
-        await expect(dialogo.getByText('Elegibilidad pendiente de confirmación', { exact: true })).toBeVisible();
-        await expect(dialogo.locator('.detalle-razon')).toContainText(razon);
-        await expect(dialogo).not.toContainText('Motivo de la evaluación anterior');
-        await expect(dialogo).not.toContainText('Evaluación desactualizada');
-        await expect(dialogo.locator('.tag-detalle[data-estado="error"]')).toHaveCount(0);
-        await expect(dialogo.locator('.tag-detalle[data-estado="por_confirmar"]')).toContainText('Por confirmar');
-        if (escenario === 'confirmacion') await expect(dialogo.locator('.tag-match')).toHaveText('91 % de afinidad');
-        else await expect(dialogo.locator('.tag-match')).toHaveCount(0);
-        await page.screenshot({ path: testInfo.outputPath(`elegibilidad-${escenario}.png`), animations: 'disabled' });
-        await desplegarPorTeclado(dialogo, 'Ver desglose y evidencias del matching');
-        const pendientes = dialogo.locator('.desglose-por-confirmar');
-        await expect(pendientes).toContainText(requisito);
-        await expect(pendientes).toBeVisible();
-        await cerrar(dialogo).click();
-        expect(await escrituras(page)).toEqual([]);
-    });
-}
+test('#80 confirmación actual sin falso error o evaluación anterior @issue80', async ({ page }, testInfo) => {
+    const dialogo = await iniciar(page, 'confirmacion');
+    await expect(dialogo.getByText('Elegibilidad pendiente de confirmación', { exact: true })).toBeVisible();
+    await expect(dialogo.locator('.detalle-razon')).toContainText('Pendiente de confirmación: Residencia en provincia Delta. Afinidad técnica estimada: 91%.');
+    await expect(dialogo).not.toContainText('Motivo de la evaluación anterior');
+    await expect(dialogo).not.toContainText('Evaluación desactualizada');
+    await expect(dialogo.locator('.tag-detalle[data-estado="error"]')).toHaveCount(0);
+    await expect(dialogo.locator('.tag-detalle[data-estado="por_confirmar"]')).toContainText('Por confirmar');
+    await expect(dialogo.locator('.tag-match')).toHaveText('91 % de afinidad');
+    await page.screenshot({ path: testInfo.outputPath('elegibilidad-confirmacion.png'), animations: 'disabled' });
+    await desplegarPorTeclado(dialogo, 'Ver desglose y evidencias del matching');
+    const pendientes = dialogo.locator('.desglose-por-confirmar');
+    await expect(pendientes).toContainText('Residencia en provincia Delta');
+    await expect(pendientes).toBeVisible();
+    await cerrar(dialogo).click();
+    expect(await escrituras(page)).toEqual([]);
+});
 
 for (const falla of [false, true]) {
     test(`selector overlay: ${falla ? 'rollback HTTP' : 'estado confirmado'} independiente del matching @detalle-ui`, async ({ page }) => {

@@ -48,6 +48,17 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
                 requisito('Active Directory', 'El aviso menciona Active Directory.', '', 'desconocido'),
             ] },
         },
+        'calibracion-105-kubernetes': {
+            ...resultadoPorConfirmar,
+            titulo: 'Operaciones de plataforma junior',
+            descripcion: 'Operaciones de plataforma junior. El aviso menciona Kubernetes sin indicar si es obligatorio.',
+            estado_evaluacion: 'pendiente', porcentaje_match: 80, prioridad_ia: false, puntaje_prioridad_ia: 0,
+            evidencias_prioridad_ia: [], evaluacion_error_mensaje: null,
+            razon_evaluacion: 'Confirmar si Kubernetes es obligatorio y si contás con esa experiencia.',
+            explicacion_evaluacion: { desglose_disponible: true, cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                requisito('Kubernetes', 'El aviso menciona Kubernetes sin indicar si es obligatorio.', '', 'desconocido'),
+            ] },
+        },
         aprobada: {},
         rechazada: {
             estado_evaluacion: 'rechazada', porcentaje_match: 88,
@@ -70,14 +81,10 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             ] },
         },
         'sin-descripcion': {
-            estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+            estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: null,
             descripcion: null, descripcion_completitud: 'ausente',
-            porcentaje_match: null, prioridad_ia: false, vigencia_evaluacion: 'actual', evaluacion_error_mensaje: null,
-            firma_criterios_evaluacion: 'criterios-sinteticos-v7',
-            razon_evaluacion: 'Pendiente de confirmación: falta la descripción de la oferta.',
-            explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
-                requisito('Descripción de la oferta', '', '', 'desconocido'),
-            ] },
+            porcentaje_match: null, prioridad_ia: false, vigencia_evaluacion: 'desconocida', evaluacion_error_mensaje: null,
+            firma_criterios_evaluacion: null, razon_evaluacion: null, explicacion_evaluacion: null,
         },
         error: { estado_evaluacion: 'pendiente', porcentaje_match: null, razon_evaluacion: null, explicacion_evaluacion: null,
             firma_criterios_evaluacion: null, evaluacion_error_mensaje: 'Servicio sintético no disponible (HTTP 503).' },
@@ -95,6 +102,7 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
     return structuredClone([{ ...base, ...cambios[escenario] }, {
         ...base, id: 502, titulo: 'Segunda oferta sintética para comprobar borradores independientes',
         url: 'https://example.invalid/ofertas/502', prioridad_ia: false,
+        ...(escenario === 'calibracion-105-kubernetes' ? { ...cambios['sin-descripcion'], titulo: 'Oferta sin descripción' } : {}),
     }]);
 }
 
