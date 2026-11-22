@@ -1,4 +1,4 @@
-// Fixture de 25 casos sintéticos de prueba para el motor de matching explicable y coherente.
+// Fixture de 30 casos sintéticos de prueba para el motor de matching explicable y coherente.
 //
 // Cada caso cubre un escenario clave del motor:
 // - Compatibilidad en QA, Soporte y Desarrollo Angular.
@@ -13,8 +13,9 @@
 
 'use strict';
 
+// Nombre de exportación histórico; todos los datos de este perfil son ficticios.
 const PERFIL_MARCOS_BASE = {
-    nombre: 'Marcos Ezequiel Toledo',
+    nombre: 'Perfil Laboral Ficticio 105',
     nivel_experiencia: 'Junior',
     roles_objetivo: ['QA Tester Manual', 'Soporte IT', 'Desarrollador Junior', 'Frontend Developer'],
     stack_tecnologico: ['HTML', 'CSS', 'JavaScript', 'TypeScript', 'Angular', 'React', 'Node.js', 'Express', 'SQL', 'PostgreSQL', 'C#', '.NET'],
@@ -33,12 +34,12 @@ const CASOS_MUESTRA_MATCHING = [
         modalidad: 'Híbrido',
         origen_descripcion: 'detalle',
         descripcion_completitud: 'completa',
-        descripcion: 'Buscamos QA Tester Manual Junior para sumarse al equipo de calidad. Tareas: diseño y ejecución de casos de prueba, reporte de bugs en Jira, validación de APIs con Postman y consultas SQL básicas para verificación de datos. No se requiere experiencia previa en automatización.',
+        descripcion: 'Buscamos QA Tester Manual Junior para sumarse al equipo de calidad. Tareas: diseño y ejecución de casos de prueba, reporte de bugs en Jira, consultas SQL básicas para verificación de datos. Se valora la validación de APIs con Postman. No se requiere experiencia previa en automatización.',
         perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'Diseño y ejecución de casos de prueba.' },
         respuesta_ia_simulada: JSON.stringify({
             match: true,
             porcentaje: 85,
-            razon: 'El perfil de Marcos como QA Tester junior con manejo de SQL y testing funcional coincide con la vacante.',
+            razon: 'El perfil ficticio como QA Tester junior con manejo de SQL y testing funcional coincide con la vacante.',
             explicacion: {
                 cumplidos: [
                     { requisito: 'Diseño y ejecución de casos de prueba', tipo: 'obligatorio', evidencia_oferta: 'diseño y ejecución de casos de prueba', evidencia_perfil: 'Diseño y ejecución de casos de prueba.', explicacion: 'Práctica declarada en el perfil sintético' },
@@ -366,7 +367,7 @@ const CASOS_MUESTRA_MATCHING = [
         modalidad: 'Híbrido',
         origen_descripcion: 'tarjeta',
         descripcion_completitud: 'parcial',
-        descripcion: 'Buscamos Desarrollador Junior Angular para sumarse a importante proyecto...',
+        descripcion: 'Buscamos Desarrollador Junior Angular para sumarse a importante proyecto. Herramientas de testing obligatorias: detalle en el aviso completo...',
         perfil: PERFIL_MARCOS_BASE,
         respuesta_ia_simulada: JSON.stringify({
             match: true,
@@ -378,7 +379,7 @@ const CASOS_MUESTRA_MATCHING = [
                 ],
                 no_cumplidos: [],
                 por_confirmar: [
-                    { requisito: 'Herramientas de testing', tipo: 'desconocido', evidencia_oferta: 'Aviso incompleto', evidencia_perfil: '', explicacion: 'Pendiente de confirmación por extracto parcial' },
+                    { requisito: 'Herramientas de testing', tipo: 'obligatorio', evidencia_oferta: 'Herramientas de testing obligatorias', evidencia_perfil: '', explicacion: 'El extracto no identifica las herramientas requeridas.' },
                 ],
                 exclusiones: [],
             },
@@ -582,7 +583,7 @@ const CASOS_MUESTRA_MATCHING = [
         estado_revision: 'propuesta_pendiente_revision_humana',
     },
 
-    // Caso 20: Porcentaje vacío ""
+    // Caso 20: Porcentaje ausente
     {
         id: 'caso-20-porcentaje-vacio',
         titulo: 'Desarrollador Junior',
@@ -595,17 +596,16 @@ const CASOS_MUESTRA_MATCHING = [
         perfil: PERFIL_MARCOS_BASE,
         respuesta_ia_simulada: JSON.stringify({
             match: true,
-            porcentaje: '',
-            razon: 'Aprobado sin porcentaje numérico.',
+            razon: 'Aprobado sin porcentaje informado.',
             explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] },
         }),
         resultado_esperado: { match: true, porcentaje: null, inconsistente: true, invalido: true },
         explicacion_esperada: { tiene_cumplidos: false, tiene_exclusiones: false },
-        evidencias: ['porcentaje string vacío'],
+        evidencias: ['campo porcentaje ausente'],
         estado_revision: 'propuesta_pendiente_revision_humana',
     },
 
-    // Caso 21: Porcentaje no numérico o fuera de rango (150 o -10)
+    // Caso 21: Porcentaje fuera de rango (150)
     {
         id: 'caso-21-porcentaje-fuera-de-rango',
         titulo: 'Desarrollador Angular Junior',
@@ -731,7 +731,52 @@ const CASOS_MUESTRA_MATCHING = [
         evidencias: ['Respuesta legacy sin campo explicacion'],
         estado_revision: 'propuesta_pendiente_revision_humana',
     },
+    casoSoporte('26', 'ad-ambiguo', 'El equipo trabaja con Active Directory.', 'desconocido'),
+    casoSoporte('27', 'ad-deseable', 'Es deseable conocer Active Directory.', 'deseable'),
+    casoSoporte('28', 'ad-obligatorio-desconocido', 'Es obligatorio conocer Active Directory.', 'obligatorio'),
+    casoUmbral(59),
+    casoUmbral(60),
 ];
+
+function casoSoporte(numero, variante, requisito, tipo) {
+    const ambiguo = tipo === 'desconocido';
+    const motivo = ambiguo ? 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia'
+        : 'El perfil ficticio no declara experiencia con Active Directory.';
+    const porConfirmar = [{ requisito: 'Active Directory', tipo, evidencia_oferta: requisito,
+        evidencia_perfil: '', explicacion: motivo }];
+    if (ambiguo) porConfirmar.push({ requisito: 'Información suficiente de la oferta', tipo: 'desconocido',
+        evidencia_oferta: requisito, evidencia_perfil: '', explicacion: motivo });
+    return {
+        id: `caso-${numero}-${variante}`,
+        titulo: 'Soporte IT JR', empresa: 'Mesa de Ayuda Ficticia', ubicacion: 'CABA', modalidad: 'Presencial',
+        descripcion: `Soporte de aplicaciones. Modalidad presencial en CABA. ${requisito}`,
+        origen_descripcion: 'detalle', descripcion_completitud: 'completa',
+        perfil: { ...PERFIL_MARCOS_BASE, perfil_profesional: 'Soporte de aplicaciones. Disponibilidad presencial en CABA.' },
+        respuesta_ia_simulada: JSON.stringify({ match: true, porcentaje: 80, razon: motivo,
+            explicacion: { cumplidos: [], no_cumplidos: [], por_confirmar: porConfirmar, exclusiones: [] } }),
+        resultado_esperado: { match: true, porcentaje: 80, pendiente: tipo !== 'deseable', excluida: false },
+        explicacion_esperada: { tiene_cumplidos: false, tiene_exclusiones: false, tipo, evidencia_faltante: motivo },
+        evidencias: [requisito], estado_revision: 'propuesta_pendiente_revision_humana',
+    };
+}
+
+function casoUmbral(porcentaje) {
+    const match = porcentaje === 60;
+    const evidencia = { requisito: 'SQL', tipo: 'obligatorio', evidencia_oferta: 'SQL obligatorio',
+        evidencia_perfil: 'SQL', explicacion: 'Conocimiento declarado en el perfil ficticio.' };
+    return {
+        id: `caso-${match ? '30' : '29'}-umbral-${porcentaje}`,
+        titulo: 'Analista de datos Junior', empresa: 'Datos Ficticios', ubicacion: 'CABA', modalidad: 'Remoto',
+        descripcion: 'SQL obligatorio. Se valoran herramientas de visualización y experiencia con reportes.',
+        origen_descripcion: 'detalle', descripcion_completitud: 'completa', perfil: PERFIL_MARCOS_BASE,
+        respuesta_ia_simulada: JSON.stringify({ match, porcentaje,
+            razon: match ? 'La afinidad técnica alcanza el umbral.' : 'La afinidad técnica está debajo del umbral.',
+            explicacion: { cumplidos: [evidencia], no_cumplidos: [], por_confirmar: [], exclusiones: [] } }),
+        resultado_esperado: { match, porcentaje, excluida: false },
+        explicacion_esperada: { tiene_cumplidos: true, tiene_exclusiones: false },
+        evidencias: ['SQL obligatorio'], estado_revision: 'propuesta_pendiente_revision_humana',
+    };
+}
 
 module.exports = {
     PERFIL_MARCOS_BASE,
