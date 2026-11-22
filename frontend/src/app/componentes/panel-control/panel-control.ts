@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, input, linkedSignal, OnDestroy, OnInit, output, signal } from '@angular/core';
 import { tap, MonoTypeOperatorFunction } from 'rxjs';
 import { ResultadoFuenteVista, etiquetaEstado } from './resultado-fuente';
 import { JsonPipe } from '@angular/common';
@@ -153,6 +153,23 @@ export class PanelControl implements OnInit, OnDestroy {
         }
         return avisos;
     });
+
+    // El resumen operativo arranca plegado por defecto y se despliega automáticamente ante alertas bloqueantes.
+    readonly tieneAlertaOperativa = computed(() => Boolean(
+        this.errorPrevisualizacion() ||
+        this.errorHistorial() ||
+        this.resultadoCiclo()?.errorHistorial ||
+        this.resultadoCiclo()?.historial?.guardado === false ||
+        ['error', 'timeout', 'interrumpida'].includes(this.resultadoCiclo()?.estado || '') ||
+        this.erroresOperativos().some(error => error.bloqueante)
+    ));
+
+    readonly estadoOperativoAbierto = linkedSignal(() => this.tieneAlertaOperativa());
+
+    onToggleEstadoOperativo(evento: Event): void {
+        const elemento = evento.target as HTMLDetailsElement | null;
+        if (elemento) this.estadoOperativoAbierto.set(elemento.open);
+    }
 
     readonly avisosOperativos = computed(() => {
         const avisos = new Set<string>();
@@ -310,6 +327,13 @@ export class PanelControl implements OnInit, OnDestroy {
     // Si se acumulan demasiados, detengo el polling para no martillar el backend.
     private errores429Eval = 0;
     private static readonly MAX_ERRORES_429 = 5;
+    private static readonly MAX_REINTENTOS_REHIDRATACION = 3;
+    private static readonly ESPERA_REHIDRATACION_MS = 2000;
+    private erroresRedEval = 0;
+    private static readonly MAX_ERRORES_RED_AVISO = 3;
+    private timeoutRehidratarEval: ReturnType<typeof setTimeout> | null = null;
+    private timeoutRehidratarCiclo: ReturnType<typeof setTimeout> | null = null;
+    readonly avisoRedEvaluacion = signal<string | null>(null);
 
     // Estado de la automatización.
     readonly cronActivo = signal(false);
@@ -395,12 +419,34 @@ export class PanelControl implements OnInit, OnDestroy {
         });
     }
 
+    private esErrorTransitorioProgreso(error: unknown): boolean {
+        const status = (error as { status?: unknown } | null)?.status;
+        return status === 0 || (typeof status === 'number' && status >= 500 && status < 600);
+    }
+
+    private cancelarReintentoRehidratarEval(): void {
+        if (this.timeoutRehidratarEval !== null) {
+            clearTimeout(this.timeoutRehidratarEval);
+            this.timeoutRehidratarEval = null;
+        }
+    }
+
+    private cancelarReintentoRehidratarCiclo(): void {
+        if (this.timeoutRehidratarCiclo !== null) {
+            clearTimeout(this.timeoutRehidratarCiclo);
+            this.timeoutRehidratarCiclo = null;
+        }
+    }
+
     // Rehidrato el estado de una evaluación en curso al montar el componente.
     // Si el backend reporta activo === true, restauro las signals locales y
     // reanudo el polling para que la UI refleje el progreso real.
-    private rehidratarEvaluacion(): void {
+    // Ante corte temporal (status 0 / 5xx) en el primer GET, reconsulto acotadamente sin relanzar evaluación.
+    private rehidratarEvaluacion(intento = 0): void {
+        this.cancelarReintentoRehidratarEval();
         this.evaluacionService.obtenerProgreso().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
+                this.avisoRedEvaluacion.set(null);
                 if (respuesta.exito && respuesta.datos.activo) {
                     this.evaluando.set(true);
                     this.progresoEvaluacion.set(respuesta.datos);
@@ -420,7 +466,21 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.finalizarSeguimientoEvaluacion(respuesta.datos);
                 }
             },
-            error: () => {} // Silencioso — si falla, el componente arranca en estado vacío.
+            error: (error) => {
+                if (this.destruido || this.evaluando()) return;
+                if (error?.status === 401) {
+                    this.errorEvaluacion.set('Tu sesión expiró o falta un token válido. Volvé a iniciar sesión para consultar el progreso de evaluación.');
+                    return;
+                }
+                if (this.esErrorTransitorioProgreso(error) && intento < PanelControl.MAX_REINTENTOS_REHIDRATACION) {
+                    this.timeoutRehidratarEval = setTimeout(() => {
+                        this.timeoutRehidratarEval = null;
+                        if (!this.destruido && !this.evaluando()) {
+                            this.rehidratarEvaluacion(intento + 1);
+                        }
+                    }, PanelControl.ESPERA_REHIDRATACION_MS);
+                }
+            },
         });
     }
 
@@ -428,7 +488,8 @@ export class PanelControl implements OnInit, OnDestroy {
     // Si el backend reporta activo === true, restauro las signals locales y
     // reanudo el polling para que la UI refleje el progreso real.
     // Patrón idéntico a rehidratarEvaluacion().
-    private rehidratarCiclo(): void {
+    private rehidratarCiclo(intento = 0): void {
+        this.cancelarReintentoRehidratarCiclo();
         this.automatizacionService.obtenerProgreso().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
             next: (respuesta) => {
                 if (respuesta.exito && respuesta.datos.activo) {
@@ -439,7 +500,17 @@ export class PanelControl implements OnInit, OnDestroy {
                     this.iniciarPolling();
                 }
             },
-            error: () => {} // Silencioso — si falla, el componente arranca sin ciclo activo.
+            error: (error) => {
+                if (this.destruido || this.ejecutandoCiclo() || error?.status === 401) return;
+                if (this.esErrorTransitorioProgreso(error) && intento < PanelControl.MAX_REINTENTOS_REHIDRATACION) {
+                    this.timeoutRehidratarCiclo = setTimeout(() => {
+                        this.timeoutRehidratarCiclo = null;
+                        if (!this.destruido && !this.ejecutandoCiclo()) {
+                            this.rehidratarCiclo(intento + 1);
+                        }
+                    }, PanelControl.ESPERA_REHIDRATACION_MS);
+                }
+            },
         });
     }
 
@@ -491,6 +562,13 @@ export class PanelControl implements OnInit, OnDestroy {
                 },
                 error: (error) => {
                     this.pollingCicloEnCurso = false;
+                    if (error?.status === 401) {
+                        this.detenerPolling();
+                        this.ejecutandoCiclo.set(false);
+                        this.mostrarOverlayCiclo.set(false);
+                        this.errorEvaluacion.set('Tu sesión expiró o falta un token válido. Volvé a iniciar sesión para consultar el ciclo.');
+                        return;
+                    }
                     if (error?.status === 429) {
                         this.errores429Ciclo++;
                         if (this.errores429Ciclo >= PanelControl.MAX_ERRORES_429) {
@@ -507,6 +585,7 @@ export class PanelControl implements OnInit, OnDestroy {
 
     // Limpia el intervalo de polling.
     private detenerPolling(): void {
+        this.cancelarReintentoRehidratarCiclo();
         if (this.intervalIdPolling !== null) {
             clearInterval(this.intervalIdPolling);
             this.intervalIdPolling = null;
@@ -519,6 +598,8 @@ export class PanelControl implements OnInit, OnDestroy {
     private iniciarPollingEvaluacion(): void {
         this.detenerPollingEvaluacion();
         this.errores429Eval = 0;
+        this.erroresRedEval = 0;
+        this.avisoRedEvaluacion.set(null);
         this.intervalIdPollingEval = setInterval(() => {
             // Guard: si la request anterior todavía no terminó, salteo este tick.
             if (this.pollingEvalEnCurso) {
@@ -529,6 +610,8 @@ export class PanelControl implements OnInit, OnDestroy {
                 next: (respuesta) => {
                     this.pollingEvalEnCurso = false;
                     this.errores429Eval = 0;
+                    this.erroresRedEval = 0;
+                    this.avisoRedEvaluacion.set(null);
                     if (respuesta.exito) {
                         this.progresoEvaluacion.set(respuesta.datos);
                         // Emito evento para que el dashboard refresque ofertas en segundo plano.
@@ -541,6 +624,13 @@ export class PanelControl implements OnInit, OnDestroy {
                 },
                 error: (error) => {
                     this.pollingEvalEnCurso = false;
+                    if (error?.status === 401) {
+                        this.detenerPollingEvaluacion();
+                        this.evaluando.set(false);
+                        this.avisoRedEvaluacion.set(null);
+                        this.errorEvaluacion.set('Tu sesión expiró o falta un token válido. Volvé a iniciar sesión para consultar el progreso de evaluación.');
+                        return;
+                    }
                     if (error?.status === 429) {
                         this.errores429Eval++;
                         if (this.errores429Eval >= PanelControl.MAX_ERRORES_429) {
@@ -549,8 +639,14 @@ export class PanelControl implements OnInit, OnDestroy {
                             this.detenerPollingEvaluacion();
                             this.evaluando.set(false);
                         }
+                        return;
                     }
-                    // Para otros errores de red, continúo el polling silenciosamente.
+                    if (this.esErrorTransitorioProgreso(error)) {
+                        this.erroresRedEval++;
+                        if (this.erroresRedEval >= PanelControl.MAX_ERRORES_RED_AVISO) {
+                            this.avisoRedEvaluacion.set('Sin conexión temporal con el servidor. Sigo consultando el progreso sin reiniciar la evaluación.');
+                        }
+                    }
                 }
             });
         }, 2000);
@@ -605,12 +701,15 @@ export class PanelControl implements OnInit, OnDestroy {
 
     // Limpia el intervalo de polling de evaluación.
     private detenerPollingEvaluacion(): void {
+        this.cancelarReintentoRehidratarEval();
         if (this.intervalIdPollingEval !== null) {
             clearInterval(this.intervalIdPollingEval);
             this.intervalIdPollingEval = null;
         }
         this.pollingEvalEnCurso = false;
         this.errores429Eval = 0;
+        this.erroresRedEval = 0;
+        this.avisoRedEvaluacion.set(null);
     }
 
     // Ejecuta el ciclo completo (scraping de las plataformas + evaluación IA).

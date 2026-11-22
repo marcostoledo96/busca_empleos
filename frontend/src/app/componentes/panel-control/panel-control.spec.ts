@@ -128,21 +128,26 @@ describe('PanelControl — Selector mobile de scraping', () => {
             ejecutable: false, terminos: [], ubicacion: [], ventanaDias: 30, maxResultados: 40,
             advertencias: ['Falta la clave del proveedor'], filtros: {},
             origen: { terminos: 'preferencias', ubicacion: 'preferencias' } }]);
+        fixture.detectChanges();
+        const resumen: HTMLDetailsElement = fixture.nativeElement.querySelector('[aria-label="Estado operativo de búsquedas"]');
+        expect(resumen).not.toBeNull();
+        // Sin errores bloqueantes, el estado operativo queda plegado por defecto.
+        expect(resumen.open).toBeFalse();
+
         component.resultadoIndividual.set({ plataforma: 'linkedin', estado: 'parcial',
             motivoFinalizacion: 'Límite de peticiones', errores: [{ tipo: 'proveedor', mensaje: 'Cuota agotada' }] });
         component.errorHistorial.set('No pude leer el historial');
         fixture.detectChanges();
-        const resumen: HTMLElement = fixture.nativeElement.querySelector('[aria-label="Estado operativo de búsquedas"]');
-        expect(resumen).not.toBeNull();
+        expect(resumen.open).toBeTrue();
         expect(resumen.textContent).toContain('Cuota agotada');
         expect(resumen.textContent).toContain('Límite de peticiones');
         expect(resumen.textContent).not.toContain('Falta la clave del proveedor');
         expect(resumen.textContent).toContain('No pude leer el historial');
-        expect(resumen.closest('details')).toBeNull();
         const avisos = fixture.nativeElement.querySelector('details[aria-label="Avisos operativos de búsquedas"]');
         expect(avisos?.textContent).toContain('Falta la clave del proveedor');
         component.errorPrevisualizacion.set('No pude consultar la configuración');
         fixture.detectChanges();
+        expect(resumen.open).toBeTrue();
         expect(resumen.querySelector('[role="alert"]')?.textContent).toContain('No pude consultar la configuración');
     });
 
@@ -1763,4 +1768,236 @@ describe('PanelControl — Reintento de errores técnicos e interrupción por re
         fixture.detectChanges();
         expect(botonReintentar.disabled).toBeTrue();
     });
+
+    it('detiene el polling de evaluación inmediatamente ante HTTP 401 y muestra alerta sin relanzar evaluación', fakeAsync(() => {
+        evalSpy.obtenerProgreso.calls.reset();
+        evalSpy.obtenerProgreso.and.returnValue(throwError(() => ({ status: 401, error: { error: 'Se requiere un token de autenticación' } })));
+        component.evaluando.set(true);
+
+        (component as any).iniciarPollingEvaluacion();
+        tick(2000);
+        fixture.detectChanges();
+
+        expect((component as any).intervalIdPollingEval).toBeNull();
+        expect(component.evaluando()).toBeFalse();
+        expect(component.errorEvaluacion()).toContain('sesión expiró');
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+        expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+
+        // Avanzar tiempo adicional no debe disparar nuevos ticks.
+        tick(6000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        const alerta = fixture.nativeElement.querySelector('[role="alert"]');
+        expect(alerta?.textContent).toContain('sesión expiró');
+    }));
+
+    it('detiene el polling de ciclo y cierra el overlay inmediatamente ante HTTP 401', fakeAsync(() => {
+        const autoService = TestBed.inject(AutomatizacionService) as jasmine.SpyObj<AutomatizacionService>;
+        autoService.obtenerProgreso.calls.reset();
+        autoService.obtenerProgreso.and.returnValue(
+            throwError(() => ({ status: 401, error: { error: 'Se requiere un token de autenticación' } }))
+        );
+        component.ejecutandoCiclo.set(true);
+        component.mostrarOverlayCiclo.set(true);
+
+        (component as any).iniciarPolling();
+        tick(2000);
+        fixture.detectChanges();
+
+        expect((component as any).intervalIdPolling).toBeNull();
+        expect(component.ejecutandoCiclo()).toBeFalse();
+        expect(component.mostrarOverlayCiclo()).toBeFalse();
+        expect(component.errorEvaluacion()).toContain('sesión expiró');
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        tick(4000);
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+    }));
+
+    it('muestra aviso no destructivo tras 3 cortes de red consecutivos en polling de evaluación y lo limpia al reconectar', fakeAsync(() => {
+        let intentos = 0;
+        evalSpy.obtenerProgreso.and.callFake(() => {
+            intentos++;
+            if (intentos <= 3) {
+                return throwError(() => ({ status: 0, message: 'ERR_NETWORK_CHANGED' }));
+            }
+            return of({
+                exito: true,
+                datos: {
+                    activo: true,
+                    estado: 'activo' as const,
+                    total: 6,
+                    evaluadas: 3,
+                    aprobadas: 2,
+                    rechazadas: 1,
+                    errores: 0,
+                    porcentaje: 50,
+                },
+            });
+        });
+
+        component.evaluando.set(true);
+        (component as any).iniciarPollingEvaluacion();
+
+        tick(6000); // 3 ticks con error de red (status 0)
+        fixture.detectChanges();
+
+        expect(component.evaluando()).toBeTrue();
+        expect((component as any).intervalIdPollingEval).not.toBeNull();
+        expect((component as any).avisoRedEvaluacion()).toContain('Sin conexión temporal');
+
+        tick(2000); // 4to tick recupera conexión
+        fixture.detectChanges();
+
+        expect((component as any).avisoRedEvaluacion()).toBeNull();
+        expect(component.progresoEvaluacion()?.porcentaje).toBe(50);
+
+        (component as any).detenerPollingEvaluacion();
+    }));
+
+    it('reintenta el primer GET de progreso de evaluación ante 0/503, retoma polling tras reconectar, tolera un segundo corte y cierra al completar sin POST', fakeAsync(() => {
+        let llamada = 0;
+        evalSpy.obtenerProgreso.calls.reset();
+        evalSpy.ejecutarEvaluacion.calls.reset();
+        evalSpy.obtenerProgreso.and.callFake(() => {
+            llamada++;
+            if (llamada === 1) return throwError(() => ({ status: 0, message: 'ERR_NETWORK_CHANGED' }));
+            if (llamada === 2) return throwError(() => ({ status: 503, message: 'Service Unavailable' }));
+            if (llamada === 3) {
+                return of({
+                    exito: true,
+                    datos: {
+                        activo: true,
+                        estado: 'activo' as const,
+                        total: 6,
+                        evaluadas: 2,
+                        aprobadas: 1,
+                        rechazadas: 1,
+                        errores: 0,
+                        porcentaje: 33,
+                    },
+                });
+            }
+            if (llamada === 4) return throwError(() => ({ status: 503, message: 'Corte durante polling' }));
+            return of({
+                exito: true,
+                datos: {
+                    activo: false,
+                    estado: 'completado' as const,
+                    total: 6,
+                    evaluadas: 6,
+                    aprobadas: 4,
+                    rechazadas: 2,
+                    errores: 0,
+                    porcentaje: 100,
+                },
+            });
+        });
+
+        (component as any).rehidratarEvaluacion();
+        expect(component.evaluando()).toBeFalse();
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        // 1er reintento falla con 503 -> sigue reintentando acotadamente
+        tick(2000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(2);
+        expect(component.evaluando()).toBeFalse();
+
+        // 2do reintento reconecta y encuentra lote activo -> activa evaluando e inicia polling
+        tick(2000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(3);
+        expect(component.evaluando()).toBeTrue();
+        expect(component.progresoEvaluacion()?.porcentaje).toBe(33);
+        expect((component as any).intervalIdPollingEval).not.toBeNull();
+
+        // Primer tick del polling falla con 503 -> conserva resultado anterior y sigue consultando
+        tick(2000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(4);
+        expect(component.evaluando()).toBeTrue();
+        expect(component.progresoEvaluacion()?.porcentaje).toBe(33);
+
+        // Segundo tick del polling llega al estado terminal -> cierra polling y limpia
+        tick(2000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(5);
+        expect(component.evaluando()).toBeFalse();
+        expect((component as any).intervalIdPollingEval).toBeNull();
+        expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+
+        // Avanza el timeout de limpieza visual (1500ms) y comprueba que no salen más GETs
+        tick(4000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(5);
+        expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+    }));
+
+    it('cancela reintentos pendientes de rehidratación al destruir el componente sin generar más GETs ni POSTs', fakeAsync(() => {
+        const autoService = TestBed.inject(AutomatizacionService) as jasmine.SpyObj<AutomatizacionService>;
+        evalSpy.obtenerProgreso.calls.reset();
+        evalSpy.ejecutarEvaluacion.calls.reset();
+        autoService.obtenerProgreso.calls.reset();
+        autoService.ejecutarCiclo.calls.reset();
+
+        evalSpy.obtenerProgreso.and.returnValue(throwError(() => ({ status: 503 })));
+        autoService.obtenerProgreso.and.returnValue(throwError(() => ({ status: 0 })));
+
+        (component as any).rehidratarEvaluacion();
+        (component as any).rehidratarCiclo();
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        fixture.destroy();
+        tick(10000);
+
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+        expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+        expect(autoService.ejecutarCiclo).not.toHaveBeenCalled();
+    }));
+
+    it('reintenta el primer GET de progreso de ciclo ante 503 y rehidrata overlay al reconectar sin lanzar POST', fakeAsync(() => {
+        const autoService = TestBed.inject(AutomatizacionService) as jasmine.SpyObj<AutomatizacionService>;
+        let llamada = 0;
+        autoService.obtenerProgreso.calls.reset();
+        autoService.ejecutarCiclo.calls.reset();
+        autoService.obtenerProgreso.and.callFake(() => {
+            llamada++;
+            if (llamada === 1) return throwError(() => ({ status: 503 }));
+            return of({
+                exito: true,
+                datos: {
+                    activo: true,
+                    porcentaje: 40,
+                    pasos: [],
+                },
+            });
+        });
+
+        (component as any).rehidratarCiclo();
+        expect(component.ejecutandoCiclo()).toBeFalse();
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        tick(2000);
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(2);
+        expect(component.ejecutandoCiclo()).toBeTrue();
+        expect(component.mostrarOverlayCiclo()).toBeTrue();
+        expect(component.progresoCiclo()?.porcentaje).toBe(40);
+        expect(autoService.ejecutarCiclo).not.toHaveBeenCalled();
+
+        (component as any).detenerPolling();
+    }));
+
+    it('acota los reintentos de rehidratación al máximo configurado ante 503 persistente sin emitir POST', fakeAsync(() => {
+        evalSpy.obtenerProgreso.calls.reset();
+        evalSpy.ejecutarEvaluacion.calls.reset();
+        evalSpy.obtenerProgreso.and.returnValue(throwError(() => ({ status: 503 })));
+
+        (component as any).rehidratarEvaluacion();
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        // 3 reintentos acotados cada 2s (total 4 GETs); ticks adicionales no deben seguir consultando.
+        tick(12000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(4);
+        expect(component.evaluando()).toBeFalse();
+        expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+    }));
 });

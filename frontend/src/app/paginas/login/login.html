@@ -8,9 +8,7 @@
             class="login-header-tema"
             (click)="toggleTema()"
             [attr.aria-label]="esModoOscuro ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'">
-            <span class="material-symbols-outlined" aria-hidden="true">
-                {{ esModoOscuro ? 'light_mode' : 'dark_mode' }}
-            </span>
+            <i class="pi" [class.pi-sun]="esModoOscuro" [class.pi-moon]="!esModoOscuro" aria-hidden="true"></i>
         </button>
     </nav>
     <div class="login-header-version">v1.0.0-alpha</div>
@@ -39,7 +37,7 @@
             <!-- Mensaje de error -->
             @if (error()) {
                 <div class="login-error" role="alert" aria-live="assertive">
-                    <span class="material-symbols-outlined login-error-icono" aria-hidden="true">error</span>
+                    <i class="pi pi-exclamation-circle login-error-icono" aria-hidden="true"></i>
                     <span>{{ error() }}</span>
                 </div>
             }
@@ -80,7 +78,7 @@
                 (click)="entrarComoInvitado()"
                 aria-label="Ver sistema en modo demostración">
                 <span class="login-demo-badge">DEMO</span>
-                <span class="material-symbols-outlined login-btn-invitado-icono" aria-hidden="true">visibility</span>
+                <i class="pi pi-eye login-btn-invitado-icono" aria-hidden="true"></i>
                 VER_SISTEMA
             </button>
             <p class="login-nota-demo">

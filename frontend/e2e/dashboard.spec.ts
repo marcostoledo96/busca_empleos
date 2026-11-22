@@ -121,11 +121,15 @@ test('acciones primero y diagnósticos cerrados @regresion', async ({ page }) =>
     expect(accion!.y).toBeLessThan(diagnostico!.y);
 });
 
-test('errores visibles y avisos de configuración plegables @regresion', async ({ page }) => {
+test('estado operativo plegado por defecto y avisos de configuración plegables @regresion', async ({ page }) => {
     await page.goto('/');
-    const estado = page.getByRole('region', { name: 'Estado operativo de búsquedas', exact: true });
+    const estado = page.getByRole('group', { name: 'Estado operativo de búsquedas', exact: true });
     const avisos = page.getByRole('group', { name: 'Avisos operativos de búsquedas', exact: true });
     const aviso = avisos.getByText('Falta la clave del proveedor; no puedo ejecutar esta fuente.', { exact: false });
+    await expect(estado).not.toHaveAttribute('open', '');
+    await expect(estado.getByText('Último ciclo: Parcial', { exact: false })).toBeHidden();
+    await estado.getByText('Estado operativo', { exact: true }).click();
+    await expect(estado).toHaveAttribute('open', '');
     await expect(estado.getByText('Cuota del proveedor agotada', { exact: false })).toBeVisible();
     await expect(estado.getByText('Límite de peticiones alcanzado', { exact: false })).toBeVisible();
     await expect(estado.getByText('Último ciclo: Parcial', { exact: false })).toBeVisible();
@@ -195,6 +199,7 @@ for (const estado of ['vacio', 'error', 'cargando', 'completado']) {
             await page.getByText('Resultados e historial', { exact: true }).click();
             await expect(page.getByText('No hay ejecuciones recientes.')).toBeVisible();
         } else {
+            await page.getByText('Estado operativo', { exact: true }).click();
             await expect(page.getByText('Último ciclo: Completada', { exact: false }).first()).toBeVisible();
         }
     });

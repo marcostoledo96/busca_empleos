@@ -4,15 +4,20 @@
 <div class="preferencias-contenedor">
 
     <div class="preferencias-cabecera">
-        <span class="preferencias-label">CONFIGURACIÓN</span>
-        <h2 class="preferencias-titulo">Preferencias de búsqueda</h2>
-        <p class="preferencias-descripcion">Centro de control de tu perfil laboral: tecnologías, roles, búsqueda, IA e importación de CV.</p>
-        <a id="abrir-cv-imprimible" routerLink="/cv">Preparar CV imprimible con los datos guardados</a>
+        <div class="preferencias-cabecera__texto">
+            <span class="preferencias-label">CONFIGURACIÓN</span>
+            <h2 class="preferencias-titulo">Preferencias de búsqueda</h2>
+            <p class="preferencias-descripcion">Centro de control de tu perfil laboral: tecnologías, roles, búsqueda, IA e importación de CV.</p>
+        </div>
+        <a id="abrir-cv-imprimible" class="preferencias-link-cv" routerLink="/cv">
+            <i class="pi pi-print" aria-hidden="true"></i>
+            Preparar CV imprimible con los datos guardados
+        </a>
     </div>
 
     @if (modoDemo()) {
         <div class="preferencias-aviso-demo" role="alert">
-            <span class="material-symbols-outlined" aria-hidden="true">visibility</span>
+            <i class="pi pi-eye" aria-hidden="true"></i>
             <span><strong>MODO_DEMO</strong> — Estos son datos de ejemplo. Los cambios no se guardan.</span>
         </div>
     }
@@ -177,35 +182,35 @@
 
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo">
-                                    <label class="campo-etiqueta" for="nivel">Nivel de experiencia</label>
-                                    <p-select id="nivel" [(ngModel)]="nivelExperiencia" [options]="opcionesNivel" placeholder="Seleccionar nivel" aria-label="Nivel de experiencia" appendTo="body" />
+                                    <label class="campo-etiqueta" for="nivel-select">Nivel de experiencia</label>
+                                    <p-select id="nivel" inputId="nivel-select" [(ngModel)]="nivelExperiencia" [options]="opcionesNivel" placeholder="Seleccionar nivel" ariaLabel="Nivel de experiencia" appendTo="body" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta" for="modalidad">Modalidad aceptada</label>
-                                    <p-select id="modalidad" [(ngModel)]="modalidadAceptada" [options]="opcionesModalidad" placeholder="Seleccionar modalidad" aria-label="Modalidad aceptada" appendTo="body" />
+                                    <label class="campo-etiqueta" for="modalidad-select">Modalidad aceptada</label>
+                                    <p-select id="modalidad" inputId="modalidad-select" [(ngModel)]="modalidadAceptada" [options]="opcionesModalidad" placeholder="Seleccionar modalidad" ariaLabel="Modalidad aceptada" appendTo="body" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta" for="disponibilidad">Disponibilidad</label>
-                                    <p-select id="disponibilidad" [(ngModel)]="disponibilidad" [options]="opcionesDisponibilidad" placeholder="Disponibilidad" aria-label="Disponibilidad" appendTo="body" />
+                                    <label class="campo-etiqueta" for="disponibilidad-select">Disponibilidad</label>
+                                    <p-select id="disponibilidad" inputId="disponibilidad-select" [(ngModel)]="disponibilidad" [options]="opcionesDisponibilidad" placeholder="Disponibilidad" ariaLabel="Disponibilidad" appendTo="body" />
                                 </div>
                             </div>
 
-                            <div class="campo-fila campo-fila--3">
+                            <div class="campo-fila campo-fila--4">
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="aniosExperiencia">Años reales de experiencia</label>
-                                    <input id="aniosExperiencia" type="number" class="input-dias-reset" [(ngModel)]="aniosExperienciaReales" min="0" max="50" placeholder="Ej: 1" />
+                                    <input pInputText id="aniosExperiencia" type="number" [(ngModel)]="aniosExperienciaReales" min="0" max="50" placeholder="Ej: 1" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="salarioMin">Salario mínimo</label>
-                                    <input id="salarioMin" type="number" class="input-dias-reset" [(ngModel)]="expectativaSalarialMin" placeholder="Ej: 700000" />
+                                    <input pInputText id="salarioMin" type="number" [(ngModel)]="expectativaSalarialMin" placeholder="Ej: 700000" />
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="salarioMax">Salario máximo</label>
-                                    <input id="salarioMax" type="number" class="input-dias-reset" [(ngModel)]="expectativaSalarialMax" placeholder="Ej: 1200000" />
+                                    <input pInputText id="salarioMax" type="number" [(ngModel)]="expectativaSalarialMax" placeholder="Ej: 1200000" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta" for="moneda">Moneda salarial</label>
-                                    <p-select id="moneda" [(ngModel)]="monedaSalarial" [options]="opcionesMonedaSalarial" placeholder="Moneda" appendTo="body" />
+                                    <label class="campo-etiqueta" for="moneda-select">Moneda salarial</label>
+                                    <p-select id="moneda" inputId="moneda-select" [(ngModel)]="monedaSalarial" [options]="opcionesMonedaSalarial" placeholder="Moneda" ariaLabel="Moneda salarial" appendTo="body" />
                                 </div>
                             </div>
 
@@ -220,42 +225,44 @@
                                     <textarea pTextarea id="idioma" [(ngModel)]="idiomaCandidato" [rows]="2" [autoResize]="true"></textarea>
                                 </div>
                                 <div class="campo idioma-detalle-grid">
-                                    <label class="campo-etiqueta">Inglés detallado</label>
+                                    <span class="campo-etiqueta">Inglés detallado</span>
                                     <div class="campo-fila campo-fila--2 idioma-grid-interior">
                                         <div class="campo idioma-mini-campo">
-                                            <label class="campo-etiqueta campo-etiqueta--mini">Reading (lectura)</label>
-                                            <input pInputText [(ngModel)]="nivelInglesDetalle.reading" placeholder="Ej: A2" />
+                                            <label class="campo-etiqueta campo-etiqueta--mini" for="ingles-reading">Reading (lectura)</label>
+                                            <input pInputText id="ingles-reading" [(ngModel)]="nivelInglesDetalle.reading" placeholder="Ej: A2" />
                                         </div>
                                         <div class="campo idioma-mini-campo">
-                                            <label class="campo-etiqueta campo-etiqueta--mini">Writing (escritura)</label>
-                                            <input pInputText [(ngModel)]="nivelInglesDetalle.writing" placeholder="Ej: A2_basico" />
+                                            <label class="campo-etiqueta campo-etiqueta--mini" for="ingles-writing">Writing (escritura)</label>
+                                            <input pInputText id="ingles-writing" [(ngModel)]="nivelInglesDetalle.writing" placeholder="Ej: A2_basico" />
                                         </div>
                                         <div class="campo idioma-mini-campo">
-                                            <label class="campo-etiqueta campo-etiqueta--mini">Speaking (habla)</label>
-                                            <input pInputText [(ngModel)]="nivelInglesDetalle.speaking" placeholder="Ej: A1" />
+                                            <label class="campo-etiqueta campo-etiqueta--mini" for="ingles-speaking">Speaking (habla)</label>
+                                            <input pInputText id="ingles-speaking" [(ngModel)]="nivelInglesDetalle.speaking" placeholder="Ej: A1" />
                                         </div>
                                         <div class="campo idioma-mini-campo">
-                                            <label class="campo-etiqueta campo-etiqueta--mini">Listening (escucha)</label>
-                                            <input pInputText [(ngModel)]="nivelInglesDetalle.listening" placeholder="Ej: A1" />
+                                            <label class="campo-etiqueta campo-etiqueta--mini" for="ingles-listening">Listening (escucha)</label>
+                                            <input pInputText id="ingles-listening" [(ngModel)]="nivelInglesDetalle.listening" placeholder="Ej: A1" />
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
-                                    <label class="campo-etiqueta" for="priorizar-ofertas-ia">Priorizar ofertas con evidencia IA</label>
-                                    <input id="priorizar-ofertas-ia" type="checkbox" [(ngModel)]="priorizarOfertasIa" />
+                                    <div class="campo-checkbox-fila">
+                                        <input id="priorizar-ofertas-ia" class="campo-checkbox" type="checkbox" [(ngModel)]="priorizarOfertasIa" />
+                                        <label class="campo-etiqueta campo-etiqueta--inline" for="priorizar-ofertas-ia">Priorizar ofertas con evidencia IA</label>
+                                    </div>
                                     <small class="campo-ayuda">Solo modifica el orden; no aprueba ofertas ni anula exclusiones.</small>
                                 </div>
                                 <div class="campo">
                                     <label class="campo-etiqueta" for="bonus-prioridad-ia">Bonus máximo de prioridad IA</label>
-                                    <input id="bonus-prioridad-ia" type="number" min="0" max="6" [(ngModel)]="bonusMaximoPrioridadIa" [disabled]="!priorizarOfertasIa" />
+                                    <input pInputText id="bonus-prioridad-ia" type="number" min="0" max="6" [(ngModel)]="bonusMaximoPrioridadIa" [disabled]="!priorizarOfertasIa" />
                                 </div>
                             </div>
 
                             <div class="campo">
-                                <label class="campo-etiqueta" for="zonas">Zonas presenciales aceptadas</label>
-                                <p-multiselect id="zonas" [(ngModel)]="zonasPreferidas" [options]="opcionesZonas" placeholder="Seleccioná las zonas" display="chip" appendTo="body" />
+                                <label class="campo-etiqueta" for="zonas-input">Zonas presenciales aceptadas</label>
+                                <p-multiselect id="zonas" inputId="zonas-input" [(ngModel)]="zonasPreferidas" [options]="opcionesZonas" placeholder="Seleccioná las zonas" display="chip" ariaLabel="Zonas presenciales aceptadas" appendTo="body" />
                             </div>
 
                             <div class="campo">
@@ -265,8 +272,8 @@
                             </div>
 
                             <div class="campo">
-                                <label class="campo-etiqueta" for="ausentes">Conocimientos / tecnologías que NO manejás</label>
-                                <p-autocomplete id="ausentes" [(ngModel)]="conocimientosAusentes" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: microservicios, Kafka, blockchain" appendTo="body" />
+                                <label class="campo-etiqueta" for="ausentes-input">Conocimientos / tecnologías que NO manejás</label>
+                                <p-autocomplete id="ausentes" inputId="ausentes-input" [(ngModel)]="conocimientosAusentes" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: microservicios, Kafka, blockchain" appendTo="body" />
                                 <small class="campo-ayuda">Si una oferta pide estas tecnologías, la evaluación las marca como ausentes en tu perfil.</small>
                             </div>
 
@@ -284,13 +291,15 @@
                     <section class="seccion" aria-labelledby="label-tech-niveles">
                         <div class="seccion-cabecera">
                             <span class="seccion-label" id="label-tech-niveles">TECNOLOGÍAS</span>
-                            <button class="btn-agregar-tech" (click)="agregarTecnologia()" aria-label="Agregar tecnología">
-                                <span class="material-symbols-outlined" aria-hidden="true">add</span>
+                            <button type="button" class="btn-agregar-tech" (click)="agregarTecnologia()" [disabled]="modoDemo()" aria-label="Agregar tecnología" title="Agregar tecnología">
+                                <i class="pi pi-plus" aria-hidden="true"></i>
                             </button>
                         </div>
                         <div class="seccion-cuerpo">
-                            <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología. El detalle ausente no reemplaza el stack anterior hasta confirmar una edición.</small>
-                            <button class="btn-detalle-secundario" (click)="vaciarTecnologias()" [disabled]="modoDemo()">Vaciar tecnologías y stack</button>
+                            <div class="seccion-barra-aux">
+                                <small class="campo-ayuda">Editá nivel, categoría, importancia, aliases y evidencia para cada tecnología. El detalle ausente no reemplaza el stack anterior hasta confirmar una edición.</small>
+                                <button type="button" class="btn-detalle-secundario" (click)="vaciarTecnologias()" [disabled]="modoDemo()">Vaciar tecnologías y stack</button>
+                            </div>
                             @if (tecnologiasDetalle.length > 0) {
                                 <div class="tabla-tech tabla-tech--amplia">
                                     <div class="tabla-tech__header tabla-tech__header--amplia">
@@ -304,13 +313,13 @@
                                     </div>
                                     @for (tech of tecnologiasDetalle; track $index; let i = $index) {
                                         <div class="tabla-tech__fila tabla-tech__fila--amplia">
-                                            <div class="tabla-tech__col"><input pInputText [(ngModel)]="tech.nombre" placeholder="Nombre" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.nivel" [options]="opcionesNivelTecnologia" placeholder="Nivel" [disabled]="modoDemo()" appendTo="body" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.categoria" [options]="opcionesCategoriaTecnologia" placeholder="Categoría" [disabled]="modoDemo()" appendTo="body" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.importancia" [options]="opcionesImportanciaTecnologia" placeholder="Importancia" [disabled]="modoDemo()" appendTo="body" /></div>
-                                            <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(tech.aliases)" (ngModelChange)="tech.aliases = stringALista($event)" placeholder="alias1, alias2" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col"><input pInputText [ngModel]="tech.evidencia || ''" (ngModelChange)="tech.evidencia = $event" placeholder="Proyecto o evidencia" [disabled]="modoDemo()" /></div>
-                                            <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarTecnologia(i)"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
+                                            <div class="tabla-tech__col"><input pInputText [(ngModel)]="tech.nombre" placeholder="Nombre" [disabled]="modoDemo()" [attr.aria-label]="'Nombre de tecnología ' + (i + 1)" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.nivel" [options]="opcionesNivelTecnologia" placeholder="Nivel" [disabled]="modoDemo()" [ariaLabel]="'Nivel de ' + (tech.nombre || 'tecnología ' + (i + 1))" appendTo="body" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.categoria" [options]="opcionesCategoriaTecnologia" placeholder="Categoría" [disabled]="modoDemo()" [ariaLabel]="'Categoría de ' + (tech.nombre || 'tecnología ' + (i + 1))" appendTo="body" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="tech.importancia" [options]="opcionesImportanciaTecnologia" placeholder="Importancia" [disabled]="modoDemo()" [ariaLabel]="'Importancia de ' + (tech.nombre || 'tecnología ' + (i + 1))" appendTo="body" /></div>
+                                            <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(tech.aliases)" (ngModelChange)="tech.aliases = stringALista($event)" placeholder="alias1, alias2" [disabled]="modoDemo()" [attr.aria-label]="'Aliases de ' + (tech.nombre || 'tecnología ' + (i + 1))" /></div>
+                                            <div class="tabla-tech__col"><input pInputText [ngModel]="tech.evidencia || ''" (ngModelChange)="tech.evidencia = $event" placeholder="Proyecto o evidencia" [disabled]="modoDemo()" [attr.aria-label]="'Evidencia de ' + (tech.nombre || 'tecnología ' + (i + 1))" /></div>
+                                            <div class="tabla-tech__col tabla-tech__col--accion"><button type="button" class="btn-quitar-tech" (click)="quitarTecnologia(i)" [disabled]="modoDemo()" [attr.aria-label]="'Quitar ' + (tech.nombre || 'tecnología ' + (i + 1))" title="Quitar tecnología"><i class="pi pi-times" aria-hidden="true"></i></button></div>
                                         </div>
                                     }
                                 </div>
@@ -319,7 +328,7 @@
                                     <p class="texto-vacio">No hay tecnologías configuradas.</p>
                                     <small class="campo-ayuda">Podés cargar el perfil sugerido o importar tu CV para poblar esta tabla.</small>
                                     <div class="importar-acciones">
-                                        <button class="btn-detalle-secundario" (click)="cargarTecnologiasSugeridas()">CARGAR SUGERIDAS</button>
+                                        <button type="button" class="btn-detalle-secundario" (click)="cargarTecnologiasSugeridas()">CARGAR SUGERIDAS</button>
                                     </div>
                                 </div>
                             }
@@ -332,7 +341,7 @@
                     <section class="seccion" aria-labelledby="label-roles">
                         <div class="seccion-cabecera">
                             <span class="seccion-label" id="label-roles">ROLES_OBJETIVO</span>
-                            <button class="btn-agregar-tech" (click)="agregarRol()" [disabled]="modoDemo()"><span class="material-symbols-outlined" aria-hidden="true">add</span></button>
+                            <button type="button" class="btn-agregar-tech" (click)="agregarRol()" [disabled]="modoDemo()" aria-label="Agregar rol objetivo" title="Agregar rol objetivo"><i class="pi pi-plus" aria-hidden="true"></i></button>
                         </div>
                         <div class="seccion-cuerpo">
                             @if (rolesObjetivoDetalle.length > 0) {
@@ -345,10 +354,10 @@
                                     </div>
                                     @for (rol of rolesObjetivoDetalle; track $index; let i = $index) {
                                         <div class="tabla-tech__fila roles-grid__fila">
-                                            <div class="tabla-tech__col"><input pInputText [(ngModel)]="rol.rol" placeholder="Rol" /></div>
-                                            <div class="tabla-tech__col"><p-select [(ngModel)]="rol.prioridad" [options]="opcionesPrioridadRol" placeholder="Prioridad" appendTo="body" /></div>
-                                            <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(rol.aliases)" (ngModelChange)="rol.aliases = stringALista($event)" placeholder="alias1, alias2" /></div>
-                                            <div class="tabla-tech__col tabla-tech__col--accion"><button class="btn-quitar-tech" (click)="quitarRol(i)"><span class="material-symbols-outlined" aria-hidden="true">close</span></button></div>
+                                            <div class="tabla-tech__col"><input pInputText [(ngModel)]="rol.rol" placeholder="Rol" [disabled]="modoDemo()" [attr.aria-label]="'Nombre del rol ' + (i + 1)" /></div>
+                                            <div class="tabla-tech__col"><p-select [(ngModel)]="rol.prioridad" [options]="opcionesPrioridadRol" placeholder="Prioridad" [disabled]="modoDemo()" [ariaLabel]="'Prioridad de ' + (rol.rol || 'rol ' + (i + 1))" appendTo="body" /></div>
+                                            <div class="tabla-tech__col"><input pInputText [ngModel]="listaAString(rol.aliases)" (ngModelChange)="rol.aliases = stringALista($event)" placeholder="alias1, alias2" [disabled]="modoDemo()" [attr.aria-label]="'Aliases de ' + (rol.rol || 'rol ' + (i + 1))" /></div>
+                                            <div class="tabla-tech__col tabla-tech__col--accion"><button type="button" class="btn-quitar-tech" (click)="quitarRol(i)" [disabled]="modoDemo()" [attr.aria-label]="'Quitar ' + (rol.rol || 'rol ' + (i + 1))" title="Quitar rol"><i class="pi pi-times" aria-hidden="true"></i></button></div>
                                         </div>
                                     }
                                 </div>
@@ -357,7 +366,7 @@
                                     <p class="texto-vacio">No hay roles configurados.</p>
                                     <small class="campo-ayuda">Estos roles ayudan a priorizar ofertas. Podés cargar una base sugerida.</small>
                                     <div class="importar-acciones">
-                                        <button class="btn-detalle-secundario" (click)="cargarRolesSugeridos()">CARGAR ROLES SUGERIDOS</button>
+                                        <button type="button" class="btn-detalle-secundario" (click)="cargarRolesSugeridos()">CARGAR ROLES SUGERIDOS</button>
                                     </div>
                                 </div>
                             }
@@ -371,12 +380,12 @@
                         <div class="seccion-cabecera"><span class="seccion-label" id="label-busqueda-avanzada">BÚSQUEDA</span></div>
                         <div class="seccion-cuerpo">
                             <div class="campo">
-                                <label class="campo-etiqueta">Términos de búsqueda</label>
-                                <p-autocomplete [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" appendTo="body" />
+                                <label class="campo-etiqueta" for="terminos-busqueda-input">Términos de búsqueda</label>
+                                <p-autocomplete inputId="terminos-busqueda-input" [(ngModel)]="terminosBusqueda" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Escribí y Enter" appendTo="body" />
                             </div>
                             @if (equivalenciasSugeridasDisponibles.length > 0) {
                                 <div class="campo campo-equivalencias-sugeridas">
-                                    <label class="campo-etiqueta">Equivalencias sugeridas para tus términos</label>
+                                    <span class="campo-etiqueta">Equivalencias sugeridas para tus términos</span>
                                     <small class="campo-ayuda">Sugerencias conocidas que no se agregan automáticamente a tus consultas. Hacé clic para agregarlas a tus términos de búsqueda.</small>
                                     <div class="lista-chips-sugerencias">
                                         @for (item of equivalenciasSugeridasDisponibles; track item.sugerencia) {
@@ -389,28 +398,28 @@
                             }
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Keywords positivas</label>
-                                    <p-autocomplete [(ngModel)]="keywordsPositivas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: healthtech" appendTo="body" />
+                                    <label class="campo-etiqueta" for="keywords-positivas-input">Keywords positivas</label>
+                                    <p-autocomplete inputId="keywords-positivas-input" [(ngModel)]="keywordsPositivas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: healthtech" appendTo="body" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Keywords negativas</label>
-                                    <p-autocomplete [(ngModel)]="keywordsNegativas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: java" appendTo="body" />
+                                    <label class="campo-etiqueta" for="keywords-negativas-input">Keywords negativas</label>
+                                    <p-autocomplete inputId="keywords-negativas-input" [(ngModel)]="keywordsNegativas" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: java" appendTo="body" />
                                 </div>
                             </div>
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Plataformas preferidas</label>
-                                    <p-multiselect [(ngModel)]="plataformasPreferidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" appendTo="body" />
+                                    <label class="campo-etiqueta" for="plataformas-preferidas-input">Plataformas preferidas</label>
+                                    <p-multiselect inputId="plataformas-preferidas-input" [(ngModel)]="plataformasPreferidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" ariaLabel="Plataformas preferidas" appendTo="body" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Plataformas excluidas</label>
-                                    <p-multiselect [(ngModel)]="plataformasExcluidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" appendTo="body" />
+                                    <label class="campo-etiqueta" for="plataformas-excluidas-input">Plataformas excluidas</label>
+                                    <p-multiselect inputId="plataformas-excluidas-input" [(ngModel)]="plataformasExcluidas" [options]="opcionesPlataformas" display="chip" placeholder="Seleccioná" ariaLabel="Plataformas excluidas" appendTo="body" />
                                 </div>
                             </div>
                             <div class="campo">
-                                <label class="campo-etiqueta">Exclusiones adicionales editables</label>
+                                <label class="campo-etiqueta" for="exclusiones-adicionales-input">Exclusiones adicionales editables</label>
                                 <small class="campo-ayuda">Esta lista no permite desactivar las políticas obligatorias del sistema mostradas en el perfil guardado.</small>
-                                <p-autocomplete [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" appendTo="body" />
+                                <p-autocomplete inputId="exclusiones-adicionales-input" [(ngModel)]="reglasExclusion" [multiple]="true" [suggestions]="sugerencias" (completeMethod)="filtrarLibre($event)" placeholder="Ej: Java, SAP" appendTo="body" />
                             </div>
                             <div class="campo campo-toggle">
                                 <p-toggleswitch [(ngModel)]="filtrarNivelLinkedin" inputId="toggle-nivel-linkedin" />
@@ -428,12 +437,12 @@
                         <div class="seccion-cuerpo">
                             <div class="campo-fila campo-fila--2">
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Modelo evaluación ofertas</label>
-                                    <p-select [(ngModel)]="modeloIaEvaluacion" [options]="opcionesModelo" optionLabel="label" optionValue="value" appendTo="body" />
+                                    <label class="campo-etiqueta" for="modelo-ia-eval">Modelo evaluación ofertas</label>
+                                    <p-select inputId="modelo-ia-eval" [(ngModel)]="modeloIaEvaluacion" [options]="opcionesModelo" optionLabel="label" optionValue="value" ariaLabel="Modelo evaluación ofertas" appendTo="body" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Modelo importación CV</label>
-                                    <p-select [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" appendTo="body" />
+                                    <label class="campo-etiqueta" for="modelo-ia-imp">Modelo importación CV</label>
+                                    <p-select inputId="modelo-ia-imp" [(ngModel)]="modeloIaImportacion" [options]="opcionesModeloImportacion" optionLabel="label" optionValue="value" ariaLabel="Modelo importación CV" appendTo="body" />
                                 </div>
                             </div>
                             <p id="temperatura-ayuda">Uso razonamiento explícito bajo y formato JSON en ambas tareas. DeepSeek ignora la temperatura con razonamiento: conservo los valores anteriores, pero no los envío al proveedor.</p>
@@ -455,13 +464,13 @@
                             </div>
                             -->
                             <div class="campo campo-toggle">
-                                <p-toggleswitch [(ngModel)]="usarPromptPersonalizado" />
-                                <label class="campo-etiqueta campo-etiqueta--inline">Usar criterios adicionales para la IA</label>
+                                <p-toggleswitch inputId="toggle-prompt-personalizado" [(ngModel)]="usarPromptPersonalizado" />
+                                <label for="toggle-prompt-personalizado" class="campo-etiqueta campo-etiqueta--inline">Usar criterios adicionales para la IA</label>
                             </div>
                             @if (usarPromptPersonalizado) {
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Criterios adicionales para la evaluación</label>
-                                    <textarea pTextarea [(ngModel)]="promptPersonalizado" [rows]="6" [autoResize]="true"></textarea>
+                                    <label class="campo-etiqueta" for="criterios-adicionales-ia">Criterios adicionales para la evaluación</label>
+                                    <textarea pTextarea id="criterios-adicionales-ia" [(ngModel)]="promptPersonalizado" [rows]="6" [autoResize]="true"></textarea>
                                     <small class="campo-ayuda">Estos criterios se agregan al final del prompt de evaluación como complemento. NO reemplazan las reglas de exclusión (Java, Senior, 3+ años, inglés avanzado, ubicación). Son preferencias extra que la IA considera siempre y cuando no contradigan las reglas estrictas.</small>
                                 </div>
                             }
@@ -611,8 +620,8 @@
                                         </div>
                                     }
                                     <div class="importar-acciones">
-                                        <button class="btn-guardar" [disabled]="guardando() || analizandoCv()" (click)="aplicarImportacion()"><span class="material-symbols-outlined" aria-hidden="true">check</span>APLICAR AL FORMULARIO</button>
-                                        <button class="btn-detalle-secundario" (click)="cancelarImportacion()">CANCELAR</button>
+                                        <button type="button" class="btn-guardar" [disabled]="guardando() || analizandoCv()" (click)="aplicarImportacion()"><i class="pi pi-check" aria-hidden="true"></i>APLICAR AL FORMULARIO</button>
+                                        <button type="button" class="btn-detalle-secundario" (click)="cancelarImportacion()">CANCELAR</button>
                                     </div>
                                 </div>
                             }
@@ -643,7 +652,7 @@
                                             <h5>Acciones explícitas sobre el borrador</h5>
                                             @for (p of preguntasAccionables; track p.id) {
                                                 <div class="importar-pregunta importar-pregunta--accionable" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
-                                                    <span class="material-symbols-outlined" aria-hidden="true">⚡ help</span>
+                                                    <i class="pi pi-bolt" aria-hidden="true"></i>
                                                     <div class="importar-pregunta__contenido">
                                                         <span>{{ p.pregunta }}</span>
                                                         @if (p.motivo) {
@@ -655,9 +664,9 @@
                                                         <small class="campo-ayuda">{{ alcanceSugerencia(p.campo) }}</small>
                                                         <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(p.id, $event)" [disabled]="p.estado === 'aplicada' || p.estado === 'ignorada' || p.estado === 'nota'" [attr.aria-label]="'Respuesta: ' + p.pregunta" [rows]="2" placeholder="Escribí una respuesta o nota para esta pregunta..."></textarea>
                                                         <div class="importar-acciones">
-                                                            <button class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(p.id)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada' || p.estado === 'nota'">Aplicar sugerencia</button>
-                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(p.id)" [disabled]="p.estado === 'aplicada'">Ignorar</button>
-                                                            <button class="btn-detalle-secundario" (click)="guardarNotaEIgnorar(p.id)" [disabled]="!p.respuesta?.trim() || p.estado === 'aplicada'">Guardar nota e ignorar</button>
+                                                            <button type="button" class="btn-detalle-secundario" (click)="aceptarSugerenciaImportacion(p.id)" [disabled]="p.estado === 'ignorada' || p.estado === 'aplicada' || p.estado === 'nota'">Aplicar sugerencia</button>
+                                                            <button type="button" class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(p.id)" [disabled]="p.estado === 'aplicada'">Ignorar</button>
+                                                            <button type="button" class="btn-detalle-secundario" (click)="guardarNotaEIgnorar(p.id)" [disabled]="!p.respuesta?.trim() || p.estado === 'aplicada'">Guardar nota e ignorar</button>
                                                         </div>
                                                         <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">Estado: {{ p.estado }} — {{ p.nota || p.respuesta }}</small>
                                                     </div>
@@ -671,7 +680,7 @@
                                             <h5>Preguntas informativas</h5>
                                             @for (p of preguntasInformativas; track p.id) {
                                                 <div class="importar-pregunta importar-pregunta--informativa" [class.importar-pregunta--aplicada]="p.estado === 'aplicada'" [class.importar-pregunta--ignorada]="p.estado === 'ignorada'">
-                                                    <span class="material-symbols-outlined" aria-hidden="true">📝 help</span>
+                                                    <i class="pi pi-pencil" aria-hidden="true"></i>
                                                     <div class="importar-pregunta__contenido">
                                                         <span>{{ p.pregunta }}</span>
                                                         @if (p.motivo) {
@@ -684,8 +693,8 @@
                                                         <textarea pTextarea [ngModel]="p.respuesta || ''" (ngModelChange)="actualizarRespuestaPregunta(p.id, $event)" [disabled]="p.estado === 'ignorada' || p.estado === 'nota'" [attr.aria-label]="'Respuesta: ' + p.pregunta" [rows]="2" placeholder="Escribí tu respuesta. No modifica hechos automáticamente."></textarea>
                                                         <small class="campo-ayuda importar-estado-indicador" [attr.data-estado]="p.estado">Estado: {{ p.estado }} — {{ p.nota || p.respuesta }}</small>
                                                         <div class="importar-acciones">
-                                                            <button class="btn-detalle-secundario" (click)="guardarNotaEIgnorar(p.id)" [disabled]="!p.respuesta?.trim()">Guardar nota e ignorar</button>
-                                                            <button class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(p.id)">Ignorar</button>
+                                                            <button type="button" class="btn-detalle-secundario" (click)="guardarNotaEIgnorar(p.id)" [disabled]="!p.respuesta?.trim()">Guardar nota e ignorar</button>
+                                                            <button type="button" class="btn-detalle-secundario" (click)="ignorarPreguntaImportacion(p.id)">Ignorar</button>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -707,25 +716,25 @@
                             <div class="campo-fila campo-fila--3">
                                 <div class="campo reset-campo-dias">
                                     <label class="campo-etiqueta" for="diasReset">Días atrás a resetear</label>
-                                    <input type="number" id="diasReset" class="input-dias-reset" [ngModel]="diasReset()" (ngModelChange)="diasReset.set(+$event || null)" min="1" max="365" placeholder="Ej: 7" />
+                                    <input pInputText type="number" id="diasReset" class="input-dias-reset" [ngModel]="diasReset()" (ngModelChange)="diasReset.set(+$event || null)" min="1" max="365" placeholder="Ej: 7" />
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Última importación CV</label>
-                                    <input pInputText [ngModel]="fechaImportacionCv || 'Nunca'" readonly />
+                                    <label class="campo-etiqueta" for="fecha-importacion-cv">Última importación CV</label>
+                                    <input pInputText id="fecha-importacion-cv" [ngModel]="fechaImportacionCv || 'Nunca'" readonly />
                                     <small class="campo-ayuda">Fecha en la que aplicaste por última vez un perfil analizado desde el texto del CV.</small>
                                 </div>
                                 <div class="campo">
-                                    <label class="campo-etiqueta">Modo de evaluación</label>
-                                    <input pInputText [ngModel]="'DeepSeek directo'" readonly />
+                                    <label class="campo-etiqueta" for="modo-evaluacion">Modo de evaluación</label>
+                                    <input pInputText id="modo-evaluacion" [ngModel]="'DeepSeek directo'" readonly />
                                     <small class="campo-ayuda">Cada oferta se evalúa con DeepSeek más reglas determinísticas activas (exclusión por Java, seniority, experiencia, idioma, ubicación).</small>
                                 </div>
                             </div>
                             <div class="reset-boton-wrapper">
-                                <button class="btn-reset" [disabled]="!diasReset() || reseteando() || modoDemo()" (click)="resetearEvaluaciones()">
+                                <button type="button" class="btn-reset" [disabled]="!diasReset() || reseteando() || modoDemo()" (click)="resetearEvaluaciones()">
                                     @if (reseteando()) {
-                                        <span class="material-symbols-outlined btn-spin" aria-hidden="true">progress_activity</span>
+                                        <i class="pi pi-spinner btn-spin" aria-hidden="true"></i>
                                     } @else {
-                                        <span class="material-symbols-outlined" aria-hidden="true">restart_alt</span>
+                                        <i class="pi pi-refresh" aria-hidden="true"></i>
                                     }
                                     RESETEAR EVALUACIONES
                                 </button>

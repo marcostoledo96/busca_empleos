@@ -262,3 +262,34 @@ for (const ancho of [1440, 1366, 1024, 768, 390, 320]) {
         });
     }
 }
+
+test('G: DOM renderizado asocia labels/inputId y nombres accesibles de combobox PrimeNG en Preferencias', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/preferencias');
+
+    // Verifico en el DOM renderizado de PERFIL que los combobox PrimeNG reciben su nombre accesible real.
+    for (const etiqueta of ['Nivel de experiencia', 'Modalidad aceptada', 'Disponibilidad', 'Moneda salarial']) {
+        await expect(page.getByRole('combobox', { name: etiqueta, exact: true })).toBeVisible();
+    }
+    // p-multiselect renderiza su input combobox dentro de .p-hidden-accessible: compruebo asociación real de label y ARIA.
+    await expect(page.getByLabel('Zonas presenciales aceptadas', { exact: true })).toHaveAttribute('id', 'zonas-input');
+    await expect(page.locator('#zonas-input')).toHaveAttribute('role', 'combobox');
+    await expect(page.locator('#zonas-input')).toHaveAttribute('aria-label', 'Zonas presenciales aceptadas');
+
+    await expect(page.getByLabel('Reading (lectura)', { exact: true })).toHaveAttribute('id', 'ingles-reading');
+    await expect(page.getByLabel('Writing (escritura)', { exact: true })).toHaveAttribute('id', 'ingles-writing');
+    await expect(page.getByLabel('Speaking (habla)', { exact: true })).toHaveAttribute('id', 'ingles-speaking');
+    await expect(page.getByLabel('Listening (escucha)', { exact: true })).toHaveAttribute('id', 'ingles-listening');
+
+    // En BÚSQUEDA e IA confirmo la asociación real de los combobox y el switch.
+    await page.getByRole('tab', { name: 'BÚSQUEDA', exact: true }).click();
+    await expect(page.getByLabel('Plataformas preferidas', { exact: true })).toHaveAttribute('id', 'plataformas-preferidas-input');
+    await expect(page.locator('#plataformas-preferidas-input')).toHaveAttribute('aria-label', 'Plataformas preferidas');
+    await expect(page.getByLabel('Plataformas excluidas', { exact: true })).toHaveAttribute('id', 'plataformas-excluidas-input');
+    await expect(page.locator('#plataformas-excluidas-input')).toHaveAttribute('aria-label', 'Plataformas excluidas');
+
+    await page.getByRole('tab', { name: 'IA', exact: true }).click();
+    await expect(page.getByRole('combobox', { name: 'Modelo evaluación ofertas', exact: true })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Modelo importación CV', exact: true })).toBeVisible();
+    await expect(page.getByLabel('Usar criterios adicionales para la IA', { exact: true })).toHaveAttribute('id', 'toggle-prompt-personalizado');
+});

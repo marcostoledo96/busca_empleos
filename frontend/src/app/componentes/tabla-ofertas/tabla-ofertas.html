@@ -25,7 +25,7 @@
 @if (algunaSeleccionada() && !modoDemo()) {
     <div class="barra-bulk" role="toolbar" aria-label="Acciones masivas sobre ofertas seleccionadas">
         <span class="barra-bulk__conteo">
-            <span class="material-symbols-outlined" aria-hidden="true">check_box</span>
+            <i class="pi pi-check-square" aria-hidden="true"></i>
             {{ seleccionadas().size }} oferta{{ seleccionadas().size !== 1 ? 's' : '' }} seleccionada{{ seleccionadas().size !== 1 ? 's' : '' }}
         </span>
         <div class="barra-bulk__acciones">
@@ -51,7 +51,7 @@
                 class="btn-bulk-cancelar"
                 (click)="limpiarSeleccion()"
                 aria-label="Cancelar selección masiva">
-                <span class="material-symbols-outlined" aria-hidden="true">close</span>
+                <i class="pi pi-times" aria-hidden="true"></i>
             </button>
         </div>
     </div>
@@ -78,10 +78,10 @@
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
 <div class="tabla-contenedor vista-desktop" role="region" aria-label="Tabla de ofertas de empleo">
     <div class="tabla-encabezado">
-        <span class="tabla-label" id="tabla-busqueda-label">OFERTAS_EMPLEO</span>
+        <span class="tabla-label" [attr.id]="idTablaLabel()">OFERTAS_EMPLEO</span>
         <div class="tabla-filtros">
-            <label for="filtro-busqueda-input" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
-            <input id="filtro-busqueda-input" type="text" class="filtro-busqueda"
+            <label [attr.for]="idTablaInput()" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
+            <input [attr.id]="idTablaInput()" type="text" class="filtro-busqueda"
                 placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
                 [value]="filtroTextoCards()" (input)="filtrarCards($event)" />
         </div>
@@ -96,7 +96,7 @@
         [sortField]="sortField()"
         [sortOrder]="sortOrder()"
         styleClass="p-datatable-sm"
-        [tableStyle]="{ 'table-layout': 'fixed', 'min-width': '1180px', width: '100%' }"
+        [tableStyle]="{ 'table-layout': 'fixed', 'min-width': '1100px', width: '100%' }"
         (onPage)="limpiarSeleccion()"
         (onFilter)="onFiltrado($event)"
         (onSort)="onOrdenamiento($event)"
@@ -105,7 +105,7 @@
         <!-- Definición de columnas -->
         <ng-template #header>
             <tr>
-                <th class="columna-checkbox" style="width: 44px; padding: 0.5rem;" aria-label="Seleccionar ofertas de esta página">
+                <th class="columna-checkbox" style="width: 52px" aria-label="Seleccionar ofertas de esta página">
                     @if (!modoDemo()) {
                         @let ofertasVisibles = (tablaOfertas.filteredValue || ofertas()).slice(tablaOfertas.first || 0, (tablaOfertas.first || 0) + (tablaOfertas.rows || 20));
                         @let todasVisiblesSeleccionadas = todasSeleccionadas(ofertasVisibles);
@@ -122,31 +122,31 @@
                         </label>
                     }
                 </th>
-                <th class="columna-titulo" pSortableColumn="titulo" style="min-width: 250px">
+                <th class="columna-titulo" pSortableColumn="titulo">
                     TÍTULO <p-sortIcon field="titulo" />
                 </th>
-                <th class="columna-empresa" pSortableColumn="empresa" style="min-width: 150px">
+                <th class="columna-empresa" pSortableColumn="empresa" style="width: 120px">
                     EMPRESA <p-sortIcon field="empresa" />
                 </th>
-                <th class="columna-plataforma" style="min-width: 110px">PLATAFORMA</th>
-                <th class="columna-estado" pSortableColumn="estado_evaluacion" style="min-width: 110px">
+                <th class="columna-plataforma" style="width: 102px">PLATAFORMA</th>
+                <th class="columna-estado" pSortableColumn="estado_evaluacion" style="width: 136px">
                     ESTADO <p-sortIcon field="estado_evaluacion" />
                 </th>
-                <th class="columna-match" pSortableColumn="porcentaje_match" style="min-width: 90px">
+                <th class="columna-match" pSortableColumn="porcentaje_match" style="width: 78px">
                     MATCH % <p-sortIcon field="porcentaje_match" />
                 </th>
-                <th class="columna-postulacion" style="min-width: 150px">POSTULACIÓN</th>
-                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="min-width: 120px">
+                <th class="columna-postulacion" style="width: 176px">POSTULACIÓN</th>
+                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="width: 142px">
                     DETECTADA <p-sortIcon field="fecha_extraccion" />
                 </th>
-                <th class="columna-accion" style="width: 44px"></th>
+                <th class="columna-accion" style="width: 52px"></th>
             </tr>
         </ng-template>
 
         <!-- Filas de datos -->
         <ng-template #body let-oferta>
             <tr [class.fila-seleccionada]="seleccionadas().has(oferta.id)">
-                <td class="columna-checkbox" style="padding: 0.5rem;">
+                <td class="columna-checkbox">
                     @if (!modoDemo()) {
                         <label class="seleccion-tabla">
                             <input
@@ -209,7 +209,7 @@
                         optionValue="value"
                         [disabled]="postulacionBloqueada(oferta.id)"
                         styleClass="select-postulacion"
-                        [style]="{ width: '100%', minWidth: '130px' }"
+                        [style]="{ width: '100%', minWidth: '150px' }"
                         size="small"
                         appendTo="body"
                         [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
@@ -237,7 +237,7 @@
                         (click)="verDetalle(oferta)"
                         [attr.aria-label]="'Ver detalle de ' + oferta.titulo"
                         title="Ver detalle">
-                        <span class="material-symbols-outlined" aria-hidden="true">open_in_new</span>
+                        <i class="pi pi-external-link" aria-hidden="true"></i>
                     </button>
                 </td>
             </tr>
@@ -247,7 +247,7 @@
         <ng-template #emptymessage>
             <tr>
                 <td colspan="9" class="tabla-vacia">
-                    <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
+                    <i class="pi pi-inbox tabla-vacia__icono" aria-hidden="true"></i>
                     <p role="status">{{ mensajeVacio() }}</p>
                     @if (hayFiltrosActivos()) {
                         <button type="button" class="btn-bulk-cancelar" (click)="restablecerFiltros()">Limpiar filtros</button>
@@ -264,10 +264,10 @@
 <div class="cards-contenedor vista-mobile" role="region" aria-label="Lista de ofertas de empleo">
     <!-- Encabezado -->
     <div class="cards-encabezado">
-        <span class="tabla-label" id="cards-busqueda-label">OFERTAS_EMPLEO</span>
-        <label for="filtro-busqueda-cards" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
+        <span class="tabla-label" [attr.id]="idCardsLabel()">OFERTAS_EMPLEO</span>
+        <label [attr.for]="idCardsInput()" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
         <input
-            id="filtro-busqueda-cards"
+            [attr.id]="idCardsInput()"
             type="text"
             class="filtro-busqueda"
             placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
@@ -329,7 +329,7 @@
                     <div class="card-oferta__meta">
                         @if (oferta.ubicacion) {
                             <span class="card-oferta__ubicacion">
-                                <span class="material-symbols-outlined" aria-hidden="true">location_on</span>
+                                <i class="pi pi-map-marker" aria-hidden="true"></i>
                                 {{ oferta.ubicacion }}
                             </span>
                         }
@@ -372,7 +372,7 @@
         </div>
     } @else {
         <div class="cards-vacio" role="status">
-            <span class="material-symbols-outlined" aria-hidden="true">inbox</span>
+            <i class="pi pi-inbox cards-vacio__icono" aria-hidden="true"></i>
             <p>{{ mensajeVacio() }}</p>
             @if (hayFiltrosActivos()) {
                 <button type="button" class="btn-bulk-cancelar" (click)="restablecerFiltros()">Limpiar filtros</button>
@@ -388,7 +388,7 @@
                 [disabled]="paginaActualCards() === 0"
                 (click)="irAPaginaCards(paginaActualCards() - 1)"
                 aria-label="Página anterior">
-                <span class="material-symbols-outlined" aria-hidden="true">chevron_left</span>
+                <i class="pi pi-chevron-left" aria-hidden="true"></i>
             </button>
 
             @for (pagina of paginasVisiblesCards(); track pagina) {
@@ -407,7 +407,7 @@
                 [disabled]="paginaActualCards() === totalPaginasCards() - 1"
                 (click)="irAPaginaCards(paginaActualCards() + 1)"
                 aria-label="Página siguiente">
-                <span class="material-symbols-outlined" aria-hidden="true">chevron_right</span>
+                <i class="pi pi-chevron-right" aria-hidden="true"></i>
             </button>
         </nav>
     }

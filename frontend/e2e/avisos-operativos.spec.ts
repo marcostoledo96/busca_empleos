@@ -181,3 +181,44 @@ test('issue58 sin ejecuciones, cancelado, 202 y recuperación alternativa', asyn
     await expect(estado(page)).toContainText('Resultado anterior conservado');
     await expect(page.getByRole('dialog', { name: 'Ciclo completo en progreso' })).toBeVisible();
 });
+
+for (const [width, height, tema] of [[320, 844, 'claro'], [390, 844, 'oscuro']] as const) {
+    test(`issue102: toast abierto en ${width}x${height} ${tema} no bloquea clic real detrás del detalle y permite cerrar aviso`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto(`/?issue58=extenso&tema=${tema}`);
+
+        const extraer = page.getByRole('button', { name: 'Extraer ofertas de LinkedIn', exact: true });
+        await extraer.click();
+
+        const toast = page.locator('app-panel-control .p-toast-message').last();
+        await expect(toast).toBeVisible();
+        await comprobarTextoCompleto(toast.locator('.p-toast-detail'));
+
+        // Verifico hit-testing real: el punto central sobre .p-toast-detail debe atravesar el toast
+        // hacia el contenido subyacente (nunca devolver un nodo dentro de .p-toast).
+        const hitSobreDetalle = await page.evaluate(() => {
+            const detalle = document.querySelector('app-panel-control .p-toast-detail');
+            if (!detalle) return { interceptado: true, tag: 'missing' };
+            const r = detalle.getBoundingClientRect();
+            const destino = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+            return {
+                interceptado: Boolean(destino?.closest('.p-toast')),
+                tag: destino?.tagName?.toLowerCase() ?? 'none',
+            };
+        });
+        expect(hitSobreDetalle.interceptado).toBe(false);
+
+        // El botón de cierre del toast sigue siendo realmente clicable y descarta el aviso.
+        const btnCerrar = toast.locator('.p-toast-close-button');
+        expect(await btnCerrar.evaluate(el => getComputedStyle(el).pointerEvents)).toBe('auto');
+        await btnCerrar.click();
+        await expect(toast).toBeHidden();
+
+        // Reabro el toast extenso y ejecuto clic real (sin force) en Ejecutar todo con el toast visible.
+        await extraer.click();
+        await expect(toast).toBeVisible();
+        const ciclo = page.getByRole('button', { name: 'Ejecutar ciclo completo de scraping y evaluación', exact: true });
+        await ciclo.click({ timeout: 3000 });
+        await expect(page.getByRole('dialog', { name: 'Ciclo completo en progreso' })).toBeVisible();
+    });
+}

@@ -256,6 +256,10 @@ for (const caso of [
         await ciclo.click();
         expect((await segundo202).status()).toBe(202);
         await expect(page.getByRole('dialog', { name: 'Ciclo completo en progreso' })).toBeHidden({ timeout: 15000 });
+        const estadoOperativo = page.getByRole('group', { name: 'Estado operativo de búsquedas', exact: true });
+        if ((await estadoOperativo.getAttribute('open')) === null) {
+            await estadoOperativo.getByText('Estado operativo', { exact: true }).click();
+        }
         await expect(page.getByText('Último ciclo: Sin resultados ·', { exact: false })).toBeVisible();
         const final = await evidencia(request);
         expect(final.ofertas).toHaveLength(2);

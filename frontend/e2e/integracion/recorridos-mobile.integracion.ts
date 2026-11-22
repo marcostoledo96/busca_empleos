@@ -122,22 +122,39 @@ for (const caso of [{ width: 360, height: 800, tema: 'claro' },
     });
 }
 
-test('A token rechazado 401/403 conserva SQL y sesión ausente vuelve a login', async ({ page, request }) => {
+test('A token rechazado 401 redirige a login con aviso, 403 mantiene vista con error y conserva SQL', async ({ page, request }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     const antes = await evidencia(request);
-    for (const [token, codigo] of [['issue57-vencido', 401], ['issue57-identidad-ajena', 403]] as const) {
-        await page.goto('/login');
-        await page.evaluate(valor => sessionStorage.setItem('issue60-token', valor), token);
-        const rechazo = page.waitForResponse(respuesta => new URL(respuesta.url()).pathname === '/api/ofertas/sincronizacion');
-        await page.goto('/');
-        expect((await rechazo).status()).toBe(codigo);
-        await expect(page.getByText('Estado de sincronización: fallida.', { exact: false })).toBeVisible();
-        await expect(page.getByText('No pude cargar las ofertas guardadas.', { exact: false })).toBeVisible();
-        await expect(page.getByRole('alert').filter({ hasText: 'Estado de sincronización: fallida.' }))
-            .toContainText(codigo === 401 ? 'Token de autenticación inválido.' : 'Acceso denegado. Este sistema es de uso personal.');
-        await expect(page.getByRole('button', { name: 'REINTENTAR', exact: true })).toBeEnabled();
-        expect(await evidencia(request)).toEqual(antes);
-    }
+
+    // HTTP 401 (token vencido): redirige una sola vez a /login?motivo=sesion-expirada y muestra alerta clara sin tocar SQL.
+    // Espero cualquier endpoint protegido /api/ con 401 porque el primero en responder redirige y desmonta el Dashboard
+    // antes de que sincronizarOfertas() termine su limpieza async de IndexedDB.
+    await page.goto('/login');
+    await page.evaluate(() => sessionStorage.setItem('issue60-token', 'issue57-vencido'));
+    const rechazo401 = page.waitForResponse(respuesta =>
+        new URL(respuesta.url()).pathname.startsWith('/api/') && respuesta.status() === 401
+    );
+    await page.goto('/');
+    expect((await rechazo401).status()).toBe(401);
+    await expect(page).toHaveURL(/\/login\?motivo=sesion-expirada$/);
+    await expect(page.getByRole('alert')).toContainText('sesión expiró');
+    expect(await evidencia(request)).toEqual(antes);
+
+    // HTTP 403 (identidad ajena): no redirige a login; mantiene el dashboard con el error original y botón REINTENTAR.
+    await page.goto('/login');
+    await page.evaluate(() => sessionStorage.setItem('issue60-token', 'issue57-identidad-ajena'));
+    const rechazo403 = page.waitForResponse(respuesta => new URL(respuesta.url()).pathname === '/api/ofertas/sincronizacion');
+    await page.goto('/');
+    expect((await rechazo403).status()).toBe(403);
+    await expect(page).not.toHaveURL(/\/login/);
+    await expect(page.getByText('Estado de sincronización: fallida.', { exact: false })).toBeVisible();
+    await expect(page.getByText('No pude cargar las ofertas guardadas.', { exact: false })).toBeVisible();
+    await expect(page.getByRole('alert').filter({ hasText: 'Estado de sincronización: fallida.' }))
+        .toContainText('Acceso denegado. Este sistema es de uso personal.');
+    await expect(page.getByRole('button', { name: 'REINTENTAR', exact: true })).toBeEnabled();
+    expect(await evidencia(request)).toEqual(antes);
+
+    // Sesión ausente: vuelve a /login.
     await page.evaluate(() => { sessionStorage.removeItem('issue60-token'); sessionStorage.setItem('issue60-sesion', 'cerrada'); });
     await page.reload();
     await expect(page).toHaveURL(/\/login$/);
@@ -372,6 +389,11 @@ test('B/G lecturas indisponibles, proveedor 429/503 y ciclo fallido recuperan si
     expect((await evidencia(request)).ofertas).toEqual(previoCiclo.ofertas);
     await control(request, { escenario: 'vacio', fallo: 'ninguno' });
     await ciclo.click();
+    await expect(page.getByRole('dialog', { name: 'Ciclo completo en progreso' })).toBeHidden({ timeout: 15000 });
+    const estadoOperativo = page.getByRole('group', { name: 'Estado operativo de búsquedas', exact: true });
+    if ((await estadoOperativo.getAttribute('open')) === null) {
+        await estadoOperativo.getByText('Estado operativo', { exact: true }).click();
+    }
     await expect(page.getByText('Último ciclo: Sin resultados ·', { exact: false })).toBeVisible();
     const final = await evidencia(request);
     expect(final.historial.at(-1)).toMatchObject({ estado: 'sin_resultados', fin: expect.any(String) });

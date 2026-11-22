@@ -1,5 +1,5 @@
 <!-- Página principal del dashboard -->
-<section class="dashboard" role="main" aria-label="Dashboard de ofertas de empleo">
+<section class="dashboard" aria-label="Dashboard de ofertas de empleo">
     <p-toast />
     @if (mensajeEstado(); as mensaje) {
         <div class="dashboard__mensaje" [class.dashboard__mensaje--cache]="datosDesdeCache()" role="status" aria-live="polite">
@@ -11,10 +11,18 @@
     <div class="dashboard-encabezado">
         <h1 class="dashboard-titulo">OFERTAS_DISPONIBLES</h1>
         @if (sincronizando()) {
-            <div class="dashboard__mensaje" role="status" aria-live="polite">
-                Sincronizando ofertas: {{ progresoSincronizacion() }}%
-                @if (fallbackSincronizacion()) { (usando memoria temporal) }
-                <button type="button" (click)="cancelarSincronizacion()">CANCELAR</button>
+            <div class="dashboard__mensaje dashboard__mensaje--sincronizando" role="status" aria-live="polite">
+                <div class="dashboard__progreso-fila">
+                    <span>
+                        Sincronizando ofertas: {{ progresoSincronizacion() }}%
+                        @if (fallbackSincronizacion()) { (usando memoria temporal) }
+                        <span class="dashboard__progreso-nota">· Totales parciales en actualización</span>
+                    </span>
+                    <button type="button" (click)="cancelarSincronizacion()">CANCELAR</button>
+                </div>
+                <div class="dashboard__progreso-barra" aria-hidden="true">
+                    <div class="dashboard__progreso-relleno" [style.width.%]="progresoSincronizacion()"></div>
+                </div>
             </div>
         }
         <div class="dashboard-stats" role="list" aria-label="Resumen de estadísticas">
@@ -72,7 +80,7 @@
 
     <!-- Sección de resultados: filtro global + 4 tabs -->
     <div class="resultados">
-        <!-- Filtro global de plataforma -->
+        <!-- Filtro global de plataforma y acción de reevaluación -->
         <div class="resultados__filtro" role="search" aria-label="Filtrar ofertas por plataforma">
             <span class="resultados__filtro-label" id="filtro-plataforma-label">FILTRAR POR PLATAFORMA</span>
             <p-select
@@ -84,12 +92,11 @@
                 size="small"
                 ariaLabelledBy="filtro-plataforma-label"
                 [style]="{ minWidth: '160px' }" />
+            <button type="button" class="resultados__btn-reevaluar" [disabled]="modoDemo()"
+                (click)="modoReevaluacion() ? modoReevaluacion.set(false) : seleccionarParaReevaluar()">
+                {{ modoReevaluacion() ? 'Volver a las ofertas agrupadas' : 'Seleccionar ofertas para reevaluar' }}
+            </button>
         </div>
-
-        <button type="button" class="dashboard__mensaje" [disabled]="modoDemo()"
-            (click)="modoReevaluacion() ? modoReevaluacion.set(false) : seleccionarParaReevaluar()">
-            {{ modoReevaluacion() ? 'Volver a las ofertas agrupadas' : 'Seleccionar ofertas para reevaluar' }}
-        </button>
         @if (modoReevaluacion()) {
             <section aria-label="Selección para reevaluación">
                 <h2>Seleccionar ofertas para reevaluar</h2>
@@ -180,6 +187,7 @@
                 <!-- Panel: Postuladas -->
                 <p-tabpanel [value]="1">
                     <app-tabla-ofertas
+                        [idSufijo]="'postuladas'"
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPostuladas()"
                         [conciliacionMasiva]="conciliacionMasiva()"
@@ -201,6 +209,7 @@
                 <!-- Panel: Rechazadas -->
                 <p-tabpanel [value]="2">
                     <app-tabla-ofertas
+                        [idSufijo]="'rechazadas'"
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasRechazadas()"
                         [conciliacionMasiva]="conciliacionMasiva()"
@@ -222,6 +231,7 @@
                 <!-- Panel: Pendientes -->
                 <p-tabpanel [value]="3">
                     <app-tabla-ofertas
+                        [idSufijo]="'pendientes'"
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasPendientes()"
                         [conciliacionMasiva]="conciliacionMasiva()"
@@ -241,6 +251,7 @@
                 </p-tabpanel>
                 <p-tabpanel [value]="4">
                     <app-tabla-ofertas
+                        [idSufijo]="'descartadas'"
                         [modoDemo]="modoDemo()"
                         [ofertas]="ofertasDescartadas()"
                         [conciliacionMasiva]="conciliacionMasiva()"

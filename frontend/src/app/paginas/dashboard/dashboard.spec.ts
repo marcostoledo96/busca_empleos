@@ -469,4 +469,20 @@ describe('Dashboard', () => {
         componente.onPostulacionPendiente({ id: 1, pendiente: false });
         expect(componente.postulacionesPendientes().has(1)).toBeFalse();
     });
+
+    it('mantiene IDs únicos de buscador entre pestañas y no duplica el landmark main', () => {
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+
+        const ids = Array.from(raiz.querySelectorAll('[id]')).map(el => el.id);
+        const duplicados = ids.filter((id, idx) => ids.indexOf(id) !== idx);
+        expect(duplicados).toEqual([]);
+
+        // Conserva el ID por defecto en la primera pestaña para compatibilidad.
+        expect(raiz.querySelector('#filtro-busqueda-input')).not.toBeNull();
+        expect(raiz.querySelector('#filtro-busqueda-cards')).not.toBeNull();
+
+        // No debe anidar otro landmark role="main" dentro del <main> del shell.
+        expect(raiz.querySelector('section.dashboard')?.getAttribute('role')).toBeNull();
+    });
 });
