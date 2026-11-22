@@ -6,7 +6,7 @@ const DIA_MS = 24 * 60 * 60 * 1000;
 const MODALIDADES = ['remoto', 'hibrido', 'presencial'];
 const NIVELES = ['trainee', 'junior', 'semi-senior', 'senior'];
 const CAMPOS_FILTRO = ['texto', 'nivel', 'pais', 'modalidad', 'dias', 'limite'];
-const CLAVE_DE_CREDENCIAL = /^(?:auth(?:orization)?|bearer|token|.*token|api(?:key|secret)|.*credential[s]?|.*password|passwd|secret|clientsecret|sessionid|signature|sig|xamzsignature|xgoogsignature)$/u;
+const CLAVE_DE_CREDENCIAL = /^(?:auth(?:orization)?|bearer|token|.*token|api(?:key|secret)|key|accesskey|jwt|.*credential[s]?|.*password|passwd|secret|clientsecret|sessionid|signature|sig|xamzsignature|xgoogsignature)$/u;
 
 // Solo tomo Argentina como país cuando aparece como componente explícito de la ubicación.
 const PAIS_ARGENTINA = "lower(ubicacion) ~ '(^|,)[[:space:]]*argentina[[:space:]]*(,|$)'";
