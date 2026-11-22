@@ -135,6 +135,11 @@ button:focus-visible {
     }
 }
 
+html {
+    scroll-padding-top: calc(var(--topbar-alto) + 1rem);
+    scroll-padding-bottom: 4rem;
+}
+
 body {
     font-family: var(--font-body);
     background-color: var(--surface);
@@ -379,20 +384,33 @@ body {
 }
 
 /* --- Toast --- */
-/* Ubico el toast en la esquina inferior derecha sobre la statusbar para no cubrir topbar ni botones de acción. */
+/* Ubico el toast sobre la barra inferior y hago no interceptiva la superficie de texto:
+   solo el botón de cierre captura puntero para no bloquear acciones detrás en móvil (320/390px). */
+.p-toast,
+.p-toast .p-toast-message,
+.p-toast .p-toast-message-content,
+.p-toast .p-toast-message-text,
+.p-toast .p-toast-summary,
+.p-toast .p-toast-detail,
+.p-toast .p-toast-message-icon {
+    pointer-events: none;
+}
+
 .p-toast {
     max-width: calc(100vw - 24px);
     top: auto !important;
     bottom: 2.75rem !important;
     right: 1.25rem !important;
-    pointer-events: none;
 }
 
 .p-toast .p-toast-message {
-    pointer-events: auto;
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--outline-variant) !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+.p-toast .p-toast-close-button {
+    pointer-events: auto;
 }
 
 @media (max-width: 768px) {
@@ -402,6 +420,21 @@ body {
         bottom: 2.5rem !important;
         width: auto !important;
         max-width: calc(100vw - 1.5rem) !important;
+    }
+
+    .p-toast .p-toast-message-content {
+        padding: 0.5rem 0.75rem !important;
+        gap: 0.5rem !important;
+    }
+
+    .p-toast .p-toast-summary {
+        font-size: 0.8125rem !important;
+    }
+
+    .p-toast .p-toast-detail {
+        font-size: 0.75rem !important;
+        line-height: 1.35 !important;
+        overflow-wrap: anywhere !important;
     }
 }
 
