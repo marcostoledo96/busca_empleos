@@ -9,6 +9,8 @@ const ofertas = require('../../src/modelos/oferta');
 const servicio = require('../../src/servicios/servicio-evaluacion');
 const controlador = require('../../src/controladores/controlador-evaluacion');
 const lotes = require('../../src/modelos/evaluacion-lote');
+const controladorOfertas = require('../../src/controladores/controlador-ofertas');
+const { CASOS_MUESTRA_MATCHING } = require('../fixtures/casos-muestra-matching');
 let filas, cache, lote, propietario, fallarId, fallarFinal, fallarCache, escrituras, clientes;
 const respuesta = () => ({ status: jest.fn().mockReturnThis(), json: jest.fn().mockReturnThis() });
 const pausa = () => new Promise(resolve => setImmediate(resolve));
@@ -53,7 +55,12 @@ beforeEach(() => {
         return cliente;
     });
     pool.query.mockImplementation(async (sql, valores = []) => {
-        if (sql.includes('SELECT * FROM ofertas')) return { rows: structuredClone(filas.filter(fila => valores[0].includes(fila.id))) };
+        if (sql.includes('SELECT * FROM ofertas') || (sql.startsWith('SELECT *,') && sql.includes('FROM ofertas WHERE id = $1'))) {
+            const seleccion = Array.isArray(valores[0]) ? filas.filter(fila => valores[0].includes(fila.id))
+                : valores.length ? filas.filter(fila => fila.id === valores[0])
+                    : filas.filter(fila => fila.estado_evaluacion === 'pendiente');
+            return { rows: structuredClone(seleccion) };
+        }
         if (sql.includes('SELECT resultado')) return { rows: cache.has(JSON.stringify(valores)) ? [{ resultado: structuredClone(cache.get(JSON.stringify(valores))) }] : [] };
         if (sql.includes('INSERT INTO evaluaciones_cache')) {
             if (fallarCache) throw new Error('Caché sintética no disponible');
@@ -94,6 +101,92 @@ beforeEach(() => {
         }
         throw new Error(`Consulta inesperada: ${sql}`);
     });
+});
+
+const aclararKubernetes = (porcentaje = 80) => JSON.stringify({
+    match: porcentaje >= 60, porcentaje, razon: 'Afinidad sintética.', explicacion: {
+        por_confirmar: [{ requisito: 'Kubernetes', tipo: 'desconocido', evidencia_oferta: 'menciona Kubernetes', evidencia_perfil: '' }],
+    },
+});
+
+async function detalleOferta(id) {
+    const res = respuesta();
+    await controladorOfertas.obtenerOferta({ params: { id } }, res);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledTimes(1);
+    return res.json.mock.calls[0][0].datos;
+}
+
+test('S12/S14 lote mixto: ausencia real, Kubernetes por confirmar, 59 y 60', async () => {
+    const caso14 = CASOS_MUESTRA_MATCHING.find(caso => caso.id === 'caso-14-descripcion-ausente');
+    Object.assign(filas[0], { titulo: caso14.titulo, descripcion: caso14.descripcion, descripcion_completitud: 'ausente' });
+    filas[1].descripcion = 'El aviso menciona Kubernetes.';
+    filas.push({ ...filas[1], id: 3, descripcion: 'Desarrollo web junior.' }, { ...filas[1], id: 4, descripcion: 'Aplicaciones web junior.' });
+    proveedor.consultarDeepSeek.mockResolvedValueOnce(aclararKubernetes())
+        .mockResolvedValueOnce('{"match":false,"porcentaje":59,"razon":"Debajo del umbral"}')
+        .mockResolvedValueOnce('{"match":true,"porcentaje":60,"razon":"Cumple el umbral"}');
+    await iniciar([1, 2, 3, 4]);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(3);
+    expect(cache.size).toBe(3);
+    const sinEvaluar = await detalleOferta(1);
+    expect(sinEvaluar).toMatchObject({ estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: null,
+        porcentaje_match: null, firma_criterios_evaluacion: null, evaluacion_error_mensaje: null });
+    expect(sinEvaluar.explicacion_evaluacion?.por_confirmar ?? []).toEqual([]);
+    const porConfirmar = await detalleOferta(2);
+    expect(porConfirmar).toMatchObject({ estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+        porcentaje_match: 80, firma_criterios_evaluacion: expect.any(String), explicacion_evaluacion: { exclusiones: [], por_confirmar: [expect.objectContaining({ evidencia_oferta: 'menciona Kubernetes' })] } });
+    expect(porConfirmar.explicacion_evaluacion).not.toHaveProperty('hash_oferta');
+    expect(filas[2]).toMatchObject({ estado_evaluacion: 'rechazada', porcentaje_match: 59 });
+    expect(filas[3]).toMatchObject({ estado_evaluacion: 'aprobada', porcentaje_match: 60 });
+    expect(progreso()).toMatchObject({ estado: 'completado', total: 4, procesadas: 4, evaluadas: 3, pendientes: 1, errores: 0, por_confirmar: 1, bajo_umbral: 1 });
+    await servicio.rehidratarProgreso();
+    expect(progreso()).toMatchObject({ estado: 'completado', total: 4, procesadas: 4, evaluadas: 3, pendientes: 1, errores: 0 });
+    expect(progreso()).not.toHaveProperty('por_confirmar');
+});
+
+test('S12 la proyección histórica reconoce ausencia real sin ocultar un resultado de 80 % ni su diagnóstico', async () => {
+    Object.assign(filas[0], { estado_evaluacion: 'pendiente', descripcion: '   ', porcentaje_match: null,
+        evaluacion_error_mensaje: 'TIMEOUT anterior', explicacion_evaluacion: { por_confirmar: [
+            { requisito: 'Descripción de la oferta', tipo: 'desconocido', evidencia_oferta: '', evidencia_perfil: '', explicacion: 'Necesito la descripción para evaluar requisitos; el título no basta.' },
+        ] } });
+    Object.assign(filas[1], { estado_evaluacion: 'pendiente', descripcion: '', porcentaje_match: 80,
+        evaluacion_error_mensaje: 'TIMEOUT anterior', explicacion_evaluacion: { por_confirmar: [{ requisito: 'Active Directory' }] } });
+    const anterior = structuredClone(filas);
+    expect(await detalleOferta(1)).toMatchObject({ situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: 'fallo_tecnico', evaluacion_error_mensaje: 'TIMEOUT anterior' });
+    expect(await detalleOferta(2)).toMatchObject({ situacion_evaluacion: 'por_confirmar', porcentaje_match: 80, ultimo_intento_evaluacion: 'fallo_tecnico' });
+    await iniciar([1, 2]);
+    expect(progreso()).toMatchObject({ procesadas: 2, evaluadas: 0, pendientes: 2, por_confirmar: 0, errores: 0, estado: 'completado' });
+    expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
+    expect(filas).toEqual(anterior);
+    expect(escrituras).toEqual([]);
+});
+
+test.each(['selección', 'marcador', 'descripción', 'metadatos efectivos', 'perfil', 'modelo', 'histórico sin hash'])('S13 preserva pendiente estable sin caché y respeta %s', async cambio => {
+    Object.assign(filas[0], { estado_evaluacion: 'pendiente', descripcion: 'El equipo trabaja con Active Directory.' });
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad sintética.', explicacion: {
+        por_confirmar: [{ requisito: 'Active Directory', tipo: 'desconocido', evidencia_oferta: 'Active Directory', evidencia_perfil: '' }],
+    } }));
+    await expect(servicio.evaluarOfertasPendientes()).resolves.toMatchObject({ total: 1, evaluadas: 1, por_confirmar: 1 });
+    if (cambio === 'histórico sin hash') delete filas[0].explicacion_evaluacion.hash_oferta;
+    const anterior = structuredClone(filas[0]);
+    cache.clear(); escrituras = []; jest.clearAllMocks();
+    await expect(servicio.evaluarOfertasPendientes()).resolves.toMatchObject({ total: 0, evaluadas: 0, procesadas: 0, detalle: [] });
+    expect(filas[0]).toEqual(anterior);
+    expect(escrituras).toEqual([]);
+    expect(pool.query.mock.calls.some(([sql]) => sql.includes('SELECT resultado'))).toBe(false);
+    expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
+    if (cambio === 'histórico sin hash') return;
+    if (cambio === 'marcador') filas[0].evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA';
+    if (cambio === 'descripción') filas[0].descripcion += ' Hay dos vacantes.';
+    if (cambio === 'metadatos efectivos') filas[0].titulo += ' para soporte';
+    if (cambio === 'perfil') preferencias.obtenerPreferencias.mockResolvedValue({ stack_tecnologico: ['TypeScript', 'Angular'] });
+    if (cambio === 'modelo') preferencias.obtenerPreferencias.mockResolvedValue({ modelo_ia_evaluacion: 'deepseek-v4-pro' });
+    if (cambio === 'selección') await iniciar([1]);
+    else await expect(servicio.evaluarOfertasPendientes()).resolves.toMatchObject({ total: 1, evaluadas: 1 });
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(escrituras).toEqual(['oferta1', 'cache']);
+    expect(filas[0].evaluacion_error_mensaje).toBeNull();
+    expect([...cache.values()][0].explicacion).not.toHaveProperty('hash_oferta');
 });
 
 test.each(['timeout', 'JSON inválido'])('B01 %s conserva todos los campos del resultado previo y permite recuperar caché', async fallo => {

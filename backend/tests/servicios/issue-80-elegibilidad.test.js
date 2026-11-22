@@ -55,6 +55,10 @@ beforeEach(() => {
 });
 afterEach(() => jest.restoreAllMocks());
 
+function explicacionSinHuella({ hash_oferta, ...explicacion }) {
+    return explicacion;
+}
+
 async function comprobarPendiente(oferta, porcentaje, requisito) {
     ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
     const resumen = await servicio.evaluarOfertasPendientes();
@@ -130,7 +134,7 @@ test.each(CASOS_V3_INSUFICIENTES)('%s: worker, caché, forzado, selección y rei
     await comprobarPendiente({ ...oferta, evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' }, porcentaje, 'Información suficiente de la oferta');
     for (const llamada of ofertas.actualizarEvaluacion.mock.calls) {
         expect(llamada.slice(1, 7)).toEqual(['pendiente', `Pendiente de confirmación: Información suficiente de la oferta. Afinidad técnica estimada: ${porcentaje}%.`, porcentaje, null, null, expect.any(String)]);
-        expect(llamada[7]).toEqual({ cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [expect.objectContaining({ requisito: 'Información suficiente de la oferta', tipo: 'obligatorio' })] });
+        expect(llamada[7]).toEqual({ hash_oferta: expect.any(String), cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [expect.objectContaining({ requisito: 'Información suficiente de la oferta', tipo: 'obligatorio' })] });
     }
     expect(cache.buscarCache).toHaveBeenCalledTimes(3);
     expect(cache.guardarCache).toHaveBeenCalledTimes(4);
@@ -157,7 +161,7 @@ test.each([
     expect(guardada.slice(1, 7)).toEqual([estado, expect.stringContaining(estado === 'rechazada' ? 'Incompatibilidad confirmada' : 'Pendiente de confirmación'), 25, null, null, expect.any(String)]);
     expect(guardada[7].exclusiones).toEqual(estado === 'rechazada' ? [expect.objectContaining({ requisito: requisito.requisito })] : []);
     expect(guardada[7].por_confirmar).toEqual(expect.arrayContaining([expect.objectContaining({ requisito: 'Información suficiente de la oferta' })]));
-    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ match: false, pendiente: estado === 'pendiente', porcentaje: 25, explicacion: guardada[7] }));
+    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ match: false, pendiente: estado === 'pendiente', porcentaje: 25, explicacion: explicacionSinHuella(guardada[7]) }));
     for (const flag of [undefined, true]) {
         const almacenada = { ...datos, ...(flag ? { pendiente: true } : {}) };
         const original = structuredClone(almacenada);
@@ -191,7 +195,7 @@ test.each(['cumplidos', 'no_cumplidos', 'exclusiones'])('auditoría B1: obligaci
     expect(explicacion.no_cumplidos).toEqual([]);
     expect(ofertas.actualizarEvaluacion.mock.calls[0][2]).toBe('Pendiente de confirmación: Licenciatura obligatoria. Afinidad técnica estimada: 91%.');
     expect(explicacion.por_confirmar).toEqual([expect.objectContaining({ requisito: requisito.requisito, evidencia_perfil: '', explicacion: expect.stringContaining('Necesito confirmar') })]);
-    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ pendiente: true, porcentaje: 91, explicacion }));
+    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ pendiente: true, porcentaje: 91, explicacion: explicacionSinHuella(explicacion) }));
     const anteriorSinFlag = respuesta(categoria, requisito);
     const original = structuredClone(anteriorSinFlag);
     cache.buscarCache.mockResolvedValue(anteriorSinFlag);
@@ -214,7 +218,7 @@ test.each(['cumplidos', 'no_cumplidos', 'exclusiones'].flatMap(categoria => [
     const explicacion = ofertas.actualizarEvaluacion.mock.calls[0][7];
     expect(explicacion.cumplidos).toEqual([]);
     expect(explicacion.no_cumplidos).toEqual([]);
-    expect(cache.guardarCache.mock.calls[0][3].explicacion).toEqual(explicacion);
+    expect(cache.guardarCache.mock.calls[0][3].explicacion).toEqual(explicacionSinHuella(explicacion));
 });
 
 test.each(['cumplidos', 'no_cumplidos', 'exclusiones'])('corrijo obligación mal rotulada en %s si el aviso sólo la declara deseable', async categoria => {
@@ -316,7 +320,9 @@ test.each([
         return guardada[7];
     };
     const explicacion = await comprobar();
-    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ porcentaje: 91, explicacion }));
+    const { hash_oferta, ...explicacionPublica } = explicacion;
+    if (estado === 'pendiente') expect(hash_oferta).toEqual(expect.any(String));
+    expect(cache.guardarCache.mock.calls[0][3]).toEqual(expect.objectContaining({ porcentaje: 91, explicacion: explicacionPublica }));
     datos.prioridad_ia = cache.guardarCache.mock.calls[0][3].prioridad_ia;
     const original = structuredClone(datos);
     cache.buscarCache.mockResolvedValue(datos);
@@ -349,8 +355,17 @@ test('un hit conserva la decisión pendiente sin mutar ni repetir proveedor', as
 
 test.each([undefined, null, '', '   \n'])('sin descripción (%j): no invento score ni consumo proveedor en ejecuciones repetidas', async descripcion => {
     const oferta = { ...ofertaBase, descripcion };
-    await comprobarPendiente(oferta, null, 'Descripción de la oferta');
-    await comprobarPendiente(oferta, null, 'Descripción de la oferta');
+    ofertas.obtenerOfertasPendientes.mockResolvedValue([oferta]);
+    for (let pasada = 0; pasada < 2; pasada++) {
+        const resumen = await servicio.evaluarOfertasPendientes();
+        expect(resumen).toMatchObject({ total: 1, procesadas: 1, pendientes: 1, evaluadas: 0, por_confirmar: 0,
+            porcentaje: 100, estado: 'completado', errores: 0, mensaje_error: null,
+            detalle: [{ id: oferta.id, titulo: oferta.titulo, estado: 'pendiente', razon: 'Sin evaluar: falta la descripción de la oferta.', error: false }] });
+    }
+    expect(ofertas.actualizarEvaluacion).toHaveBeenLastCalledWith(oferta.id, 'pendiente', 'Sin evaluar: falta la descripción de la oferta.',
+        null, null, null, null, null, descripcion);
+    expect(lotes.finalizarLote).toHaveBeenLastCalledWith(80, 'completado');
+    expect(console.error).not.toHaveBeenCalled();
     expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
     expect(cache.buscarCache).not.toHaveBeenCalled();
     expect(cache.guardarCache).not.toHaveBeenCalled();
@@ -489,13 +504,13 @@ test('lote mixto cuenta decisiones y mantiene incertidumbre pendiente sin error'
     proveedor.consultarDeepSeek.mockResolvedValueOnce(JSON.stringify(respuesta()))
         .mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'TypeScript compatible.' }));
     const resumen = await servicio.evaluarOfertasPendientes();
-    expect(resumen).toEqual(expect.objectContaining({ total: 4, aprobadas: 1, rechazadas: 1, errores: 0, procesadas: 4, evaluadas: 4, pendientes: 0, porcentaje: 100, estado: 'completado', mensaje_error: null }));
+    expect(resumen).toEqual(expect.objectContaining({ total: 4, aprobadas: 1, rechazadas: 1, errores: 0, procesadas: 4, evaluadas: 3, pendientes: 1, porcentaje: 100, estado: 'completado', mensaje_error: null }));
     expect(ofertas.actualizarEvaluacion.mock.calls.map(llamada => [llamada[0], llamada[1], llamada[3], llamada[4]])).toEqual([
         [8001, 'pendiente', 91, null], [8002, 'aprobada', 80, null], [8003, 'rechazada', 10, null], [8004, 'pendiente', null, null],
     ]);
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(2);
     expect(cache.guardarCache).toHaveBeenCalledTimes(2);
-    expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ procesadas: 4, evaluadas: 4, pendientes: 0, errores: 0, porcentaje: 100 }));
+    expect(lotes.actualizarProgreso).toHaveBeenLastCalledWith(80, expect.objectContaining({ procesadas: 4, evaluadas: 3, pendientes: 1, errores: 0, porcentaje: 100 }));
 });
 
 describe('rehidratación con modelo real de lotes y pool simulado', () => {
@@ -534,10 +549,10 @@ describe('rehidratación con modelo real de lotes y pool simulado', () => {
             servicio._resetearEstadoInterno();
             await servicio.rehidratarProgreso();
             expect(servicio.obtenerProgresoEvaluacion()).toEqual(expect.objectContaining({
-                activo: false, total: 1, procesadas: 1, evaluadas: 1, pendientes: 0,
+                activo: false, total: 1, procesadas: 1, evaluadas: porcentaje === null ? 0 : 1, pendientes: porcentaje === null ? 1 : 0,
                 aprobadas: 0, rechazadas: 0, errores: 0, porcentaje: 100, estado: 'completado', mensaje_error: null,
             }));
-            expect(ofertas.actualizarEvaluacion.mock.calls[0].slice(1, 5)).toEqual(['pendiente', expect.stringContaining('Pendiente de confirmación'), porcentaje, null]);
+            expect(ofertas.actualizarEvaluacion.mock.calls[0].slice(1, 5)).toEqual(['pendiente', expect.stringContaining(porcentaje === null ? 'Sin evaluar' : 'Pendiente de confirmación'), porcentaje, null]);
             expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(porcentaje === null ? 0 : 1);
         }
     );
@@ -556,7 +571,7 @@ describe('rehidratación con modelo real de lotes y pool simulado', () => {
         });
         const resumen = await servicio.evaluarOfertasPendientes();
         const contadores = { total: seleccion.length, procesadas: estado === 'cancelado' ? 2 : seleccion.length,
-            evaluadas: estado === 'cancelado' ? 2 : 4, pendientes: estado === 'cancelado' ? 2 : estado === 'error' ? 1 : 0,
+            evaluadas: estado === 'cancelado' ? 1 : 3, pendientes: estado === 'cancelado' ? 3 : estado === 'error' ? 2 : 1,
             aprobadas: estado === 'cancelado' ? 0 : 1, rechazadas: estado === 'cancelado' ? 0 : 1,
             errores: estado === 'error' ? 1 : 0, porcentaje: estado === 'cancelado' ? 50 : 100 };
         expect(resumen).toEqual(expect.objectContaining(contadores));
@@ -568,7 +583,9 @@ describe('rehidratación con modelo real de lotes y pool simulado', () => {
         }
         servicio._resetearEstadoInterno();
         await servicio.rehidratarProgreso();
-        expect(servicio.obtenerProgresoEvaluacion()).toEqual(expect.objectContaining({ ...contadores, activo: false, estado: estado === 'activo' ? 'error' : estado }));
+        // Sin un contador persistido, sólo el estado completado acredita el total procesado.
+        const procesadasRehidratadas = estado === 'completado' ? contadores.total : contadores.evaluadas + contadores.errores;
+        expect(servicio.obtenerProgresoEvaluacion()).toEqual(expect.objectContaining({ ...contadores, procesadas: procesadasRehidratadas, activo: false, estado: estado === 'activo' ? 'error' : estado }));
         const escrituras = ofertas.actualizarEvaluacion.mock.calls.length;
         await servicio.rehidratarProgreso();
         expect(ofertas.actualizarEvaluacion).toHaveBeenCalledTimes(escrituras);

@@ -11,6 +11,51 @@ const { consultarDeepSeek } = require('../../src/config/deepseek');
 
 beforeEach(() => jest.resetAllMocks());
 
+test.each([
+    ['El puesto menciona Kubernetes; no especifica si es requisito obligatorio.', 'menciona Kubernetes', 80, true],
+    ['El equipo trabaja con Terraform.', 'trabaja con Terraform', 60, true, 'Terraform'],
+    ['El aviso menciona Kubernetes.', 'menciona Kubernetes', 59, false],
+    ['El aviso menciona Kubernetes como deseable.', 'menciona Kubernetes', 80, false],
+    ['No se requiere Kubernetes.', 'Kubernetes', 80, false],
+    ['Beneficios: logo de Kubernetes en las remeras.', 'Kubernetes', 80, false],
+    ['El eslogan menciona Kubernetes.', 'menciona Kubernetes', 80, false],
+    ['Beneficios: logo de Active Directory en las remeras.', 'Active Directory', 80, false, 'Active Directory'],
+    ['El equipo trabaja con Kubernetes.', 'menciona Kubernetes', 80, false],
+    ['El aviso menciona Docker y Kubernetes es un beneficio.', 'menciona Docker', 80, false],
+])('contrasta la duda con una cita literal relacionada (%s; %s; %i)', async (descripcion, evidencia, porcentaje, pendiente, requisito = 'Kubernetes') => {
+    const match = porcentaje >= 60;
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match, porcentaje, razon: 'Evaluación sintética.', explicacion: {
+        por_confirmar: [{ requisito, tipo: 'desconocido', evidencia_oferta: evidencia }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Soporte junior', descripcion }, null, null, {});
+    expect(resultado).toMatchObject({ match, porcentaje, firma_criterios_evaluacion: expect.any(String) });
+    expect(resultado.error).not.toBe(true);
+    expect(resultado.pendiente === true).toBe(pendiente);
+    expect(resultado.explicacion.exclusiones).toEqual([]);
+    const [, , , cacheado] = guardarCache.mock.calls[0];
+    buscarCache.mockResolvedValueOnce(structuredClone(cacheado));
+    await expect(evaluarOferta({ titulo: 'Soporte junior', descripcion }, null, null, {})).resolves.toEqual(resultado);
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
+test.each([false, true])('Kubernetes obligatorio al 80 %%: solo veto con ausencia acreditada (%s)', async confirmada => {
+    const oferta = { titulo: 'Soporte junior', descripcion: 'Kubernetes es obligatorio.' };
+    const perfil = confirmada ? { conocimientos_ausentes: ['Kubernetes'] } : {};
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética.', explicacion: {
+        exclusiones: [{ requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: 'Kubernetes es obligatorio.',
+            evidencia_perfil: confirmada ? 'Kubernetes' : '' }],
+    } }));
+    const resultado = await evaluarOferta(oferta, null, null, perfil);
+    expect(resultado).toMatchObject({ match: false, porcentaje: 80, firma_criterios_evaluacion: expect.any(String) });
+    expect(resultado.pendiente === true).toBe(!confirmada);
+    expect(resultado.explicacion.exclusiones).toHaveLength(confirmada ? 1 : 0);
+    expect(resultado.explicacion.por_confirmar).toHaveLength(confirmada ? 0 : 1);
+    const [, , , cacheado] = guardarCache.mock.calls[0];
+    buscarCache.mockResolvedValueOnce(structuredClone(cacheado));
+    await expect(evaluarOferta(oferta, null, null, perfil)).resolves.toEqual(resultado);
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
 const AD = 'Active Directory';
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],

@@ -19,6 +19,12 @@ function obtenerSituacionEvaluacion(oferta) {
     if (pendiente && (intento === 'reevaluacion_solicitada' || (intento === 'fallo_tecnico' && razon === oferta.evaluacion_error_mensaje))) {
         return 'sin_evaluar';
     }
+    // Reconozco el diagnóstico estructurado anterior, no una ausencia inferida de la razón o del score.
+    if (pendiente && porcentaje == null && !tieneTexto(oferta.descripcion) && Array.isArray(explicacion?.por_confirmar) && explicacion.por_confirmar.some(item =>
+        item?.requisito === 'Descripción de la oferta' && item.tipo === 'desconocido'
+        && item.explicacion === 'Necesito la descripción para evaluar requisitos; el título no basta.')) {
+        return 'sin_evaluar';
+    }
     const porcentajeValido = Number.isInteger(porcentaje) && porcentaje >= 0 && porcentaje <= 100;
     if (tieneTexto(firma) && fecha && tieneTexto(razon) && intento !== 'reevaluacion_solicitada' && razon !== oferta.evaluacion_error_mensaje) {
         if (estado === 'pendiente' && (porcentajeValido || porcentaje == null)

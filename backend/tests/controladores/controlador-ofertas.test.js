@@ -55,6 +55,17 @@ describe('autenticación real de seguimiento sin proveedor', () => {
 });
 
 describe('Controlador de ofertas', () => {
+    test.each([
+        ['seguimiento', 'actualizarSeguimiento', { nota_postulacion: 'Nota sintética' }],
+        ['postulacion', 'actualizarPostulacion', { estado_postulacion: 'cv_enviado' }],
+    ])('PATCH %s conserva el seguimiento sin exponer la huella interna', async (ruta, metodo, cambios) => {
+        const publico = { id: 1, ...cambios, explicacion_evaluacion: { por_confirmar: [{ requisito: 'Kubernetes' }] } };
+        modeloOferta[metodo].mockResolvedValue({ ...publico, explicacion_evaluacion: { ...publico.explicacion_evaluacion, hash_oferta: 'interna' } });
+        const res = await request(app).patch(`/api/ofertas/1/${ruta}`).send(cambios);
+        expect(res.status).toBe(200);
+        expect(res.body.datos).toEqual(publico);
+    });
+
     describe('PATCH /api/ofertas/:id/seguimiento', () => {
         test.each([
             { fecha_postulacion: '2024-02-29', nota_postulacion: 'Envié CV' },
@@ -757,9 +768,10 @@ describe('Situación laboral y último intento en respuestas de ofertas', () => 
             ['sin_evaluar', 'fallo_tecnico', 'desconocida'], ['sin_evaluar', null, 'desconocida'],
             ['legado', null, 'anterior'], ['legado', null, 'actual'],
         ];
-        modeloOferta.obtenerOfertas.mockResolvedValue({ ofertas: filas, total: filas.length, pagina: 1, limite_pagina: null });
-        modeloOferta.obtenerOfertaPorId.mockResolvedValue(filas[0]);
-        modeloOferta.obtenerBloqueSincronizacion.mockResolvedValue({ datos: filas, completada: true });
+        const conHuella = [{ ...filas[0], explicacion_evaluacion: { ...filas[0].explicacion_evaluacion, hash_oferta: 'interna' } }, ...filas.slice(1)];
+        modeloOferta.obtenerOfertas.mockResolvedValue({ ofertas: conHuella, total: filas.length, pagina: 1, limite_pagina: null });
+        modeloOferta.obtenerOfertaPorId.mockResolvedValue(conHuella[0]);
+        modeloOferta.obtenerBloqueSincronizacion.mockResolvedValue({ datos: conHuella, completada: true });
         const res = await request(app).get(ruta);
         expect(res.status).toBe(200);
         expect(res.body.exito).toBe(true);

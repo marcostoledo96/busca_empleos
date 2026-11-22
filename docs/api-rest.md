@@ -436,7 +436,9 @@ agregan en cada oferta:
   nuevo de persistencia ni sustituye `estado_evaluacion` en los filtros de la API.
 - `ultimo_intento_evaluacion`: `fallo_tecnico`, `reevaluacion_solicitada` o `null`.
   Es independiente de la situación laboral: una oferta puede seguir `por_confirmar`
-  y conservar su afinidad y vigencia aunque el siguiente intento falle.
+  y conservar su afinidad y vigencia aunque el siguiente intento falle. Si falta
+la descripción y no se acreditó un veto determinístico, la oferta queda `sin_evaluar`,
+sin afinidad ni firma nuevas. El diagnóstico de un intento previo no se borra.
 
 La edición de descripción también devuelve los campos derivados; no se toma el
 marcador `REEVALUACION_SOLICITADA` como fallo ni como resultado vigente.
@@ -1120,6 +1122,17 @@ Retorno `{ exito: true, datos }` con los campos habituales y `estado`
 incluso aquellos que todavía no tienen una elegibilidad resuelta. `procesadas`
 incluye los resultados válidos, los errores y las supersedidas por concurrencia.
 `pendientes = total - evaluadas` incluye fallos de proveedor y ofertas sin evaluación válida en ese lote.
+Una oferta inspeccionada sin descripción puede quedar pendiente al completar el lote:
+suma a `procesadas`, no a `evaluadas` ni a `errores`. El estado del lote no es el
+de la evaluación laboral de las ofertas. Al recuperar un lote no completado, las
+procesadas reconstruidas por resultados y errores son un mínimo, no un total exacto.
+
+La pasada ordinaria omite un resultado válido `por_confirmar` si coinciden los
+criterios y la entrada efectiva. No reescribe la fecha ni el diagnóstico y no depende
+de la caché. Una selección explícita, el marcador de reevaluación o un cambio real
+permiten volver a evaluar. Para registros anteriores sin huella, se conserva la
+decisión si coincide la firma y no hay invalidación registrada; no se reconstruye
+una huella histórica. La huella de oferta no se expone en la API.
 
 Mientras haya un lote en memoria, `datos.por_confirmar` y `datos.bajo_umbral`
 aportan un desglose por oferta. `bajo_umbral` ya está incluido en `rechazadas`
