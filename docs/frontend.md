@@ -359,9 +359,20 @@ conservan el comportamiento optimista de #21 y no quedan bloqueadas por editar l
 
 Agrupo sin duplicaciones: `cv_enviado`/`en_proceso` en **Postuladas**, `descartada` en
 **Descartadas manualmente**; sólo `no_postulado` se clasifica según evaluación en
-**Rechazadas por IA**, **Pendientes** o **Aprobadas**. Los cinco contadores particionan
-el total filtrado. Los fallos técnicos conservan sus avisos y la evaluación IA sigue
-visible en el detalle aunque haya postulación personal.
+**Aprobadas**, **Rechazadas por IA**, **Por confirmar**, **Bajo el umbral**, **Pendientes**
+(sin evaluar) o **Evaluaciones históricas**. Sin resultado laboral válido, un fallo o
+una solicitud pendiente tienen sus propias pestañas: **Fallos técnicos** y
+**Reevaluación solicitada**. El filtro por plataforma, las pestañas y sus contadores
+usan las mismas ofertas, una vez por ID. No deduzco nuevas categorías de un porcentaje
+ni del texto existente en datos históricos.
+
+La tabla, las tarjetas móviles y el detalle muestran la afinidad válida y el motivo
+cuando la oferta queda **Por confirmar**; no se presenta como aprobada. Un fallo posterior
+no cambia esa categoría: el resultado conservado, su vigencia y el diagnóstico del
+último intento se muestran por separado, también si la oferta tiene seguimiento manual.
+El resumen de lotes muestra `por_confirmar` y `bajo_umbral` cuando el progreso los informa
+(incluye cero explícito y omite lo que no se conoce). **Bajo el umbral** desglosa una parte
+de las rechazadas del lote; no se vuelve a sumar. Los errores técnicos no son resultados laborales.
 
 Reutilizo la sincronización y persistencia actuales: el backend incluye recientes y
 postulaciones históricas válidas. IndexedDB, fallback de memoria y caché local conservan
@@ -957,7 +968,7 @@ Archivo: `frontend/src/app/paginas/dashboard/`
 **Comportamiento:**
 - `ngOnInit()` → rehidrata cache local y luego intenta sincronizar con la API.
 - `cargarDatos()`: carga solo ofertas; las estadísticas se recalculan con `computed()`.
-- Las cards superiores (`Total`, `Pendientes`, `Aprobadas`, `Postuladas`, `Rechazadas`) usan la misma lógica que las tabs.
+- Los contadores superiores usan las mismas categorías y el mismo filtro de plataforma que las pestañas.
 - Si la API responde bien, actualiza los signals y refresca el cache local.
 - Si la API falla, conserva o restaura la última carga exitosa y muestra un mensaje visible para evitar el falso "no hay registros".
 - `onProgresoEvaluacion()`: refresca ofertas en segundo plano durante el polling de evaluación, sin prender el spinner principal.

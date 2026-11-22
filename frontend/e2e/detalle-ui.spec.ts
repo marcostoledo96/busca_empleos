@@ -118,10 +118,10 @@ test('exclusión crítica visible y evidencia completa operable por teclado @det
 });
 
 for (const [escenario, mensaje, score] of [
-    ['pendiente', 'Evaluación desactualizada — pendiente de reevaluación', false],
+    ['pendiente', 'Sin evaluar', false],
     ['error', 'Evaluación no completada (fallo técnico)', false],
     ['reevaluacion-fallida', 'Se conserva la evaluación anterior válida.', true],
-    ['desactualizada', 'Evaluación desactualizada — pendiente de reevaluación', false],
+    ['desactualizada', 'Reevaluación solicitada', false],
     ['historica', 'Esta evaluación histórica no cuenta con desglose estructurado detallado.', true],
 ] as const) {
     test(`estado ${escenario}: aviso único sin confundir rechazo @detalle-ui`, async ({ page }) => {
@@ -145,15 +145,15 @@ for (const [escenario, requisito, razon] of [
     test(`#80 ${escenario}: confirmación actual sin falso error o evaluación anterior @issue80`, async ({ page }, testInfo) => {
         await page.goto(`/?detalle=${escenario}`);
         await page.getByText('Registro del fixture', { exact: true }).click();
-        await page.getByRole('tab', { name: /PENDIENTES/ }).click();
-        const dialogo = await abrirDetallePrincipal(page, 'pendiente');
+        const dialogo = await abrirDetallePrincipal(page, escenario);
         await expect(dialogo.getByText('Elegibilidad pendiente de confirmación', { exact: true })).toBeVisible();
         await expect(dialogo.locator('.detalle-razon')).toContainText(razon);
         await expect(dialogo).not.toContainText('Motivo de la evaluación anterior');
         await expect(dialogo).not.toContainText('Evaluación desactualizada');
         await expect(dialogo.locator('.tag-detalle[data-estado="error"]')).toHaveCount(0);
-        await expect(dialogo.locator('.tag-detalle[data-estado="pendiente"]')).toHaveText('PENDIENTE');
-        await expect(dialogo.locator('.tag-match')).toHaveCount(0);
+        await expect(dialogo.locator('.tag-detalle[data-estado="por_confirmar"]')).toContainText('Por confirmar');
+        if (escenario === 'confirmacion') await expect(dialogo.locator('.tag-match')).toHaveText('91 % de afinidad');
+        else await expect(dialogo.locator('.tag-match')).toHaveCount(0);
         await page.screenshot({ path: testInfo.outputPath(`elegibilidad-${escenario}.png`), animations: 'disabled' });
         await desplegarPorTeclado(dialogo, 'Ver desglose y evidencias del matching');
         const pendientes = dialogo.locator('.desglose-por-confirmar');
@@ -301,7 +301,7 @@ test('descripción: expandir, cancelar, límites y guardar sin reevaluación aut
     }
     await cerrar(dialogo).click();
     expect(await escrituras(page)).toEqual(['PATCH /ofertas/501/descripcion']);
-    await abrirDetallePrincipal(page, 'pendiente');
+    await abrirDetallePrincipal(page, 'desactualizada');
     await dialogo.getByRole('button', { name: 'Reevaluar oferta', exact: true }).click();
     await expect(dialogo.getByRole('button', { name: 'Reevaluar oferta', exact: true })).toBeDisabled();
     await expect(dialogo.getByText('Reevaluación solicitada correctamente', { exact: true })).toBeVisible();

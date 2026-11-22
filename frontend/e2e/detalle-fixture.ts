@@ -32,7 +32,22 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             exclusiones: [],
         },
     };
+    const resultadoPorConfirmar = {
+        situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+    } as const;
     const cambios: Record<string, Partial<Oferta>> = {
+        'calibracion-105': {
+            ...resultadoPorConfirmar,
+            titulo: 'Soporte Técnico Informático JR', ubicacion: 'CABA', modalidad: 'Presencial',
+            descripcion: 'Soporte informático junior presencial en CABA. El aviso menciona Active Directory sin indicar si es obligatorio.',
+            estado_evaluacion: 'pendiente', porcentaje_match: 80, prioridad_ia: false, puntaje_prioridad_ia: 0,
+            evidencias_prioridad_ia: [],
+            razon_evaluacion: 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia.',
+            evaluacion_error_mensaje: null,
+            explicacion_evaluacion: { desglose_disponible: true, cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                requisito('Active Directory', 'El aviso menciona Active Directory.', '', 'desconocido'),
+            ] },
+        },
         aprobada: {},
         rechazada: {
             estado_evaluacion: 'rechazada', porcentaje_match: 88,
@@ -41,9 +56,11 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
                 requisito('Java obligatorio', 'Java es requisito obligatorio para el puesto.', 'No declaro Java; lo excluyo explícitamente.'),
             ] },
         },
-        pendiente: { estado_evaluacion: 'pendiente', porcentaje_match: 97, razon_evaluacion: null, explicacion_evaluacion: null, firma_criterios_evaluacion: null },
+        pendiente: { estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: null,
+            vigencia_evaluacion: 'desconocida', porcentaje_match: null, razon_evaluacion: null, explicacion_evaluacion: null, firma_criterios_evaluacion: null },
         confirmacion: {
-            estado_evaluacion: 'pendiente', porcentaje_match: 91, prioridad_ia: false, vigencia_evaluacion: 'desconocida',
+            estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+            porcentaje_match: 91, prioridad_ia: false, vigencia_evaluacion: 'actual',
             firma_criterios_evaluacion: 'criterios-sinteticos-v7',
             descripcion: 'Desarrollo junior con Angular y TypeScript. Residencia obligatoria en provincia Delta.',
             evaluacion_error_mensaje: null,
@@ -53,8 +70,9 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             ] },
         },
         'sin-descripcion': {
-            estado_evaluacion: 'pendiente', descripcion: null, descripcion_completitud: 'ausente',
-            porcentaje_match: null, prioridad_ia: false, vigencia_evaluacion: 'desconocida', evaluacion_error_mensaje: null,
+            estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+            descripcion: null, descripcion_completitud: 'ausente',
+            porcentaje_match: null, prioridad_ia: false, vigencia_evaluacion: 'actual', evaluacion_error_mensaje: null,
             firma_criterios_evaluacion: 'criterios-sinteticos-v7',
             razon_evaluacion: 'Pendiente de confirmación: falta la descripción de la oferta.',
             explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
@@ -64,7 +82,9 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
         error: { estado_evaluacion: 'pendiente', porcentaje_match: null, razon_evaluacion: null, explicacion_evaluacion: null,
             firma_criterios_evaluacion: null, evaluacion_error_mensaje: 'Servicio sintético no disponible (HTTP 503).' },
         'reevaluacion-fallida': { evaluacion_error_mensaje: 'La reevaluación sintética falló por tiempo de espera.' },
-        desactualizada: { estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA', vigencia_evaluacion: 'anterior' },
+        desactualizada: { estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: 'reevaluacion_solicitada',
+            evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA', vigencia_evaluacion: 'desconocida', porcentaje_match: null,
+            firma_criterios_evaluacion: null, explicacion_evaluacion: null, prioridad_ia: false },
         historica: { explicacion_evaluacion: null, firma_criterios_evaluacion: null, vigencia_evaluacion: 'desconocida' },
         postulada: { estado_postulacion: 'cv_enviado', fecha_postulacion: '2026-01-14', nota_postulacion: 'Envié un CV sintético. Pendiente de respuesta; no realicé una postulación real.' },
         'textos-largos': { titulo: `Frontend sintética ${'AccesibilidadSinEspacios'.repeat(12)}`,
@@ -128,7 +148,9 @@ export function crearHttpDetalle(ofertas: Oferta[], parametros: URLSearchParams)
                 if (typeof descripcion !== 'string' || descripcion.trim().length < 20 || descripcion.trim().length > 50000) return fallar(400, 'La descripción debe tener entre 20 y 50000 caracteres.');
                 oferta.descripcion_original ??= oferta.descripcion;
                 Object.assign(oferta, { descripcion: descripcion.trim(), origen_descripcion: 'manual', descripcion_completitud: 'completa',
-                    descripcion_modificada_en: FECHA_DETALLE, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' });
+                    descripcion_modificada_en: FECHA_DETALLE, estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar',
+                    ultimo_intento_evaluacion: 'reevaluacion_solicitada', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA',
+                    porcentaje_match: null, firma_criterios_evaluacion: null, explicacion_evaluacion: null, vigencia_evaluacion: 'desconocida' });
             } else {
                 const ids = parametros.has('tabla') ? cambios['ids'] as number[] : [oferta.id];
                 if (!ids?.length || !ids.every(id => guardadas.some(item => item.id === id))) return fallar(400, 'IDs de reevaluación inválidos.');

@@ -299,9 +299,9 @@ for (const ancho of [1440, 1024]) {
 }
 
 for (const [estado, tab, texto, porcentaje] of [
-    ['pendiente', /PENDIENTES/, 'Pendiente de evaluación', false],
-    ['error', /PENDIENTES/, 'ERROR TÉCNICO', false],
-    ['desactualizada', /PENDIENTES/, 'Desactualizada · reevaluación pendiente', false],
+    ['pendiente', /PENDIENTES/, 'Sin evaluar', false],
+    ['error', /FALLOS TÉCNICOS/i, 'ERROR TÉCNICO', false],
+    ['desactualizada', /REEVALUACIÓN SOLICITADA/i, 'Reevaluación solicitada', false],
     ['reevaluacion-fallida', /APROBADAS/, 'Resultado anterior conservado', true],
     ['historica', /APROBADAS/, 'Vigencia desconocida', true],
     ['rechazada', /RECHAZADAS POR IA/, 'RECHAZADA', true],
@@ -314,6 +314,7 @@ for (const [estado, tab, texto, porcentaje] of [
         const tarjeta = tarjetas(page);
         await expect(tarjeta).toHaveCount(1);
         await expect(tarjeta).toContainText(texto);
+        if (estado === 'desactualizada') await expect(tarjeta).not.toContainText('Pendiente de evaluación');
         await expect(tarjeta.locator('.card-oferta__match')).toHaveCount(porcentaje ? 1 : 0);
         if (estado === 'rechazada') await expect(tarjeta.locator('.card-oferta__match')).toHaveAttribute('data-nivel', 'bajo');
         if (estado === 'error' || estado === 'reevaluacion-fallida') {
