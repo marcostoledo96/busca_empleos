@@ -27,7 +27,7 @@
         <p class="estado">Preliminar · no implica aprobación de Codex ni permiso de merge</p>
         <h1>#105 · Afinidad, elegibilidad y fallos</h1>
         <p>Una evaluación puede indicar 80 % de afinidad sin aprobar la oferta. Si falta confirmar un requisito, muestro qué falta y conservo ese resultado aunque una reevaluación posterior falle.</p>
-        <p><strong>Rama:</strong> <code>feature/105-calibracion-visibilidad</code>. <strong>Base:</strong> <code>1af89ac9f5a7e91929fa0517db4786dab27e17db</code>. <strong>Candidato de código:</strong> <code>ac60fb3</code>. <a href="https://github.com/marcostoledo96/busca_empleos/issues/105">Issue y matriz de casos</a>.</p>
+        <p><strong>Rama:</strong> <code>feature/105-calibracion-visibilidad</code>. <strong>Base:</strong> <code>1af89ac9f5a7e91929fa0517db4786dab27e17db</code>. <strong>Candidato de código:</strong> <code>2b4e855</code>. <a href="https://github.com/marcostoledo96/busca_empleos/issues/105">Issue y matriz de casos</a>.</p>
     </header>
     <section>
         <h2>Antes y después</h2>
@@ -55,7 +55,17 @@ Resultado válido + diagnóstico + vigencia → tabla, tarjeta, detalle y filtro
         <p>Por ejemplo, una misma respuesta puede contener <code>situacion_evaluacion: 'por_confirmar'</code> y <code>ultimo_intento_evaluacion: 'fallo_tecnico'</code>. Clasificarla solo por <code>estado_evaluacion</code> borraría esa diferencia.</p>
     </section>
     <section>
-        <h2>Pruebas y calibración</h2>
+        <h2>Correcciones tras la auditoría de la PR #108</h2>
+        <ul>
+            <li><strong>Sin descripción (F1):</strong> si no hay un veto determinístico acreditado, no se crea una evaluación válida. Queda <code>sin_evaluar</code>, sin afinidad ni firma nuevas. Procesar esa oferta no suma una evaluación válida ni un fallo técnico.</li>
+            <li><strong>Pasada ordinaria (F2):</strong> conserva un «Por confirmar» si no cambian los criterios ni la entrada efectiva, aun sin caché. Una selección expresa, un marcador o un cambio real sí permiten evaluarla. Sin huella histórica, no se inventa una: se usa la firma y las invalidaciones registradas.</li>
+            <li><strong>Requisito ambiguo (F5):</strong> si una cita del aviso relaciona Kubernetes con el puesto sin aclarar su obligatoriedad, 80 % no implica aprobación. También comprobé una tecnología mencionada en «Stack del equipo» y la segunda de una lista de herramientas. Lo deseable no bloquea y un veto acreditado sigue prevaleciendo.</li>
+            <li><strong>Resumen del lote (F4):</strong> una oferta puede seguir pendiente en un lote completado. Eso no convierte el cierre en cancelación ni reemplaza la decisión laboral anterior.</li>
+        </ul>
+        <p>Correcciones: backend <code>fbc8782</code> y <code>2b4e855</code>; frontend <code>8dacea0</code>. La suite estándar de Jest dio 4.054 aprobadas y 166 omitidas; Karma, 608 aprobadas y 4 omitidas; Playwright, 88 aprobadas. Las tres ejecuciones salieron con código 0 y sin fallas. La verificación independiente focal del último SHA pasó 22/22, incluido el uso de caché. No se hizo SQL, inferencia ni login real.</p>
+    </section>
+    <section>
+        <h2>Pruebas y calibración de la entrega inicial</h2>
         <table>
             <caption>Evidencia observada al preparar este informe</caption>
             <thead><tr><th scope="col">Comprobación</th><th scope="col">Resultado y límite</th></tr></thead>
@@ -80,9 +90,9 @@ bash "$R" frontend ./node_modules/.bin/playwright test tabla-ui.spec.ts detalle-
     <section>
         <h2>Auditoría, límites y próximos pasos</h2>
         <p><strong>Dictamen técnico:</strong> la primera revisión independiente encontró defectos de evidencia y legados. Se corrigieron los seis casos iniciales y los legados. Una segunda revisión detectó una regresión adicional en un veto obligatorio; la prueba automática reproduce y verifica su corrección. El verificador volvió a ejecutar la suite focal sobre el árbol de backend de <code>bab0da3</code>: 8/8, incluido veto al 95 % y caché, sin cambios de backend en <code>ac60fb3</code>. Las pruebas locales no detectan un defecto material pendiente; no acreditan la verificación integral con PostgreSQL aislado ni la sesión real. <strong>Codex:</strong> no ejecutado; no hay un Codex local disponible por CLI ni se inició un ciclo remoto. Los subagentes de Pi que trabajaron como explorador, implementadores y verificador no cuentan como Codex. No se acreditó un nivel de esfuerzo individual.</p>
-        <p><strong>Publicación:</strong> no hay push ni PR. La PR #107 generó preview de Vercel y no se acreditó un bloqueo efectivo para la rama de #105. Railway enlaza producción a <code>master</code>. No hay autorización de merge ni despliegue.</p>
+        <p><strong>Publicación:</strong> la <a href="https://github.com/marcostoledo96/busca_empleos/pull/108">PR #108</a> está en Draft y apunta a <code>integracion/openai-calibracion</code>. El titular autorizó el preview de Vercel. Railway enlaza producción a <code>master</code>. No hay autorización de merge ni despliegue a producción.</p>
         <p><strong>Para estudiar:</strong> distinguir resultado laboral de fallo de ejecución, contratos aditivos, escritura condicional frente a modificaciones concurrentes, e idempotencia de lotes. Las pruebas de regresión verifican efectos observables sin usar datos privados.</p>
-        <p><strong>Próximo paso:</strong> acreditar con #106 que publicar la rama no activa un preview no autorizado; luego abrir la PR interna y solicitar revisión independiente de Codex. #104 conserva el piloto y la validación real de capacidades; #106 se ocupa de CI, de validar el SHA integrado y de una eventual salida controlada. #91 no se modifica.</p>
+        <p><strong>Próximo paso:</strong> registrar la evidencia de corrección en la PR #108 para la auditoría principal. No solicitar Codex antes de su aprobación y de los gates aplicables. #104 conserva el piloto y la validación real de capacidades; #106 se ocupa de CI, de validar el SHA integrado y de una eventual salida controlada. #91 no se modifica.</p>
         <details>
             <summary>Diagnóstico opcional para el titular · SQL no ejecutado</summary>
             <p>Si decidís inspeccionar producción, usá exclusivamente un rol lector ya habilitado, en una transacción de solo lectura. No devuelvo motivos, desglose, descripciones, datos de perfil ni mensajes crudos. La muestra queda limitada a 20 ofertas; no calcula la categoría de negocio.</p>
