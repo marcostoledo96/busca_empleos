@@ -1,6 +1,6 @@
 import { Component, inject, signal, DOCUMENT } from '@angular/core';
 import { Auth, GoogleAuthProvider, signInWithPopup } from '@angular/fire/auth';
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { DemoService } from '../../servicios/demo.service';
 
 @Component({
@@ -12,11 +12,16 @@ import { DemoService } from '../../servicios/demo.service';
 export class Login {
     private readonly auth = inject(Auth);
     private readonly router = inject(Router);
+    private readonly ruta = inject(ActivatedRoute, { optional: true });
     private readonly documento = inject(DOCUMENT);
     private readonly demoService = inject(DemoService);
 
     readonly cargando = signal(false);
-    readonly error = signal<string | null>(null);
+    readonly error = signal<string | null>(
+        this.ruta?.snapshot.queryParamMap.get('motivo') === 'sesion-expirada'
+            ? 'Tu sesión expiró o falta un token válido. Volvé a autenticarte con Google.'
+            : null
+    );
 
     // Expone el estado del tema para el toggle dentro de la página de login.
     // Lee directamente del <html> para ser consistente con App.

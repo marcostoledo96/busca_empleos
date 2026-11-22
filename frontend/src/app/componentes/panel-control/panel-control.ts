@@ -310,6 +310,9 @@ export class PanelControl implements OnInit, OnDestroy {
     // Si se acumulan demasiados, detengo el polling para no martillar el backend.
     private errores429Eval = 0;
     private static readonly MAX_ERRORES_429 = 5;
+    private erroresRedEval = 0;
+    private static readonly MAX_ERRORES_RED_AVISO = 3;
+    readonly avisoRedEvaluacion = signal<string | null>(null);
 
     // Estado de la automatización.
     readonly cronActivo = signal(false);
@@ -491,6 +494,13 @@ export class PanelControl implements OnInit, OnDestroy {
                 },
                 error: (error) => {
                     this.pollingCicloEnCurso = false;
+                    if (error?.status === 401) {
+                        this.detenerPolling();
+                        this.ejecutandoCiclo.set(false);
+                        this.mostrarOverlayCiclo.set(false);
+                        this.errorEvaluacion.set('Tu sesión expiró o falta un token válido. Volvé a iniciar sesión para consultar el ciclo.');
+                        return;
+                    }
                     if (error?.status === 429) {
                         this.errores429Ciclo++;
                         if (this.errores429Ciclo >= PanelControl.MAX_ERRORES_429) {
@@ -519,6 +529,8 @@ export class PanelControl implements OnInit, OnDestroy {
     private iniciarPollingEvaluacion(): void {
         this.detenerPollingEvaluacion();
         this.errores429Eval = 0;
+        this.erroresRedEval = 0;
+        this.avisoRedEvaluacion.set(null);
         this.intervalIdPollingEval = setInterval(() => {
             // Guard: si la request anterior todavía no terminó, salteo este tick.
             if (this.pollingEvalEnCurso) {
@@ -529,6 +541,8 @@ export class PanelControl implements OnInit, OnDestroy {
                 next: (respuesta) => {
                     this.pollingEvalEnCurso = false;
                     this.errores429Eval = 0;
+                    this.erroresRedEval = 0;
+                    this.avisoRedEvaluacion.set(null);
                     if (respuesta.exito) {
                         this.progresoEvaluacion.set(respuesta.datos);
                         // Emito evento para que el dashboard refresque ofertas en segundo plano.
@@ -541,6 +555,13 @@ export class PanelControl implements OnInit, OnDestroy {
                 },
                 error: (error) => {
                     this.pollingEvalEnCurso = false;
+                    if (error?.status === 401) {
+                        this.detenerPollingEvaluacion();
+                        this.evaluando.set(false);
+                        this.avisoRedEvaluacion.set(null);
+                        this.errorEvaluacion.set('Tu sesión expiró o falta un token válido. Volvé a iniciar sesión para consultar el progreso de evaluación.');
+                        return;
+                    }
                     if (error?.status === 429) {
                         this.errores429Eval++;
                         if (this.errores429Eval >= PanelControl.MAX_ERRORES_429) {
@@ -549,8 +570,14 @@ export class PanelControl implements OnInit, OnDestroy {
                             this.detenerPollingEvaluacion();
                             this.evaluando.set(false);
                         }
+                        return;
                     }
-                    // Para otros errores de red, continúo el polling silenciosamente.
+                    if (error?.status === 0) {
+                        this.erroresRedEval++;
+                        if (this.erroresRedEval >= PanelControl.MAX_ERRORES_RED_AVISO) {
+                            this.avisoRedEvaluacion.set('Sin conexión temporal con el servidor. Sigo consultando el progreso sin reiniciar la evaluación.');
+                        }
+                    }
                 }
             });
         }, 2000);
@@ -611,6 +638,7 @@ export class PanelControl implements OnInit, OnDestroy {
         }
         this.pollingEvalEnCurso = false;
         this.errores429Eval = 0;
+        this.erroresRedEval = 0;
     }
 
     // Ejecuta el ciclo completo (scraping de las plataformas + evaluación IA).

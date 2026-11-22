@@ -1763,4 +1763,91 @@ describe('PanelControl — Reintento de errores técnicos e interrupción por re
         fixture.detectChanges();
         expect(botonReintentar.disabled).toBeTrue();
     });
+
+    it('detiene el polling de evaluación inmediatamente ante HTTP 401 y muestra alerta sin relanzar evaluación', fakeAsync(() => {
+        evalSpy.obtenerProgreso.calls.reset();
+        evalSpy.obtenerProgreso.and.returnValue(throwError(() => ({ status: 401, error: { error: 'Se requiere un token de autenticación' } })));
+        component.evaluando.set(true);
+
+        (component as any).iniciarPollingEvaluacion();
+        tick(2000);
+        fixture.detectChanges();
+
+        expect((component as any).intervalIdPollingEval).toBeNull();
+        expect(component.evaluando()).toBeFalse();
+        expect(component.errorEvaluacion()).toContain('sesión expiró');
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+        expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+
+        // Avanzar tiempo adicional no debe disparar nuevos ticks.
+        tick(6000);
+        expect(evalSpy.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        const alerta = fixture.nativeElement.querySelector('[role="alert"]');
+        expect(alerta?.textContent).toContain('sesión expiró');
+    }));
+
+    it('detiene el polling de ciclo y cierra el overlay inmediatamente ante HTTP 401', fakeAsync(() => {
+        const autoService = TestBed.inject(AutomatizacionService) as jasmine.SpyObj<AutomatizacionService>;
+        autoService.obtenerProgreso.calls.reset();
+        autoService.obtenerProgreso.and.returnValue(
+            throwError(() => ({ status: 401, error: { error: 'Se requiere un token de autenticación' } }))
+        );
+        component.ejecutandoCiclo.set(true);
+        component.mostrarOverlayCiclo.set(true);
+
+        (component as any).iniciarPolling();
+        tick(2000);
+        fixture.detectChanges();
+
+        expect((component as any).intervalIdPolling).toBeNull();
+        expect(component.ejecutandoCiclo()).toBeFalse();
+        expect(component.mostrarOverlayCiclo()).toBeFalse();
+        expect(component.errorEvaluacion()).toContain('sesión expiró');
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+
+        tick(4000);
+        expect(autoService.obtenerProgreso).toHaveBeenCalledTimes(1);
+    }));
+
+    it('muestra aviso no destructivo tras 3 cortes de red consecutivos en polling de evaluación y lo limpia al reconectar', fakeAsync(() => {
+        let intentos = 0;
+        evalSpy.obtenerProgreso.and.callFake(() => {
+            intentos++;
+            if (intentos <= 3) {
+                return throwError(() => ({ status: 0, message: 'ERR_NETWORK_CHANGED' }));
+            }
+            return of({
+                exito: true,
+                datos: {
+                    activo: true,
+                    estado: 'activo' as const,
+                    total: 6,
+                    evaluadas: 3,
+                    aprobadas: 2,
+                    rechazadas: 1,
+                    errores: 0,
+                    porcentaje: 50,
+                },
+            });
+        });
+
+        component.evaluando.set(true);
+        (component as any).iniciarPollingEvaluacion();
+
+        tick(6000); // 3 ticks con error de red (status 0)
+        fixture.detectChanges();
+
+        expect(component.evaluando()).toBeTrue();
+        expect((component as any).intervalIdPollingEval).not.toBeNull();
+        expect((component as any).avisoRedEvaluacion()).toContain('Sin conexión temporal');
+
+        tick(2000); // 4to tick recupera conexión
+        fixture.detectChanges();
+
+        expect((component as any).avisoRedEvaluacion()).toBeNull();
+        expect(component.progresoEvaluacion()?.porcentaje).toBe(50);
+
+        (component as any).detenerPollingEvaluacion();
+    }));
 });

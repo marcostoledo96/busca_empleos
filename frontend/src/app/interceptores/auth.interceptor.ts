@@ -12,29 +12,51 @@
 // para obtener (y si es necesario renovar) el JWT. Necesitamos esperar ese token
 // antes de dejar salir el request.
 
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { from, switchMap } from 'rxjs';
+import { Router } from '@angular/router';
+import { catchError, from, switchMap, throwError } from 'rxjs';
 import { AuthService } from '../servicios/auth.service';
+import { DemoService } from '../servicios/demo.service';
+
+// Evito disparar múltiples redirecciones simultáneas ante ráfagas de 401 por cada Router activo.
+const redireccionEnCursoPorRouter = new WeakMap<Router, boolean>();
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
     const authService = inject(AuthService);
+    const demoService = inject(DemoService);
+    const router = inject(Router);
 
     return from(authService.obtenerToken()).pipe(
         switchMap(token => {
             // Si hay token, clonamos el request y le agregamos el header.
             // Clonamos porque los requests de Angular son inmutables.
-            if (token) {
-                const requestConToken = req.clone({
-                    setHeaders: {
-                        Authorization: `Bearer ${token}`
+            const solicitud = token
+                ? req.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
+                : req;
+
+            return next(solicitud).pipe(
+                catchError((error: unknown) => {
+                    if (
+                        error instanceof HttpErrorResponse &&
+                        error.status === 401 &&
+                        !demoService.esModoDemo() &&
+                        !router.url.startsWith('/login') &&
+                        !redireccionEnCursoPorRouter.get(router)
+                    ) {
+                        redireccionEnCursoPorRouter.set(router, true);
+                        void Promise.resolve(
+                            router.navigate(['/login'], {
+                                queryParams: { motivo: 'sesion-expirada' },
+                                replaceUrl: true,
+                            })
+                        ).finally(() => {
+                            redireccionEnCursoPorRouter.set(router, false);
+                        });
                     }
-                });
-                return next(requestConToken);
-            }
-            // Sin token (usuario no logueado), dejamos pasar el request sin modificar.
-            // El backend responderá 401 y el guard redirigirá al login.
-            return next(req);
+                    return throwError(() => error);
+                })
+            );
         })
     );
 };
