@@ -49,7 +49,7 @@ function validarIdToken(token, claves, clientId, nonce, ahora, renovacion = fals
             !Number.isFinite(datos.exp) || datos.exp <= ahora / 1000 ||
             (datos.nbf !== undefined && (!Number.isFinite(datos.nbf) || datos.nbf > ahora / 1000)) ||
             ((!renovacion || datos.nonce !== undefined) && datos.nonce !== nonce) || !texto(datos.sub)) throw new Error();
-        return datos.sub;
+        return { sujeto: datos.sub, expiraId: datos.exp * 1000 };
     } catch { throw errorDominio('id-token-invalido', 'No se pudo validar la identidad del proveedor.'); }
 }
 
@@ -223,7 +223,7 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
                         code: codigo, code_verifier: verificador, redirect_uri: redireccion, resource: RECURSO });
                     comprobar(version);
                     const cred = credenciales(datos, ahora());
-                    const sujeto = validarIdToken(datos.id_token, await solicitar(rutas.jwks), emitido, nonce, ahora());
+                    const { sujeto } = validarIdToken(datos.id_token, await solicitar(rutas.jwks), emitido, nonce, ahora());
                     comprobar(version);
                     if (previo && sujeto !== previo.sujeto) throw errorDominio('identidad-distinta', 'La identidad no coincide con la cuenta seleccionada.');
                     const registro = { clientId: emitido, sujeto, idToken: datos.id_token, ...cred };
@@ -276,13 +276,16 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
     }
 
     async function verificarRenovacion(registro, jwks) {
-        const { idTokenPendiente, ...verificado } = registro;
+        const { idTokenPendiente, idTokenRecibido, ...verificado } = registro;
         try {
             const claves = await solicitar(jwks, undefined, { detectarCorte: true });
             // El ID token original identifica la concesión y conserva el nonce del vínculo.
             const nonce = decodificar(registro.idToken.split('.')[1]).nonce;
-            const sujeto = validarIdToken(idTokenPendiente, claves, registro.clientId, nonce, ahora(), true);
+            const recibido = Number.isFinite(idTokenRecibido) ? idTokenRecibido : ahora();
+            const { sujeto, expiraId } = validarIdToken(idTokenPendiente, claves, registro.clientId, nonce, recibido, true);
             if (sujeto !== registro.sujeto) throw errorDominio('identidad-distinta', 'La identidad no coincide con la cuenta seleccionada.');
+            // Una prueba válida al recibirla acredita el refresh, no habilita un bearer vencido.
+            verificado.expira = Math.min(verificado.expira, expiraId);
         } catch (error) {
             const temporal = error.codigo === 'red-oauth' || error.statusUpstream === 429 || error.statusUpstream >= 500;
             if (!temporal || desconexion?.clientId === registro.clientId) descartarRenovacion(registro, registro.refreshToken);
@@ -293,6 +296,7 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
     }
 
     async function renovar(registro, version) {
+        comprobar(version);
         const rutas = await discovery();
         comprobar(version);
         let datos;
@@ -303,16 +307,24 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
             if (REFRESH_INVALIDOS.has(error.codigoUpstream)) actualizar(datosRegistro(registro), null);
             throw error;
         }
+        if (desconexion?.clientId === registro.clientId) {
+            descartarRenovacion(registro, datos?.refresh_token);
+            throw interrumpida();
+        }
+        const recibido = ahora();
         let cred;
         try {
-            cred = credenciales(datos, ahora(), registro.scopes);
+            cred = credenciales(datos, recibido, registro.scopes);
             if (!texto(cred.refreshToken)) throw errorDominio('tokens-invalidos', 'Falta el refresh token rotado.');
         } catch (error) {
             descartarRenovacion(registro, datos?.refresh_token);
             throw error;
         }
         const nuevo = { ...datosRegistro(registro), idToken: registro.idToken, ...cred };
-        if (datos.id_token !== undefined) nuevo.idTokenPendiente = datos.id_token;
+        if (datos.id_token !== undefined) {
+            nuevo.idTokenPendiente = datos.id_token;
+            nuevo.idTokenRecibido = recibido;
+        }
         // Guardar la rotación antes de JWKS evita reutilizar un refresh que ya fue canjeado.
         actualizar(nuevo);
         return nuevo.idTokenPendiente === undefined ? nuevo : verificarRenovacion(nuevo, rutas.jwks);
@@ -331,11 +343,15 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
                 actual = await verificarRenovacion(actual, rutas.jwks);
             }
             if (!habilitado(actual)) throw errorDominio('alcance-insuficiente', 'ChatGPT no concedió todos los permisos requeridos.');
-            if (actual.requiereRenovar || actual.expira - ahora() <= 60000) actual = await renovar(actual, version);
+            if (actual.requiereRenovar || actual.expira - ahora() <= 60000) {
+                actual = await renovar(actual, version);
+                if (habilitado(actual) && actual.expira <= ahora()) actual = await renovar(actual, version);
+            }
             if (!habilitado(actual)) throw errorDominio('alcance-insuficiente', 'ChatGPT no concedió todos los permisos requeridos.');
             return actual;
         });
         comprobar(version);
+        if (registro.expira <= ahora()) throw errorDominio('tokens-invalidos', 'La credencial de acceso venció antes del envío.');
         const control = new AbortController();
         operaciones.add(control);
         try {

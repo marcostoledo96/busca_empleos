@@ -90,7 +90,7 @@ function preparar(t) {
             return fetch(destino);
         } };
     }
-    return { sesion, fixture, solicitudes, opciones, directorio, raiz, iniciar, avanzar: () => { tiempo += 3601000; }, renovaciones: () => renovaciones };
+    return { sesion, fixture, solicitudes, opciones, directorio, raiz, iniciar, avanzar: (ms = 3601000) => { tiempo += ms; }, renovaciones: () => renovaciones };
 }
 
 function tokens(sufijo, scope = alcance) {
@@ -349,12 +349,11 @@ for (const [caso, codigo, confirma] of [
         await vincular(ctx);
         ctx.avanzar();
         const empezado = promesaControlada();
-        const rotacion = promesaControlada();
-        ctx.fixture.renovar = () => { empezado.resolve(); return rotacion.promise; };
-        const operacion = ctx.sesion.conToken(() => assert.fail('No debe ejecutar la operación.'));
-        operacion.catch(() => {});
+        const claves = promesaControlada();
+        ctx.fixture.renovar = () => publicar({ ...tokens('ultimo'), id_token: 'CANARIO_ID_INVALIDO' });
+        ctx.fixture.jwks = () => { empezado.resolve(); return claves.promise; };
+        const operacion = assert.rejects(ctx.sesion.conToken(() => assert.fail('No debe ejecutar la operación.')), { codigo });
         await empezado.promise;
-        if (!confirma) ctx.fixture.jwks = () => Response.json({ error: 'server_error' }, { status: 503 });
         const revocaciones = [];
         const archivo = join(ctx.directorio, 'sesion.json');
         ctx.fixture.revocar = (body) => {
@@ -363,8 +362,8 @@ for (const [caso, codigo, confirma] of [
             return new Response(null, { status: confirma ? 200 : 503 });
         };
         const salida = ctx.sesion.desvincular();
-        rotacion.resolve(publicar({ ...tokens('ultimo'), id_token: 'CANARIO_ID_INVALIDO' }));
-        await assert.rejects(operacion, { codigo });
+        claves.resolve(confirma ? publicar({ keys: [] }) : Response.json({ error: 'server_error' }, { status: 503 }));
+        await operacion;
         assert.deepEqual(await salida, confirma ? { revocacionRemotaConfirmada: true } : {
             revocacionRemotaConfirmada: false, ajustes: 'https://chatgpt.com/settings/usage'
         });
@@ -436,6 +435,59 @@ for (const [caso, codigo] of [
         } finally { await nueva.cerrar(); }
     });
 }
+
+for (const [caso, demora, duracion, venceId] of [
+    ['vencen ambos durante la suspensión', 'suspension', 1, 1],
+    ['solo vence el ID durante la suspensión', 'suspension', 3600, 1],
+    ['solo vence el acceso mientras JWKS responde', 'jwks', 1, 3600]
+]) {
+    test(`renueva desde la última rotación verificada si ${caso}`, async (t) => {
+        const ctx = preparar(t);
+        await vincular(ctx);
+        ctx.avanzar();
+        const idToken = firmarIdToken({ iss: emisor, aud: cliente, sub: 'cuenta-sintetica', exp: ctx.opciones.ahora() / 1000 + venceId });
+        const usados = [];
+        const claves = () => publicar({ keys: [{ ...publicKey.export({ format: 'jwk' }), kid: 'fixture' }] });
+        ctx.fixture.renovar = (params) => {
+            usados.push(params.get('refresh_token'));
+            return usados.length === 1 ? publicar({ ...tokens('pendiente'), expires_in: duracion, id_token: idToken }) : publicar(tokens('vigente'));
+        };
+        let sesion = ctx.sesion;
+        if (demora === 'suspension') {
+            ctx.fixture.jwks = () => new Response(null, { status: 503 });
+            await assert.rejects(sesion.conToken(() => assert.fail('No debe usar el bearer pendiente.')), { codigo: 'oauth-proveedor', statusUpstream: 503 });
+            assert.deepEqual(usados, ['CANARIO_refresh_inicial']);
+            await sesion.cerrar();
+            ctx.avanzar(2000);
+            sesion = abrirSesion(ctx.opciones);
+            ctx.fixture.jwks = claves;
+        } else {
+            ctx.fixture.jwks = () => { ctx.avanzar(2000); return claves(); };
+        }
+        try {
+            const enviados = [];
+            assert.equal(await sesion.conToken(({ token }) => { enviados.push(token); return 'resultado'; }), 'resultado');
+            assert.deepEqual(usados, ['CANARIO_refresh_inicial', 'CANARIO_refresh_pendiente']);
+            assert.deepEqual(enviados, ['CANARIO_acceso_vigente']);
+        } finally { await sesion.cerrar(); }
+    });
+}
+
+test('un ID que todavía no era válido al recibirlo no habilita su refresh aunque JWKS vuelva después', async (t) => {
+    const ctx = preparar(t);
+    await vincular(ctx);
+    ctx.avanzar();
+    const recibido = ctx.opciones.ahora() / 1000;
+    const idToken = firmarIdToken({ iss: emisor, aud: cliente, sub: 'cuenta-sintetica', nbf: recibido + 1, exp: recibido + 3600 });
+    ctx.fixture.renovar = () => publicar({ ...tokens('pendiente'), id_token: idToken });
+    ctx.fixture.jwks = () => new Response(null, { status: 503 });
+    await assert.rejects(ctx.sesion.conToken(() => assert.fail()), { codigo: 'oauth-proveedor', statusUpstream: 503 });
+    ctx.avanzar(2000);
+    delete ctx.fixture.jwks;
+    await assert.rejects(ctx.sesion.conToken(() => assert.fail('No debe usar el bearer pendiente.')), { codigo: 'id-token-invalido' });
+    await assert.rejects(ctx.sesion.conToken(() => assert.fail()), { codigo: 'sin-sesion' });
+    assert.equal(ctx.renovaciones(), 1);
+});
 
 test('invalid_user conserva el diagnóstico y exige renovar la misma concesión tras reiniciar', async (t) => {
     const ctx = preparar(t);
@@ -511,22 +563,33 @@ test('una desconexión tardía no borra la concesión nueva del mismo cliente', 
     assert.equal(await ctx.sesion.conToken(({ token }) => token), 'CANARIO_acceso_inicial');
 });
 
-test('desvincular durante la rotación revoca el token nuevo sin ejecutar la operación', async (t) => {
-    const ctx = preparar(t);
-    await vincular(ctx);
-    ctx.avanzar();
-    const empezado = promesaControlada();
-    const rotacion = promesaControlada();
-    ctx.fixture.renovar = () => { empezado.resolve(); return rotacion.promise; };
-    const operacion = ctx.sesion.conToken(() => assert.fail());
-    operacion.catch(() => {});
-    await empezado.promise;
-    ctx.fixture.revocar = (params) => {
-        assert.equal(params.get('token'), 'CANARIO_refresh_ultimo');
-        return new Response(null);
-    };
-    const salida = ctx.sesion.desvincular();
-    rotacion.resolve(publicar(tokens('ultimo')));
-    await assert.rejects(operacion, { codigo: 'sesion-interrumpida' });
-    assert.deepEqual(await salida, { revocacionRemotaConfirmada: true });
-});
+for (const confirma of [true, false]) {
+    test(`desvincular antes de recibir la rotación evita JWKS y no guarda el bearer; revocación ${confirma ? 'confirmada' : 'no confirmada'}`, async (t) => {
+        const ctx = preparar(t);
+        await vincular(ctx);
+        ctx.avanzar();
+        const empezado = promesaControlada();
+        const rotacion = promesaControlada();
+        ctx.fixture.renovar = () => { empezado.resolve(); return rotacion.promise; };
+        const operacion = assert.rejects(ctx.sesion.conToken(() => assert.fail()), { codigo: 'sesion-interrumpida' });
+        await empezado.promise;
+        const archivo = join(ctx.directorio, 'sesion.json');
+        const revocados = [];
+        const contenidoAlRevocar = [];
+        ctx.fixture.revocar = (params) => {
+            revocados.push(params.get('token'));
+            contenidoAlRevocar.push(/CANARIO|accessToken|refreshToken|idToken/.test(readFileSync(archivo, 'utf8')));
+            return new Response(null, { status: confirma ? 200 : 503 });
+        };
+        const salida = ctx.sesion.desvincular();
+        rotacion.resolve(publicar({ ...tokens('ultimo'), ...(confirma && { id_token: 'CANARIO_ID_NO_VERIFICAR' }) }));
+        await operacion;
+        assert.deepEqual(await salida, confirma ? { revocacionRemotaConfirmada: true } : {
+            revocacionRemotaConfirmada: false, ajustes: 'https://chatgpt.com/settings/usage'
+        });
+        assert.deepEqual(revocados, Array(confirma ? 1 : 2).fill('CANARIO_refresh_ultimo'));
+        assert.deepEqual(contenidoAlRevocar, Array(revocados.length).fill(false));
+        assert.equal(ctx.solicitudes.filter(([url]) => url.endsWith('/jwks')).length, 1);
+        await assert.rejects(ctx.sesion.conToken(() => assert.fail()), { codigo: 'sin-sesion' });
+    });
+}

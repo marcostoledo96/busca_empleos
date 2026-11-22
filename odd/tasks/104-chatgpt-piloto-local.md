@@ -127,7 +127,7 @@ Fuentes: [renovación durante fallo de JWKS](https://github.com/marcostoledo96/b
 
 - T4 — S10: corregir los hallazgos de Responses y desconexión, rectificar evidencia y remitir a reauditoría; parent + verifier; verificado; commit de corrección asociado a PR-AUDIT-V1.
 
-- T5 — S11: recuperar en forma segura una renovación pendiente y diagnosticar el rechazo de contexto; worker + verifier; en curso.
+- T5 — S11: recuperar en forma segura una renovación pendiente y diagnosticar el rechazo de contexto; worker + verifier; correcciones locales comprobadas, falta prueba independiente del candidato final.
 
 ## Log
 
@@ -271,3 +271,11 @@ La reauditoría principal aprobó el candidato anterior; los dos hallazgos P2 de
 ### L11 — Pruebas de recuperación
 
 Implementación delegada (`gpt-6.2-sol`, esfuerzo no verificable). `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js` bajo `bwrap --unshare-net`, Node 24.18.0: RED exit 1 (22 PASS y 6 FAIL esperados); RED específico de corte de cuerpo JWKS, exit 1 (29 PASS y 1 FAIL); GREEN exit 0, 30/30. Cobertura: rotación persistida, reapertura ordenada, consulta de JWKS pendiente sin segundo canje, firma/sujeto inválidos, invalid_user diagnosticado, rotación y revocación concurrentes. El candidato se confirma con un commit local antes de la revisión independiente; no es todavía publicación ni permiso de merge.
+
+### L12 — Verificación independiente del primer candidato Codex
+
+`ccbdddc51d50d8a7132f648857bbc37d3d3e1115`: 31/31 focal con Chrome y backend 3973 PASS/166 omitidas, exit 0 en ejecución propia. El verificador `gpt-6.2-sol/high` no ejecutó pruebas: preparador exit 1 por worktree enlazado no admitido. No se repite esa preparación ni se presenta PASS independiente. Señaló dos defectos estáticos para reproducir: si ya comenzó la desvinculación antes de recibir un refresh rotado, no persistir el token nuevo; si el ID pendiente venció *después* de recibirlo y antes de que vuelva JWKS, acreditar su firma/identidad y validez al momento de recepción, pero nunca habilitar el bearer vencido ni enviar antes de una nueva renovación con el último refresh. Candidato local, sin push.
+
+### L13 — Cobertura de carreras y límite de publicación
+
+Corrección adicional sobre `ccbdddc`: la desvinculación ya iniciada evita persistir la rotación y evita consultar JWKS, pero intenta revocar el último refresh en memoria. Una renovación pendiente se verifica contra el momento protegido de recepción para distinguir un ID inválido de uno que venció durante la espera. Antes de enviar se renueva con la última credencial verificada cuando corresponde; el acceso vencido no llega al transporte. RED del worker: exit 1, 29 PASS y 6 FAIL esperados. GREEN: exit 0, 35/35. Ejecución propia: `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js backend/piloto-chatgpt/oauth.browser-check.js`, Node 24.18.0, Chrome 158 y red externa bloqueada: 36/36, exit 0. La suite backend estándar previa a este delta focal pasó 3973 y omitió 166 (exit 0); no se reejecutó para este ajuste autónomo. Preparación del verificador independiente no repetida: el control ejecutable del candidato final queda sin evidencia. Sin push, comentarios externos nuevos, credenciales ni consumo real.
