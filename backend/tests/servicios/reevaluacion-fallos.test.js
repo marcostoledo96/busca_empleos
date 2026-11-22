@@ -120,6 +120,66 @@ test.each(['timeout', 'JSON inválido'])('B01 %s conserva todos los campos del r
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(llamadas);
 });
 
+test.each([
+    ['timeout', 'TIMEOUT'], ['cuota', 'HTTP_429'], ['autenticación del proveedor', 'HTTP_401'],
+    ['transporte', 'ERROR_TRANSPORTE'], ['JSON inválido', '{'], ['salida truncada', 'SALIDA_TRUNCADA'],
+    ['SSE interrumpido', 'stream interrumpido'], ['salida incompleta', 'SALIDA_INCOMPLETA'],
+    ['contrato inválido', '{"match":"sí","porcentaje":80}'], ['porcentaje fuera de rango', '{"match":true,"porcentaje":101}'],
+])('%s conserva el resultado válido por confirmar y no vuelve a evaluar durante polling', async (_caso, fallo) => {
+    Object.assign(filas[0], {
+        estado_evaluacion: 'pendiente', porcentaje_match: 80,
+        razon_evaluacion: 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia',
+        explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+            { requisito: 'Active Directory', tipo: 'obligatorio', evidencia_oferta: 'Active Directory', evidencia_perfil: '' },
+        ] },
+        descripcion_modificada_en: null,
+    });
+    const anterior = structuredClone(filas);
+    if (fallo.startsWith('{')) proveedor.consultarDeepSeek.mockResolvedValueOnce(fallo);
+    else proveedor.consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('Fallo sintético'), { codigo: fallo }));
+    const res = await iniciar([1]);
+    expect(res.status).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ exito: true, mensaje: 'Evaluación iniciada.', en_curso: true, cantidad: 1, periodo_dias: 30 });
+    expect(filas[0].evaluacion_error_mensaje).toEqual(expect.any(String));
+    expect([{ ...filas[0], evaluacion_error_mensaje: null }, filas[1]]).toEqual(anterior);
+    expect(pool.query.mock.calls.find(([sql]) => sql.includes('UPDATE ofertas'))[1].slice(1)).toEqual([1, anterior[0].descripcion, true, null, true]);
+    expect(escrituras).toEqual(['oferta1']);
+    expect(cache.size).toBe(0);
+    const final = progreso();
+    expect(final).toMatchObject({ activo: false, estado: 'error', total: 1, procesadas: 1, evaluadas: 0, aprobadas: 0, rechazadas: 0, errores: 1,
+        por_confirmar: 0, bajo_umbral: 0 });
+    expect(progreso()).toEqual(final);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(clientes[0].release).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+    ['deseable', 'Active Directory deseable.', true, 80, [], 'aprobada'],
+    ['desconocido', 'Active Directory obligatorio.', false, 80, [], 'pendiente'],
+    ['veto acreditado', 'Active Directory obligatorio.', true, 95, ['Active Directory'], 'rechazada'],
+    ['59 %', 'TypeScript para desarrollo web.', false, 59, [], 'rechazada'],
+    ['60 %', 'TypeScript para desarrollo web.', true, 60, [], 'aprobada'],
+])('%s respeta el umbral y la evidencia sin transformar incertidumbre en veto', async (_caso, descripcion, match, porcentaje, ausencias, estado) => {
+    filas[0].descripcion = descripcion;
+    preferencias.obtenerPreferencias.mockResolvedValueOnce({ conocimientos_ausentes: ausencias });
+    const requisito = { requisito: 'Active Directory', tipo: 'obligatorio', evidencia_oferta: 'Active Directory',
+        evidencia_perfil: 'Active Directory', explicacion: 'Evaluar la experiencia con Active Directory.' };
+    const explicacion = descripcion.startsWith('Active Directory') ? { exclusiones: [requisito] } : undefined;
+    proveedor.consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match, porcentaje, razon: 'Resultado sintético', explicacion }));
+    await iniciar([1]);
+    expect(filas[0]).toMatchObject({ estado_evaluacion: estado, porcentaje_match: porcentaje, evaluacion_error_mensaje: null });
+    if (estado === 'pendiente') expect(filas[0].explicacion_evaluacion).toMatchObject({ exclusiones: [], por_confirmar: [expect.objectContaining({ requisito: 'Active Directory', evidencia_perfil: '' })] });
+    const final = progreso();
+    expect(final).toMatchObject({ evaluadas: 1, procesadas: 1, errores: 0, pendientes: 0,
+        por_confirmar: estado === 'pendiente' ? 1 : 0, bajo_umbral: porcentaje === 59 ? 1 : 0 });
+    expect(progreso()).toEqual(final);
+    await servicio.rehidratarProgreso();
+    expect(progreso()).not.toHaveProperty('por_confirmar');
+    expect(progreso()).not.toHaveProperty('bajo_umbral');
+    expect(progreso()).toMatchObject({ evaluadas: 1, procesadas: 1, errores: 0, pendientes: 0 });
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
 test.each(['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'])('B01 conserva decisión manual %s y rechazo válido previo', async estado => {
     Object.assign(filas[0], { estado_postulacion: estado, estado_evaluacion: 'rechazada' });
     const anterior = structuredClone(filas[0]);

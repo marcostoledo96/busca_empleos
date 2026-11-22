@@ -13,6 +13,7 @@
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const { crearFirmaCriterios, obtenerVigenciaEvaluacion } = require('../servicios/evaluacion/identidad-evaluacion');
+const { obtenerSituacionEvaluacion, obtenerUltimoIntentoEvaluacion } = require('../servicios/evaluacion/situacion-evaluacion');
 const baseDatos = require('../config/base-datos');
 const { normalizarIdPlataforma } = require('../config/plataformas');
 
@@ -21,7 +22,12 @@ async function agregarVigencia(ofertas, soloLectura = false) {
         ? await modeloPreferencia.obtenerPreferencias({ soloLectura: true })
         : await modeloPreferencia.obtenerPreferencias();
     const firma = prefs ? crearFirmaCriterios(prefs) : null;
-    return ofertas.map(oferta => ({ ...oferta, vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma) }));
+    return ofertas.map(oferta => ({
+        ...oferta,
+        vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma),
+        situacion_evaluacion: obtenerSituacionEvaluacion(oferta),
+        ultimo_intento_evaluacion: obtenerUltimoIntentoEvaluacion(oferta),
+    }));
 }
 
 function validarIdEnteroPositivo(idParam) {

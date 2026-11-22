@@ -728,6 +728,48 @@ describe('Vigencia de criterios en respuestas reales', () => {
     });
 });
 
+describe('Situación laboral y último intento en respuestas de ofertas', () => {
+    test.each(['/api/ofertas', '/api/ofertas/9', '/api/ofertas/sincronizacion'])('clasificación aditiva en %s', async ruta => {
+        const prefs = { stack_tecnologico: ['TypeScript'] };
+        const firma = crearFirmaCriterios(prefs);
+        modeloPreferencia.obtenerPreferencias.mockResolvedValue(prefs);
+        const previo = { estado_evaluacion: 'pendiente', fecha_evaluacion: '2026-05-01T00:00:00.000Z',
+            firma_criterios_evaluacion: firma, razon_evaluacion: 'Resultado anterior válido', porcentaje_match: 80 };
+        const filas = [
+            { id: 9, ...previo, estado_postulacion: 'cv_enviado', evaluacion_error_mensaje: 'Timeout',
+                explicacion_evaluacion: { por_confirmar: [{ requisito: 'Active Directory', tipo: 'obligatorio' }] } },
+            { id: 10, ...previo, estado_evaluacion: 'aprobada', porcentaje_match: 60, firma_criterios_evaluacion: 'anterior',
+                explicacion_evaluacion: { exclusiones: [] } },
+            { id: 11, ...previo, estado_evaluacion: 'rechazada', porcentaje_match: 59, explicacion_evaluacion: { exclusiones: [] } },
+            { id: 12, ...previo, estado_evaluacion: 'rechazada', explicacion_evaluacion: { exclusiones: [
+                { requisito: 'Active Directory', tipo: 'obligatorio', evidencia_oferta: 'Active Directory obligatorio', evidencia_perfil: 'No tengo Active Directory' },
+            ] } },
+            { id: 13, estado_evaluacion: 'rechazada', porcentaje_match: 59, razon_evaluacion: 'Resultado histórico' },
+            { id: 14, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' },
+            { id: 15, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'Timeout', razon_evaluacion: 'Timeout' },
+            { id: 16, estado_evaluacion: 'pendiente' },
+            { id: 17, ...previo, estado_evaluacion: 'aprobada', firma_criterios_evaluacion: 'anterior', explicacion_evaluacion: null },
+            { id: 18, ...previo, estado_evaluacion: 'rechazada', porcentaje_match: 59, explicacion_evaluacion: null },
+        ];
+        const esperados = [
+            ['por_confirmar', 'fallo_tecnico', 'actual'], ['aprobada', null, 'anterior'], ['bajo_umbral', null, 'actual'],
+            ['rechazada', null, 'actual'], ['legado', null, 'desconocida'], ['sin_evaluar', 'reevaluacion_solicitada', 'desconocida'],
+            ['sin_evaluar', 'fallo_tecnico', 'desconocida'], ['sin_evaluar', null, 'desconocida'],
+            ['legado', null, 'anterior'], ['legado', null, 'actual'],
+        ];
+        modeloOferta.obtenerOfertas.mockResolvedValue({ ofertas: filas, total: filas.length, pagina: 1, limite_pagina: null });
+        modeloOferta.obtenerOfertaPorId.mockResolvedValue(filas[0]);
+        modeloOferta.obtenerBloqueSincronizacion.mockResolvedValue({ datos: filas, completada: true });
+        const res = await request(app).get(ruta);
+        expect(res.status).toBe(200);
+        expect(res.body.exito).toBe(true);
+        const datos = Array.isArray(res.body.datos) ? res.body.datos : [res.body.datos];
+        const esperadas = ruta === '/api/ofertas/9' ? filas.slice(0, 1) : filas;
+        expect(datos).toEqual(esperadas.map((oferta, i) => ({ ...oferta, situacion_evaluacion: esperados[i][0],
+            ultimo_intento_evaluacion: esperados[i][1], vigencia_evaluacion: esperados[i][2] })));
+    });
+});
+
 // === Tests generales de la app ===
 
 describe('Infraestructura de la API', () => {

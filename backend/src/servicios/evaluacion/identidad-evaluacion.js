@@ -1,5 +1,6 @@
 // Identifico entradas efectivas, no toda la configuración ni metadatos visuales.
 const { createHash } = require('crypto');
+const { obtenerSituacionEvaluacion } = require('./situacion-evaluacion');
 const { CONFIGURACION_DECISION, DEEPSEEK_MODELO, normalizarModeloDeepSeek } = require('../../config/deepseek');
 const { VERSION_PRIORIDAD_IA } = require('./detector-prioridad-ia');
 const { ordenarObjeto, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./entradas-evaluacion');
@@ -55,10 +56,12 @@ function construirIdentidadEvaluacion(oferta, prefs = {}, opciones = {}) {
     };
 }
 
-/** No atribuyo vigencia a una evaluación ausente, pendiente o fallida. */
+/** Comparo la firma del resultado conservado, no la del último intento. */
 function obtenerVigenciaEvaluacion(oferta, firmaActual) {
-    if (!firmaActual || !oferta.firma_criterios_evaluacion || oferta.evaluacion_error_mensaje
-        || !['aprobada', 'rechazada'].includes(oferta.estado_evaluacion)) return 'desconocida';
+    if (!firmaActual || !oferta.firma_criterios_evaluacion) return 'desconocida';
+    const situacion = obtenerSituacionEvaluacion(oferta);
+    const respuestaCompatible = !oferta.evaluacion_error_mensaje && ['aprobada', 'rechazada'].includes(oferta.estado_evaluacion);
+    if (!respuestaCompatible && ['legado', 'sin_evaluar'].includes(situacion)) return 'desconocida';
     return oferta.firma_criterios_evaluacion === firmaActual ? 'actual' : 'anterior';
 }
 

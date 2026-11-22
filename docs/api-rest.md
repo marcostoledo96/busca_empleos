@@ -429,7 +429,17 @@ agregan en cada oferta:
   las filas históricas permanecen en null (sin backfill).
 - `vigencia_evaluacion: 'actual' | 'anterior' | 'desconocida'`: comparación con
   los criterios actualmente guardados. Una firma diferente es anterior; una
-  firma ausente, estado pendiente o error de evaluación es desconocido, nunca actual.
+  firma ausente o un resultado no verificable es desconocido. Un fallo posterior
+  no invalida por sí solo la firma de un resultado conservado.
+- `situacion_evaluacion`: `aprobada`, `rechazada`, `por_confirmar`, `bajo_umbral`,
+  `sin_evaluar` o `legado`. Se deriva de los campos existentes, no es un estado
+  nuevo de persistencia ni sustituye `estado_evaluacion` en los filtros de la API.
+- `ultimo_intento_evaluacion`: `fallo_tecnico`, `reevaluacion_solicitada` o `null`.
+  Es independiente de la situación laboral: una oferta puede seguir `por_confirmar`
+  y conservar su afinidad y vigencia aunque el siguiente intento falle.
+
+La edición de descripción también devuelve los campos derivados; no se toma el
+marcador `REEVALUACION_SOLICITADA` como fallo ni como resultado vigente.
 
 La vigencia describe **criterios del perfil**, no certifica que el contenido de
 una oferta no haya cambiado desde su evaluación. La identidad de caché sí incluye
@@ -1106,9 +1116,16 @@ No agrego endpoint de ejecución, reintentos, cambios de presupuesto ni recupera
 
 Retorno `{ exito: true, datos }` con los campos habituales y `estado`
 (`inactivo`, `activo`, `completado`, `cancelado` o `error`), `mensaje_error`,
-`procesadas` y `pendientes`. `evaluadas` cuenta resultados válidos persistidos;
-`aprobadas + rechazadas = evaluadas`, `procesadas = evaluadas + errores` y
-`pendientes = total - evaluadas` incluye fallos de proveedor y ofertas no procesadas.
+`procesadas` y `pendientes`. `evaluadas` cuenta resultados válidos persistidos,
+incluso aquellos que todavía no tienen una elegibilidad resuelta. `procesadas`
+incluye los resultados válidos, los errores y las supersedidas por concurrencia.
+`pendientes = total - evaluadas` incluye fallos de proveedor y ofertas sin evaluación válida en ese lote.
+
+Mientras haya un lote en memoria, `datos.por_confirmar` y `datos.bajo_umbral`
+aportan un desglose por oferta. `bajo_umbral` ya está incluido en `rechazadas`
+y no se suma por segunda vez; `por_confirmar` es un resultado válido, no un error.
+Un intento fallido con resultado conservado se cuenta solo en `errores` del lote.
+Al rehidratar un lote sin estos campos, su ausencia significa «sin desglose», no cero.
 El porcentaje describe procesamiento, no garantiza éxito. Un fallo SQL detiene el
 lote sin contar la oferta fallida ni las siguientes; prevalece sobre una cancelación.
 El POST ya aceptado sigue siendo 200: consulto este progreso para conocer el resultado.
