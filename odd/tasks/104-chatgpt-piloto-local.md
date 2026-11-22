@@ -113,6 +113,12 @@ Alcance activo: simulación de Fase A. B, C y publicación tienen puertas indepe
 
 Referencia: [PR-AUDIT-V1](https://github.com/marcostoledo96/busca_empleos/pull/107#issuecomment-7086058301), auditado `d8a5bae1e9422b4c318e8bd06e57fae98034e10f`.
 
+### S11 — Corrección de hallazgos de Codex de la PR #107
+
+> lee comentario de la pr, y arregla todo
+
+Fuentes: [renovación durante fallo de JWKS](https://github.com/marcostoledo96/busca_empleos/pull/107#discussion_r4660164768) y [contexto de suscriptor no validado](https://github.com/marcostoledo96/busca_empleos/pull/107#discussion_r4660164771), HEAD auditado `f3d719760ea689d51c10759cbb6ac13105a25751`.
+
 ## Tasks
 
 - T1 — S3, S4, S7: OAuth, sesión, revocación y almacenamiento simulados; worker; corrección L4, 12/12 focales; `53136ca`.
@@ -120,6 +126,8 @@ Referencia: [PR-AUDIT-V1](https://github.com/marcostoledo96/busca_empleos/pull/1
 - T3 — S1–S9: verificación independiente, evidencia y guía local; parent + verifier; simulación apta para enviar a auditoría, publicación bloqueada por previews; se registra en la entrega documental.
 
 - T4 — S10: corregir los hallazgos de Responses y desconexión, rectificar evidencia y remitir a reauditoría; parent + verifier; verificado; commit de corrección asociado a PR-AUDIT-V1.
+
+- T5 — S11: recuperar en forma segura una renovación pendiente y diagnosticar el rechazo de contexto; worker + verifier; en curso.
 
 ## Log
 
@@ -253,3 +261,13 @@ RED: `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js` bajo `b
 
 
 Revisión independiente final de S10: `gpt-6.2-sol/high`, Node 24.18.0, `bwrap --unshare-net`, 23/23, exit 0. Probes independientes del path SSE concurrente con refresh, errores no terminales y nueva vinculación: base 1/3 (exit 1 esperado), candidato 3/3 (exit 0). Sin bloqueantes en la corrección. La descripción original de #107 quedó rectificada vía REST: preview Vercel separado aprobado para esta PR; no se modificó configuración. CI de #106 y Codex no ejecutados en esta verificación.
+
+### L10 — Hallazgos de Codex y precedencia de la fuente primaria
+
+> lee comentario de la pr, y arregla todo
+
+La reauditoría principal aprobó el candidato anterior; los dos hallazgos P2 de Codex aplican a ese mismo HEAD. La [fuente oficial](https://developers.openai.com/siwc/token-sharing-open-source/errors-and-recovery) revisada dice que `subscription_sharing_invalid_user` no confirma revocación; se preserva request ID y se diagnostica la credencial. Solo la revocación confirmada o un error terminal de refresh exige nuevo consentimiento. No se repite la inferencia rechazada ni se reutiliza el bearer que falló: una operación nueva explícita debe pasar por refresh/validación antes de llamar al proveedor. Si la rotación ya tuvo éxito y JWKS está temporalmente caído, conservar la renovación en el almacén local protegido sin habilitarla y completar la validación sin reutilizar el refresh anterior. La desvinculación debe usar la última credencial renovable. Firma/identidad inválidas nunca habilitan inferencia. No cambiar hosting, rutas, Firebase ni Fases B/C; se mantiene la autorización puntual del preview separado para #107.
+
+### L11 — Pruebas de recuperación
+
+Implementación delegada (`gpt-6.2-sol`, esfuerzo no verificable). `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js` bajo `bwrap --unshare-net`, Node 24.18.0: RED exit 1 (22 PASS y 6 FAIL esperados); RED específico de corte de cuerpo JWKS, exit 1 (29 PASS y 1 FAIL); GREEN exit 0, 30/30. Cobertura: rotación persistida, reapertura ordenada, consulta de JWKS pendiente sin segundo canje, firma/sujeto inválidos, invalid_user diagnosticado, rotación y revocación concurrentes. El candidato se confirma con un commit local antes de la revisión independiente; no es todavía publicación ni permiso de merge.

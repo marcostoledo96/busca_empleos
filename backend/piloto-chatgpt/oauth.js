@@ -18,7 +18,8 @@ const clienteValido = (valor) => texto(valor) && /^oaiapp_[A-Za-z0-9_-]+$/.test(
 const opaco = () => randomBytes(32).toString('base64url');
 const habilitado = (registro) => ALCANCE.split(' ').every((permiso) => registro.scopes?.includes(permiso));
 const datosRegistro = ({ clientId, sujeto }) => ({ clientId, sujeto });
-const publico = (registro) => ({ ...datosRegistro(registro), habilitado: habilitado(registro) });
+const publico = (registro) => ({ ...datosRegistro(registro), habilitado: habilitado(registro) &&
+    !registro.requiereRenovar && registro.idTokenPendiente === undefined });
 const decodificar = (pieza) => JSON.parse(Buffer.from(pieza, 'base64url').toString('utf8'));
 
 function endpoint(valor) {
@@ -80,7 +81,7 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
     let falloAlmacen;
     const operaciones = new Set();
 
-    async function solicitar(url, formulario, sinCuerpo = false) {
+    async function solicitar(url, formulario, { sinCuerpo = false, detectarCorte = false } = {}) {
         const opciones = { redirect: 'error', signal: AbortSignal.timeout(10000) };
         if (formulario) Object.assign(opciones, { method: 'POST', body: new URLSearchParams(formulario) });
         let respuesta;
@@ -88,7 +89,12 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
             throw errorDominio('red-oauth', 'No se pudo contactar al proveedor OAuth.');
         }
         if (respuesta.status === 200 && sinCuerpo) return;
-        const datos = await respuesta.json().catch(() => null);
+        const datos = await respuesta.json().catch((error) => {
+            if (detectarCorte && respuesta.status === 200 && !(error instanceof SyntaxError)) {
+                throw errorDominio('red-oauth', 'No se pudo contactar al proveedor OAuth.');
+            }
+            return null;
+        });
         if (respuesta.status !== 200) {
             const codigo = typeof datos?.error === 'string' && /^[a-z][a-z0-9_]{0,63}$/.test(datos.error) ? datos.error : undefined;
             const id = respuesta.headers.get('x-request-id');
@@ -261,6 +267,31 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
         return { url: url.href, resultado: resultado.promise };
     }
 
+    function descartarRenovacion(registro, refreshToken) {
+        // La desvinculación en cola aún puede revocar la última credencial emitida.
+        if (desconexion?.clientId === registro.clientId && texto(refreshToken)) {
+            desconexion.refreshPendiente = refreshToken;
+        }
+        actualizar(datosRegistro(registro), null);
+    }
+
+    async function verificarRenovacion(registro, jwks) {
+        const { idTokenPendiente, ...verificado } = registro;
+        try {
+            const claves = await solicitar(jwks, undefined, { detectarCorte: true });
+            // El ID token original identifica la concesión y conserva el nonce del vínculo.
+            const nonce = decodificar(registro.idToken.split('.')[1]).nonce;
+            const sujeto = validarIdToken(idTokenPendiente, claves, registro.clientId, nonce, ahora(), true);
+            if (sujeto !== registro.sujeto) throw errorDominio('identidad-distinta', 'La identidad no coincide con la cuenta seleccionada.');
+        } catch (error) {
+            const temporal = error.codigo === 'red-oauth' || error.statusUpstream === 429 || error.statusUpstream >= 500;
+            if (!temporal || desconexion?.clientId === registro.clientId) descartarRenovacion(registro, registro.refreshToken);
+            throw error;
+        }
+        actualizar(verificado);
+        return verificado;
+    }
+
     async function renovar(registro, version) {
         const rutas = await discovery();
         comprobar(version);
@@ -272,27 +303,19 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
             if (REFRESH_INVALIDOS.has(error.codigoUpstream)) actualizar(datosRegistro(registro), null);
             throw error;
         }
-        let nuevo;
+        let cred;
         try {
-            const cred = credenciales(datos, ahora(), registro.scopes);
+            cred = credenciales(datos, ahora(), registro.scopes);
             if (!texto(cred.refreshToken)) throw errorDominio('tokens-invalidos', 'Falta el refresh token rotado.');
-            nuevo = { ...registro, ...cred };
-            if (datos.id_token !== undefined) {
-                const nonce = decodificar(registro.idToken.split('.')[1]).nonce;
-                const sujeto = validarIdToken(datos.id_token, await solicitar(rutas.jwks), registro.clientId, nonce, ahora(), true);
-                if (sujeto !== registro.sujeto) throw errorDominio('identidad-distinta', 'La identidad no coincide con la cuenta seleccionada.');
-            }
         } catch (error) {
-            // El token rotado no es una credencial verificada; conservarlo solo para la revocación en curso.
-            if (desconexion?.clientId === registro.clientId && texto(datos?.refresh_token)) {
-                desconexion.refreshPendiente = datos.refresh_token;
-            }
-            actualizar(datosRegistro(registro), null);
+            descartarRenovacion(registro, datos?.refresh_token);
             throw error;
         }
-        // La desvinculación en cola necesita el último refresh token, aunque ya no admita operaciones.
+        const nuevo = { ...datosRegistro(registro), idToken: registro.idToken, ...cred };
+        if (datos.id_token !== undefined) nuevo.idTokenPendiente = datos.id_token;
+        // Guardar la rotación antes de JWKS evita reutilizar un refresh que ya fue canjeado.
         actualizar(nuevo);
-        return nuevo;
+        return nuevo.idTokenPendiente === undefined ? nuevo : verificarRenovacion(nuevo, rutas.jwks);
     }
 
     async function conToken(operacion) {
@@ -302,8 +325,13 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
             comprobar(version);
             let actual = buscar(estado.activo);
             if (!actual?.accessToken) throw errorDominio('sin-sesion', 'No hay una sesión conectada.');
+            if (actual.idTokenPendiente !== undefined) {
+                const rutas = await discovery();
+                comprobar(version);
+                actual = await verificarRenovacion(actual, rutas.jwks);
+            }
             if (!habilitado(actual)) throw errorDominio('alcance-insuficiente', 'ChatGPT no concedió todos los permisos requeridos.');
-            if (actual.expira - ahora() <= 60000) actual = await renovar(actual, version);
+            if (actual.requiereRenovar || actual.expira - ahora() <= 60000) actual = await renovar(actual, version);
             if (!habilitado(actual)) throw errorDominio('alcance-insuficiente', 'ChatGPT no concedió todos los permisos requeridos.');
             return actual;
         });
@@ -322,7 +350,7 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
                     const actual = buscar(registro.clientId);
                     // La rotación conserva el ID token de la concesión; una autorización nueva no.
                     if (estado.activo !== registro.clientId || actual?.idToken !== registro.idToken) return;
-                    actualizar(datosRegistro(actual), null);
+                    actualizar({ ...actual, requiereRenovar: true });
                     invalidarOperaciones();
                 });
             }
@@ -334,7 +362,7 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
         for (let vuelta = 0; vuelta < 2; vuelta++) {
             try {
                 const rutas = await discovery();
-                await solicitar(rutas.revocar, { token: registro.refreshToken, token_type_hint: 'refresh_token', client_id: registro.clientId }, true);
+                await solicitar(rutas.revocar, { token: registro.refreshToken, token_type_hint: 'refresh_token', client_id: registro.clientId }, { sinCuerpo: true });
                 return true;
             } catch (error) {
                 if (vuelta || (error.codigo !== 'red-oauth' && !(error.statusUpstream >= 500))) break;

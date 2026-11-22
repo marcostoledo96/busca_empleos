@@ -14,6 +14,12 @@ const cliente = 'oaiapp_sintetico';
 const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
 const publicar = (valor) => Response.json(valor);
 const promesaControlada = () => Promise.withResolvers();
+const codificar = (objeto) => Buffer.from(JSON.stringify(objeto)).toString('base64url');
+function firmarIdToken(datos, algoritmo = 'RS256', firmaInvalida = false) {
+    const contenido = `${codificar({ alg: algoritmo, kid: 'fixture' })}.${codificar(datos)}`;
+    const firma = sign('RSA-SHA256', Buffer.from(contenido), privateKey);
+    return `${contenido}.${(firmaInvalida ? Buffer.alloc(firma.length) : firma).toString('base64url')}`;
+}
 
 function preparar(t) {
     // El tmpfs de bwrap oculta el TMPDIR heredado del host.
@@ -59,14 +65,9 @@ function preparar(t) {
             const intento = autorizaciones.at(-1).searchParams;
             assert.equal(params.get('redirect_uri'), intento.get('redirect_uri'));
             assert.equal(createHash('sha256').update(params.get('code_verifier')).digest('base64url'), intento.get('code_challenge'));
-            const codificar = (objeto) => Buffer.from(JSON.stringify(objeto)).toString('base64url');
-            const datos = `${codificar({ alg: fixture.algoritmo, kid: 'fixture' })}.${codificar({
-                iss: emisor, aud: clienteEmitido, sub: 'cuenta-sintetica', exp: tiempo / 1000 + 3600,
-                nonce: intento.get('nonce'), ...fixture.reclamos
-            })}`;
-            let firma = sign('RSA-SHA256', Buffer.from(datos), privateKey);
-            if (fixture.firmaInvalida) firma = Buffer.alloc(firma.length);
-            const emitido = { ...tokens('inicial', fixture.alcance), id_token: `${datos}.${firma.toString('base64url')}` };
+            const idToken = firmarIdToken({ iss: emisor, aud: clienteEmitido, sub: 'cuenta-sintetica', exp: tiempo / 1000 + 3600,
+                nonce: intento.get('nonce'), ...fixture.reclamos }, fixture.algoritmo, fixture.firmaInvalida);
+            const emitido = { ...tokens('inicial', fixture.alcance), id_token: idToken };
             return fixture.canjear ? fixture.canjear(emitido) : publicar(emitido);
         }
     };
@@ -373,23 +374,126 @@ for (const [caso, codigo, confirma] of [
     });
 }
 
-test('solo la desconexión confirmada por Responses borra la concesión y bloquea el siguiente envío', async (t) => {
+for (const [caso, fallo, errorEsperado] of [
+    ['red', () => { throw new Error('CANARIO_RED'); }, { codigo: 'red-oauth' }],
+    ['corte del cuerpo JWKS', () => new Response(new ReadableStream({
+        start: (control) => control.error(new TypeError('CANARIO_RED'))
+    })), { codigo: 'red-oauth' }],
+    ...[429, 503].map((status) => [status, () => new Response(null, { status }), { codigo: 'oauth-proveedor', statusUpstream: status }])
+]) {
+    test(`reanuda JWKS tras ${caso} y reinicio sin repetir refresh ni enviar antes de verificar`, async (t) => {
+        const ctx = preparar(t);
+        await vincular(ctx);
+        ctx.avanzar();
+        const idToken = firmarIdToken({ iss: emisor, aud: cliente, sub: 'cuenta-sintetica', exp: 1800007200 });
+        ctx.fixture.renovar = () => publicar({ ...tokens('pendiente'), id_token: idToken });
+        ctx.fixture.jwks = fallo;
+        await assert.rejects(ctx.sesion.conToken(() => assert.fail()), errorEsperado);
+        assert.equal(ctx.renovaciones(), 1);
+        assert.deepEqual(ctx.sesion.registros(), { activo: cliente, registros: [{ clientId: cliente, sujeto: 'cuenta-sintetica', habilitado: false }] });
+        await ctx.sesion.cerrar();
+        const nueva = abrirSesion(ctx.opciones);
+        try {
+            await assert.rejects(nueva.conToken(() => assert.fail()), errorEsperado);
+            assert.equal(ctx.renovaciones(), 1);
+            assert.equal(nueva.registros().registros[0].habilitado, false);
+            delete ctx.fixture.jwks;
+            assert.equal(await nueva.conToken(({ token }) => token), 'CANARIO_acceso_pendiente');
+            assert.equal(nueva.registros().registros[0].habilitado, true);
+            assert.equal(ctx.renovaciones(), 1);
+        } finally { await nueva.cerrar(); }
+    });
+}
+
+for (const [caso, codigo] of [
+    ['falla cerrada ante firma inválida', 'id-token-invalido'],
+    ['falla cerrada ante otra identidad', 'identidad-distinta'],
+    ['revoca el último refresh', null]
+]) {
+    test(`renovación suspendida tras reinicio: ${caso}`, async (t) => {
+        const ctx = preparar(t);
+        await vincular(ctx);
+        ctx.avanzar();
+        const idToken = firmarIdToken({ iss: emisor, aud: cliente, exp: 1800007200,
+            sub: codigo === 'identidad-distinta' ? 'otra-cuenta' : 'cuenta-sintetica' }, 'RS256', codigo === 'id-token-invalido');
+        ctx.fixture.renovar = () => publicar({ ...tokens('pendiente'), id_token: idToken });
+        ctx.fixture.jwks = () => new Response(null, { status: 503 });
+        await assert.rejects(ctx.sesion.conToken(() => assert.fail()), { codigo: 'oauth-proveedor', statusUpstream: 503 });
+        await ctx.sesion.cerrar();
+        const nueva = abrirSesion(ctx.opciones);
+        try {
+            if (codigo === null) {
+                const revocados = [];
+                ctx.fixture.revocar = (params) => { revocados.push(params.get('token')); return new Response(null); };
+                assert.deepEqual(await nueva.desvincular(), { revocacionRemotaConfirmada: true });
+                assert.deepEqual(revocados, ['CANARIO_refresh_pendiente']);
+            } else {
+                delete ctx.fixture.jwks;
+                await assert.rejects(nueva.conToken(() => assert.fail()), { codigo });
+            }
+            await assert.rejects(nueva.conToken(() => assert.fail()), { codigo: 'sin-sesion' });
+            assert.equal(ctx.renovaciones(), 1);
+        } finally { await nueva.cerrar(); }
+    });
+}
+
+test('invalid_user conserva el diagnóstico y exige renovar la misma concesión tras reiniciar', async (t) => {
     const ctx = preparar(t);
     await vincular(ctx);
-    const respuestas = [{ detail: 'rechazo genérico' }, { error: { code: 'subscription_sharing_invalid_user' } }];
-    let envios = 0;
-    const api = crearClienteResponses({ fetch: async () => Response.json(respuestas[envios++], { status: 401 }) });
+    const respuestas = [{ detail: 'subscription_sharing_invalid_user' }, { error: { code: 'subscription_sharing_invalid_user' } }];
+    const iniciado = promesaControlada();
+    const rechazo = promesaControlada();
+    const envios = [];
+    const api = crearClienteResponses({ fetch: async (_url, init) => {
+        envios.push(new Headers(init.headers).get('authorization'));
+        const respuesta = respuestas.shift();
+        if (respuesta.error) { iniciado.resolve(); await rechazo.promise; }
+        return Response.json(respuesta, { status: 401, headers: { 'x-request-id': 'req_fixture' } });
+    } });
     const consultar = () => ctx.sesion.conToken(api.listarModelos);
     await assert.rejects(consultar(), { codigo: 'acceso_rechazado', status: 502 });
-    assert.equal(ctx.sesion.registros().activo, cliente);
-
-    await assert.rejects(consultar(), {
-        codigo: 'acceso_rechazado', status: 502, upstream: { status: 401, codigo: 'subscription_sharing_invalid_user', forma: 'error' }
+    assert.equal(ctx.sesion.registros().registros[0].habilitado, true);
+    const diagnostico = assert.rejects(consultar(), {
+        codigo: 'acceso_rechazado', status: 502,
+        upstream: { status: 401, codigo: 'subscription_sharing_invalid_user', forma: 'error', requestId: 'req_fixture' }
     });
-    await assert.rejects(consultar(), { codigo: 'sin-sesion' });
-    assert.equal(envios, 2);
-    assert.deepEqual(ctx.sesion.registros(), { activo: null, registros: [{ clientId: cliente, sujeto: 'cuenta-sintetica', habilitado: false }] });
-    assert.doesNotMatch(readFileSync(join(ctx.directorio, 'sesion.json'), 'utf8'), /CANARIO|idToken|refreshToken|accessToken/);
+    await iniciado.promise;
+    ctx.avanzar();
+    const idToken = firmarIdToken({ iss: emisor, aud: cliente, sub: 'cuenta-sintetica', exp: 1800007200 });
+    ctx.fixture.renovar = () => publicar({ ...tokens('rotado-1'), id_token: idToken });
+    const trabajo = promesaControlada();
+    const empezado = promesaControlada();
+    const concurrente = assert.rejects(ctx.sesion.conToken(({ token, signal }) => {
+        empezado.resolve({ token, signal });
+        return trabajo.promise;
+    }), { codigo: 'sesion-interrumpida' });
+    const { token, signal } = await empezado.promise;
+    assert.equal(token, 'CANARIO_acceso_rotado-1');
+    rechazo.resolve();
+    await diagnostico;
+    trabajo.resolve();
+    assert.equal(signal.aborted, true);
+    await concurrente;
+    assert.deepEqual(envios, Array(2).fill('Bearer CANARIO_acceso_inicial'));
+    assert.equal(ctx.renovaciones(), 1);
+    assert.deepEqual(ctx.sesion.registros(), { activo: cliente, registros: [{ clientId: cliente, sujeto: 'cuenta-sintetica', habilitado: false }] });
+    await ctx.sesion.cerrar();
+    const nueva = abrirSesion(ctx.opciones);
+    try {
+        ctx.fixture.renovar = (params) => {
+            assert.equal(params.get('refresh_token'), 'CANARIO_refresh_rotado-1');
+            return publicar(tokens('recuperado'));
+        };
+        assert.equal(await nueva.conToken(({ token }) => token), 'CANARIO_acceso_recuperado');
+        assert.equal(ctx.renovaciones(), 2);
+        await assert.rejects(nueva.conToken(crearClienteResponses({ fetch: async () => Response.json({
+            error: { code: 'subscription_sharing_invalid_user' }
+        }, { status: 401 }) }).listarModelos), { codigo: 'acceso_rechazado' });
+        ctx.fixture.renovar = () => Response.json({ error: 'invalid_grant' }, { status: 400 });
+        await assert.rejects(nueva.conToken(() => assert.fail()), { codigo: 'oauth-proveedor', codigoUpstream: 'invalid_grant' });
+        await assert.rejects(nueva.conToken(() => assert.fail()), { codigo: 'sin-sesion' });
+        assert.equal(ctx.renovaciones(), 3);
+    } finally { await nueva.cerrar(); }
 });
 
 test('una desconexión tardía no borra la concesión nueva del mismo cliente', async (t) => {
