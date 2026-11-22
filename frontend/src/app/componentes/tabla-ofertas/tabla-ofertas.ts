@@ -43,6 +43,11 @@ export class TablaOfertas {
     readonly cargando = input(false);
     readonly sortField = input('porcentaje_match');
     readonly sortOrder = input(-1);
+    readonly idSufijo = input('');
+    readonly idTablaLabel = computed(() => this.idSufijo() ? `tabla-busqueda-label-${this.idSufijo()}` : 'tabla-busqueda-label');
+    readonly idTablaInput = computed(() => this.idSufijo() ? `filtro-busqueda-input-${this.idSufijo()}` : 'filtro-busqueda-input');
+    readonly idCardsLabel = computed(() => this.idSufijo() ? `cards-busqueda-label-${this.idSufijo()}` : 'cards-busqueda-label');
+    readonly idCardsInput = computed(() => this.idSufijo() ? `filtro-busqueda-cards-${this.idSufijo()}` : 'filtro-busqueda-cards');
 
     // Cuando es true, bloquea checkboxes, dropdowns de postulación y acciones masivas.
     readonly modoDemo = input(false);

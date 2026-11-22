@@ -78,10 +78,10 @@
 <!-- Tabla de ofertas con filtros, paginación y ordenamiento -->
 <div class="tabla-contenedor vista-desktop" role="region" aria-label="Tabla de ofertas de empleo">
     <div class="tabla-encabezado">
-        <span class="tabla-label" id="tabla-busqueda-label">OFERTAS_EMPLEO</span>
+        <span class="tabla-label" [attr.id]="idTablaLabel()">OFERTAS_EMPLEO</span>
         <div class="tabla-filtros">
-            <label for="filtro-busqueda-input" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
-            <input id="filtro-busqueda-input" type="text" class="filtro-busqueda"
+            <label [attr.for]="idTablaInput()" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
+            <input [attr.id]="idTablaInput()" type="text" class="filtro-busqueda"
                 placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"
                 [value]="filtroTextoCards()" (input)="filtrarCards($event)" />
         </div>
@@ -96,7 +96,7 @@
         [sortField]="sortField()"
         [sortOrder]="sortOrder()"
         styleClass="p-datatable-sm"
-        [tableStyle]="{ 'table-layout': 'fixed', 'min-width': '1180px', width: '100%' }"
+        [tableStyle]="{ 'table-layout': 'fixed', 'min-width': '960px', width: '100%' }"
         (onPage)="limpiarSeleccion()"
         (onFilter)="onFiltrado($event)"
         (onSort)="onOrdenamiento($event)"
@@ -122,24 +122,24 @@
                         </label>
                     }
                 </th>
-                <th class="columna-titulo" pSortableColumn="titulo" style="min-width: 250px">
+                <th class="columna-titulo" pSortableColumn="titulo" style="width: 21%">
                     TÍTULO <p-sortIcon field="titulo" />
                 </th>
-                <th class="columna-empresa" pSortableColumn="empresa" style="min-width: 150px">
+                <th class="columna-empresa" pSortableColumn="empresa" style="width: 12%">
                     EMPRESA <p-sortIcon field="empresa" />
                 </th>
-                <th class="columna-plataforma" style="min-width: 110px">PLATAFORMA</th>
-                <th class="columna-estado" pSortableColumn="estado_evaluacion" style="min-width: 110px">
+                <th class="columna-plataforma" style="width: 10%">PLATAFORMA</th>
+                <th class="columna-estado" pSortableColumn="estado_evaluacion" style="width: 13%">
                     ESTADO <p-sortIcon field="estado_evaluacion" />
                 </th>
-                <th class="columna-match" pSortableColumn="porcentaje_match" style="min-width: 90px">
+                <th class="columna-match" pSortableColumn="porcentaje_match" style="width: 7%">
                     MATCH % <p-sortIcon field="porcentaje_match" />
                 </th>
-                <th class="columna-postulacion" style="min-width: 150px">POSTULACIÓN</th>
-                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="min-width: 120px">
+                <th class="columna-postulacion" style="width: 16%">POSTULACIÓN</th>
+                <th class="columna-extraida" pSortableColumn="fecha_extraccion" style="width: 12%">
                     DETECTADA <p-sortIcon field="fecha_extraccion" />
                 </th>
-                <th class="columna-accion" style="width: 44px"></th>
+                <th class="columna-accion" style="width: 52px"></th>
             </tr>
         </ng-template>
 
@@ -209,7 +209,7 @@
                         optionValue="value"
                         [disabled]="postulacionBloqueada(oferta.id)"
                         styleClass="select-postulacion"
-                        [style]="{ width: '100%', minWidth: '130px' }"
+                        [style]="{ width: '100%', minWidth: '115px' }"
                         size="small"
                         appendTo="body"
                         [attr.aria-label]="'Estado de postulación para ' + oferta.titulo" />
@@ -264,10 +264,10 @@
 <div class="cards-contenedor vista-mobile" role="region" aria-label="Lista de ofertas de empleo">
     <!-- Encabezado -->
     <div class="cards-encabezado">
-        <span class="tabla-label" id="cards-busqueda-label">OFERTAS_EMPLEO</span>
-        <label for="filtro-busqueda-cards" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
+        <span class="tabla-label" [attr.id]="idCardsLabel()">OFERTAS_EMPLEO</span>
+        <label [attr.for]="idCardsInput()" class="sr-only">Buscar ofertas por título, empresa o ubicación</label>
         <input
-            id="filtro-busqueda-cards"
+            [attr.id]="idCardsInput()"
             type="text"
             class="filtro-busqueda"
             placeholder="BUSCAR TÍTULO / EMPRESA / UBICACIÓN"

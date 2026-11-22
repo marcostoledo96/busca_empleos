@@ -451,11 +451,12 @@
     border: 1px solid var(--outline);
     border-radius: var(--radius-sm);
     color: var(--on-surface);
-    outline: none;
     transition: border-color 0.15s;
 }
 
-.input-dias-reset:focus {
+.input-dias-reset:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
     border-color: var(--primary);
 }
 
@@ -560,8 +561,9 @@
     color: var(--on-surface);
 }
 
-.tabla-tech__col input:focus {
-    outline: none;
+.tabla-tech__col input:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
     border-bottom: 1px solid var(--primary);
 }
 

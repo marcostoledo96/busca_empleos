@@ -46,7 +46,7 @@ describe('Issue 21 — integración dashboard, tabla y detalle', () => {
         .find(elemento => !elemento.nativeElement.closest('p-tabpanel')?.hidden)!.componentInstance;
     const detalle = (): DetalleOferta => fixture.debugElement.query(By.directive(DetalleOferta)).componentInstance;
     const filtrar = (texto: string) => {
-        const campo = buscar('#filtro-busqueda-input');
+        const campo = buscar('input[id^="filtro-busqueda-input"]');
         campo.value = texto;
         campo.dispatchEvent(new Event('input', { bubbles: true }));
         renderizar();

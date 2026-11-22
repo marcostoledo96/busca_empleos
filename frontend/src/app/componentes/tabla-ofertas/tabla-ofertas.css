@@ -144,7 +144,7 @@
 
 .filtro-busqueda {
     padding: 0.5rem 0.75rem;
-    border: 1px solid var(--outline-variant);
+    border: 1px solid var(--outline);
     border-radius: var(--radius-sm);
     font-family: var(--font-mono);
     font-size: 10px;
@@ -157,6 +157,26 @@
     transition: border-color 150ms;
     /* Touch target mínimo */
     min-height: 44px;
+}
+
+/* Compacto el relleno horizontal para que las 9 columnas entren sin scroll en 1440px. */
+:host ::ng-deep .tabla-contenedor .p-datatable-thead > tr > th {
+    padding: 0.75rem 0.625rem !important;
+}
+
+:host ::ng-deep .tabla-contenedor .p-datatable-tbody > tr > td {
+    padding: 0.65rem 0.625rem !important;
+}
+
+:host ::ng-deep .tabla-contenedor .p-datatable-thead > tr > th.columna-accion,
+:host ::ng-deep .tabla-contenedor .p-datatable-tbody > tr > td.columna-accion {
+    padding: 0.5rem 0.25rem !important;
+    text-align: center;
+}
+
+:host ::ng-deep .select-postulacion .p-select-label {
+    padding-inline: 0.5rem !important;
+    font-size: 0.8125rem !important;
 }
 
 .filtro-busqueda::placeholder {
@@ -325,10 +345,12 @@
 }
 
 .tabla-vacia .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
     font-size: 2.5rem;
+    line-height: 1;
     margin-bottom: 0.75rem;
     display: block;
-    opacity: 0.4;
+    opacity: 0.55;
 }
 
 .tabla-vacia p {
@@ -339,10 +361,10 @@
     margin-bottom: 0.25rem;
 }
 
-.tabla-vacia span {
+.tabla-vacia span:not(.material-symbols-outlined) {
     font-family: var(--font-mono);
     font-size: 0.7rem;
-    opacity: 0.6;
+    opacity: 0.75;
 }
 
 /* ── Checkbox de selección — touch target ≥44×44px ── */
@@ -693,10 +715,12 @@ tr.fila-seleccionada td {
 }
 
 .cards-vacio .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
     font-size: 2.5rem;
+    line-height: 1;
     margin-bottom: 0.75rem;
     display: block;
-    opacity: 0.4;
+    opacity: 0.55;
 }
 
 .cards-vacio p {
@@ -707,10 +731,10 @@ tr.fila-seleccionada td {
     margin-bottom: 0.25rem;
 }
 
-.cards-vacio span {
+.cards-vacio span:not(.material-symbols-outlined) {
     font-family: var(--font-mono);
     font-size: 0.7rem;
-    opacity: 0.6;
+    opacity: 0.75;
 }
 
 /* --- Paginador de cards --- */

@@ -74,9 +74,9 @@
 
 .login-header-version {
     font-family: var(--font-mono);
-    font-size: 0.625rem;
-    letter-spacing: 0.25em;
-    color: var(--outline);
+    font-size: 0.6875rem;
+    letter-spacing: 0.2em;
+    color: var(--on-surface-variant);
     text-transform: uppercase;
 }
 
@@ -111,9 +111,9 @@
 
 .login-label {
     font-family: var(--font-mono);
-    font-size: 0.625rem;
-    letter-spacing: 0.3em;
-    color: var(--outline);
+    font-size: 0.6875rem;
+    letter-spacing: 0.25em;
+    color: var(--on-surface-variant);
     text-transform: uppercase;
 }
 
@@ -251,9 +251,9 @@
 
 .login-separador-texto {
     font-family: var(--font-mono);
-    font-size: 0.5625rem;
+    font-size: 0.6875rem;
     letter-spacing: 0.2em;
-    color: var(--outline);
+    color: var(--on-surface-variant);
     text-transform: uppercase;
 }
 
@@ -316,9 +316,9 @@
 /* Nota de privacidad bajo el botón invitado */
 .login-nota-demo {
     font-family: var(--font-mono);
-    font-size: 0.5rem;
-    letter-spacing: 0.1em;
-    color: var(--outline);
+    font-size: 0.6875rem;
+    letter-spacing: 0.04em;
+    color: var(--on-surface-variant);
     text-align: center;
     line-height: 1.6;
 }
@@ -333,16 +333,16 @@
 .login-metadata-sep {
     height: 1px;
     background-color: var(--outline-variant);
-    opacity: 0.15;
+    opacity: 0.4;
 }
 
 .login-metadata-coords {
     display: flex;
     justify-content: space-between;
     font-family: var(--font-mono);
-    font-size: 0.5625rem;
-    letter-spacing: 0.15em;
-    color: var(--outline);
+    font-size: 0.6875rem;
+    letter-spacing: 0.12em;
+    color: var(--on-surface-variant);
     text-transform: uppercase;
 }
 
@@ -361,7 +361,6 @@
     padding: 1rem 3rem;
     background-color: var(--surface);
     border-top: 1px solid var(--outline-variant);
-    opacity: 0.6;
 }
 
 .login-footer-copy {

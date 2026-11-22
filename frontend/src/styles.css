@@ -22,7 +22,7 @@
     --on-surface-variant: #64748b;
 
     /* Bordes */
-    --outline: #cbd5e1;
+    --outline: #7c8b9e;
     --outline-variant: #e2e8f0;
 
     /* Primarios */
@@ -38,11 +38,11 @@
     --error: #b91c1c;
     --error-container: #fecaca;
 
-    /* Funcionales */
-    --color-exito: #16a34a;
+    /* Funcionales — contraste WCAG AA (>= 4.5:1 sobre superficies claras) */
+    --color-exito: #15803d;
     --color-peligro: #dc2626;
     --color-error: #dc2626;
-    --color-advertencia: #d97706;
+    --color-advertencia: #b45309;
     --color-info: #2563eb;
 
     /* Tipografía */
@@ -101,15 +101,21 @@ html.dark *:focus-visible {
 .p-inputtext:enabled:focus-visible,
 .p-textarea:focus-visible,
 .p-select:focus-visible,
+.p-select:has(:focus-visible),
+.p-select.p-focus,
 .p-multiselect:focus-visible,
+.p-multiselect:has(:focus-visible),
+.p-multiselect.p-focus,
 .p-button:focus-visible,
 .p-toggleswitch:focus-visible .p-toggleswitch-slider,
+.p-toggleswitch:has(.p-toggleswitch-input:focus-visible) .p-toggleswitch-slider,
+.p-toggleswitch.p-focus .p-toggleswitch-slider,
 .p-autocomplete:focus-visible,
 .p-tab:focus-visible,
 a:focus-visible,
 button:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
+    outline: 2px solid var(--primary) !important;
+    outline-offset: 2px !important;
 }
 
 /* === Reduced motion — accesibilidad para usuarios sensible al movimiento === */
@@ -301,7 +307,7 @@ body {
 .p-inputtext,
 .p-textarea {
     border-radius: var(--radius-sm) !important;
-    border-color: var(--outline-variant) !important;
+    border-color: var(--outline) !important;
     font-family: var(--font-body) !important;
     font-size: 0.875rem !important;
     transition: border-color 150ms ease !important;
@@ -319,7 +325,23 @@ body {
 .p-select,
 .p-multiselect {
     border-radius: var(--radius-sm) !important;
-    border-color: var(--outline-variant) !important;
+    border-color: var(--outline) !important;
+}
+
+.p-select.p-focus,
+.p-multiselect.p-focus {
+    border-color: var(--primary) !important;
+    box-shadow: none !important;
+}
+
+/* --- Tabs (alineo modo claro y evito color esmeralda de Aura con bajo contraste) --- */
+.p-tab.p-tab-active {
+    color: var(--primary) !important;
+    border-bottom-color: var(--primary) !important;
+}
+
+.p-tablist-active-bar {
+    background: var(--primary) !important;
 }
 
 .p-select-panel,
@@ -359,6 +381,7 @@ body {
 /* --- Toast --- */
 .p-toast {
     max-width: calc(100vw - 40px);
+    top: calc(var(--topbar-alto) + 0.75rem) !important;
 }
 
 .p-toast .p-toast-message {
@@ -551,6 +574,12 @@ html.dark .p-tab.p-tab-active {
     color: var(--primary) !important;
     border-bottom-color: var(--primary) !important;
     background: transparent !important;
+}
+
+html.dark .p-paginator .p-paginator-page.p-paginator-page-selected {
+    background: var(--primary) !important;
+    color: var(--on-primary) !important;
+    border-color: var(--primary) !important;
 }
 
 html.dark .p-tabpanels {
