@@ -22,12 +22,53 @@ import { DemoService } from '../servicios/demo.service';
 // Evito disparar múltiples redirecciones simultáneas ante ráfagas de 401 por cada Router activo.
 const redireccionEnCursoPorRouter = new WeakMap<Router, boolean>();
 
+const CODIGOS_SESION_EXPIRADA_FIREBASE = new Set([
+    'auth/user-token-expired',
+    'auth/id-token-expired',
+    'auth/id-token-revoked',
+    'auth/invalid-user-token',
+    'auth/user-disabled',
+    'auth/user-not-found',
+    'auth/requires-recent-login',
+]);
+
+function redirigirALoginSiCorresponde(router: Router, demoService: DemoService): void {
+    if (
+        demoService.esModoDemo() ||
+        router.url.startsWith('/login') ||
+        redireccionEnCursoPorRouter.get(router)
+    ) {
+        return;
+    }
+
+    redireccionEnCursoPorRouter.set(router, true);
+    void Promise.resolve(
+        router.navigate(['/login'], {
+            queryParams: { motivo: 'sesion-expirada' },
+            replaceUrl: true,
+        })
+    )
+        .catch(() => undefined)
+        .finally(() => {
+            redireccionEnCursoPorRouter.set(router, false);
+        });
+}
+
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
     const authService = inject(AuthService);
     const demoService = inject(DemoService);
     const router = inject(Router);
 
     return from(authService.obtenerToken()).pipe(
+        catchError((error: unknown) => {
+            const codigo = typeof error === 'object' && error !== null && 'code' in error
+                ? String((error as { code?: unknown }).code)
+                : '';
+            if (CODIGOS_SESION_EXPIRADA_FIREBASE.has(codigo)) {
+                redirigirALoginSiCorresponde(router, demoService);
+            }
+            return throwError(() => error);
+        }),
         switchMap(token => {
             // Si hay token, clonamos el request y le agregamos el header.
             // Clonamos porque los requests de Angular son inmutables.
@@ -37,22 +78,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
             return next(solicitud).pipe(
                 catchError((error: unknown) => {
-                    if (
-                        error instanceof HttpErrorResponse &&
-                        error.status === 401 &&
-                        !demoService.esModoDemo() &&
-                        !router.url.startsWith('/login') &&
-                        !redireccionEnCursoPorRouter.get(router)
-                    ) {
-                        redireccionEnCursoPorRouter.set(router, true);
-                        void Promise.resolve(
-                            router.navigate(['/login'], {
-                                queryParams: { motivo: 'sesion-expirada' },
-                                replaceUrl: true,
-                            })
-                        ).finally(() => {
-                            redireccionEnCursoPorRouter.set(router, false);
-                        });
+                    if (error instanceof HttpErrorResponse && error.status === 401) {
+                        redirigirALoginSiCorresponde(router, demoService);
                     }
                     return throwError(() => error);
                 })

@@ -159,24 +159,14 @@
     min-height: 44px;
 }
 
-/* Compacto el relleno horizontal para que las 9 columnas entren sin scroll en 1440px. */
-:host ::ng-deep .tabla-contenedor .p-datatable-thead > tr > th {
-    padding: 0.75rem 0.625rem !important;
-}
-
-:host ::ng-deep .tabla-contenedor .p-datatable-tbody > tr > td {
-    padding: 0.65rem 0.625rem !important;
-}
-
-:host ::ng-deep .tabla-contenedor .p-datatable-thead > tr > th.columna-accion,
-:host ::ng-deep .tabla-contenedor .p-datatable-tbody > tr > td.columna-accion {
-    padding: 0.5rem 0.25rem !important;
-    text-align: center;
-}
-
+/* Ajusto padding y tipografía de select de postulación para evitar truncamientos en 1024px y 1440px. */
 :host ::ng-deep .select-postulacion .p-select-label {
-    padding-inline: 0.5rem !important;
+    padding-inline: 0.5rem 0.25rem !important;
     font-size: 0.8125rem !important;
+}
+
+:host ::ng-deep .select-postulacion .p-select-dropdown {
+    width: 1.75rem !important;
 }
 
 .filtro-busqueda::placeholder {
@@ -333,8 +323,9 @@
     outline-offset: 2px;
 }
 
-.btn-ver .material-symbols-outlined {
-    font-size: 14px;
+.btn-ver .pi {
+    font-size: 0.85rem;
+    pointer-events: none;
 }
 
 /* === Estado vacío === */
@@ -344,9 +335,8 @@
     color: var(--on-surface-variant);
 }
 
-.tabla-vacia .material-symbols-outlined {
-    font-family: 'Material Symbols Outlined';
-    font-size: 2.5rem;
+.tabla-vacia__icono {
+    font-size: 2.25rem;
     line-height: 1;
     margin-bottom: 0.75rem;
     display: block;
@@ -361,7 +351,7 @@
     margin-bottom: 0.25rem;
 }
 
-.tabla-vacia span:not(.material-symbols-outlined) {
+.tabla-vacia span {
     font-family: var(--font-mono);
     font-size: 0.7rem;
     opacity: 0.75;
@@ -455,8 +445,8 @@ tr.fila-seleccionada td {
     color: var(--primary);
 }
 
-.barra-bulk__conteo .material-symbols-outlined {
-    font-size: 1rem;
+.barra-bulk__conteo .pi {
+    font-size: 0.9rem;
 }
 
 .barra-bulk__acciones {
@@ -520,8 +510,8 @@ tr.fila-seleccionada td {
     outline-offset: 2px;
 }
 
-.btn-bulk-cancelar .material-symbols-outlined {
-    font-size: 1rem;
+.btn-bulk-cancelar .pi {
+    font-size: 0.9rem;
 }
 
 /* ============================================
@@ -674,8 +664,8 @@ tr.fila-seleccionada td {
     overflow-wrap: anywhere;
 }
 
-.card-oferta__ubicacion .material-symbols-outlined {
-    font-size: 12px;
+.card-oferta__ubicacion .pi {
+    font-size: 0.75rem;
 }
 
 .card-oferta__fecha {
@@ -714,9 +704,8 @@ tr.fila-seleccionada td {
     background: var(--surface);
 }
 
-.cards-vacio .material-symbols-outlined {
-    font-family: 'Material Symbols Outlined';
-    font-size: 2.5rem;
+.cards-vacio__icono {
+    font-size: 2.25rem;
     line-height: 1;
     margin-bottom: 0.75rem;
     display: block;
@@ -731,7 +720,7 @@ tr.fila-seleccionada td {
     margin-bottom: 0.25rem;
 }
 
-.cards-vacio span:not(.material-symbols-outlined) {
+.cards-vacio span {
     font-family: var(--font-mono);
     font-size: 0.7rem;
     opacity: 0.75;
@@ -781,10 +770,8 @@ tr.fila-seleccionada td {
     outline-offset: 2px;
 }
 
-.cards-paginador__btn .material-symbols-outlined {
-    font-size: 16px;
-    width: 1em;
-    overflow: hidden;
+.cards-paginador__btn .pi {
+    font-size: 0.85rem;
     pointer-events: none;
 }
 
@@ -834,18 +821,17 @@ tr.fila-seleccionada td {
     padding: 0.65rem 0.5rem !important;
 }
 
+/* Mantengo 44px libres dentro de las columnas de 52px para checkbox y botón Ver detalle. */
+.tabla-contenedor tr > th.columna-checkbox,
+.tabla-contenedor tr > td.columna-checkbox,
+.tabla-contenedor tr > th.columna-accion,
+.tabla-contenedor tr > td.columna-accion {
+    padding: 0.5rem 0.25rem !important;
+    text-align: center;
+}
+
 .tabla-contenedor td.celda-mono { font-size: 0.75rem !important; }
 .tabla-contenedor td.celda-fecha { font-size: 0.7rem !important; line-height: 1.55; }
-
-.columna-checkbox,
-.columna-accion { width: 60px !important; }
-.columna-titulo { width: 240px; }
-.columna-empresa { width: 130px; }
-.columna-plataforma { width: 100px; }
-.columna-estado { width: 160px; }
-.columna-match { width: 80px; }
-.columna-postulacion { width: 180px; }
-.columna-extraida { width: 190px; }
 
 .seleccion-tabla {
     display: inline-flex;
@@ -854,11 +840,6 @@ tr.fila-seleccionada td {
     width: 44px;
     min-height: 44px;
     cursor: pointer;
-}
-
-.btn-ver .material-symbols-outlined {
-    width: 1em;
-    overflow: hidden;
 }
 
 .card-oferta__footer .evaluacion-resumen {

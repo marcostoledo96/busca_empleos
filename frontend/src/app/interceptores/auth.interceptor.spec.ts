@@ -117,6 +117,139 @@ describe('authInterceptor — manejo de token y respuestas HTTP 401', () => {
         tick();
         expect(routerSpy.navigate).not.toHaveBeenCalled();
     }));
+
+    it('no redirige a /login ante HTTP 403 y propaga el error', fakeAsync(() => {
+        configurar('/');
+        let statusRecibido = 0;
+
+        http.get('/api/ofertas').subscribe({
+            error: (err) => { statusRecibido = err.status; },
+        });
+        tick();
+
+        httpMock.expectOne('/api/ofertas').flush(
+            { exito: false, error: 'Acceso denegado' },
+            { status: 403, statusText: 'Forbidden' }
+        );
+        tick();
+
+        expect(statusRecibido).toBe(403);
+        expect(routerSpy.navigate).not.toHaveBeenCalled();
+    }));
+
+    it('permite redirigir nuevamente si ocurre otro 401 después de completar una redirección y reautenticar', fakeAsync(() => {
+        configurar('/');
+        http.get('/api/ofertas').subscribe({ error: () => {} });
+        tick();
+        httpMock.expectOne('/api/ofertas').flush(
+            { exito: false, error: 'Token vencido' },
+            { status: 401, statusText: 'Unauthorized' }
+        );
+        tick();
+        expect(routerSpy.navigate).toHaveBeenCalledTimes(1);
+
+        // Usuario reautenticó y volvió al dashboard; más tarde vence la sesión de nuevo.
+        http.get('/api/ofertas').subscribe({ error: () => {} });
+        tick();
+        httpMock.expectOne('/api/ofertas').flush(
+            { exito: false, error: 'Token vencido otra vez' },
+            { status: 401, statusText: 'Unauthorized' }
+        );
+        tick();
+        expect(routerSpy.navigate).toHaveBeenCalledTimes(2);
+    }));
+
+    it('redirige una vez a /login cuando obtenerToken() rechaza por token expirado de Firebase sin disparar request HTTP', fakeAsync(() => {
+        modoDemo = signal(false);
+        routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate'], { url: '/' });
+        routerSpy.navigate.and.resolveTo(true);
+
+        TestBed.configureTestingModule({
+            providers: [
+                provideHttpClient(withInterceptors([authInterceptor])),
+                provideHttpClientTesting(),
+                {
+                    provide: AuthService,
+                    useValue: {
+                        obtenerToken: () => Promise.reject({ code: 'auth/user-token-expired', message: 'Token expirado' }),
+                    },
+                },
+                { provide: DemoService, useValue: { esModoDemo: modoDemo } },
+                { provide: Router, useValue: routerSpy },
+            ],
+        });
+
+        http = TestBed.inject(HttpClient);
+        httpMock = TestBed.inject(HttpTestingController);
+
+        let errorCapturado: any = null;
+        http.get('/api/ofertas').subscribe({ error: (err) => { errorCapturado = err; } });
+        tick();
+
+        httpMock.expectNone('/api/ofertas');
+        expect(errorCapturado?.code).toBe('auth/user-token-expired');
+        expect(routerSpy.navigate).toHaveBeenCalledTimes(1);
+        expect(routerSpy.navigate).toHaveBeenCalledWith(['/login'], {
+            queryParams: { motivo: 'sesion-expirada' },
+            replaceUrl: true,
+        });
+    }));
+
+    it('no redirige a /login cuando obtenerToken() falla por red de Firebase y propaga el error', fakeAsync(() => {
+        modoDemo = signal(false);
+        routerSpy = jasmine.createSpyObj<Router>('Router', ['navigate'], { url: '/' });
+        routerSpy.navigate.and.resolveTo(true);
+
+        TestBed.configureTestingModule({
+            providers: [
+                provideHttpClient(withInterceptors([authInterceptor])),
+                provideHttpClientTesting(),
+                {
+                    provide: AuthService,
+                    useValue: {
+                        obtenerToken: () => Promise.reject({ code: 'auth/network-request-failed', message: 'Sin conexión' }),
+                    },
+                },
+                { provide: DemoService, useValue: { esModoDemo: modoDemo } },
+                { provide: Router, useValue: routerSpy },
+            ],
+        });
+
+        http = TestBed.inject(HttpClient);
+        httpMock = TestBed.inject(HttpTestingController);
+
+        let errorCapturado: any = null;
+        http.get('/api/ofertas').subscribe({ error: (err) => { errorCapturado = err; } });
+        tick();
+
+        httpMock.expectNone('/api/ofertas');
+        expect(errorCapturado?.code).toBe('auth/network-request-failed');
+        expect(routerSpy.navigate).not.toHaveBeenCalled();
+    }));
+
+    it('libera la guarda de redirección sin rechazo no manejado si router.navigate rechaza', fakeAsync(() => {
+        configurar('/');
+        routerSpy.navigate.and.rejectWith(new Error('Navegación cancelada'));
+
+        http.get('/api/ofertas').subscribe({ error: () => {} });
+        tick();
+        httpMock.expectOne('/api/ofertas').flush(
+            { exito: false, error: 'Sin token' },
+            { status: 401, statusText: 'Unauthorized' }
+        );
+        tick();
+
+        routerSpy.navigate.and.resolveTo(true);
+        http.get('/api/ofertas').subscribe({ error: () => {} });
+        tick();
+        httpMock.expectOne('/api/ofertas').flush(
+            { exito: false, error: 'Sin token' },
+            { status: 401, statusText: 'Unauthorized' }
+        );
+        tick();
+
+        expect(routerSpy.navigate).toHaveBeenCalledTimes(2);
+    }));
 });
 
 describe('Login — aviso de sesión expirada', () => {

@@ -379,15 +379,30 @@ body {
 }
 
 /* --- Toast --- */
+/* Ubico el toast en la esquina inferior derecha sobre la statusbar para no cubrir topbar ni botones de acción. */
 .p-toast {
-    max-width: calc(100vw - 40px);
-    top: calc(var(--topbar-alto) + 0.75rem) !important;
+    max-width: calc(100vw - 24px);
+    top: auto !important;
+    bottom: 2.75rem !important;
+    right: 1.25rem !important;
+    pointer-events: none;
 }
 
 .p-toast .p-toast-message {
+    pointer-events: auto;
     border-radius: var(--radius-md) !important;
     border: 1px solid var(--outline-variant) !important;
-    box-shadow: 0 0 40px rgba(0, 0, 0, 0.04) !important;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08) !important;
+}
+
+@media (max-width: 768px) {
+    .p-toast {
+        left: 0.75rem !important;
+        right: 0.75rem !important;
+        bottom: 2.5rem !important;
+        width: auto !important;
+        max-width: calc(100vw - 1.5rem) !important;
+    }
 }
 
 /* --- Sort Icon --- */
