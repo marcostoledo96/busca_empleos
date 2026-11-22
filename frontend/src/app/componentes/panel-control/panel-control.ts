@@ -681,7 +681,9 @@ export class PanelControl implements OnInit, OnDestroy {
             severity = 'info';
         } else {
             summary = 'Evaluación completada';
-            detalle = `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas de ${p.total}`;
+            const desglose = p.bajo_umbral == null ? '' : ` (${p.bajo_umbral} bajo el umbral)`;
+            const porConfirmar = p.por_confirmar == null ? '' : `, ${p.por_confirmar} por confirmar`;
+            detalle = `${p.aprobadas} aprobadas, ${p.rechazadas} rechazadas${desglose}${porConfirmar} de ${p.total}`;
             severity = 'success';
         }
 

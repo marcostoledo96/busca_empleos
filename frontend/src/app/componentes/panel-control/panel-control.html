@@ -10,6 +10,14 @@
     <p class="panel-aviso-eval" role="status">Evaluación cancelada: {{ progresoEvaluacion()?.evaluadas }} resultado(s) actualizado(s), {{ progresoEvaluacion()?.pendientes ?? 0 }} pendiente(s).</p>
 }
 
+@if (progresoEvaluacion(); as progreso) {
+    @if (progreso.por_confirmar != null || progreso.bajo_umbral != null) {
+        <p class="panel-aviso-eval" role="status" aria-label="Resultados laborales del lote">
+            {{ progreso.por_confirmar != null ? progreso.por_confirmar + ' por confirmar' : '' }}{{ progreso.por_confirmar != null && progreso.bajo_umbral != null ? ' · ' : '' }}{{ progreso.bajo_umbral != null ? progreso.bajo_umbral + ' bajo el umbral (incluidas en rechazadas)' : '' }}
+        </p>
+    }
+}
+
 <!-- Overlay: scraping individual (spinner simple, sin % real) -->
 @if (mostrarOverlayIndividual()) {
     <div class="overlay-carga" role="dialog" aria-modal="true" aria-label="Carga en progreso">

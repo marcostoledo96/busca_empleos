@@ -1152,6 +1152,25 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         expect(component.evaluando()).toBeTrue();
     });
 
+    it('S7: muestra resultados nuevos sólo cuando el lote los informa y separa el diagnóstico', async () => {
+        const progreso = { ...progresoActivoMock, activo: false, estado: 'error', errores: 1,
+            mensaje_error: 'Timeout sintético', por_confirmar: 0, bajo_umbral: 2 } as const;
+        evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: progreso }));
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        const raiz: HTMLElement = fixture.nativeElement;
+        expect(raiz.querySelector('[role="status"][aria-label="Resultados laborales del lote"]')?.textContent)
+            .toContain('0 por confirmar · 2 bajo el umbral');
+        expect(raiz.querySelector('.panel-alerta-eval')?.textContent).toContain('Timeout sintético');
+        expect(raiz.querySelector('.panel-alerta-eval')?.textContent).not.toContain('bajo el umbral');
+        const { por_confirmar, ...sinConteo } = progreso;
+        component.progresoEvaluacion.set(sinConteo);
+        fixture.detectChanges();
+        expect(raiz.querySelector('[aria-label="Resultados laborales del lote"]')?.textContent).not.toContain('por confirmar');
+    });
+
     it('al remontarse con evaluación activa, evaluando() queda en true', fakeAsync(() => {
         // El backend reporta evaluación en curso.
         evalSpy.obtenerProgreso.and.returnValue(

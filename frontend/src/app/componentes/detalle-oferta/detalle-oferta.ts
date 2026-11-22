@@ -7,6 +7,7 @@ import { Oferta } from '../../modelos/oferta.model';
 import { OfertasService } from '../../servicios/ofertas.service';
 import { EvaluacionService } from '../../servicios/evaluacion.service';
 import { MessageService } from 'primeng/api';
+import { compatibilidadVisible, estadoEtiqueta, etiquetaEvaluacion, situacionEvaluacion, tieneResultadoLaboral, ultimoIntento } from '../../utils/presentacion-evaluacion';
 
 @Component({
     selector: 'app-detalle-oferta',
@@ -299,26 +300,24 @@ export class DetalleOferta implements OnDestroy {
         }
     }
 
-    pendienteDeConfirmacion(oferta: Oferta): boolean {
-        return oferta.estado_evaluacion === 'pendiente' && !oferta.evaluacion_error_mensaje
+    readonly estadoEtiqueta = estadoEtiqueta;
+    readonly situacionEvaluacion = situacionEvaluacion;
+    readonly compatibilidadVigente = compatibilidadVisible;
+    readonly ultimoIntento = ultimoIntento;
+    readonly tieneResultadoLaboral = tieneResultadoLaboral;
+
+    pendienteLegadaDeConfirmacion(oferta: Oferta): boolean {
+        // Preservo la explicación histórica sin convertirla en una categoría calibrada.
+        return !oferta.situacion_evaluacion && oferta.estado_evaluacion === 'pendiente' && !ultimoIntento(oferta)
             && oferta.vigencia_evaluacion !== 'anterior'
             && !!oferta.razon_evaluacion?.startsWith('Pendiente de confirmación:');
     }
 
     etiquetaEvaluacion(oferta: Oferta): string {
-        if (oferta.evaluacion_error_mensaje && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
-            && (oferta.estado_evaluacion === 'pendiente' || !oferta.firma_criterios_evaluacion)) {
-            return 'Error técnico';
-        }
-        return oferta.estado_evaluacion;
-    }
-
-    compatibilidadVigente(oferta: Oferta): boolean {
-        return oferta.porcentaje_match !== null && Number.isFinite(oferta.porcentaje_match)
-            && oferta.porcentaje_match >= 0 && oferta.porcentaje_match <= 100
-            && oferta.estado_evaluacion !== 'pendiente'
-            && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
-            && (!oferta.evaluacion_error_mensaje || !!oferta.firma_criterios_evaluacion);
+        if (estadoEtiqueta(oferta) === 'error') return 'ERROR TÉCNICO';
+        if (!oferta.situacion_evaluacion && oferta.estado_evaluacion === 'pendiente') return 'PENDIENTE';
+        const etiqueta = etiquetaEvaluacion(oferta);
+        return ['aprobada', 'rechazada'].includes(situacionEvaluacion(oferta)) ? etiqueta.toUpperCase() : etiqueta;
     }
 
     resumenDescripcion(descripcion: string): string {
@@ -495,6 +494,7 @@ export class DetalleOferta implements OnDestroy {
                 this.reevaluandoOferta.set(false);
                 this.mensajeReevaluacion.set('Reevaluación solicitada correctamente');
                 o.estado_evaluacion = 'pendiente';
+                if (o.situacion_evaluacion) o.ultimo_intento_evaluacion = 'reevaluacion_solicitada';
                 this.ofertaActualizada.emit(o);
             },
             error: (error) => {

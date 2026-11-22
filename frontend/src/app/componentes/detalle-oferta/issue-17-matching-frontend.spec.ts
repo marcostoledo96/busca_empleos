@@ -336,6 +336,22 @@ describe('Issue #17 — DetalleOferta: Matching Explicable y Edición Manual de 
         ...cambios,
     });
 
+    it('S6: conserva por confirmar y su evidencia aun cuando el último intento falla', () => {
+        const motivo = 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia';
+        fixture.componentRef.setInput('oferta', { ...crearPendienteLaboral(), situacion_evaluacion: 'por_confirmar',
+            ultimo_intento_evaluacion: 'fallo_tecnico', vigencia_evaluacion: 'anterior',
+            porcentaje_match: 80, razon_evaluacion: motivo, evaluacion_error_mensaje: 'Timeout sintético' });
+        component.visible.set(true);
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        expect(raiz.querySelector('.tag-detalle')?.textContent).toContain('Buena afinidad · Por confirmar');
+        expect(raiz.querySelector('.tag-match')?.textContent).toContain('80 % de afinidad');
+        expect(raiz.querySelector('.detalle-razon')?.textContent?.replace(/\s+/g, ' ')).toContain(`Motivo: ${motivo}`);
+        expect(raiz.textContent).toContain('Se conserva la evaluación anterior válida');
+        expect(raiz.textContent).toContain('Timeout sintético');
+        expect(mockEvaluacionService.ejecutarEvaluacion).not.toHaveBeenCalled();
+    });
+
     it('#80: anuncia confirmación laboral sin atribuir cambios de criterios ni mostrar aprobación o error', async () => {
         fixture.componentRef.setInput('oferta', crearPendienteLaboral());
         component.visible.set(true);

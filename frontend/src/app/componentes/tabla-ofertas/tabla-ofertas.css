@@ -32,6 +32,7 @@
     font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--on-surface-variant);
+    overflow-wrap: anywhere;
 }
 
 .error-evaluacion {
