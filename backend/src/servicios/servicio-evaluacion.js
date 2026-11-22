@@ -203,7 +203,8 @@ function dudaContextualBloqueante(item, clausulas) {
         if (!contieneTokenNormalizado(texto.slice(-(fin - inicio)), cita)) return false;
         if (/\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto)) return false;
         const [antes, despues] = ` ${texto} `.split(` ${requisito} `);
-        return /\b(?:obligatori[oa]|excluyente|se requiere|se solicita|se busca|experiencia (?:en|con)|conocimientos? (?:de|en)|trabaj(?:a|an|amos|ar) con|us(?:a|an|amos|ar)|utiliz(?:a|an|amos|ar)|menciona)\s*$/.test(antes)
+        // El contexto se aplica también a los elementos coordinados de la misma cláusula.
+        return /\b(?:obligatori[oa]|excluyente|se requiere|se solicita|se busca|experiencia (?:en|con)|conocimientos? (?:de|en)|trabaj(?:a|an|amos|ar) con|us(?:a|an|amos|ar)|utiliz(?:a|an|amos|ar)|menciona|stack(?: del equipo| tecnologico)?)(?: (?:[a-z0-9]+ )+(?:y|e|o))?\s*$/.test(antes)
             || /^\s*(?:(?:es|resulta) )?(?:obligatori[oa]|excluyente|requerid[oa])\b/.test(despues || '');
     });
 }

@@ -14,6 +14,8 @@ beforeEach(() => jest.resetAllMocks());
 test.each([
     ['El puesto menciona Kubernetes; no especifica si es requisito obligatorio.', 'menciona Kubernetes', 80, true],
     ['El equipo trabaja con Terraform.', 'trabaja con Terraform', 60, true, 'Terraform'],
+    ['Stack del equipo: Active Directory.', 'Active Directory', 80, true, 'Active Directory'],
+    ['El equipo trabaja con Docker y Kubernetes para sus despliegues.', 'Kubernetes', 80, true],
     ['El aviso menciona Kubernetes.', 'menciona Kubernetes', 59, false],
     ['El aviso menciona Kubernetes como deseable.', 'menciona Kubernetes', 80, false],
     ['No se requiere Kubernetes.', 'Kubernetes', 80, false],
