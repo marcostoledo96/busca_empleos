@@ -314,7 +314,20 @@ function abrirSesion({ modo, directorio, fetch, ahora = Date.now } = {}) {
             const resultado = await operacion({ token: registro.accessToken, signal: control.signal });
             comprobar(version);
             return resultado;
-        } catch (error) { comprobar(version); throw error; } finally { operaciones.delete(control); }
+        } catch (error) {
+            comprobar(version);
+            if (error?.upstream?.codigo === 'subscription_sharing_invalid_user') {
+                await enSerie(() => {
+                    comprobar(version);
+                    const actual = buscar(registro.clientId);
+                    // La rotación conserva el ID token de la concesión; una autorización nueva no.
+                    if (estado.activo !== registro.clientId || actual?.idToken !== registro.idToken) return;
+                    actualizar(datosRegistro(actual), null);
+                    invalidarOperaciones();
+                });
+            }
+            throw error;
+        } finally { operaciones.delete(control); }
     }
 
     async function revocar(registro) {

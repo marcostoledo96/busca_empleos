@@ -107,11 +107,19 @@ Alcance activo: simulación de Fase A. B, C y publicación tienen puertas indepe
 > - No introducir API key de OpenAI Platform, fallback pago, compra de créditos, cookies, sesiones de Codex/Pi, automatización de chatgpt.com ni endpoints privados. No retirar DeepSeek ni modificar producción, variables, permisos, cron o datos.
 > - Evidencia por entrega: SHA, entorno, versiones, comandos, exit code, resultados PASS/FAIL/OMITIDO/NO PROBADO y límites. Separar dictamen técnico, revisión Codex y permisos de integración: defecto material comprobado = No apto; comprobación obligatoria concreta faltante = Evidencia insuficiente; auditoría principal aprobada con Codex pendiente no es un defecto.
 
+### S10 — Corrección de auditoría de la PR #107
+
+> lee comentario de la pr y arreglalo. toma como lo de vercel que no generara problemas
+
+Referencia: [PR-AUDIT-V1](https://github.com/marcostoledo96/busca_empleos/pull/107#issuecomment-7086058301), auditado `d8a5bae1e9422b4c318e8bd06e57fae98034e10f`.
+
 ## Tasks
 
 - T1 — S3, S4, S7: OAuth, sesión, revocación y almacenamiento simulados; worker; corrección L4, 12/12 focales; `53136ca`.
 - T2 — S3, S5, S6, S7: transporte público Responses y catálogo con simulación; worker + parent; corrección L4, 8/8 focales; `2da0d15`.
 - T3 — S1–S9: verificación independiente, evidencia y guía local; parent + verifier; simulación apta para enviar a auditoría, publicación bloqueada por previews; se registra en la entrega documental.
+
+- T4 — S10: corregir los hallazgos de Responses y desconexión, rectificar evidencia y remitir a reauditoría; parent + verifier; verificado; commit de corrección asociado a PR-AUDIT-V1.
 
 ## Log
 
@@ -232,3 +240,16 @@ Ubicación elegida por Marcos: `AGENTS.md` del repositorio junto con la #104. La
 La política en `AGENTS.md` pasó revisión independiente. Se hicieron commits locales `53136ca` (OAuth, almacén, fixtures y Chromium; porción superior a ~400 líneas para mantener juntas las pruebas y el contrato OAuth) y `2da0d15` (Responses, catálogo y fixtures). La guía y la política cierran el candidato local. Para el envío, separar OAuth y Responses en porciones revisables hacia `integracion/openai-calibracion` sin partir código de sus pruebas; ninguna publicación hasta confirmar #106.
 
 Railway: servicio `busca_empleos` de producción sigue `master`; la lectura no expone si PR Environments está habilitado. Vercel: el proyecto `busca-empleos` aparece al filtrar por repositorio; la lectura no expone el ajuste efectivo de previews o la exclusión de esta rama. Sin push, PR o cambios de configuración. OAuth real y Fases B/C siguen separados.
+
+### L8 — Corrección posterior al envío
+
+> lee comentario de la pr y arreglalo. toma como lo de vercel que no generara problemas
+
+El titular confirmó que el despliegue observado de Vercel corresponde a un entorno separado de producción y acepta ese efecto en la PR #107. Rectificar la descripción: no estaba deshabilitado. No modificar hosting ni tomarlo como permiso general. Candidato auditado: `d8a5bae1e9422b4c318e8bd06e57fae98034e10f`. Hallazgos técnicos: rechazar `role=system` antes del transporte y desactivar la concesión local ante `subscription_sharing_invalid_user` confirmado sin tratar como revocación otros 401 ni borrar una autorización nueva. No ampliar Fase A.
+
+### L9 — Evidencia del candidato corregido
+
+RED: `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js` bajo `bwrap --unshare-net`, exit 1: 21 PASS y dos FAIL esperados (envío de system y segundo uso tras desconexión). GREEN, mismo aislamiento más Chrome real por fixture: `node --test backend/piloto-chatgpt/{oauth,responses}.node-test.js backend/piloto-chatgpt/oauth.browser-check.js`, exit 0: 24 PASS, sin omisiones. El 401 genérico no elimina credenciales y la respuesta tardía no borra una concesión nueva. Backend en checkout Git escribible con archivos del candidato superpuestos: `NODE_ENV=test ALLOW_DB_TESTS=false npm test -- --runInBand`, exit 0, 3973 PASS y 166 omitidas. Node 24.18.0. No se repitió Firebase mock (10/10 en el candidato anterior; frontend intacto). Sin OAuth real, cuota, PostgreSQL ni producción.
+
+
+Revisión independiente final de S10: `gpt-6.2-sol/high`, Node 24.18.0, `bwrap --unshare-net`, 23/23, exit 0. Probes independientes del path SSE concurrente con refresh, errores no terminales y nueva vinculación: base 1/3 (exit 1 esperado), candidato 3/3 (exit 0). Sin bloqueantes en la corrección. La descripción original de #107 quedó rectificada vía REST: preview Vercel separado aprobado para esta PR; no se modificó configuración. CI de #106 y Codex no ejecutados en esta verificación.

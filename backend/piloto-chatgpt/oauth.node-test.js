@@ -5,6 +5,7 @@ const { mkdtempSync, rmSync, statSync, readdirSync, readFileSync, symlinkSync } 
 const { spawnSync } = require('node:child_process');
 const { join } = require('node:path');
 const { abrirSesion } = require('./oauth');
+const { crearClienteResponses } = require('./responses');
 
 const emisor = 'https://auth.openai.com';
 const recurso = 'https://api.openai.com/v1';
@@ -371,6 +372,40 @@ for (const [caso, codigo, confirma] of [
         await assert.rejects(ctx.sesion.conToken(() => assert.fail()), { codigo: 'sin-sesion' });
     });
 }
+
+test('solo la desconexión confirmada por Responses borra la concesión y bloquea el siguiente envío', async (t) => {
+    const ctx = preparar(t);
+    await vincular(ctx);
+    const respuestas = [{ detail: 'rechazo genérico' }, { error: { code: 'subscription_sharing_invalid_user' } }];
+    let envios = 0;
+    const api = crearClienteResponses({ fetch: async () => Response.json(respuestas[envios++], { status: 401 }) });
+    const consultar = () => ctx.sesion.conToken(api.listarModelos);
+    await assert.rejects(consultar(), { codigo: 'acceso_rechazado', status: 502 });
+    assert.equal(ctx.sesion.registros().activo, cliente);
+
+    await assert.rejects(consultar(), {
+        codigo: 'acceso_rechazado', status: 502, upstream: { status: 401, codigo: 'subscription_sharing_invalid_user', forma: 'error' }
+    });
+    await assert.rejects(consultar(), { codigo: 'sin-sesion' });
+    assert.equal(envios, 2);
+    assert.deepEqual(ctx.sesion.registros(), { activo: null, registros: [{ clientId: cliente, sujeto: 'cuenta-sintetica', habilitado: false }] });
+    assert.doesNotMatch(readFileSync(join(ctx.directorio, 'sesion.json'), 'utf8'), /CANARIO|idToken|refreshToken|accessToken/);
+});
+
+test('una desconexión tardía no borra la concesión nueva del mismo cliente', async (t) => {
+    const ctx = preparar(t);
+    await vincular(ctx);
+    const inicio = promesaControlada();
+    const respuesta = promesaControlada();
+    const api = crearClienteResponses({ fetch: () => { inicio.resolve(); return respuesta.promise; } });
+    const operacion = assert.rejects(ctx.sesion.conToken(api.listarModelos), { codigo: 'acceso_rechazado' });
+    await inicio.promise;
+    await vincular(ctx, { clientId: cliente });
+    respuesta.resolve(Response.json({ error: { code: 'subscription_sharing_invalid_user' } }, { status: 401 }));
+    await operacion;
+    assert.equal(ctx.sesion.registros().activo, cliente);
+    assert.equal(await ctx.sesion.conToken(({ token }) => token), 'CANARIO_acceso_inicial');
+});
 
 test('desvincular durante la rotación revoca el token nuevo sin ejecutar la operación', async (t) => {
     const ctx = preparar(t);

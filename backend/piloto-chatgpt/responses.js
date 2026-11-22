@@ -29,7 +29,7 @@ class ErrorResponses extends Error {
 function normalizarInput(input) {
     if (!Array.isArray(input) || !input.length) throw new ErrorResponses('entrada_invalida');
     return Array.from(input, ({ role, content } = {}) => {
-        if (!['user', 'developer', 'system', 'assistant'].includes(role)) throw new ErrorResponses('entrada_invalida');
+        if (!['user', 'developer', 'assistant'].includes(role)) throw new ErrorResponses('entrada_invalida');
         if (typeof content === 'string' && content.trim()) return { role, content };
         if (!Array.isArray(content) || !content.length) throw new ErrorResponses('entrada_invalida');
         return { role, content: Array.from(content, (parte) => {

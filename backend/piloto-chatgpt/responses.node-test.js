@@ -97,6 +97,14 @@ test('admisión y códigos upstream: conserva metadatos seguros; nunca propaga H
     }
 });
 
+test('rechaza el rol system antes de enviar la solicitud SIWC', async () => {
+    let llamadas = 0;
+    const api = cliente(async () => { llamadas++; return sse(evento(completar())); });
+    const mensaje = { type: 'message', role: 'system', content: 'Instrucciones sintéticas' };
+    await assert.rejects(api.generarRespuesta(opciones({ input: [mensaje, ...input] })), error('entrada_invalida'));
+    assert.equal(llamadas, 0);
+});
+
 test('rechaza esfuerzo y formato estructurado explícitos antes de fetch', async () => {
     let llamadas = 0;
     const api = cliente(async () => { llamadas++; return sse(evento(completar())); });
