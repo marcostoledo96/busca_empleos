@@ -110,7 +110,7 @@ ejecutar('Issue #98 — lectura con PostgreSQL sintético', () => {
     });
 
     test('excluye avisos con credenciales en la URL y conserva el enlace original con tracking', async () => {
-        const urlTracking = 'https://example.invalid/aviso-tracking?utm_source=sintetico';
+        const urlTracking = 'https://example.invalid/aviso-tracking?utm_source=sintetico#/empleos?utm_medium=sintetico';
         await preparacion.query(`INSERT INTO ofertas (id, titulo, url, plataforma, fecha_publicacion, datos_crudos)
             VALUES (33, 'Credenciales', 'https://example.invalid/aviso', 'general', $1,
                     '{"url_original":"https://example.invalid/aviso?%61ccess_token=secreto_sintetico"}'),
@@ -118,17 +118,18 @@ ejecutar('Issue #98 — lectura con PostgreSQL sintético', () => {
                 (35, 'Credenciales', 'https://example.invalid/aviso-access', 'general', $1,
                     '{"url_original":"https://example.invalid/aviso-access?%41ccess_Key=secreto_sintetico"}'),
                 (36, 'Credenciales', 'https://example.invalid/aviso-jwt?jwt=secreto_sintetico', 'general', $1, NULL),
+                (38, 'Credenciales', 'https://example.invalid/avisos#/empleos?jwt=secreto_sintetico', 'general', $1, NULL),
                 (37, 'Credenciales', 'https://example.invalid/aviso-tracking', 'general', $1,
                     jsonb_build_object('url_original', $2::text))`, [ahora, urlTracking]);
         const servicio = consulta();
-        for (const id of [33, 34, 35, 36]) {
+        for (const id of [33, 34, 35, 36, 38]) {
             expect(await servicio.obtenerDetalle(id)).toBeNull();
         }
         expect(await servicio.obtenerDetalle(37)).toMatchObject({ id: 37, url: urlTracking });
         const { ofertas, alcance } = await servicio.listar({ texto: 'Credenciales' });
         expect(ofertas.map(({ id, url }) => ({ id, url }))).toEqual([{ id: 37, url: urlTracking }]);
-        expect(alcance).toMatchObject({ candidatos_examinados: 5, posible_truncamiento: false });
-        expect(operaciones).toEqual(Array(6).fill('SELECT'));
+        expect(alcance).toMatchObject({ candidatos_examinados: 6, posible_truncamiento: false });
+        expect(operaciones).toEqual(Array(7).fill('SELECT'));
     });
 
     test('detalle sin preferencias: descripción pública acotada o indisponible si hubo edición manual', async () => {

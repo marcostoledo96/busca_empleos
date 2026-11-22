@@ -45,7 +45,8 @@ function enlaceSeguro(valor) {
     try {
         const url = new URL(valor);
         if (url.username || url.password) return null;
-        for (const parametros of [url.searchParams, new URLSearchParams(url.hash.slice(1))]) {
+        const fragmento = url.hash.slice(1).replace(/^[^?&=]*\?/, '');
+        for (const parametros of [url.searchParams, new URLSearchParams(fragmento)]) {
             for (const clave of parametros.keys()) {
                 if (CLAVE_DE_CREDENCIAL.test(clave.toLowerCase().replace(/[^a-z0-9]/g, ''))) return null;
             }
