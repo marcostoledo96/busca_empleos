@@ -45,7 +45,10 @@ function enlaceSeguro(valor) {
     try {
         const url = new URL(valor);
         if (url.username || url.password) return null;
-        const fragmento = url.hash.slice(1).replace(/^[^?&=]*\?/, '');
+        const contenido = url.hash.slice(1);
+        // Una ruta explícita puede tener '&' o '=' antes de su consulta.
+        const prefijoRuta = /^!?\//.test(contenido) ? /^[^?]*\?/ : /^[^?&=]*\?/;
+        const fragmento = contenido.replace(prefijoRuta, '');
         for (const parametros of [url.searchParams, new URLSearchParams(fragmento)]) {
             for (const clave of parametros.keys()) {
                 if (CLAVE_DE_CREDENCIAL.test(clave.toLowerCase().replace(/[^a-z0-9]/g, ''))) return null;

@@ -119,17 +119,18 @@ ejecutar('Issue #98 — lectura con PostgreSQL sintético', () => {
                     '{"url_original":"https://example.invalid/aviso-access?%41ccess_Key=secreto_sintetico"}'),
                 (36, 'Credenciales', 'https://example.invalid/aviso-jwt?jwt=secreto_sintetico', 'general', $1, NULL),
                 (38, 'Credenciales', 'https://example.invalid/avisos#/empleos?jwt=secreto_sintetico', 'general', $1, NULL),
+                (39, 'Credenciales', 'https://example.invalid/avisos#/empleos/categoria=qa?jwt=secreto_sintetico', 'general', $1, NULL),
+                (40, 'Credenciales', 'https://example.invalid/avisos#/empleos/qa&testing?jwt=secreto_sintetico', 'general', $1, NULL),
                 (37, 'Credenciales', 'https://example.invalid/aviso-tracking', 'general', $1,
                     jsonb_build_object('url_original', $2::text))`, [ahora, urlTracking]);
         const servicio = consulta();
-        for (const id of [33, 34, 35, 36, 38]) {
-            expect(await servicio.obtenerDetalle(id)).toBeNull();
-        }
+        const detalles = await Promise.all([33, 34, 35, 36, 38, 39, 40].map(id => servicio.obtenerDetalle(id)));
+        expect(detalles).toEqual(Array(7).fill(null));
         expect(await servicio.obtenerDetalle(37)).toMatchObject({ id: 37, url: urlTracking });
         const { ofertas, alcance } = await servicio.listar({ texto: 'Credenciales' });
         expect(ofertas.map(({ id, url }) => ({ id, url }))).toEqual([{ id: 37, url: urlTracking }]);
-        expect(alcance).toMatchObject({ candidatos_examinados: 6, posible_truncamiento: false });
-        expect(operaciones).toEqual(Array(7).fill('SELECT'));
+        expect(alcance).toMatchObject({ candidatos_examinados: 8, posible_truncamiento: false });
+        expect(operaciones).toEqual(Array(9).fill('SELECT'));
     });
 
     test('detalle sin preferencias: descripción pública acotada o indisponible si hubo edición manual', async () => {

@@ -32,6 +32,10 @@ node ./node_modules/jest/bin/jest.js --runInBand --no-cache --runTestsByPath \
 - Node 24, PostgreSQL 16 efímero (`--network none`, sin TCP), socket Unix, Jest en namespace con solo loopback, `env -i`, `NODE_ENV=test`, `DB_TEST_SINTETICA=true` y ninguna `.env` copiada. Los fixtures se escribieron en una sesión separada; el tramo medido usó una sesión de solo lectura. No se iniciaron `app.js`, `index.js` ni proveedores.
 - **CI de GitHub: NOT RUN.** Los filtros de `.github/workflows/ci.yml` no incluyen PR hacia `Version1.1`. La prueba anterior es local y no reemplaza evidencia de configuración efectiva de previews.
 
+### Regresión de rutas en fragmentos
+
+El commit local anterior `56c63dd14d46b2c7494835ff398c34f76f746e8e` aún admitía variantes de ruta con `=` o `&` antes de su consulta. **RED (1)** con `-t 'credenciales en la URL'`: devolvía ambos enlaces ficticios en el detalle (1 falló, 7 omitidas por filtro). **GREEN (0)** con el mismo conjunto focal del lote F1: 129 pasaron (8 PostgreSQL), 12 omitidas. Se conserva la URL inocua y ambos métodos solo emiten `SELECT`. El servicio y la prueba ejecutados coinciden con los blobs Git `1015dcc79d03a653ec7dc413debe83af704d3d93` y `cc5d7938ec96c9eaf1e2c20235048eb5350be7e0`; las barreras de red y BD fueron las mismas. No se ejecutó CI ni se cambió la configuración de los proveedores.
+
 ## Antes de publicar
 
 - Confirmar la raíz efectiva de **cada** proyecto Vercel conectado. La raíz documentada es `frontend`; `frontend/vercel.json` bloquea exactamente `feat/busco-trabajo-mcp` sin modificar los headers. El primer commit debe contener el bloqueo en la raíz efectiva, sin reglas `true` superpuestas. No publicar una referencia remota antes de ese commit.
