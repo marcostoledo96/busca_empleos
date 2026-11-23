@@ -306,10 +306,22 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
 
         // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
         // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
-        // Una coma que introduce una segunda condición negada no cambia el sentido de la anterior.
-        // Las demás comas conservan el contexto de listas y calificativos pospuestos.
-        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n|,(?=\s*(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b))+/i)
-            .filter(p => p.trim());
+        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).flatMap(oracion => {
+            const [primera, ...resto] = oracion.split(',');
+            if (!resto.length) return [oracion];
+            const condicion = normalizarTextoComparacion(primera);
+            const requisito = condicion.match(/^(.+?) (?:es |son )?(?:obligatori[oa]s?|excluyentes?|mandatory|required)$/)?.[1];
+            const restoTexto = resto.join(',');
+            const segunda = normalizarTextoComparacion(restoTexto);
+            const negacion = segunda.match(PATRON_NEGACION_EVIDENCIA);
+            const otroRequisito = negacion && negacion.index === 0
+                ? segunda.slice(negacion[0].length).trim()
+                : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1];
+            // Si la negación no nombra otra condición, la coma puede separar el tópico de su propio predicado.
+            return requisito && otroRequisito && !/^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)
+                && !contieneTokenNormalizado(segunda, requisito)
+                ? [primera, restoTexto] : [oracion];
+        });
 
         for (const parte of partes) {
             const parteNorm = normalizarTextoComparacion(parte);
