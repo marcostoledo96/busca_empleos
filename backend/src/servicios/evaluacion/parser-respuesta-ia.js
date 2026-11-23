@@ -219,10 +219,11 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
     const clausulas = [];
     const origen = normalizarTextoComparacion(textoConSaltos);
     let cursorOrigen = 0;
-    const agregar = (texto, literal, desde, encabezado = false) => {
+    const agregar = (texto, literal, desde, encabezado = false, experienciaAjenaA, oracionMixta) => {
         if (!conOrigen) return clausulas.push(texto);
         const inicio = origen.indexOf(literal, desde);
-        if (inicio >= 0) clausulas.push({ texto, inicio, fin: inicio + literal.length, encabezado });
+        if (inicio >= 0) clausulas.push({ texto, inicio, fin: inicio + literal.length, encabezado,
+            ...(experienciaAjenaA ? { experienciaAjenaA } : {}), ...(oracionMixta ? { oracionMixta } : {}) });
     };
     let seccionActual = null; // 'opcional' | 'obligatoria' | null
 
@@ -306,16 +307,44 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
 
         // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
         // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
-        // O por otros signos de puntuación: [!?;]
-        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).filter(p => p.trim());
+        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).flatMap(oracion => {
+            // Una conjunción solo puede separar predicados después de una obligación explícita,
+            // no dentro de «Kubernetes y SQL» ni donde la negación continúa el mismo requisito.
+            const limite = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b(\s+y\s+)|,/i.exec(oracion);
+            if (!limite) return [[oracion]];
+            const inicioSeparador = limite.index + limite[0].length - (limite[1]?.length ?? 1);
+            const primera = oracion.slice(0, inicioSeparador);
+            const condicion = normalizarTextoComparacion(primera);
+            const requisito = condicion.match(/^(.+?) (?:es |son )?(?:obligatori[oa]s?|excluyentes?|mandatory|required)$/)?.[1];
+            const restoTexto = oracion.slice(limite.index + limite[0].length);
+            const segunda = normalizarTextoComparacion(restoTexto);
+            const negacion = segunda.match(PATRON_NEGACION_EVIDENCIA);
+            const opcional = segunda.match(/^(.+?) (?:es|son) (?:deseables?|opcional(?:es)?)$/)?.[1];
+            const otroRequisito = negacion && negacion.index === 0
+                ? segunda.slice(negacion[0].length).trim()
+                : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1] ?? opcional;
+            // Sin otro requisito explícito, el segundo predicado puede continuar el mismo tópico.
+            if (!requisito || !otroRequisito || /^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)) return [[oracion]];
 
-        for (const parte of partes) {
+            // Una sigla declarada identifica el mismo requisito. Exigir experiencia es distinto
+            // de exigir la tecnología, aun cuando la frase de experiencia vuelva a nombrarla.
+            const alias = [...primera.matchAll(/\(([A-Z][A-Z0-9]{1,9})\)/g)].map(([, sigla]) => normalizarTextoComparacion(sigla));
+            const nombres = requisito.split(/ (?:y|o) /).concat(alias);
+            // Una negación coordinada puede alcanzar la tecnología además de la experiencia.
+            const experienciaDistinta = !opcional && /^(?:la )?experiencia\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito)
+                && !/\b(?:y|e|o|u|ni|tampoco)\b/.test(otroRequisito) && !restoTexto.includes(',');
+            return experienciaDistinta || !nombres.some(nombre => contieneTokenNormalizado(segunda, nombre))
+                ? [[primera, undefined, opcional ? normalizarTextoComparacion(oracion) : undefined],
+                    [restoTexto, experienciaDistinta ? requisito : undefined]] : [[oracion]];
+        });
+
+        for (const [parte, experienciaAjenaA, oracionMixta] of partes) {
             const parteNorm = normalizarTextoComparacion(parte);
             if (!parteNorm) continue;
 
             const contextual = seccionActual === 'opcional' ? `deseable ${parteNorm}`
                 : seccionActual === 'obligatoria' ? `obligatorio ${parteNorm}` : parteNorm;
-            agregar(contextual, parteNorm, cursorParte);
+            agregar(contextual, parteNorm, cursorParte, false, experienciaAjenaA, oracionMixta);
             cursorParte = origen.indexOf(parteNorm, cursorParte) + parteNorm.length;
         }
 
@@ -326,6 +355,45 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
     }
 
     return clausulas;
+}
+
+function aplicaAlRequisito(clausula, requisito) {
+    return !clausula.experienciaAjenaA || !contieneTokenNormalizado(clausula.experienciaAjenaA, requisito);
+}
+
+const esOpcionalEnOferta = texto => PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
+const noObligatoriaEnOferta = ({ texto }) => esOpcionalEnOferta(texto) || PATRON_NEGACION_EVIDENCIA.test(texto);
+const mencionesDelRequisito = (clausulas, requisito) => clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
+    && contieneTokenNormalizado(clausula.texto, requisito));
+const literalClausula = ({ texto, inicio, fin }) => texto.slice(-(fin - inicio));
+const esDecorativa = texto => /\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto);
+
+function citaContradictoria(relacionadas, requisito, cita, descripcion) {
+    if (!contieneTokenNormalizado(cita, requisito)) return false;
+    const sigla = requisito.split(' ').map(parte => parte[0]).join('');
+    const contexto = ({ texto }) => {
+        const [antes, despues = ''] = ` ${texto} `.split(` ${requisito} `);
+        const sinSigla = sigla.length > 1 && despues.startsWith(`${sigla} `) ? despues.slice(sigla.length + 1) : despues;
+        return [antes, sinSigla];
+    };
+    const esDeseable = clausula => {
+        const [antes, despues = ''] = contexto(clausula);
+        return !PATRON_NEGACION_EVIDENCIA.test(clausula.texto)
+            && (/^\s*(?:es |son |resulta )?(?:deseables?|opcional(?:es)?)\b/.test(despues)
+                || /(?:^| )se valora(?:n)?\s*$/.test(antes) || antes.trim() === 'deseable');
+    };
+    if (!relacionadas.some(esDeseable)) return false;
+    return relacionadas.some(clausula => {
+        if (noObligatoriaEnOferta(clausula) || esDecorativa(clausula.texto)) return false;
+        const literal = literalClausula(clausula);
+        // Una cita que abarca la oración obligatoria debe existir también en el texto fuente.
+        if (!contieneTokenNormalizado(literal, cita) && !(contieneTokenNormalizado(cita, literal)
+            && contieneTokenNormalizado(descripcion, cita))) return false;
+        const [antes, despues = ''] = contexto(clausula);
+        return /^\s*(?:es |son |resulta )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(despues)
+            || /(?:^| )se (?:requiere|exige|necesita)n?(?: (?:conocer|dominar|manejar|contar con|experiencia (?:en|con)))?\s*$/.test(antes)
+            || /^(?:obligatorio|es obligatori[oa] (?:conocer|contar con|dominar|manejar))$/.test(antes.trim());
+    });
 }
 
 /**
@@ -445,9 +513,10 @@ const RAZON_FALLBACK_NO_MATCH = 'La oferta no matchea con el perfil.';
  *
  * @param {string} respuestaTexto - Respuesta cruda de DeepSeek.
  * @param {string|null} [textoOferta] - Texto de la oferta (título + descripción) para contraste contextual.
+ * @param {string|null} [descripcion] - Cuerpo del aviso para identificar contradicciones laborales; nunca se acredita con el título.
  * @returns {{ match: boolean, porcentaje: number|null, razon: string, prioridad_ia: boolean, evidencias_prioridad_ia: string[], explicacion: Object, desglose_disponible: boolean, error?: boolean, inconsistente?: boolean, invalido?: boolean }}
  */
-function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
+function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null, descripcion = null) {
     const textoLimpio = limpiarFencesMarkdown(respuestaTexto);
 
     let respuesta;
@@ -527,7 +596,19 @@ function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
         && respuesta.evidencias_prioridad_ia.every((evidencia) => typeof evidencia === 'string');
 
     const coherencia = validarCoherenciaRespuesta(respuesta.match, porcentaje, explicacion, textoOferta);
-    if (coherencia.inconsistente) {
+    const contradiccionLaboral = coherencia.invalido && respuesta.match === false && porcentaje >= UMBRAL_MATCH_MINIMO
+        && typeof descripcion === 'string' && explicacion.exclusiones.length > 0 && (() => {
+            const fuente = normalizarTextoComparacion(descripcion);
+            const clausulas = extraerClausulasConContexto(descripcion, true).filter(c => !c.encabezado);
+            return explicacion.exclusiones.some(item => {
+                if (item.tipo !== 'obligatorio') return false;
+                const requisito = normalizarTextoComparacion(item.requisito);
+                return citaContradictoria(mencionesDelRequisito(clausulas, requisito), requisito,
+                    normalizarTextoComparacion(item.evidencia_oferta), fuente);
+            });
+        })();
+    const inconsistente = coherencia.inconsistente && !contradiccionLaboral;
+    if (inconsistente) {
         razon = `${razon} [Inconsistencia detectada: ${coherencia.motivo}]`;
     }
 
@@ -543,7 +624,7 @@ function parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta = null) {
         desglose_disponible,
     };
 
-    if (coherencia.inconsistente) {
+    if (inconsistente) {
         resultado.inconsistente = true;
         resultado.invalido = true;
         resultado.error = true;
@@ -575,6 +656,7 @@ module.exports = {
         RAZON_FALLBACK_MATCH,
         RAZON_FALLBACK_NO_MATCH,
         contieneTokenNormalizado,
-        extraerClausulasConContexto,
+        extraerClausulasConContexto, aplicaAlRequisito, mencionesDelRequisito,
+        noObligatoriaEnOferta, literalClausula, esDecorativa, citaContradictoria,
     },
 };

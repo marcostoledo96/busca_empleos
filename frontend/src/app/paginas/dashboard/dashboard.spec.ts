@@ -108,6 +108,42 @@ describe('Dashboard', () => {
         componente = fixture.componentInstance;
     });
 
+    it('S7: particiona IDs únicos y conserva la precedencia del seguimiento', () => {
+        const porConfirmar = { ...crearOferta(1, 80, 0), estado_evaluacion: 'pendiente',
+            situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: 'fallo_tecnico' } as const;
+        mockDemoService.esModoDemo.and.returnValue(true);
+        mockDemoService.obtenerOfertasDemo.and.returnValue([
+            porConfirmar, { ...porConfirmar },
+            { ...crearOferta(2, 59, 0), plataforma: 'indeed', estado_evaluacion: 'rechazada', situacion_evaluacion: 'bajo_umbral' },
+            { ...crearOferta(3, 80, 0), situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: 'fallo_tecnico' },
+            { ...crearOferta(4, 80, 0), situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: 'reevaluacion_solicitada' },
+            { ...crearOferta(5, 80, 0), situacion_evaluacion: 'legado' },
+            { ...porConfirmar, id: 6, estado_postulacion: 'cv_enviado' },
+            { ...porConfirmar, id: 7, estado_postulacion: 'descartada' },
+        ]);
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        const contar = (id: string) => raiz.querySelector(`[aria-labelledby="stat-label-${id}"]`)?.textContent?.trim();
+        expect(contar('total')).toBe('7');
+        expect(contar('postuladas')).toBe('1');
+        expect(contar('descartadas')).toBe('1');
+        expect(contar('aprobadas')).toBe('0');
+        expect(contar('rechazadas')).toBe('0');
+        for (const id of ['por_confirmar', 'bajo_umbral', 'fallo_tecnico', 'reevaluacion_solicitada', 'legado']) {
+            expect(contar(id)).withContext(id).toBe('1');
+        }
+        const confirmar = Array.from(raiz.querySelectorAll<HTMLElement>('[role="tab"]'))
+            .find(tab => tab.textContent?.includes('POR CONFIRMAR'));
+        expect(confirmar).toBeDefined();
+        confirmar?.click();
+        fixture.detectChanges();
+        expect(raiz.querySelector('[role="tabpanel"]:not([hidden]) tbody')?.textContent).toContain('Oferta 1');
+        componente.filtroPlataforma.set('linkedin');
+        fixture.detectChanges();
+        expect(contar('total')).toBe('6');
+        expect(contar('bajo_umbral')).toBe('0');
+    });
+
     it('mantengo la falla visible y el payload técnico cerrado sin perder contadores', () => {
         mockDemoService.esModoDemo.and.returnValue(true);
         mockDemoService.obtenerOfertasDemo.and.returnValue([crearOferta(1, 80, 0)] as any);

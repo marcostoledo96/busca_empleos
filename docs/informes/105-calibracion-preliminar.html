@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>#105 · Calibración de evaluaciones — Informe preliminar</title>
+    <style>
+        :root { color-scheme: light; font: 16px/1.6 system-ui, sans-serif; color: #172637; background: #f3f6fa; }
+        main { max-width: 66rem; margin: auto; padding: clamp(1rem, 4vw, 3rem); }
+        header, section { background: #fff; border: 1px solid #dce4ed; border-radius: .8rem; padding: clamp(1rem, 3vw, 1.8rem); margin-bottom: 1rem; }
+        h1, h2 { line-height: 1.2; margin: 0 0 .7rem; } h3 { margin-bottom: .35rem; }
+        p, ul, ol { margin: .5rem 0 1rem; } p:last-child, ul:last-child, ol:last-child { margin-bottom: 0; }
+        .estado { display: inline-block; background: #fff1c4; color: #664006; padding: .25rem .65rem; border-radius: .35rem; font-weight: 700; }
+        .comparacion, .capturas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); gap: 1rem; }
+        .comparacion div, figure { margin: 0; padding: .85rem; border: 1px solid #dce4ed; border-radius: .55rem; }
+        img { display: block; object-fit: contain; width: 100%; height: auto; max-height: 35rem; object-position: left; }
+        figcaption { margin-top: .5rem; } a { color: #174e90; } a:focus-visible { outline: .15rem solid currentColor; outline-offset: .2rem; }
+        pre { white-space: pre-wrap; overflow-wrap: break-word; padding: .8rem; background: #eef3f8; border-radius: .4rem; }
+        code { overflow-wrap: anywhere; } li + li { margin-top: .35rem; }
+        table { width: 100%; border-collapse: collapse; } caption { text-align: left; font-weight: 600; }
+        td, th { vertical-align: top; text-align: left; border-bottom: 1px solid #dce4ed; padding: .6rem .4rem; }
+    </style>
+</head>
+<body>
+<main>
+    <header>
+        <p class="estado">Preliminar · no implica aprobación de Codex ni permiso de merge</p>
+        <h1>#105 · Afinidad, elegibilidad y fallos</h1>
+        <p>Una evaluación puede indicar 80 % de afinidad sin aprobar la oferta. Si falta confirmar un requisito, muestro qué falta y conservo ese resultado aunque una reevaluación posterior falle.</p>
+        <p><strong>Rama:</strong> <code>feature/105-calibracion-visibilidad</code>. <strong>Base:</strong> <code>1af89ac9f5a7e91929fa0517db4786dab27e17db</code>. <strong>Candidato de código:</strong> <code>5a5cad2</code>. <a href="https://github.com/marcostoledo96/busca_empleos/issues/105">Issue y matriz de casos</a>.</p>
+    </header>
+    <section>
+        <h2>Antes y después</h2>
+        <div class="comparacion">
+            <div><h3>Antes · código base</h3><p>La tabla ocultaba la afinidad de cualquier oferta persistida como <code>pendiente</code>. El backend preservaba decisiones aprobadas o rechazadas, pero podía reemplazar un resultado válido por confirmar.</p></div>
+            <div><h3>Después · soporte IT JR ficticio</h3><p><strong>Buena afinidad · Por confirmar</strong><br>80 % de afinidad</p><p><strong>Motivo:</strong> Confirmar si Active Directory es obligatorio y si contás con esa experiencia.</p></div>
+        </div>
+        <p>Las imágenes son capturas del dashboard Angular y del detalle en Chrome, con datos sintéticos. No hay captura anterior ni acceso a una oferta real.</p>
+        <div class="capturas">
+            <figure><a href="105-capturas/escritorio-claro.png"><img src="105-capturas/escritorio-claro.png" width="1440" height="900" alt="Tabla con una oferta de soporte por confirmar, con 80 % de afinidad y su motivo"></a><figcaption>Escritorio 1440 × 900 · claro</figcaption></figure>
+            <figure><a href="105-capturas/movil-oscuro.png"><img src="105-capturas/movil-oscuro.png" width="390" height="844" alt="Detalle de soporte en móvil, con el motivo para confirmar Active Directory"></a><figcaption>Móvil 390 × 844 · oscuro</figcaption></figure>
+        </div>
+    </section>
+    <section>
+        <h2>Qué cambié y por qué</h2>
+        <ol>
+            <li><strong>Separé decisión, intento y vigencia.</strong> <a href="../../backend/src/servicios/evaluacion/situacion-evaluacion.js"><code>situacion-evaluacion.js</code></a> proyecta la información persistida en dos campos nuevos de la API, sin agregar estados ni columnas. La vigencia sigue comparando firmas; no reconstruye evidencia faltante.</li>
+            <li><strong>No convierto ausencia de información en incompatibilidad.</strong> <a href="../../backend/src/servicios/servicio-evaluacion.js"><code>servicio-evaluacion.js</code></a> contrasta el requisito con el aviso y el perfil. Lo deseable no bloquea; la ausencia solo puede sustentar un veto si la obligación y la ausencia están acreditadas. El umbral no cambia: 59 % queda debajo y 60 % alcanza si no hay otro impedimento.</li>
+            <li><strong>No reemplazo una evaluación con un fallo.</strong> Si ya hay un resultado laboral válido, el intento fallido actualiza el diagnóstico con el control de concurrencia existente. Afinidad, fecha, firma y seguimiento quedan intactos. El polling lee el progreso; no solicita otra evaluación.</li>
+            <li><strong>Presento la misma situación en todas las vistas.</strong> <a href="../../frontend/src/app/utils/presentacion-evaluacion.ts"><code>presentacion-evaluacion.ts</code></a> da a tabla y detalle etiquetas comunes. El dashboard agrupa por oferta y respeta el seguimiento manual.</li>
+        </ol>
+        <pre>Oferta y perfil → requisitos y afinidad → resultado laboral válido
+                                      ↘ fallo técnico → diagnóstico del intento
+Resultado válido + diagnóstico + vigencia → tabla, tarjeta, detalle y filtros</pre>
+        <p>Por ejemplo, una misma respuesta puede contener <code>situacion_evaluacion: 'por_confirmar'</code> y <code>ultimo_intento_evaluacion: 'fallo_tecnico'</code>. Clasificarla solo por <code>estado_evaluacion</code> borraría esa diferencia.</p>
+    </section>
+    <section>
+        <h2>Reauditoría: un veto necesita evidencia del perfil</h2>
+        <p>Que el aviso diga «Kubernetes es obligatorio» no demuestra que el candidato no sepa Kubernetes. El servicio contrasta la exclusión con el perfil efectivo, incluso al recuperar un resultado de caché. Si el modelo inventa «No tengo Kubernetes» y no hay una ausencia acreditada, conserva el 80 % como <strong>Por confirmar</strong> y no publica la afirmación falsa. Una ausencia realmente declarada puede sostener el veto.</p>
+        <p>La barra distingue <strong>3/4 resultados válidos</strong> de <strong>4/4 intentos procesados (100 %)</strong>. Si la API no envía el número de procesadas, no lo infiere. Esta distinción no cambia el estado laboral.</p>
+        <p>Una pregunta del perfil no prueba una ausencia. Tampoco reutilizo esa afirmación en el desglose si llegó duplicada bajo un rótulo como «Experiencia con Kubernetes».</p>
+        <p>Backend <code>4390634</code> y <code>5a5cad2</code>: Jest aislado, 4.067 aprobadas, 0 fallidas y 166 omitidas. Frontend <code>e010d18</code>: Karma 610 aprobadas y 4 omitidas; Playwright 90 aprobadas. Salida 0 en las tres suites finales. Los datos y proveedores fueron simulados; no se hizo backfill.</p>
+    </section>
+    <section>
+        <h2>Correcciones tras la auditoría anterior de la PR #108</h2>
+        <ul>
+            <li><strong>Sin descripción (F1):</strong> si no hay un veto determinístico acreditado, no se crea una evaluación válida. Queda <code>sin_evaluar</code>, sin afinidad ni firma nuevas. Procesar esa oferta no suma una evaluación válida ni un fallo técnico.</li>
+            <li><strong>Pasada ordinaria (F2):</strong> conserva un «Por confirmar» si no cambian los criterios ni la entrada efectiva, aun sin caché. Una selección expresa, un marcador o un cambio real sí permiten evaluarla. Sin huella histórica, no se inventa una: se usa la firma y las invalidaciones registradas.</li>
+            <li><strong>Requisito ambiguo (F5):</strong> si una cita del aviso relaciona Kubernetes con el puesto sin aclarar su obligatoriedad, 80 % no implica aprobación. También comprobé una tecnología mencionada en «Stack del equipo» y la segunda de una lista de herramientas. Lo deseable no bloquea y un veto acreditado sigue prevaleciendo.</li>
+            <li><strong>Resumen del lote (F4):</strong> una oferta puede seguir pendiente en un lote completado. Eso no convierte el cierre en cancelación ni reemplaza la decisión laboral anterior.</li>
+        </ul>
+        <p>Correcciones: backend <code>fbc8782</code> y <code>2b4e855</code>; frontend <code>8dacea0</code>. La suite estándar de Jest dio 4.054 aprobadas y 166 omitidas; Karma, 608 aprobadas y 4 omitidas; Playwright, 88 aprobadas. Las tres ejecuciones salieron con código 0 y sin fallas. La verificación independiente focal del último SHA pasó 22/22, incluido el uso de caché. No se hizo SQL, inferencia ni login real.</p>
+    </section>
+    <section>
+        <h2>Pruebas y calibración de la entrega inicial</h2>
+        <table>
+            <caption>Evidencia observada al preparar este informe</caption>
+            <thead><tr><th scope="col">Comprobación</th><th scope="col">Resultado y límite</th></tr></thead>
+            <tbody>
+                <tr><td>Jest backend · suite estándar</td><td>Salida 0: 4.029 aprobadas, 0 fallidas, 166 omitidas. Node 24.18.0, red aislada y sin dotenv; cuatro suites de integración excluidas por el script estándar. Después fijé el 95 % exacto en el fixture de la regresión del veto: 8/8 en la suite focal, sin cambiar código de producción.</td></tr>
+                <tr><td>Karma · Chrome Headless 158</td><td>Salida 0: 605 aprobadas, 0 fallidas, 4 omitidas. Entorno sintético aislado.</td></tr>
+                <tr><td>Playwright · caso de 80 %</td><td>Salida 0: 4 aprobadas. Incluidas en las 86 pruebas aprobadas de la regresión ampliada (salida 0, sin fallas). Dos tamaños y dos temas; foco por teclado y sin escrituras en el recorrido del 80 %.</td></tr>
+                <tr><td>Base de datos e integraciones reales</td><td>No ejecutadas. No se usaron PostgreSQL, Firebase ni proveedores reales, y no se consumió cuota.</td></tr>
+            </tbody>
+        </table>
+        <details>
+            <summary>Comandos y logs locales</summary>
+            <p>El runner creó copias fuera del repositorio, ocultó los dotenv y las configuraciones reales, usó solo loopback y montó dependencias de solo lectura. Para Angular copió la plantilla de entorno; el identificador Git de Jest se generó en la copia, solo para el smoke del runner SQL59. Los flags de las suites no reemplazan ese aislamiento.</p>
+            <pre>R=/tmp/gpMcA4T4/busca-105.UAck1Jxo/aislado
+PRUEBAS_GIT_SINTETICO=1 bash "$R" backend npm test -- --runInBand --silent --verbose=false
+bash "$R" frontend npm test -- --watch=false --browsers=ChromeHeadless
+bash "$R" frontend ./node_modules/.bin/playwright test tabla-ui.spec.ts detalle-ui.spec.ts detalle-harness.spec.ts dashboard.spec.ts calibracion-105.spec.ts</pre>
+            <p>Logs locales de las suites: <code>job-14.log</code> y <code>job-15.log</code> en <code>/tmp/gpMcA4T4/gentle-jobs-4IzL3L/</code>. Son artefactos de esta ejecución, no resultados de CI.</p>
+        </details>
+        <p>El <a href="../calibracion-105.md">comparador offline</a> usa 30 casos ficticios con etiquetas propuestas. Cambia esfuerzo o prompt por separado y distingue las discrepancias laborales de los fallos de ejecución. Las tasas de la simulación no son mediciones de un modelo.</p>
+    </section>
+    <section>
+        <h2>Auditoría, límites y próximos pasos</h2>
+        <p><strong>Dictamen técnico:</strong> la primera revisión independiente encontró defectos de evidencia y legados. Se corrigieron los seis casos iniciales y los legados. Una segunda revisión detectó una regresión adicional en un veto obligatorio; la prueba automática reproduce y verifica su corrección. El verificador volvió a ejecutar la suite focal sobre el árbol de backend de <code>bab0da3</code>: 8/8, incluido veto al 95 % y caché, sin cambios de backend en <code>ac60fb3</code>. Las pruebas locales no detectan un defecto material pendiente; no acreditan la verificación integral con PostgreSQL aislado ni la sesión real. <strong>Codex:</strong> no ejecutado; no hay un Codex local disponible por CLI ni se inició un ciclo remoto. Los subagentes de Pi que trabajaron como explorador, implementadores y verificador no cuentan como Codex. No se acreditó un nivel de esfuerzo individual.</p>
+        <p><strong>Publicación:</strong> la <a href="https://github.com/marcostoledo96/busca_empleos/pull/108">PR #108</a> está en Draft y apunta a <code>integracion/openai-calibracion</code>. El titular autorizó el preview de Vercel. Railway enlaza producción a <code>master</code>. No hay autorización de merge ni despliegue a producción.</p>
+        <p><strong>Para estudiar:</strong> distinguir resultado laboral de fallo de ejecución, contratos aditivos, escritura condicional frente a modificaciones concurrentes, e idempotencia de lotes. Las pruebas de regresión verifican efectos observables sin usar datos privados.</p>
+        <p><strong>Próximo paso:</strong> registrar la evidencia de corrección en la PR #108 para la auditoría principal. No solicitar Codex antes de su aprobación y de los gates aplicables. #104 conserva el piloto y la validación real de capacidades; #106 se ocupa de CI, de validar el SHA integrado y de una eventual salida controlada. #91 no se modifica.</p>
+        <details>
+            <summary>Diagnóstico opcional para el titular · SQL no ejecutado</summary>
+            <p>Si decidís inspeccionar producción, usá exclusivamente un rol lector ya habilitado, en una transacción de solo lectura. No devuelvo motivos, desglose, descripciones, datos de perfil ni mensajes crudos. La muestra queda limitada a 20 ofertas; no calcula la categoría de negocio.</p>
+            <pre>BEGIN READ ONLY;
+SET LOCAL statement_timeout = '3s';
+SET LOCAL lock_timeout = '500ms';
+
+SELECT estado_evaluacion, count(*) AS ofertas
+FROM public.ofertas
+WHERE fecha_extraccion &gt;= current_timestamp - interval '30 days'
+GROUP BY estado_evaluacion
+ORDER BY estado_evaluacion;
+
+SELECT id, estado_evaluacion, porcentaje_match, fecha_evaluacion,
+       firma_criterios_evaluacion IS NOT NULL AS tiene_firma,
+       explicacion_evaluacion IS NOT NULL AS tiene_explicacion,
+       CASE WHEN evaluacion_error_mensaje = 'REEVALUACION_SOLICITADA' THEN 'solicitada'
+            WHEN NULLIF(btrim(evaluacion_error_mensaje), '') IS NOT NULL THEN 'diagnostico'
+       END AS tipo_marcador
+FROM public.ofertas
+WHERE fecha_extraccion &gt;= current_timestamp - interval '30 days'
+ORDER BY fecha_evaluacion DESC NULLS LAST, id DESC
+LIMIT 20;
+ROLLBACK;</pre>
+        </details>
+    </section>
+</main>
+</body>
+</html>

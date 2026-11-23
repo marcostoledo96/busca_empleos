@@ -191,6 +191,24 @@ describe('TablaOfertas — Activación por teclado en cards mobile', () => {
         });
     }
 
+    it('S6: tabla y tarjeta conservan la afinidad y el motivo por confirmar tras un fallo', () => {
+        const motivo = 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia';
+        fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], estado_evaluacion: 'pendiente',
+            situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: 'fallo_tecnico',
+            vigencia_evaluacion: 'anterior', porcentaje_match: 80, razon_evaluacion: motivo,
+            evaluacion_error_mensaje: 'Timeout sintético' }]);
+        fixture.detectChanges();
+        const raiz: HTMLElement = fixture.nativeElement;
+        for (const selector of ['tbody tr', '.card-oferta']) {
+            const texto = raiz.querySelector(selector)?.textContent?.replace(/\s+/g, ' ');
+            expect(texto).toContain('Buena afinidad · Por confirmar');
+            expect(texto).toContain('80 % de afinidad');
+            expect(texto).toContain(`Motivo: ${motivo}`);
+            expect(texto).toContain('Resultado anterior conservado');
+            expect(texto).toContain('Timeout sintético');
+        }
+    });
+
     it('conservo la evaluación anterior sin darle énfasis de aprobación actual', () => {
         fixture.componentRef.setInput('ofertas', [{ ...mockOfertas[0], vigencia_evaluacion: 'anterior',
             firma_criterios_evaluacion: 'firma', evaluacion_error_mensaje: 'HTTP 503 muy extenso' }]);

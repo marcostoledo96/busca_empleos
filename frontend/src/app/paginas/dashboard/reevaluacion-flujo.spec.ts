@@ -344,7 +344,9 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         http.expectOne(`${url}/ofertas`).flush({ exito: true,
             datos: [ofertaSintetica(1), ofertaSintetica(2, 'desconocida')] });
         await harness.fixture.whenStable();
-        expect(raiz.querySelector('[aria-label="Progreso de evaluación: 50%"]')).not.toBeNull();
+        const barra = raiz.querySelector('[role="progressbar"][aria-label="Progreso de evaluación"]');
+        expect(barra?.getAttribute('aria-valuenow')).toBe('50');
+        expect(barra?.getAttribute('aria-valuetext')).toBe('Resultados válidos: 1/2 · Intentos procesados: 50%');
         (raiz.querySelector('[aria-label="Cancelar evaluación en progreso"]') as HTMLButtonElement).click();
         http.expectOne(`${url}/evaluacion/cancelar`).flush({ exito: true });
         http.expectNone(req => req.url.includes('scraping'));

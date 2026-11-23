@@ -13,7 +13,7 @@ function crearProveedores() {
         throw new Error(`Operación externa no permitida: ${nombre}`);
     };
     const cambiar = valor => {
-        if (!['correcto', 'vacio', '429', '500', '503', 'timeout', 'invalido', 'parcial', 'retenido', 'volumen', 'ia_incompleta', 'ia_error', 'ia_rechazada', 'ia_cv'].includes(valor)) {
+        if (!['correcto', 'vacio', '429', '500', '503', 'timeout', 'invalido', 'parcial', 'retenido', 'volumen', 'ia_aprobada_con_evidencia', 'ia_incompleta', 'ia_error', 'ia_rechazada', 'ia_cv'].includes(valor)) {
             throw new Error('Escenario sintético desconocido.');
         }
         escenario = valor;
@@ -64,7 +64,14 @@ function crearProveedores() {
                     ],
                 } : escenario === 'ia_incompleta' ? { match: true }
                     : { match: escenario !== 'ia_rechazada', porcentaje: escenario === 'ia_rechazada' ? 20 : 85,
-                        razon: escenario === 'ia_rechazada' ? 'No cumplo los requisitos sintéticos.' : 'Cumplo los requisitos sintéticos.' }),
+                        razon: escenario === 'ia_rechazada' ? 'No cumplo los requisitos sintéticos.' : 'Cumplo los requisitos sintéticos.',
+                        ...(escenario === 'ia_aprobada_con_evidencia' ? { explicacion: { cumplidos: [{
+                            requisito: 'JavaScript', tipo: 'obligatorio',
+                            evidencia_oferta: 'desarrollar aplicaciones JavaScript',
+                            evidencia_perfil: 'Desarrollo junior JavaScript',
+                            explicacion: 'El perfil coincide con la tecnología solicitada.',
+                        }] } } : {}),
+                    }),
             } }] }) };
         }
         if (destino.origin === 'https://www.computrabajo.com.ar'

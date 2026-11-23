@@ -1141,7 +1141,8 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         fixture.autoDetectChanges();
         await fixture.whenStable();
         expect(fixture.nativeElement.querySelector('[role="alert"]').textContent).toContain('Fallo SQL sintético');
-        expect(fixture.nativeElement.textContent).toContain('3 resultado(s) actualizado(s), 7 pendiente(s)');
+        expect(fixture.nativeElement.textContent).toContain('3 resultado(s) actualizado(s), 7 pendiente(s) del lote');
+        expect(fixture.nativeElement.textContent).toContain('Conservo el último resultado válido cuando existe.');
         expect(fixture.nativeElement.textContent).not.toContain('Evaluación completada');
         expect(component.evaluando()).toBeFalse();
         evalSpy.ejecutarEvaluacion.and.returnValue(of({ exito: true, en_curso: true, mensaje: 'Iniciada' }));
@@ -1151,6 +1152,76 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         expect(component.progresoEvaluacion()).toBeNull();
         expect(component.evaluando()).toBeTrue();
     });
+
+    for (const [estado, summary, detail] of [
+        ['completado', 'Evaluación completada', '2 aprobadas, 1 rechazadas de 4 · 1 pendiente(s) del lote'],
+        ['cancelado', 'Evaluación cancelada', 'Evaluación cancelada: 3 resultado(s) actualizado(s), 1 pendiente(s) del lote.'],
+        [undefined, 'Evaluación cancelada', 'Evaluación cancelada: 3 resultado(s) actualizado(s), 1 pendiente(s) del lote.'],
+    ] as const) {
+        it(`informa el cierre del lote con ofertas sin evaluar: ${estado ?? 'respuesta legada'}`, fakeAsync(() => {
+            evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: {
+                ...progresoActivoMock, activo: false, estado: 'inactivo', porcentaje: 0,
+            } }));
+            evalSpy.ejecutarEvaluacion.and.returnValue(of({ exito: true, en_curso: true, mensaje: 'Iniciada' }));
+            fixture = TestBed.createComponent(PanelControl);
+            component = fixture.componentInstance;
+            fixture.detectChanges();
+            const mensajes = spyOn(fixture.debugElement.injector.get(MessageService), 'add');
+            const accion = spyOn(component.accionCompletada, 'emit');
+            const completado = estado === 'completado';
+            evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: {
+                ...progresoActivoMock, activo: false, estado, total: 4,
+                procesadas: completado ? 4 : 3, pendientes: 1, porcentaje: completado ? 100 : 75,
+            } }));
+            component.ejecutarEvaluacion([1, 2, 3, 4]);
+            tick(2000);
+            expect(mensajes).toHaveBeenCalledOnceWith(jasmine.objectContaining({ summary, detail }));
+            expect(accion).toHaveBeenCalledTimes(1);
+            expect(evalSpy.ejecutarEvaluacion).toHaveBeenCalledTimes(1);
+            expect(component.errorEvaluacion()).toBeNull();
+            tick(1500);
+        }));
+    }
+
+    it('S7: muestra resultados nuevos sólo cuando el lote los informa y separa el diagnóstico', async () => {
+        const progreso = { ...progresoActivoMock, activo: false, estado: 'error', errores: 1,
+            mensaje_error: 'Timeout sintético', por_confirmar: 0, bajo_umbral: 2 } as const;
+        evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: progreso }));
+        fixture = TestBed.createComponent(PanelControl);
+        component = fixture.componentInstance;
+        fixture.autoDetectChanges();
+        await fixture.whenStable();
+        const raiz: HTMLElement = fixture.nativeElement;
+        expect(raiz.querySelector('[role="status"][aria-label="Resultados laborales del lote"]')?.textContent)
+            .toContain('0 por confirmar · 2 bajo el umbral');
+        expect(raiz.querySelector('.panel-alerta-eval')?.textContent).toContain('Timeout sintético');
+        expect(raiz.querySelector('.panel-alerta-eval')?.textContent).not.toContain('bajo el umbral');
+        const { por_confirmar, ...sinConteo } = progreso;
+        component.progresoEvaluacion.set(sinConteo);
+        fixture.detectChanges();
+        expect(raiz.querySelector('[aria-label="Resultados laborales del lote"]')?.textContent).not.toContain('por confirmar');
+    });
+
+    for (const [progreso, intentos] of [
+        [{ ...progresoActivoMock, total: 4, procesadas: 4, errores: 1, porcentaje: 100 }, 'Intentos procesados: 4/4 (100%)'],
+        [{ ...progresoActivoMock, total: 4, porcentaje: 75 }, 'Intentos procesados: 75%'],
+    ] as const) {
+        it(`distingue resultados válidos del progreso: ${intentos}`, fakeAsync(() => {
+            evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: progreso }));
+            fixture = TestBed.createComponent(PanelControl);
+            fixture.detectChanges();
+
+            const raiz: HTMLElement = fixture.nativeElement;
+            const barra = raiz.querySelector('[role="progressbar"]');
+            const resultados = 'Resultados válidos: 3/4';
+            expect(barra?.getAttribute('aria-label')).toBe('Progreso de evaluación');
+            expect(barra?.getAttribute('aria-valuenow')).toBe(String(progreso.porcentaje));
+            expect(barra?.getAttribute('aria-valuetext')).toBe(`${resultados} · ${intentos}`);
+            expect(barra?.textContent?.trim()).toBe(`${resultados} · ${intentos}`);
+            expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+            discardPeriodicTasks();
+        }));
+    }
 
     it('al remontarse con evaluación activa, evaluando() queda en true', fakeAsync(() => {
         // El backend reporta evaluación en curso.

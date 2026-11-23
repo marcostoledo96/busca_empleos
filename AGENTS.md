@@ -128,11 +128,22 @@ lo que cambió; si requiere ampliar el alcance, consultame primero.
 
 - Mi rama predeterminada es **`master`**, verificada mediante `origin/HEAD` →
   `origin/master`.
-- Uso ramas `feature/nombre-descriptivo`, sin rama `develop`; integro en `master`.
-  No requiero PR por defecto, pero eso no autoriza merges automáticos.
-- **Cada commit requiere mi aprobación explícita. Push y deploy también requieren
-  autorización explícita para su propia acción.** No los deduzcas del permiso para
-  implementar o verificar.
+- Uso ramas `feature/nombre-descriptivo`, sin rama `develop`; integro en `master`
+  o en la integradora indicada por la tarea. No hagas push directo a la rama destino.
+- **Para un cambio autorizado que requiera auditoría, autorizo al agente a hacer
+  commit, push de la rama de trabajo y abrir o actualizar la PR hacia la rama
+  destino acordada, sin volver a pedirme permiso, cuando el candidato esté listo
+  para enviar a auditoría.** Esto exige un diff acotado, pruebas obligatorias para
+  esa entrega con evidencia y ningún defecto material conocido sin resolver. No
+  exige que la auditoría externa ya se haya realizado ni equivale a aprobarla.
+  Fuera de este supuesto, commit, push y PR requieren autorización explícita.
+- Para publicar ramas o PR no se requiere comprobar previews de Vercel o Railway.
+  Para otros efectos externos no autorizados, conservá el control previo: si no
+  podés acreditar que la publicación no los activa o la tarea impone una
+  restricción más específica, no publiques e informá qué falta.
+- Esta autorización no habilita merge, deploy, force-push, quitar el estado Draft
+  ni iniciar servicios o consumir cuota. Esas acciones requieren autorización
+  explícita por separado.
 
 Escribo Conventional Commits en español, en imperativo:
 
