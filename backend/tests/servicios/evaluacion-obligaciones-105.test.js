@@ -171,6 +171,18 @@ test('S22: la coma no separa a Kubernetes de su propia negación', async () => {
     expect(guardarCache).not.toHaveBeenCalled();
 });
 
+test('S23: negar la sigla explícita invalida el veto incluso con ausencia declarada', async () => {
+    const requisito = 'Active Directory';
+    const evidencia = 'Active Directory (AD) es obligatorio';
+    const oferta = { titulo: 'Soporte junior', descripcion: `${evidencia} y no se requiere AD en este puesto.` };
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
+        exclusiones: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: requisito }],
+    } }));
+    const resultado = await evaluarOferta(oferta, null, null, { conocimientos_ausentes: [requisito] });
+    expect(resultado).toMatchObject({ invalido: true, firma_criterios_evaluacion: null });
+    expect(guardarCache).not.toHaveBeenCalled();
+});
+
 const AD = 'Active Directory';
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],

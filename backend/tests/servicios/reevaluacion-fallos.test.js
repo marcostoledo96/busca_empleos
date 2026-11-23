@@ -147,9 +147,13 @@ test.each([false, true])('S12/S14/S16 lote mixto: ausencia real, Kubernetes por 
     expect(progreso()).not.toHaveProperty('por_confirmar');
 });
 
-test.each(['Kubernetes', 'Active Directory'])('S23: el lote y el detalle conservan %s por confirmar frente a una negación ajena', async requisito => {
+test.each([
+    ['Kubernetes', 'experiencia previa'],
+    ['Active Directory', 'experiencia previa'],
+    ['Kubernetes', 'experiencia previa en Kubernetes'],
+])('S23: %s queda por confirmar aunque no se requiera %s', async (requisito, condicion) => {
     const evidencia = `${requisito} es obligatorio`;
-    filas[0].descripcion = `${evidencia} y no se requiere experiencia previa.`;
+    filas[0].descripcion = `${evidencia} y no se requiere ${condicion}.`;
     preferencias.obtenerPreferencias.mockResolvedValue({});
     proveedor.consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad sintética.', explicacion: {
         por_confirmar: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: '' }],

@@ -321,9 +321,15 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
             const otroRequisito = negacion && negacion.index === 0
                 ? segunda.slice(negacion[0].length).trim()
                 : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1];
-            // Si la negación no nombra otra condición, la coma puede separar el tópico de su propio predicado.
-            return requisito && otroRequisito && !/^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)
-                && !requisito.split(/ (?:y|o) /).some(nombre => contieneTokenNormalizado(segunda, nombre))
+            // Sin un objeto explícito, la negación puede continuar el mismo tópico.
+            if (!requisito || !otroRequisito || /^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)) return [oracion];
+
+            // Una sigla declarada en el aviso identifica el mismo requisito. La experiencia previa,
+            // en cambio, es una condición distinta de la tecnología aunque la vuelva a nombrar.
+            const alias = [...primera.matchAll(/\(([A-Z][A-Z0-9]{1,9})\)/g)].map(([, sigla]) => normalizarTextoComparacion(sigla));
+            const nombres = requisito.split(/ (?:y|o) /).concat(alias);
+            const experienciaDistinta = /^(?:la )?experiencia previa\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito);
+            return experienciaDistinta || !nombres.some(nombre => contieneTokenNormalizado(segunda, nombre))
                 ? [primera, restoTexto] : [oracion];
         });
 
