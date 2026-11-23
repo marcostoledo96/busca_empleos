@@ -23,7 +23,8 @@ const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa, validarCoherenciaRespuesta, UMBRAL_MATCH_MINIMO, normalizarTextoComparacion, PATRON_OPCIONAL_EVIDENCIA, PATRON_NEGACION_EVIDENCIA,
-    _internas: { contieneTokenNormalizado, extraerClausulasConContexto } } = require('./evaluacion/parser-respuesta-ia');
+    _internas: { contieneTokenNormalizado, extraerClausulasConContexto, aplicaAlRequisito, mencionesDelRequisito,
+        noObligatoriaEnOferta, literalClausula, esDecorativa, citaContradictoria } } = require('./evaluacion/parser-respuesta-ia');
 const reglasExclusion = require('./evaluacion/reglas-exclusion');
 const { resolverModalidadOferta } = require('./servicio-normalizacion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
@@ -194,41 +195,7 @@ function requisitoVigilado(texto) {
     return texto.match(/\b(?:active directory|directorio activo|autorizacion laboral)\b/)?.[0];
 }
 
-function aplicaAlRequisito(clausula, requisito) {
-    return !clausula.experienciaAjenaA || !contieneTokenNormalizado(clausula.experienciaAjenaA, requisito);
-}
-
 const PATRON_OBLIGACION_EXPLICITA = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/;
-
-const esOpcionalEnOferta = texto => PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
-const noObligatoriaEnOferta = ({ texto }) => esOpcionalEnOferta(texto) || PATRON_NEGACION_EVIDENCIA.test(texto);
-const mencionesDelRequisito = (clausulas, requisito) => clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
-    && contieneTokenNormalizado(clausula.texto, requisito));
-const literalClausula = ({ texto, inicio, fin }) => texto.slice(-(fin - inicio));
-const esDecorativa = texto => /\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto);
-
-function citaContradictoria(relacionadas, requisito, cita, descripcion) {
-    if (!contieneTokenNormalizado(cita, requisito)) return false;
-    const contexto = ({ texto }) => ` ${texto} `.split(` ${requisito} `);
-    const esDeseable = clausula => {
-        const [antes, despues = ''] = contexto(clausula);
-        return !PATRON_NEGACION_EVIDENCIA.test(clausula.texto)
-            && (/^\s*(?:es |son |resulta )?(?:deseables?|opcional(?:es)?)\b/.test(despues)
-                || /(?:^| )se valora(?:n)?\s*$/.test(antes) || antes.trim() === 'deseable');
-    };
-    if (!relacionadas.some(esDeseable)) return false;
-    return relacionadas.some(clausula => {
-        if (noObligatoriaEnOferta(clausula) || esDecorativa(clausula.texto)) return false;
-        const literal = literalClausula(clausula);
-        // Una cita que abarca la oración obligatoria debe existir también en el texto fuente.
-        if (!contieneTokenNormalizado(literal, cita) && !(contieneTokenNormalizado(cita, literal)
-            && contieneTokenNormalizado(descripcion, cita))) return false;
-        const [antes, despues = ''] = contexto(clausula);
-        return /^\s*(?:es |son |resulta )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(despues)
-            || /(?:^| )se (?:requiere|exige|necesita)n?\s*$/.test(antes)
-            || /^(?:obligatorio|es obligatorio conocer)$/.test(antes.trim());
-    });
-}
 
 function dudaContextualBloqueante(item, clausulas, descripcion) {
     const requisito = normalizarTextoComparacion(item.requisito);
@@ -589,7 +556,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
 
         // ── Paso 3: Parsear la respuesta de DeepSeek con el parser estricto ──
         const textoOferta = [oferta.titulo, oferta.descripcion].filter(Boolean).join('\n');
-        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta);
+        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta, oferta.descripcion);
 
         // Registro solo clasificación y métricas, nunca evidencias ni texto del parser.
         if (respuesta.error || respuesta.invalido || respuesta.inconsistente) {
