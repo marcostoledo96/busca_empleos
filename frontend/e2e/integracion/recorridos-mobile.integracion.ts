@@ -448,9 +448,21 @@ testConPerfilReevaluacion('E reevaluación individual y seleccionada conserva re
     expect(correcta.evaluaciones[0]).toMatchObject({ estado_evaluacion: 'aprobada', porcentaje_match: 85, firma_criterios_evaluacion: expect.any(String) });
     expect(correcta.evaluaciones[1]).toEqual(antes.evaluaciones[1]);
     await control(request, { escenario: 'ia_incompleta' });
-    await dialogo(page).getByRole('button', { name: 'Reevaluar oferta', exact: true }).click();
-    await esperarEvaluacion(request);
     await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Seleccionar ofertas para reevaluar', exact: true }).click();
+    await vista(page).getByRole('checkbox', { name: `Seleccionar en tarjeta ${titulo}`, exact: true }).check();
+    const region = page.getByRole('region', { name: 'Volver a evaluar ofertas seleccionadas', exact: true });
+    const confirmacion = page.getByRole('region', { name: 'Confirmar reevaluación', exact: true });
+    await region.getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true }).click();
+    const reevaluacionIncompleta = page.waitForResponse(respuesta =>
+        new URL(respuesta.url()).pathname === '/api/evaluacion/ejecutar' && respuesta.request().method() === 'POST'
+    );
+    await confirmacion.getByRole('button', { name: 'Confirmar reevaluación', exact: true }).click();
+    const iniciadaIncompleta = await reevaluacionIncompleta;
+    expect(iniciadaIncompleta.status()).toBe(200);
+    expect(iniciadaIncompleta.request().postDataJSON()).toEqual({ ids: [1] });
+    await esperarEvaluacion(request);
+    await page.getByRole('button', { name: 'Volver a las ofertas agrupadas', exact: true }).click();
     await refrescar(page);
     await abrir(page, 'APROBADAS');
     await expect(dialogo(page).getByText('Se conserva la evaluación anterior válida.', { exact: false })).toBeVisible();
@@ -462,9 +474,7 @@ testConPerfilReevaluacion('E reevaluación individual y seleccionada conserva re
     await control(request, { escenario: 'ia_aprobada_con_evidencia' });
     await page.goto('/?reevaluar=1');
     await vista(page).getByRole('checkbox', { name: 'Seleccionar ofertas de esta página', exact: true }).check();
-    const region = page.getByRole('region', { name: 'Volver a evaluar ofertas seleccionadas', exact: true });
     await region.getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true }).click();
-    const confirmacion = page.getByRole('region', { name: 'Confirmar reevaluación', exact: true });
     await confirmacion.getByRole('button', { name: 'Cancelar', exact: true }).click();
     expect((await evidencia(request)).llamadas).toEqual(incompleta.llamadas);
     await region.getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true }).click();
