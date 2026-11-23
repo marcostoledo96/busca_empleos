@@ -522,7 +522,8 @@ describe('Servicio de evaluación con IA', () => {
             expect(parsearRespuestaEvaluacionIa).toHaveBeenCalledTimes(1);
             expect(parsearRespuestaEvaluacionIa).toHaveBeenCalledWith(
                 '{"match": true, "porcentaje": 80, "razon": "Buen match."}',
-                expect.any(String)
+                expect.any(String),
+                expect.stringContaining('Buscamos desarrollador frontend')
             );
         });
     });

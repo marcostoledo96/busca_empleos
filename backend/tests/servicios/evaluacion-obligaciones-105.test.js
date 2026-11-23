@@ -243,6 +243,56 @@ test('una experiencia deseable intermedia no oculta la negación de la sigla del
     expect(guardarCache).not.toHaveBeenCalled();
 });
 
+test.each([
+    ['Active Directory es obligatorio. Active Directory es deseable.', 'Active Directory es obligatorio', true],
+    ['Active Directory es deseable. Active Directory es obligatorio.', 'Active Directory es obligatorio', true],
+    ['Se valora Active Directory. Es obligatorio conocer Active Directory.', 'Es obligatorio conocer Active Directory', true],
+    ['Requisitos obligatorios:\n- Active Directory\nOpcionales:\n- Active Directory', 'Active Directory', true],
+    ['Active Directory es deseable.', 'Active Directory es deseable', false],
+    ['Active Directory es obligatorio. Active Directory no es obligatorio.', 'Active Directory es obligatorio', false],
+    ['Active Directory se usa en el equipo y se requiere Azure. Active Directory es deseable.', 'Active Directory se usa en el equipo', false],
+])('una mención deseable no borra una obligación explícita y citada (%s)', async (descripcion, evidencia_oferta, pendiente) => {
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Evaluación sintética.', explicacion: {
+        por_confirmar: [{ requisito: AD, tipo: 'obligatorio', evidencia_oferta, evidencia_perfil: '' }],
+    } }));
+    const oferta = { titulo: 'Soporte junior', descripcion };
+    const resultado = await evaluarOferta(oferta, null, null, {});
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion: { exclusiones: [], no_cumplidos: [],
+        por_confirmar: [expect.objectContaining({ requisito: AD, tipo: descripcion === 'Active Directory es deseable.' ? 'deseable' : 'desconocido', evidencia_oferta, evidencia_perfil: '' })],
+    } });
+    expect(resultado.error).not.toBe(true);
+    expect(resultado.pendiente === true).toBe(pendiente);
+    buscarCache.mockResolvedValueOnce(structuredClone(guardarCache.mock.calls[0][3]));
+    await expect(evaluarOferta(oferta, null, null, {})).resolves.toEqual(resultado);
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+    [AD, 80, true, []],
+    [AD, 80, false, [AD]],
+    ['Autorización laboral', 60, true, []],
+    ['Autorización laboral', 80, false, []],
+    ['Kubernetes', 80, false, ['Kubernetes']],
+])('una cita verificable de la contradicción no aprueba ni veta (%s, %i, cita completa: %s)', async (requisito, porcentaje, completa, conocimientos_ausentes) => {
+    const femenina = requisito === 'Autorización laboral';
+    const obligacion = `${requisito} es ${femenina ? 'obligatoria' : 'obligatorio'}`;
+    const descripcion = `${obligacion}. ${requisito} es deseable.`;
+    const evidencia_oferta = completa ? descripcion : obligacion;
+    const oferta = { titulo: 'Soporte junior', descripcion };
+    const perfil = { conocimientos_ausentes };
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje, razon: 'Afinidad estimada.', explicacion: {
+        por_confirmar: [{ requisito, tipo: 'obligatorio', evidencia_oferta, evidencia_perfil: '' }],
+    } }));
+    const resultado = await evaluarOferta(oferta, null, null, perfil);
+    expect(resultado).toMatchObject({ match: true, porcentaje, pendiente: true, explicacion: { exclusiones: [], no_cumplidos: [],
+        por_confirmar: [expect.objectContaining({ requisito, tipo: 'desconocido', evidencia_oferta, evidencia_perfil: '' })],
+    } });
+    expect(resultado.error).not.toBe(true);
+    buscarCache.mockResolvedValueOnce(structuredClone(guardarCache.mock.calls[0][3]));
+    await expect(evaluarOferta(oferta, null, null, perfil)).resolves.toEqual(resultado);
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],
     ['veto no acreditado con nombre compuesto', 'Se requiere experiencia con Active Directory.', `Experiencia con ${AD}`, false, 'exclusiones', 'obligatorio', '', [], 'pendiente', 'obligatorio'],

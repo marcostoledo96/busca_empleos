@@ -23,7 +23,8 @@ const modeloPreferencia = require('../modelos/preferencia');
 const evaluacionCache = require('../modelos/evaluacion-cache');
 const evaluacionLote = require('../modelos/evaluacion-lote');
 const { parsearRespuestaEvaluacionIa, validarCoherenciaRespuesta, UMBRAL_MATCH_MINIMO, normalizarTextoComparacion, PATRON_OPCIONAL_EVIDENCIA, PATRON_NEGACION_EVIDENCIA,
-    _internas: { contieneTokenNormalizado, extraerClausulasConContexto } } = require('./evaluacion/parser-respuesta-ia');
+    _internas: { contieneTokenNormalizado, extraerClausulasConContexto, aplicaAlRequisito, mencionesDelRequisito,
+        noObligatoriaEnOferta, literalClausula, esDecorativa, citaContradictoria } } = require('./evaluacion/parser-respuesta-ia');
 const reglasExclusion = require('./evaluacion/reglas-exclusion');
 const { resolverModalidadOferta } = require('./servicio-normalizacion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
@@ -194,20 +195,17 @@ function requisitoVigilado(texto) {
     return texto.match(/\b(?:active directory|directorio activo|autorizacion laboral)\b/)?.[0];
 }
 
-function aplicaAlRequisito(clausula, requisito) {
-    return !clausula.experienciaAjenaA || !contieneTokenNormalizado(clausula.experienciaAjenaA, requisito);
-}
+const PATRON_OBLIGACION_EXPLICITA = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/;
 
-function dudaContextualBloqueante(item, clausulas) {
+function dudaContextualBloqueante(item, clausulas, descripcion) {
     const requisito = normalizarTextoComparacion(item.requisito);
     const cita = normalizarTextoComparacion(item.evidencia_oferta);
     if (!contieneTokenNormalizado(cita, requisito)) return false;
-    const relacionadas = clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
-        && contieneTokenNormalizado(clausula.texto, requisito));
-    if (relacionadas.some(({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto) || PATRON_NEGACION_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto))) return false;
-    return relacionadas.some(({ texto, inicio, fin }) => {
-        if (!contieneTokenNormalizado(texto.slice(-(fin - inicio)), cita)) return false;
-        if (/\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto)) return false;
+    const relacionadas = mencionesDelRequisito(clausulas, requisito);
+    if (relacionadas.some(noObligatoriaEnOferta)) return citaContradictoria(relacionadas, requisito, cita, descripcion);
+    return relacionadas.some(clausula => {
+        if (!contieneTokenNormalizado(literalClausula(clausula), cita) || esDecorativa(clausula.texto)) return false;
+        const { texto } = clausula;
         const [antes, despues] = ` ${texto} `.split(` ${requisito} `);
         // El contexto se aplica también a los elementos coordinados de la misma cláusula.
         return /\b(?:obligatori[oa]|excluyente|se requiere|se solicita|se busca|experiencia (?:en|con)|conocimientos? (?:de|en)|trabaj(?:a|an|amos|ar) con|us(?:a|an|amos|ar)|utiliz(?:a|an|amos|ar)|menciona|stack(?: del equipo| tecnologico)?)(?: (?:[a-z0-9]+ )+(?:y|e|o))?\s*$/.test(antes)
@@ -249,6 +247,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         .filter(linea => !/[¿?«»“”"'‘’`~<>]/.test(linea));
     // El título no convierte una mención deseable del cuerpo en obligación acreditada.
     const textoOferta = oferta.descripcion;
+    const descripcionNormalizada = normalizarTextoComparacion(textoOferta);
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
     const exclusionesCorroboradas = new Set();
     const revisados = new Map();
@@ -268,16 +267,17 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const vigilado = requisitoVigilado(requisito);
             const menciones = vigilado ? clausulasOferta.filter(({ texto }) => requisitoVigilado(texto) === vigilado) : [];
             const noObligatorio = ({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto) || PATRON_NEGACION_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
-            const noBloquea = vigilado ? menciones.length > 0 && menciones.every(noObligatorio) : soloDeseable;
+            const contradiccion = citaContradictoria(mencionesDelRequisito(clausulasOferta, requisito), requisito, ofertaCitada, descripcionNormalizada);
+            const noBloquea = !contradiccion && (vigilado ? menciones.length > 0 && menciones.every(noObligatorio) : soloDeseable);
             const coincideCita = ({ texto, oracionMixta }) => contieneTokenNormalizado(texto, ofertaCitada) || oracionMixta === ofertaCitada;
             const citaVigilada = vigilado && requisitoVigilado(ofertaCitada) === vigilado && menciones.some(coincideCita);
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
-            const ofertaAcreditada = vigilado ? citaVigilada && !menciones.some(noObligatorio)
+            const ofertaAcreditada = !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
-                    && /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/.test(cita.texto))
+                    && PATRON_OBLIGACION_EXPLICITA.test(cita.texto))
                 : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
-                    && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
+                    && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido);
             // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
             const nombres = [...new Set([requisito, claveRequisito(item), ...(vigilado ? [vigilado] : [])])];
             const ausenciaDeclarada = nombres.map(nombre => ausencias.get(nombre)).find(Boolean);
@@ -307,8 +307,8 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const prioridad = { cumplidos: 1, por_confirmar: 2, exclusiones: 3 };
             if (prioridad[revisados.get(requisito)?.destino] > prioridad[destino]) continue;
             revisados.set(requisito, { destino, item: destino === 'cumplidos' ? item : {
-                ...item, tipo: noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
-                evidencia_oferta: ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
+                ...item, tipo: contradiccion ? 'desconocido' : noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
+                evidencia_oferta: contradiccion || ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
                 evidencia_perfil: destino === 'exclusiones' ? ausenciaAcreditada : '',
                 explicacion: destino === 'exclusiones' ? 'Incompatibilidad respaldada por una ausencia declarada del candidato.'
                     : motivoAmbiguo || 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
@@ -342,7 +342,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable'
     );
     const requiereConfirmacion = item => item.tipo === 'obligatorio' || (item.tipo === 'desconocido'
-        && dudaContextualBloqueante(item, citasConOrigen));
+        && dudaContextualBloqueante(item, citasConOrigen, descripcionNormalizada));
     const obligatoriosPendientes = explicacion.por_confirmar.filter(requiereConfirmacion);
     if (!faltaInformacion && !obligatoriosPendientes.length) {
         if (contrasteAcotado) {
@@ -556,7 +556,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
 
         // ── Paso 3: Parsear la respuesta de DeepSeek con el parser estricto ──
         const textoOferta = [oferta.titulo, oferta.descripcion].filter(Boolean).join('\n');
-        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta);
+        const respuesta = parsearRespuestaEvaluacionIa(respuestaTexto, textoOferta, oferta.descripcion);
 
         // Registro solo clasificación y métricas, nunca evidencias ni texto del parser.
         if (respuesta.error || respuesta.invalido || respuesta.inconsistente) {
