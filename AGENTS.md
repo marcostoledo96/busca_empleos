@@ -137,9 +137,10 @@ lo que cambió; si requiere ampliar el alcance, consultame primero.
   esa entrega con evidencia y ningún defecto material conocido sin resolver. No
   exige que la auditoría externa ya se haya realizado ni equivale a aprobarla.
   Fuera de este supuesto, commit, push y PR requieren autorización explícita.
-- Antes de publicar, verificá que el push y la PR no activen previews, deploys
-  ni otros efectos externos no autorizados. Si no podés acreditarlo o la tarea
-  impone una restricción más específica, no publiques: informá qué falta.
+- Para publicar ramas o PR no se requiere comprobar previews de Vercel o Railway.
+  Para otros efectos externos no autorizados, conservá el control previo: si no
+  podés acreditar que la publicación no los activa o la tarea impone una
+  restricción más específica, no publiques e informá qué falta.
 - Esta autorización no habilita merge, deploy, force-push, quitar el estado Draft
   ni iniciar servicios o consumir cuota. Esas acciones requieren autorización
   explícita por separado.
