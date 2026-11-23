@@ -196,6 +196,40 @@ test('S23: negar la sigla explícita invalida el veto incluso con ausencia decla
 });
 
 const AD = 'Active Directory';
+
+test.each([
+    ['Active Directory es obligatorio y Azure es deseable.', AD, 'Active Directory es obligatorio', true],
+    ['Active Directory es obligatorio y Azure es deseable.', AD, 'Active Directory es obligatorio y Azure es deseable.', true],
+    ['Active Directory es obligatorio, Azure es deseable.', AD, 'Active Directory es obligatorio', true],
+    ['Active Directory es deseable y Azure es obligatorio.', 'Azure', 'Azure es obligatorio', true],
+    ['Active Directory es deseable y Azure es obligatorio.', AD, 'Active Directory es deseable', false],
+])('cada grado de obligación corresponde a su propio requisito (%s; %s)', async (descripcion, requisito, evidencia, pendiente) => {
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad estimada.', explicacion: {
+        por_confirmar: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: '' }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Soporte junior', descripcion }, null, null, {});
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion: { exclusiones: [], no_cumplidos: [] } });
+    expect(resultado.error).not.toBe(true);
+    expect(resultado.pendiente === true).toBe(pendiente);
+    expect(resultado.explicacion.por_confirmar).toEqual([expect.objectContaining({
+        requisito, tipo: pendiente ? 'obligatorio' : 'deseable', evidencia_perfil: '',
+        ...(requisito === AD ? { evidencia_oferta: evidencia } : {}),
+    })]);
+    expect(guardarCache.mock.calls[0][3]).toEqual(resultado);
+});
+
+test('una experiencia deseable intermedia no oculta la negación de la sigla del obligatorio', async () => {
+    const evidencia = 'Active Directory (AD) es obligatorio';
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética.', explicacion: {
+        exclusiones: [{ requisito: AD, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: AD }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Soporte junior',
+        descripcion: `${evidencia} y la experiencia en Azure es deseable y no se requiere AD en este puesto.` },
+    null, null, { conocimientos_ausentes: [AD] });
+    expect(resultado).toMatchObject({ invalido: true, firma_criterios_evaluacion: null });
+    expect(guardarCache).not.toHaveBeenCalled();
+});
+
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],
     ['veto no acreditado con nombre compuesto', 'Se requiere experiencia con Active Directory.', `Experiencia con ${AD}`, false, 'exclusiones', 'obligatorio', '', [], 'pendiente', 'obligatorio'],

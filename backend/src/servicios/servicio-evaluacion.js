@@ -258,23 +258,24 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const requisito = normalizarTextoComparacion(item.requisito);
             const perfil = normalizarTextoComparacion(item.evidencia_perfil);
             const ofertaCitada = normalizarTextoComparacion(item.evidencia_oferta);
-            const clausulasOferta = citasConOrigen.filter(cita => aplicaAlRequisito(cita, requisito)).map(cita => cita.texto);
-            const citasRelacionadas = clausulasOferta.filter(clausula => contieneTokenNormalizado(clausula, ofertaCitada) && contieneTokenNormalizado(ofertaCitada, requisito));
+            const clausulasOferta = citasConOrigen.filter(cita => aplicaAlRequisito(cita, requisito));
+            const citasRelacionadas = clausulasOferta.map(cita => cita.texto).filter(clausula => contieneTokenNormalizado(clausula, ofertaCitada) && contieneTokenNormalizado(ofertaCitada, requisito));
             // Una cláusula mixta no permite atribuir el deseable de otro requisito a una obligación explícita.
             const soloDeseable = citasRelacionadas.length > 0 && citasRelacionadas.every(clausula =>
                 PATRON_NEGACION_EVIDENCIA.test(clausula) || /\bno (?:es )?(?:obligatori[oa]|excluyente)\b/.test(clausula)
                 || (!/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/.test(clausula)
                     && (PATRON_OPCIONAL_EVIDENCIA.test(clausula) || /\bse valora(?:n)?\b/.test(clausula))));
             const vigilado = requisitoVigilado(requisito);
-            const menciones = vigilado ? clausulasOferta.filter(clausula => requisitoVigilado(clausula) === vigilado) : [];
-            const noObligatorio = clausula => PATRON_OPCIONAL_EVIDENCIA.test(clausula) || PATRON_NEGACION_EVIDENCIA.test(clausula) || /\bse valora(?:n)?\b/.test(clausula);
+            const menciones = vigilado ? clausulasOferta.filter(({ texto }) => requisitoVigilado(texto) === vigilado) : [];
+            const noObligatorio = ({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto) || PATRON_NEGACION_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
             const noBloquea = vigilado ? menciones.length > 0 && menciones.every(noObligatorio) : soloDeseable;
-            const citaVigilada = vigilado && requisitoVigilado(ofertaCitada) === vigilado && menciones.some(clausula => contieneTokenNormalizado(clausula, ofertaCitada));
+            const coincideCita = ({ texto, oracionMixta }) => contieneTokenNormalizado(texto, ofertaCitada) || oracionMixta === ofertaCitada;
+            const citaVigilada = vigilado && requisitoVigilado(ofertaCitada) === vigilado && menciones.some(coincideCita);
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
             const ofertaAcreditada = vigilado ? citaVigilada && !menciones.some(noObligatorio)
-                && menciones.some(clausula => contieneTokenNormalizado(clausula, ofertaCitada)
-                    && /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/.test(clausula))
+                && menciones.some(cita => coincideCita(cita)
+                    && /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/.test(cita.texto))
                 : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
                     && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
             // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
