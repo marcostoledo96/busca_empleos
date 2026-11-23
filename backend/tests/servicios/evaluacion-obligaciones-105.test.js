@@ -246,6 +246,8 @@ test('una experiencia deseable intermedia no oculta la negación de la sigla del
 test.each([
     ['Active Directory es obligatorio. Active Directory es deseable.', 'Active Directory es obligatorio', true],
     ['Active Directory es deseable. Active Directory es obligatorio.', 'Active Directory es obligatorio', true],
+    ['Se valora Active Directory. Es obligatorio conocer Active Directory.', 'Es obligatorio conocer Active Directory', true],
+    ['Requisitos obligatorios:\n- Active Directory\nOpcionales:\n- Active Directory', 'Active Directory', true],
     ['Active Directory es deseable.', 'Active Directory es deseable', false],
     ['Active Directory es obligatorio. Active Directory no es obligatorio.', 'Active Directory es obligatorio', false],
     ['Active Directory se usa en el equipo y se requiere Azure. Active Directory es deseable.', 'Active Directory se usa en el equipo', false],

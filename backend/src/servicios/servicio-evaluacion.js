@@ -216,12 +216,13 @@ function dudaContextualBloqueante(item, clausulas) {
         const esDeseable = clausula => {
             const [antes, despues = ''] = contexto(clausula);
             return /^\s*(?:es |son |resulta )?(?:deseables?|opcional(?:es)?)\b/.test(despues)
-                || /(?:^| )se valora(?:n)?\s*$/.test(antes);
+                || /(?:^| )se valora(?:n)?\s*$/.test(antes) || antes.trim() === 'deseable';
         };
         const esObligatoria = clausula => {
             const [antes, despues = ''] = contexto(clausula);
             return /^\s*(?:es |son |resulta )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(despues)
-                || /(?:^| )se (?:requiere|exige|necesita)n?\s*$/.test(antes);
+                || /(?:^| )se (?:requiere|exige|necesita)n?\s*$/.test(antes)
+                || /^(?:obligatorio|es obligatorio conocer)$/.test(antes.trim());
         };
         return relacionadas.some(clausula => !PATRON_NEGACION_EVIDENCIA.test(clausula.texto) && esDeseable(clausula))
             && relacionadas.some(clausula => !noObligatoria(clausula) && citaPertinente(clausula) && esObligatoria(clausula));
