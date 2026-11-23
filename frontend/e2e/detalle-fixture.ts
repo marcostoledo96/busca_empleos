@@ -98,6 +98,34 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             empresa: `Empresa sintética ${'NombreCorporativoExtenso'.repeat(10)}`,
             descripcion: `${base.descripcion}\n\n${'Responsabilidades sintéticas: revisar accesibilidad y documentar decisiones. '.repeat(60)}\n${'IdentificadorSinEspacios'.repeat(40)}` },
     };
+    if (escenario === 'calibracion-105-f6') {
+        // Simulo la proyección de API, no el diagnóstico de la IA ni el contraste del backend.
+        const kubernetes = cambios['calibracion-105-kubernetes'];
+        const crearCaso = (id: number, titulo: string, tecnologia: string, evidencia: string, ausenciaConfirmada: boolean): Oferta => {
+            const descripcion = `${tecnologia} es un requisito obligatorio.`;
+            const item = requisito(tecnologia, descripcion, evidencia);
+            return {
+                ...base, ...kubernetes, id, url: `https://example.invalid/ofertas/${id}`, titulo, descripcion,
+                estado_evaluacion: ausenciaConfirmada ? 'rechazada' : 'pendiente',
+                situacion_evaluacion: ausenciaConfirmada ? 'rechazada' : 'por_confirmar',
+                razon_evaluacion: ausenciaConfirmada ? `Ausencia confirmada de experiencia con ${tecnologia}.`
+                    : `Confirmar el alcance de la experiencia con ${tecnologia}.`,
+                explicacion_evaluacion: { desglose_disponible: true, cumplidos: [], no_cumplidos: [],
+                    exclusiones: ausenciaConfirmada ? [item] : [], por_confirmar: ausenciaConfirmada ? [] : [item] },
+            };
+        };
+        // La API no conserva la afirmación negativa no acreditada, tampoco si el stack contradice al modelo.
+        const stackPositivo = crearCaso(502, 'Soporte de clústeres junior', 'Kubernetes', '', false);
+        // Un intento posterior fallido no añade una oferta ni borra el resultado válido.
+        stackPositivo.ultimo_intento_evaluacion = 'fallo_tecnico';
+        stackPositivo.evaluacion_error_mensaje = 'Tiempo de espera agotado en el último intento sintético.';
+        return [
+            crearCaso(501, 'Operaciones de plataforma junior', 'Kubernetes', '', false),
+            stackPositivo,
+            crearCaso(503, 'Infraestructura de contenedores junior', 'Kubernetes', 'Declaré que no tengo experiencia con Kubernetes.', true),
+            crearCaso(504, 'Soporte de directorio junior', 'Active Directory', 'Declaré que no tengo experiencia con Active Directory.', true),
+        ];
+    }
     if (!(escenario in cambios)) throw new Error(`Escenario de detalle no previsto: ${escenario}`);
     return structuredClone([{ ...base, ...cambios[escenario] }, {
         ...base, id: 502, titulo: 'Segunda oferta sintética para comprobar borradores independientes',
@@ -123,7 +151,7 @@ export function crearHttpDetalle(ofertas: Oferta[], parametros: URLSearchParams)
         if (solicitud.method === 'GET' && ruta === '/ofertas') return responder(guardadas);
         if (solicitud.method === 'GET' && ruta === '/ofertas/sincronizacion') return of(new HttpResponse({ body: {
             exito: true, datos: structuredClone(guardadas), total: guardadas.length, total_inicial: guardadas.length,
-            max_id: 502, fecha_corte: FECHA_DETALLE, cursor_siguiente: null, completada: true,
+            max_id: Math.max(...guardadas.map(oferta => oferta.id)), fecha_corte: FECHA_DETALLE, cursor_siguiente: null, completada: true,
         } }));
         const coincidencia = ruta.match(/^\/ofertas\/(\d+)(?:\/(postulacion|seguimiento|descripcion))?$/);
         const reevaluar = ruta === '/evaluacion/ejecutar' && solicitud.method === 'POST';

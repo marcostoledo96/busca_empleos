@@ -370,6 +370,11 @@ La tabla, las tarjetas móviles y el detalle muestran la afinidad válida y el m
 cuando la oferta queda **Por confirmar**; no se presenta como aprobada. Un fallo posterior
 no cambia esa categoría: el resultado conservado, su vigencia y el diagnóstico del
 último intento se muestran por separado, también si la oferta tiene seguimiento manual.
+La barra separa **Resultados válidos** (`evaluadas/total`) de **Intentos procesados**
+(`procesadas/total` y `porcentaje`). Por ejemplo, 3/4 resultados válidos pueden coexistir
+con 4/4 intentos procesados (100%). Si una respuesta anterior de la API no incluye
+`procesadas`, muestro solo el porcentaje para los intentos, sin inferir un conteo.
+El texto accesible de la barra comunica la misma distinción.
 El resumen de lotes muestra `por_confirmar` y `bajo_umbral` cuando el progreso los informa
 (incluye cero explícito y omite lo que no se conoce). **Bajo el umbral** desglosa una parte
 de las rechazadas del lote; no se vuelve a sumar. Los errores técnicos no son resultados laborales.

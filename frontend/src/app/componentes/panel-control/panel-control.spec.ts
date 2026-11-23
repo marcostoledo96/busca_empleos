@@ -1202,6 +1202,27 @@ describe('PanelControl — Rehidratación de evaluación al remount', () => {
         expect(raiz.querySelector('[aria-label="Resultados laborales del lote"]')?.textContent).not.toContain('por confirmar');
     });
 
+    for (const [progreso, intentos] of [
+        [{ ...progresoActivoMock, total: 4, procesadas: 4, errores: 1, porcentaje: 100 }, 'Intentos procesados: 4/4 (100%)'],
+        [{ ...progresoActivoMock, total: 4, porcentaje: 75 }, 'Intentos procesados: 75%'],
+    ] as const) {
+        it(`distingue resultados válidos del progreso: ${intentos}`, fakeAsync(() => {
+            evalSpy.obtenerProgreso.and.returnValue(of({ exito: true, datos: progreso }));
+            fixture = TestBed.createComponent(PanelControl);
+            fixture.detectChanges();
+
+            const raiz: HTMLElement = fixture.nativeElement;
+            const barra = raiz.querySelector('[role="progressbar"]');
+            const resultados = 'Resultados válidos: 3/4';
+            expect(barra?.getAttribute('aria-label')).toBe('Progreso de evaluación');
+            expect(barra?.getAttribute('aria-valuenow')).toBe(String(progreso.porcentaje));
+            expect(barra?.getAttribute('aria-valuetext')).toBe(`${resultados} · ${intentos}`);
+            expect(barra?.textContent?.trim()).toBe(`${resultados} · ${intentos}`);
+            expect(evalSpy.ejecutarEvaluacion).not.toHaveBeenCalled();
+            discardPeriodicTasks();
+        }));
+    }
+
     it('al remontarse con evaluación activa, evaluando() queda en true', fakeAsync(() => {
         // El backend reporta evaluación en curso.
         evalSpy.obtenerProgreso.and.returnValue(

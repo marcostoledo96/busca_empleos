@@ -48,6 +48,58 @@ for (const viewport of [{ width: 1440, height: 900 }, { width: 390, height: 844 
         expect(await page.getByLabel('Llamadas simuladas').textContent()).not.toMatch(/(^|\n)(POST|PATCH) /);
     });
 
+    test(`F6: dashboard con resultados mixtos de la API simulada · ${viewport.width}×${viewport.height}`, async ({ page }) => {
+        await page.setViewportSize(viewport);
+        await page.goto('/?detalle=calibracion-105-f6');
+        const confirmacion = page.getByRole('tab', { name: /por confirmar/i });
+        const rechazadas = page.getByRole('tab', { name: /rechazadas por IA/i });
+        const resumen = page.getByRole('list', { name: 'Resumen de estadísticas' });
+        for (const [etiqueta, cantidad] of [['Total', '4'], ['Por confirmar', '2'], ['Rechazadas por IA', '2'], ['Fallos técnicos', '0']]) {
+            await expect(resumen.getByRole('listitem').filter({ has: page.getByText(etiqueta, { exact: true }) }))
+                .toContainText(new RegExp(`${cantidad}$`));
+        }
+        await expect(confirmacion).toHaveAccessibleName(/por confirmar.*\b2\b/i);
+        await expect(rechazadas).toHaveAccessibleName(/rechazadas por IA.*\b2\b/i);
+
+        const movil = viewport.width < 769;
+        const oferta = (nombre: string) => movil
+            ? page.getByRole('listitem', { name: `Oferta: ${nombre}`, exact: true })
+            : page.getByRole('row').filter({ hasText: nombre });
+        const abrir = (nombre: string) => (movil ? oferta(nombre) : oferta(nombre).getByRole('button', { name: `Ver detalle de ${nombre}`, exact: true })).click();
+        const detalle = page.getByRole('dialog');
+        const detalleEvidencia = detalle.locator('summary', { hasText: 'Ver desglose y evidencias del matching' });
+        const confirmables = ['Operaciones de plataforma junior', 'Soporte de clústeres junior'];
+        const exclusiones = [['Infraestructura de contenedores junior', 'Kubernetes'], ['Soporte de directorio junior', 'Active Directory']];
+        await confirmacion.click();
+        for (const [nombre] of exclusiones) await expect(oferta(nombre)).toHaveCount(0);
+        for (const nombre of confirmables) {
+            await expect(oferta(nombre)).toContainText('Buena afinidad · Por confirmar');
+            await expect(oferta(nombre)).toContainText(afinidad);
+            await abrir(nombre);
+            await expect(detalle).toContainText('80 % de afinidad');
+            await expect(detalle).toContainText('0 exclusiones');
+            await detalleEvidencia.click();
+            const duda = detalle.locator('.desglose-por-confirmar');
+            await expect(duda.getByText('Perfil:', { exact: true })).toHaveCount(0);
+            if (nombre === confirmables[1]) await expect(detalle).toContainText('Tiempo de espera agotado en el último intento sintético.');
+            await page.keyboard.press('Escape');
+            await expect(detalle).toBeHidden();
+        }
+
+        await rechazadas.click();
+        for (const nombre of confirmables) await expect(oferta(nombre)).toHaveCount(0);
+        for (const [nombre, tecnologia] of exclusiones) {
+            await abrir(nombre);
+            await expect(detalle).toContainText(`Ausencia confirmada de experiencia con ${tecnologia}.`);
+            await expect(detalle).toContainText('1 exclusiones');
+            await detalleEvidencia.click();
+            await expect(detalle.locator('.desglose-en-contra')).toContainText(`Declaré que no tengo experiencia con ${tecnologia}.`);
+            await page.keyboard.press('Escape');
+            await expect(detalle).toBeHidden();
+        }
+        expect(await page.getByLabel('Llamadas simuladas').textContent()).not.toMatch(/(^|\n)(POST|PATCH) /);
+    });
+
     for (const tema of ['light', 'dark'] as const) {
         test(`afinidad por confirmar · ${viewport.width}×${viewport.height} · ${tema}`, async ({ page }, info) => {
             await page.setViewportSize(viewport);
