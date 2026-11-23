@@ -133,6 +133,9 @@ test.each([false, true])('S20: contrasta el alias de Kubernetes con ausencia y s
 
 test.each([
     ['Kubernetes es obligatorio, no se requiere experiencia previa.', 'Kubernetes es obligatorio', true],
+    ['Kubernetes es obligatorio y no se requiere experiencia previa.', 'Kubernetes es obligatorio', true],
+    ['Kubernetes es obligatorio y no se requiere Kubernetes para este puesto.', 'Kubernetes es obligatorio', false],
+    ['Requisitos obligatorios:\n- Kubernetes es obligatorio y no se requiere experiencia previa.', 'Kubernetes es obligatorio', true],
     ['Kubernetes no es obligatorio.', 'Kubernetes no es obligatorio', false],
 ])('S22: la negación solo modifica al requisito citado (%s)', async (descripcion, evidencia, pendiente) => {
     consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
@@ -147,6 +150,7 @@ test.each([
 test.each([
     'Kubernetes es obligatorio, no se requiere experiencia previa.',
     'Kubernetes es obligatorio, la experiencia previa no es obligatoria.',
+    'Kubernetes es obligatorio y la experiencia previa no es obligatoria.',
 ])('S22: la negación ajena no invalida el veto acreditado (%s)', async descripcion => {
     consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
         exclusiones: [{ requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: 'Kubernetes es obligatorio', evidencia_perfil: 'Kubernetes' }],

@@ -307,11 +307,15 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
         // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
         // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
         const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).flatMap(oracion => {
-            const [primera, ...resto] = oracion.split(',');
-            if (!resto.length) return [oracion];
+            // Una conjunción solo puede separar predicados después de una obligación explícita,
+            // no dentro de «Kubernetes y SQL» ni donde la negación continúa el mismo requisito.
+            const limite = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b(\s+y\s+)|,/i.exec(oracion);
+            if (!limite) return [oracion];
+            const inicioSeparador = limite.index + limite[0].length - (limite[1]?.length ?? 1);
+            const primera = oracion.slice(0, inicioSeparador);
             const condicion = normalizarTextoComparacion(primera);
             const requisito = condicion.match(/^(.+?) (?:es |son )?(?:obligatori[oa]s?|excluyentes?|mandatory|required)$/)?.[1];
-            const restoTexto = resto.join(',');
+            const restoTexto = oracion.slice(limite.index + limite[0].length);
             const segunda = normalizarTextoComparacion(restoTexto);
             const negacion = segunda.match(PATRON_NEGACION_EVIDENCIA);
             const otroRequisito = negacion && negacion.index === 0
@@ -319,7 +323,7 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
                 : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1];
             // Si la negación no nombra otra condición, la coma puede separar el tópico de su propio predicado.
             return requisito && otroRequisito && !/^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)
-                && !contieneTokenNormalizado(segunda, requisito)
+                && !requisito.split(/ (?:y|o) /).some(nombre => contieneTokenNormalizado(segunda, nombre))
                 ? [primera, restoTexto] : [oracion];
         });
 

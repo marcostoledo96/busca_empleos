@@ -147,6 +147,23 @@ test.each([false, true])('S12/S14/S16 lote mixto: ausencia real, Kubernetes por 
     expect(progreso()).not.toHaveProperty('por_confirmar');
 });
 
+test.each(['Kubernetes', 'Active Directory'])('S23: el lote y el detalle conservan %s por confirmar frente a una negación ajena', async requisito => {
+    const evidencia = `${requisito} es obligatorio`;
+    filas[0].descripcion = `${evidencia} y no se requiere experiencia previa.`;
+    preferencias.obtenerPreferencias.mockResolvedValue({});
+    proveedor.consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad sintética.', explicacion: {
+        por_confirmar: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: '' }],
+    } }));
+    await iniciar([1]);
+    const publicada = await detalleOferta(1);
+    expect(publicada).toMatchObject({ estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', porcentaje_match: 80,
+        explicacion_evaluacion: { exclusiones: [], por_confirmar: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: '' }] } });
+    expect(progreso()).toMatchObject({ procesadas: 1, por_confirmar: 1, aprobadas: 0, rechazadas: 0, errores: 0 });
+    expect(cache.size).toBe(1);
+    expect(await servicio.evaluarOferta(filas[0], null, null, {})).toMatchObject({ pendiente: true, porcentaje: 80 });
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
 test('S16: el detalle no publica una ausencia inventada bajo el alias de un requisito', async () => {
     const descripcion = 'Kubernetes es obligatorio.';
     filas[0].descripcion = descripcion;

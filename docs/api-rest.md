@@ -1139,7 +1139,9 @@ nuevos. Una evaluación firmada con `evaluacion-v13` se muestra como `anterior`,
 sin reescribirla. Para evitar reevaluaciones por el mero cambio de versión, la
 pasada ordinaria compara los pendientes por confirmar de v13 con la firma y la
 huella v13 de sus entradas actuales. La selección explícita y los cambios de
-perfil u oferta siguen habilitando una evaluación nueva bajo v14.
+perfil u oferta siguen habilitando una evaluación nueva bajo v14. Si el aviso
+exige una tecnología y aclara que no requiere experiencia previa, esa aclaración
+no convierte la tecnología en deseable: el requisito puede quedar `por_confirmar`.
 
 Un rechazo por un requisito obligatorio informado por la IA necesita una ausencia
 explícita en el perfil. El texto de la IA por sí solo no acredita esa ausencia;
