@@ -247,6 +247,8 @@ test.each([
     ['Active Directory es obligatorio. Active Directory es deseable.', 'Active Directory es obligatorio', true],
     ['Active Directory es deseable. Active Directory es obligatorio.', 'Active Directory es obligatorio', true],
     ['Active Directory es deseable.', 'Active Directory es deseable', false],
+    ['Active Directory es obligatorio. Active Directory no es obligatorio.', 'Active Directory es obligatorio', false],
+    ['Active Directory se usa en el equipo y se requiere Azure. Active Directory es deseable.', 'Active Directory se usa en el equipo', false],
 ])('una mención deseable no borra una obligación explícita y citada (%s)', async (descripcion, evidencia_oferta, pendiente) => {
     consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Evaluación sintética.', explicacion: {
         por_confirmar: [{ requisito: AD, tipo: 'obligatorio', evidencia_oferta, evidencia_perfil: '' }],
@@ -254,7 +256,7 @@ test.each([
     const oferta = { titulo: 'Soporte junior', descripcion };
     const resultado = await evaluarOferta(oferta, null, null, {});
     expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion: { exclusiones: [], no_cumplidos: [],
-        por_confirmar: [expect.objectContaining({ requisito: AD, tipo: pendiente ? 'desconocido' : 'deseable', evidencia_oferta, evidencia_perfil: '' })],
+        por_confirmar: [expect.objectContaining({ requisito: AD, tipo: descripcion === 'Active Directory es deseable.' ? 'deseable' : 'desconocido', evidencia_oferta, evidencia_perfil: '' })],
     } });
     expect(resultado.error).not.toBe(true);
     expect(resultado.pendiente === true).toBe(pendiente);

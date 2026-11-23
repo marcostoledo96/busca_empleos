@@ -212,9 +212,19 @@ function dudaContextualBloqueante(item, clausulas) {
         && !/\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto);
     if (relacionadas.some(noObligatoria)) {
         // Una mención opcional separada no borra una obligación explícita citada, pero tampoco prueba un veto.
-        return relacionadas.some(({ texto }) => opcional(texto) && !PATRON_NEGACION_EVIDENCIA.test(texto))
-            && relacionadas.some(clausula => !noObligatoria(clausula) && citaPertinente(clausula)
-                && PATRON_OBLIGACION_EXPLICITA.test(clausula.texto));
+        const contexto = ({ texto }) => ` ${texto} `.split(` ${requisito} `);
+        const esDeseable = clausula => {
+            const [antes, despues = ''] = contexto(clausula);
+            return /^\s*(?:es |son |resulta )?(?:deseables?|opcional(?:es)?)\b/.test(despues)
+                || /(?:^| )se valora(?:n)?\s*$/.test(antes);
+        };
+        const esObligatoria = clausula => {
+            const [antes, despues = ''] = contexto(clausula);
+            return /^\s*(?:es |son |resulta )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(despues)
+                || /(?:^| )se (?:requiere|exige|necesita)n?\s*$/.test(antes);
+        };
+        return relacionadas.some(clausula => !PATRON_NEGACION_EVIDENCIA.test(clausula.texto) && esDeseable(clausula))
+            && relacionadas.some(clausula => !noObligatoria(clausula) && citaPertinente(clausula) && esObligatoria(clausula));
     }
     return relacionadas.some(clausula => {
         if (!citaPertinente(clausula)) return false;
