@@ -201,6 +201,7 @@ test.each([
     ['Active Directory es obligatorio y Azure es deseable.', AD, 'Active Directory es obligatorio', true],
     ['Active Directory es obligatorio y Azure es deseable.', AD, 'Active Directory es obligatorio y Azure es deseable.', true],
     ['Active Directory es obligatorio, Azure es deseable.', AD, 'Active Directory es obligatorio', true],
+    ['Active Directory es obligatorio, Azure es opcional.', AD, 'Active Directory es obligatorio, Azure es opcional.', true],
     ['Active Directory es deseable y Azure es obligatorio.', 'Azure', 'Azure es obligatorio', true],
     ['Active Directory es deseable y Azure es obligatorio.', AD, 'Active Directory es deseable', false],
 ])('cada grado de obligación corresponde a su propio requisito (%s; %s)', async (descripcion, requisito, evidencia, pendiente) => {
@@ -216,6 +217,18 @@ test.each([
         ...(requisito === AD ? { evidencia_oferta: evidencia } : {}),
     })]);
     expect(guardarCache.mock.calls[0][3]).toEqual(resultado);
+});
+
+test('un requisito opcional distinto no invalida el veto respaldado del obligatorio', async () => {
+    const evidencia = 'Active Directory es obligatorio';
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética.', explicacion: {
+        exclusiones: [{ requisito: AD, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: AD }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Soporte junior', descripcion: `${evidencia} y Azure es opcional.` },
+        null, null, { conocimientos_ausentes: [AD] });
+    expect(resultado).toMatchObject({ match: false, pendiente: false, porcentaje: 80, firma_criterios_evaluacion: expect.any(String),
+        explicacion: { exclusiones: [expect.objectContaining({ requisito: AD, tipo: 'obligatorio', evidencia_perfil: AD })] } });
+    expect(resultado.error).not.toBe(true);
 });
 
 test('una experiencia deseable intermedia no oculta la negación de la sigla del obligatorio', async () => {

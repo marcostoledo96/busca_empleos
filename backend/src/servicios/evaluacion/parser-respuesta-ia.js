@@ -319,7 +319,7 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
             const restoTexto = oracion.slice(limite.index + limite[0].length);
             const segunda = normalizarTextoComparacion(restoTexto);
             const negacion = segunda.match(PATRON_NEGACION_EVIDENCIA);
-            const opcional = segunda.match(/^(.+?) (?:es|son) (?:deseables?|opcionales?)$/)?.[1];
+            const opcional = segunda.match(/^(.+?) (?:es|son) (?:deseables?|opcional(?:es)?)$/)?.[1];
             const otroRequisito = negacion && negacion.index === 0
                 ? segunda.slice(negacion[0].length).trim()
                 : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1] ?? opcional;
