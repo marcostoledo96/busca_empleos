@@ -108,6 +108,9 @@ const aclararKubernetes = (porcentaje = 80) => JSON.stringify({
         por_confirmar: [{ requisito: 'Kubernetes', tipo: 'desconocido', evidencia_oferta: 'menciona Kubernetes', evidencia_perfil: '' }],
     },
 });
+const vetoKubernetesInventado = JSON.stringify({ match: false, porcentaje: 80, razon: 'Rechazo sintético.', explicacion: {
+    exclusiones: [{ requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: 'Kubernetes es obligatorio.', evidencia_perfil: 'No tengo Kubernetes' }],
+} });
 
 async function detalleOferta(id) {
     const res = respuesta();
@@ -117,12 +120,12 @@ async function detalleOferta(id) {
     return res.json.mock.calls[0][0].datos;
 }
 
-test('S12/S14 lote mixto: ausencia real, Kubernetes por confirmar, 59 y 60', async () => {
+test.each([false, true])('S12/S14/S16 lote mixto: ausencia real, Kubernetes por confirmar, 59 y 60 (veto inventado: %s)', async vetoInventado => {
     const caso14 = CASOS_MUESTRA_MATCHING.find(caso => caso.id === 'caso-14-descripcion-ausente');
     Object.assign(filas[0], { titulo: caso14.titulo, descripcion: caso14.descripcion, descripcion_completitud: 'ausente' });
-    filas[1].descripcion = 'El aviso menciona Kubernetes.';
+    filas[1].descripcion = vetoInventado ? 'Kubernetes es obligatorio.' : 'El aviso menciona Kubernetes.';
     filas.push({ ...filas[1], id: 3, descripcion: 'Desarrollo web junior.' }, { ...filas[1], id: 4, descripcion: 'Aplicaciones web junior.' });
-    proveedor.consultarDeepSeek.mockResolvedValueOnce(aclararKubernetes())
+    proveedor.consultarDeepSeek.mockResolvedValueOnce(vetoInventado ? vetoKubernetesInventado : aclararKubernetes())
         .mockResolvedValueOnce('{"match":false,"porcentaje":59,"razon":"Debajo del umbral"}')
         .mockResolvedValueOnce('{"match":true,"porcentaje":60,"razon":"Cumple el umbral"}');
     await iniciar([1, 2, 3, 4]);
@@ -134,7 +137,7 @@ test('S12/S14 lote mixto: ausencia real, Kubernetes por confirmar, 59 y 60', asy
     expect(sinEvaluar.explicacion_evaluacion?.por_confirmar ?? []).toEqual([]);
     const porConfirmar = await detalleOferta(2);
     expect(porConfirmar).toMatchObject({ estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
-        porcentaje_match: 80, firma_criterios_evaluacion: expect.any(String), explicacion_evaluacion: { exclusiones: [], por_confirmar: [expect.objectContaining({ evidencia_oferta: 'menciona Kubernetes' })] } });
+        porcentaje_match: 80, firma_criterios_evaluacion: expect.any(String), explicacion_evaluacion: { exclusiones: [], no_cumplidos: [], por_confirmar: [expect.objectContaining({ evidencia_oferta: vetoInventado ? filas[1].descripcion : 'menciona Kubernetes', evidencia_perfil: '' })] } });
     expect(porConfirmar.explicacion_evaluacion).not.toHaveProperty('hash_oferta');
     expect(filas[2]).toMatchObject({ estado_evaluacion: 'rechazada', porcentaje_match: 59 });
     expect(filas[3]).toMatchObject({ estado_evaluacion: 'aprobada', porcentaje_match: 60 });

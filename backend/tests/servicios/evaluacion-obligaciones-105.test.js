@@ -58,6 +58,49 @@ test.each([false, true])('Kubernetes obligatorio al 80 %%: solo veto con ausenci
     expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
 });
 
+test.each([
+    ['F6 exacto: perfil desconocido', 'Kubernetes', {}, 80, 'por_confirmar'],
+    ['stack positivo', 'Kubernetes', { stack_tecnologico: ['Kubernetes'] }, 80, 'por_confirmar'],
+    ['ausencia declarada', 'Kubernetes', { conocimientos_ausentes: ['Kubernetes'] }, 80, 'rechazada'],
+    ['ausencia contradictoria', 'Kubernetes', { stack_tecnologico: ['Kubernetes'], conocimientos_ausentes: ['Kubernetes'] }, 80, 'por_confirmar'],
+    ['AD sin respaldo', 'Active Directory', {}, 80, 'por_confirmar'],
+    ['AD con respaldo literal', 'Active Directory', { limitaciones_explicitas: 'No tengo Active Directory.' }, 80, 'rechazada'],
+    ['ausencia citada como ejemplo', 'Kubernetes', { perfil_profesional: 'Ejemplo: «No tengo Kubernetes».' }, 80, 'por_confirmar'],
+    ['debajo del umbral', 'Kubernetes', {}, 59, 'bajo_umbral'],
+    ['en el umbral', 'Kubernetes', {}, 60, 'por_confirmar'],
+])('S16: %s en vivo y al leer una decisión antigua o nueva de caché', async (_caso, requisito, perfil, porcentaje, estado) => {
+    const descripcion = `${requisito} es obligatorio.`;
+    const oferta = { titulo: 'Soporte junior', descripcion };
+    const evidencia = { requisito, tipo: 'obligatorio', evidencia_oferta: descripcion, evidencia_perfil: `No tengo ${requisito}` };
+    const antiguo = { match: false, porcentaje, razon: 'Rechazo sintético.', explicacion: {
+        cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [evidencia],
+    }, desglose_disponible: true, prioridad_ia: null, firma_criterios_evaluacion: 'firma anterior' };
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify(antiguo));
+    const resultado = await evaluarOferta(oferta, null, null, perfil);
+    expect(resultado).toMatchObject({ match: false, porcentaje, firma_criterios_evaluacion: expect.any(String), desglose_disponible: true });
+    expect(resultado.error).not.toBe(true);
+    expect(resultado.pendiente === true).toBe(estado === 'por_confirmar');
+    if (estado === 'rechazada') {
+        expect(resultado.explicacion.exclusiones).toEqual([expect.objectContaining({ requisito, tipo: 'obligatorio', evidencia_perfil: expect.any(String) })]);
+        expect(resultado.explicacion.por_confirmar).toEqual([]);
+    } else {
+        expect(resultado.explicacion.exclusiones).toEqual([]);
+        expect(resultado.explicacion.no_cumplidos).toEqual([]);
+        expect(resultado.explicacion.por_confirmar).toEqual([expect.objectContaining({ requisito, tipo: 'obligatorio', evidencia_oferta: descripcion, evidencia_perfil: '' })]);
+        expect(resultado.razon).not.toContain(evidencia.evidencia_perfil);
+    }
+    expect(guardarCache).toHaveBeenCalledTimes(1);
+    const [hash, firma, modelo, nuevo] = guardarCache.mock.calls[0];
+    expect(nuevo).toEqual(resultado);
+    for (const cacheado of [{ ...antiguo, firma_criterios_evaluacion: firma }, nuevo]) {
+        buscarCache.mockResolvedValueOnce(structuredClone(cacheado));
+        await expect(evaluarOferta(oferta, null, null, perfil)).resolves.toEqual(resultado);
+        expect(buscarCache).toHaveBeenLastCalledWith(hash, firma, modelo);
+    }
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(guardarCache).toHaveBeenCalledTimes(1);
+});
+
 const AD = 'Active Directory';
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],
@@ -69,6 +112,25 @@ const casos = [
     ['veto de AD acreditado con nombre compuesto', 'Se requiere experiencia con Active Directory.', `Experiencia con ${AD}`, false, 'exclusiones', 'obligatorio', AD, [AD], 'rechazada', null],
     ['una tarea neutral no invalida un requisito obligatorio', 'Requisitos obligatorios:\n- Active Directory\nTareas:\n- Administrar Active Directory.', AD, false, 'exclusiones', 'obligatorio', AD, [AD], 'rechazada', null, 95],
 ];
+
+test('S16: solo el veto respaldado prevalece si convive con una exclusión inventada', async () => {
+    const oferta = { titulo: 'Soporte junior', descripcion: 'Kubernetes es obligatorio. Terraform es obligatorio.' };
+    const perfil = { conocimientos_ausentes: ['Terraform'] };
+    const exclusiones = ['Kubernetes', 'Terraform'].map(requisito => ({ requisito, tipo: 'obligatorio',
+        evidencia_oferta: `${requisito} es obligatorio.`, evidencia_perfil: `No tengo ${requisito}` }));
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética.',
+        explicacion: { exclusiones, no_cumplidos: exclusiones } }));
+    const resultado = await evaluarOferta(oferta, null, null, perfil);
+    const terraform = expect.objectContaining({ requisito: 'Terraform', evidencia_perfil: 'Terraform' });
+    expect(resultado).toMatchObject({ match: false, pendiente: false, porcentaje: 80, firma_criterios_evaluacion: expect.any(String),
+        razon: 'Incompatibilidad confirmada: Terraform. Afinidad técnica estimada: 80%.', explicacion: {
+            exclusiones: [terraform], no_cumplidos: [terraform], por_confirmar: [expect.objectContaining({ requisito: 'Kubernetes', evidencia_perfil: '' })],
+        } });
+    buscarCache.mockResolvedValueOnce(structuredClone(guardarCache.mock.calls[0][3]));
+    await expect(evaluarOferta(oferta, null, null, perfil)).resolves.toEqual(resultado);
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(guardarCache).toHaveBeenCalledTimes(1);
+});
 
 test.each(casos)('%s', async (_caso, descripcion, requisito, match, categoria, tipo, evidenciaPerfil, ausencias, estado, tipoFinal, porcentaje = 80) => {
     const oferta = { titulo: 'Soporte Active Directory', modalidad: 'remoto', descripcion };

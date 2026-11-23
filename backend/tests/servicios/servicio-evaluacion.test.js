@@ -1446,7 +1446,8 @@ describe('Servicio de evaluación con IA', () => {
                 nivel_requerido: 'junior',
             };
 
-            modeloPreferencia.obtenerPreferencias.mockResolvedValueOnce({ ...preferenciasEjemplo, conocimientos_ausentes: ['Node.js'] });
+            modeloPreferencia.obtenerPreferencias.mockResolvedValueOnce({ ...preferenciasEjemplo, stack_tecnologico: preferenciasEjemplo.stack_tecnologico.filter(tecnologia => tecnologia !== 'Node.js'),
+                conocimientos_ausentes: ['Node.js'] });
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaNode]);
             consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
                 match: false,

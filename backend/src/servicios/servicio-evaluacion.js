@@ -214,13 +214,15 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     if (resultado.error || resultado.invalido || resultado.inconsistente) return resultado;
     const original = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
     const insuficienciaExplicita = original.por_confirmar?.some(item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable');
-    // No trato como incumplimiento una obligación que el rechazo de alta afinidad cita sin evidencia del perfil.
     const contrasteAcotado = !resultado.match && !insuficienciaExplicita;
-    const esVigilado = item => Boolean(requisitoVigilado(normalizarTextoComparacion(item.requisito)));
-    const requiereContraste = item => (item.tipo !== 'deseable' && esVigilado(item))
+    const exclusionesObligatorias = new Set((original.exclusiones || []).filter(item => item.tipo === 'obligatorio')
+        .map(item => normalizarTextoComparacion(item.requisito)));
+    const requiereContraste = item => (item.tipo !== 'deseable' && requisitoVigilado(normalizarTextoComparacion(item.requisito)))
         || (item.tipo === 'obligatorio' && resultado.porcentaje >= UMBRAL_MATCH_MINIMO && !item.evidencia_perfil?.trim());
-    if (contrasteAcotado && ![...(original.exclusiones || []), ...(original.por_confirmar || [])].some(requiereContraste)) return resultado;
-    const revisarObligacion = item => requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio');
+    const contrastePrevio = !contrasteAcotado || [...(original.exclusiones || []), ...(original.por_confirmar || [])].some(requiereContraste);
+    if (!contrastePrevio && !exclusionesObligatorias.size) return resultado;
+    const revisarObligacion = (item, categoria) => (contrastePrevio && (requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio')))
+        || (categoria === 'exclusiones' && item.tipo === 'obligatorio');
     const candidato = construirPerfilEfectivoCanonico(preferencias).candidato;
     const hechos = [candidato.perfil_profesional, candidato.nivel_real_seniority, candidato.idioma_candidato,
         ...candidato.stack_tecnologico, ...candidato.tecnologias_detalle.filter(t => t.nivel !== 'ninguno').flatMap(t => [t.nombre, t.evidencia])];
@@ -229,42 +231,50 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         hechos.push(`${anios} ${anios === 1 ? 'año' : 'años'} de experiencia`);
     }
     const formacionConfirmada = extraerFormacionConfirmada(candidato.perfil_profesional);
-    const ausencias = candidato.conocimientos_ausentes.map(normalizarTextoComparacion);
-    const limitaciones = [candidato.perfil_profesional, candidato.limitaciones_explicitas].flatMap(extraerClausulasConContexto);
+    const ausencias = new Map(candidato.conocimientos_ausentes.map(nombre => [normalizarTextoComparacion(nombre), nombre]));
+    const stack = candidato.stack_tecnologico.map(normalizarTextoComparacion);
+    // Una frase citada o marcada como ejemplo no acredita una ausencia actual.
+    const limitaciones = [candidato.perfil_profesional, candidato.limitaciones_explicitas]
+        .flatMap(texto => typeof texto === 'string' ? texto.split(/\r?\n/) : [])
+        .filter(linea => !/[«»“”"'‘’`~<>]/.test(linea));
     // El título no convierte una mención deseable del cuerpo en obligación acreditada.
     const textoOferta = oferta.descripcion;
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
     const clausulasOferta = citasConOrigen.map(cita => cita.texto);
-    const vetoContrastado = item => !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
+    const exclusionesCorroboradas = new Set();
     const revisados = new Map();
     for (const categoria of ['cumplidos', 'no_cumplidos', 'exclusiones', 'por_confirmar']) {
         for (const item of original[categoria] || []) {
-            if (!revisarObligacion(item)) continue;
+            if (!revisarObligacion(item, categoria)) continue;
             const requisito = normalizarTextoComparacion(item.requisito);
             const perfil = normalizarTextoComparacion(item.evidencia_perfil);
             const ofertaCitada = normalizarTextoComparacion(item.evidencia_oferta);
             const citasRelacionadas = clausulasOferta.filter(clausula => contieneTokenNormalizado(clausula, ofertaCitada) && contieneTokenNormalizado(ofertaCitada, requisito));
             // Una cláusula mixta no permite atribuir el deseable de otro requisito a una obligación explícita.
             const soloDeseable = citasRelacionadas.length > 0 && citasRelacionadas.every(clausula =>
-                !/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/.test(clausula)
-                && (PATRON_OPCIONAL_EVIDENCIA.test(clausula) || PATRON_NEGACION_EVIDENCIA.test(clausula)));
+                PATRON_NEGACION_EVIDENCIA.test(clausula) || /\bno (?:es )?(?:obligatori[oa]|excluyente)\b/.test(clausula)
+                || (!/\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b/.test(clausula)
+                    && (PATRON_OPCIONAL_EVIDENCIA.test(clausula) || /\bse valora(?:n)?\b/.test(clausula))));
             const vigilado = requisitoVigilado(requisito);
             const menciones = vigilado ? clausulasOferta.filter(clausula => requisitoVigilado(clausula) === vigilado) : [];
             const noObligatorio = clausula => PATRON_OPCIONAL_EVIDENCIA.test(clausula) || PATRON_NEGACION_EVIDENCIA.test(clausula) || /\bse valora(?:n)?\b/.test(clausula);
             const noBloquea = vigilado ? menciones.length > 0 && menciones.every(noObligatorio) : soloDeseable;
             const citaVigilada = vigilado && requisitoVigilado(ofertaCitada) === vigilado && menciones.some(clausula => contieneTokenNormalizado(clausula, ofertaCitada));
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
+            const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
             const ofertaAcreditada = vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(clausula => contieneTokenNormalizado(clausula, ofertaCitada)
                     && /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/.test(clausula))
-                : contieneTokenNormalizado(ofertaCitada, requisito) && (resultado.match || citasRelacionadas.length > 0)
-                    && !validarCoherenciaRespuesta(false, resultado.porcentaje, { exclusiones: [item] }, textoOferta).invalido;
-            // Solo pruebo ausencias declaradas o negaciones literales completas; no deduzco incompatibilidad por omisión.
+                : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
+                    && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
+            // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
             const nombres = [...new Set([requisito, ...(vigilado ? [vigilado] : [])])];
-            const ausenciaAcreditada = nombres.some(nombre => ausencias.includes(nombre) && perfil === nombre)
-                || limitaciones.includes(perfil)
-                && [candidato.perfil_profesional, candidato.limitaciones_explicitas].some(texto => contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
-                && nombres.some(nombre => ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => perfil === `${prefijo}${nombre}`));
+            const ausenciaDeclarada = nombres.map(nombre => ausencias.get(nombre)).find(Boolean);
+            const niegaRequisito = clausula => nombres.some(nombre =>
+                ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => clausula === `${prefijo}${nombre}`));
+            const ausenciaLiteral = limitaciones.find(linea => niegaRequisito(normalizarTextoComparacion(linea)))?.trim()
+                || limitaciones.flatMap(linea => extraerClausulasConContexto(linea)).find(niegaRequisito);
+            const ausenciaAcreditada = !nombres.some(nombre => stack.includes(nombre)) && (ausenciaDeclarada || ausenciaLiteral);
             // La nueva fuente sólo participa en obligaciones académicas, nunca en residencia o capacidades.
             const fuentesCumplimiento = esRequisitoAcademico(requisito) && formacionConfirmada
                 && acreditarFormacionLiteral(item.requisito, item.evidencia_perfil, formacionConfirmada)
@@ -275,7 +285,10 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 && fuentesCumplimiento.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto).includes(perfil)
                 && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)
                 && !PATRON_OPCIONAL_EVIDENCIA.test(perfil)
-                && !ausencias.includes(requisito);
+                && !ausencias.has(requisito);
+            if (!contrastePrevio && exclusionObligatoria && ofertaAcreditada && !noBloquea && ausenciaAcreditada && ausenciaAcreditada === item.evidencia_perfil) {
+                exclusionesCorroboradas.add(item);
+            }
             const destino = noBloquea ? 'por_confirmar' : ofertaAcreditada && ausenciaAcreditada ? 'exclusiones'
                 : categoria === 'cumplidos' && cumplimientoAcreditado ? 'cumplidos' : 'por_confirmar';
             const motivoAmbiguo = vigilado && vigilado !== 'autorizacion laboral' && !noBloquea && !ofertaAcreditada
@@ -285,17 +298,16 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             revisados.set(requisito, { destino, item: destino === 'cumplidos' ? item : {
                 ...item, tipo: noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
                 evidencia_oferta: ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
-                evidencia_perfil: destino === 'exclusiones' ? item.evidencia_perfil : '',
+                evidencia_perfil: destino === 'exclusiones' ? ausenciaAcreditada : '',
                 explicacion: destino === 'exclusiones' ? 'Incompatibilidad respaldada por una ausencia declarada del candidato.'
                     : motivoAmbiguo || 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
             } });
         }
     }
+    if (!contrastePrevio && (original.exclusiones || []).every(item => exclusionesCorroboradas.has(item))) return resultado;
     const explicacion = Object.fromEntries(['cumplidos', 'no_cumplidos', 'por_confirmar', 'exclusiones']
-        .map(categoria => [categoria, (original[categoria] || []).filter(item => !revisarObligacion(item))]));
-    if (contrasteAcotado) {
-        explicacion.exclusiones = explicacion.exclusiones.filter(item => item.tipo !== 'obligatorio' || vetoContrastado(item));
-    }
+        .map(categoria => [categoria, (original[categoria] || []).filter(item => !revisarObligacion(item, categoria)
+            && !(categoria === 'no_cumplidos' && exclusionesObligatorias.has(normalizarTextoComparacion(item.requisito))))]));
     // Un deseable no constituye una exclusión, tampoco en la presentación.
     explicacion.no_cumplidos.push(...explicacion.exclusiones.filter(item => item.tipo === 'deseable'));
     explicacion.exclusiones = explicacion.exclusiones.filter(item => item.tipo !== 'deseable');
@@ -308,7 +320,9 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         razon: `Incompatibilidad confirmada: ${explicacion.exclusiones.filter(item => item.tipo === 'obligatorio').map(item => item.requisito).join('; ')}. Afinidad técnica estimada: ${resultado.porcentaje}%.`,
     };
     if (contrasteAcotado && resultado.porcentaje < UMBRAL_MATCH_MINIMO) {
-        return { ...resultado, explicacion };
+        return { ...resultado, explicacion, ...(exclusionesObligatorias.size && {
+            razon: `Afinidad técnica estimada: ${resultado.porcentaje}% (por debajo del umbral del ${UMBRAL_MATCH_MINIMO}%).`,
+        }) };
     }
     const parcial = oferta.descripcion_completitud === 'parcial' || oferta.origen_descripcion === 'tarjeta';
     const evidenciaSuficiente = explicacion.cumplidos?.some(item => item.evidencia_oferta?.trim() && item.evidencia_perfil?.trim());
@@ -400,8 +414,8 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
             if (fallo && !resultado.error) registrarFallo('RESPUESTA_INVALIDA');
             return { ...resuelto, firma_criterios_evaluacion: fallo ? null : firma };
         }
-        async function guardarResultado(resultado) {
-            const firmado = resolverYFirmar(resultado);
+        async function guardarResultado(resultado, deterministico = false) {
+            const firmado = deterministico ? { ...resultado, firma_criterios_evaluacion: firma } : resolverYFirmar(resultado);
             // La caché es opcional; en el worker la confirmo después del UPDATE.
             const confirmar = async () => {
                 if (!firmado.firma_criterios_evaluacion) return;
@@ -433,7 +447,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                     explicacion: resultadoExclusion.explicacion,
                     desglose_disponible: true,
                 };
-                return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
+                return opciones.forzar ? await guardarResultado(rechazo, true) : rechazo;
             }
         }
 
@@ -469,7 +483,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                     },
                     desglose_disponible: true,
                 };
-                return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
+                return opciones.forzar ? await guardarResultado(rechazo, true) : rechazo;
             }
         } else if ([modalidadOferta, interpretacionModalidad.metadatos, interpretacionModalidad.titulo, interpretacionModalidad.descripcion].includes('remoto')) {
             const restriccionRemota = detectarRestriccionRemotaIncompatible({ ...oferta, modalidad: 'remoto' });
@@ -494,7 +508,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                     },
                     desglose_disponible: true,
                 };
-                return opciones.forzar ? await guardarResultado(rechazo) : rechazo;
+                return opciones.forzar ? await guardarResultado(rechazo, true) : rechazo;
             }
         }
 
@@ -569,7 +583,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
                     error: false,
                     explicacion: explicacionFinal,
                     desglose_disponible: true,
-                });
+                }, true);
             }
         }
 

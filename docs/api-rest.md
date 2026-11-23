@@ -1134,6 +1134,13 @@ permiten volver a evaluar. Para registros anteriores sin huella, se conserva la
 decisión si coincide la firma y no hay invalidación registrada; no se reconstruye
 una huella histórica. La huella de oferta no se expone en la API.
 
+Un rechazo por un requisito obligatorio informado por la IA necesita una ausencia
+explícita en el perfil. El texto de la IA por sí solo no acredita esa ausencia;
+si falta respaldo o el stack declarado la contradice, conservo el porcentaje y,
+desde el 60 %, devuelvo `por_confirmar`. Este contraste también se aplica al leer
+una evaluación de la caché, sin invalidarla en bloque ni llamar de nuevo al proveedor.
+Las exclusiones determinísticas se siguen aplicando por separado.
+
 Mientras haya un lote en memoria, `datos.por_confirmar` y `datos.bajo_umbral`
 aportan un desglose por oferta. `bajo_umbral` ya está incluido en `rechazadas`
 y no se suma por segunda vez; `por_confirmar` es un resultado válido, no un error.

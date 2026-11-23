@@ -143,8 +143,11 @@ test.each([
 test.each([null, 'remoto'])('geografía con cita entre oraciones llega al parser, modalidad %s', async modalidad => {
     const descripcion = 'Residencia en provincia Delta obligatoria. Debe mantenerse durante el contrato.';
     const datos = respuesta(descripcion);
-    datos.explicacion.exclusiones[0].requisito = 'Residencia en provincia Delta';
-    const { resumen, guardada } = await ejecutarWorker(descripcion, datos, { modalidad });
+    const requisitoResidencia = 'Residencia en provincia Delta';
+    datos.razon = 'Residencia obligatoria incompatible con el perfil.';
+    Object.assign(datos.explicacion.exclusiones[0], { requisito: requisitoResidencia, evidencia_perfil: requisitoResidencia });
+    const { resumen, guardada } = await ejecutarWorker(descripcion, datos, { modalidad },
+        { ...perfil, conocimientos_ausentes: [requisitoResidencia] });
     expect(guardada).toEqual(expect.objectContaining({ estado_evaluacion: 'rechazada', porcentaje_match: 91,
         razon_evaluacion: datos.razon, evaluacion_error_mensaje: null,
         explicacion_evaluacion: { ...datos.explicacion, desglose_disponible: true } }));
