@@ -408,6 +408,7 @@ test('E reevaluación individual y seleccionada conserva resultado anterior ante
     const antes = await evidencia(request);
     expect(antes.evaluaciones.map((fila: { estado_evaluacion: string }) => fila.estado_evaluacion)).toEqual(['pendiente', 'pendiente']);
     expect(antes.llamadas.filter((llamada: { tipo: string }) => llamada.tipo === 'http')).toEqual([]);
+    await control(request, { escenario: 'ia_aprobada_con_evidencia' });
     const individual = page.waitForResponse('**/api/evaluacion/ejecutar');
     await dialogo(page).getByRole('button', { name: 'Reevaluar oferta', exact: true }).click();
     const iniciada = await individual;
@@ -433,7 +434,7 @@ test('E reevaluación individual y seleccionada conserva resultado anterior ante
     expect(incompleta.evaluaciones[0]).toMatchObject({ ...correcta.evaluaciones[0], evaluacion_error_mensaje: expect.any(String) });
     expect(incompleta.evaluaciones[1]).toEqual(antes.evaluaciones[1]);
     await page.keyboard.press('Escape');
-    await control(request, { escenario: 'correcto' });
+    await control(request, { escenario: 'ia_aprobada_con_evidencia' });
     await page.goto('/?reevaluar=1');
     await vista(page).getByRole('checkbox', { name: 'Seleccionar ofertas de esta página', exact: true }).check();
     const region = page.getByRole('region', { name: 'Volver a evaluar ofertas seleccionadas', exact: true });
