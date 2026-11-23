@@ -151,9 +151,12 @@ test.each([
     ['Kubernetes', 'experiencia previa'],
     ['Active Directory', 'experiencia previa'],
     ['Kubernetes', 'experiencia previa en Kubernetes'],
-])('S23: %s queda por confirmar aunque no se requiera %s', async (requisito, condicion) => {
+    ['Kubernetes', 'experiencia en Kubernetes', ' y'],
+    ['Kubernetes', 'experiencia en Kubernetes', ','],
+    ['Active Directory', 'experiencia con Active Directory', ' y'],
+])('S23/S24: %s queda por confirmar si no se requiere %s (%s)', async (requisito, condicion, separador = ' y') => {
     const evidencia = `${requisito} es obligatorio`;
-    filas[0].descripcion = `${evidencia} y no se requiere ${condicion}.`;
+    filas[0].descripcion = `${evidencia}${separador} no se requiere ${condicion}.`;
     preferencias.obtenerPreferencias.mockResolvedValue({});
     proveedor.consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad sintética.', explicacion: {
         por_confirmar: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: '' }],

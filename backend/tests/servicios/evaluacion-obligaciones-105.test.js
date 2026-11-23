@@ -171,6 +171,18 @@ test('S22: la coma no separa a Kubernetes de su propia negación', async () => {
     expect(guardarCache).not.toHaveBeenCalled();
 });
 
+test('S24: negar experiencia no permite un veto si lo exigido es experiencia', async () => {
+    const requisito = 'Experiencia en Kubernetes';
+    const evidencia = `${requisito} es obligatoria`;
+    const oferta = { titulo: 'Operaciones junior', descripcion: `${evidencia} y no se requiere experiencia en Kubernetes.` };
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
+        exclusiones: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: 'Kubernetes' }],
+    } }));
+    const resultado = await evaluarOferta(oferta, null, null, { conocimientos_ausentes: ['Kubernetes'] });
+    expect(resultado).toMatchObject({ invalido: true, firma_criterios_evaluacion: null });
+    expect(guardarCache).not.toHaveBeenCalled();
+});
+
 test('S23: negar la sigla explícita invalida el veto incluso con ausencia declarada', async () => {
     const requisito = 'Active Directory';
     const evidencia = 'Active Directory (AD) es obligatorio';

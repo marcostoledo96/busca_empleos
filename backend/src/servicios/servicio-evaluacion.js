@@ -194,11 +194,16 @@ function requisitoVigilado(texto) {
     return texto.match(/\b(?:active directory|directorio activo|autorizacion laboral)\b/)?.[0];
 }
 
+function aplicaAlRequisito(clausula, requisito) {
+    return !clausula.experienciaAjenaA || !contieneTokenNormalizado(clausula.experienciaAjenaA, requisito);
+}
+
 function dudaContextualBloqueante(item, clausulas) {
     const requisito = normalizarTextoComparacion(item.requisito);
     const cita = normalizarTextoComparacion(item.evidencia_oferta);
     if (!contieneTokenNormalizado(cita, requisito)) return false;
-    const relacionadas = clausulas.filter(({ texto }) => contieneTokenNormalizado(texto, requisito));
+    const relacionadas = clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
+        && contieneTokenNormalizado(clausula.texto, requisito));
     if (relacionadas.some(({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto) || PATRON_NEGACION_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto))) return false;
     return relacionadas.some(({ texto, inicio, fin }) => {
         if (!contieneTokenNormalizado(texto.slice(-(fin - inicio)), cita)) return false;
@@ -245,7 +250,6 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     // El título no convierte una mención deseable del cuerpo en obligación acreditada.
     const textoOferta = oferta.descripcion;
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
-    const clausulasOferta = citasConOrigen.map(cita => cita.texto);
     const exclusionesCorroboradas = new Set();
     const revisados = new Map();
     for (const categoria of ['cumplidos', 'no_cumplidos', 'exclusiones', 'por_confirmar']) {
@@ -254,6 +258,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const requisito = normalizarTextoComparacion(item.requisito);
             const perfil = normalizarTextoComparacion(item.evidencia_perfil);
             const ofertaCitada = normalizarTextoComparacion(item.evidencia_oferta);
+            const clausulasOferta = citasConOrigen.filter(cita => aplicaAlRequisito(cita, requisito)).map(cita => cita.texto);
             const citasRelacionadas = clausulasOferta.filter(clausula => contieneTokenNormalizado(clausula, ofertaCitada) && contieneTokenNormalizado(ofertaCitada, requisito));
             // Una cláusula mixta no permite atribuir el deseable de otro requisito a una obligación explícita.
             const soloDeseable = citasRelacionadas.length > 0 && citasRelacionadas.every(clausula =>
