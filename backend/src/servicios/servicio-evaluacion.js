@@ -198,16 +198,27 @@ function aplicaAlRequisito(clausula, requisito) {
     return !clausula.experienciaAjenaA || !contieneTokenNormalizado(clausula.experienciaAjenaA, requisito);
 }
 
+const PATRON_OBLIGACION_EXPLICITA = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/;
+
 function dudaContextualBloqueante(item, clausulas) {
     const requisito = normalizarTextoComparacion(item.requisito);
     const cita = normalizarTextoComparacion(item.evidencia_oferta);
     if (!contieneTokenNormalizado(cita, requisito)) return false;
     const relacionadas = clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
         && contieneTokenNormalizado(clausula.texto, requisito));
-    if (relacionadas.some(({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto) || PATRON_NEGACION_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto))) return false;
-    return relacionadas.some(({ texto, inicio, fin }) => {
-        if (!contieneTokenNormalizado(texto.slice(-(fin - inicio)), cita)) return false;
-        if (/\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto)) return false;
+    const opcional = texto => PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
+    const noObligatoria = ({ texto }) => opcional(texto) || PATRON_NEGACION_EVIDENCIA.test(texto);
+    const citaPertinente = ({ texto, inicio, fin }) => contieneTokenNormalizado(texto.slice(-(fin - inicio)), cita)
+        && !/\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto);
+    if (relacionadas.some(noObligatoria)) {
+        // Una mención opcional separada no borra una obligación explícita citada, pero tampoco prueba un veto.
+        return relacionadas.some(({ texto }) => opcional(texto) && !PATRON_NEGACION_EVIDENCIA.test(texto))
+            && relacionadas.some(clausula => !noObligatoria(clausula) && citaPertinente(clausula)
+                && PATRON_OBLIGACION_EXPLICITA.test(clausula.texto));
+    }
+    return relacionadas.some(clausula => {
+        if (!citaPertinente(clausula)) return false;
+        const { texto } = clausula;
         const [antes, despues] = ` ${texto} `.split(` ${requisito} `);
         // El contexto se aplica también a los elementos coordinados de la misma cláusula.
         return /\b(?:obligatori[oa]|excluyente|se requiere|se solicita|se busca|experiencia (?:en|con)|conocimientos? (?:de|en)|trabaj(?:a|an|amos|ar) con|us(?:a|an|amos|ar)|utiliz(?:a|an|amos|ar)|menciona|stack(?: del equipo| tecnologico)?)(?: (?:[a-z0-9]+ )+(?:y|e|o))?\s*$/.test(antes)
@@ -275,7 +286,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
             const ofertaAcreditada = vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
-                    && /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/.test(cita.texto))
+                    && PATRON_OBLIGACION_EXPLICITA.test(cita.texto))
                 : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
                     && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
             // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
