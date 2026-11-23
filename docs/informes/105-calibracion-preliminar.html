@@ -27,7 +27,7 @@
         <p class="estado">Preliminar · no implica aprobación de Codex ni permiso de merge</p>
         <h1>#105 · Afinidad, elegibilidad y fallos</h1>
         <p>Una evaluación puede indicar 80 % de afinidad sin aprobar la oferta. Si falta confirmar un requisito, muestro qué falta y conservo ese resultado aunque una reevaluación posterior falle.</p>
-        <p><strong>Rama:</strong> <code>feature/105-calibracion-visibilidad</code>. <strong>Base:</strong> <code>1af89ac9f5a7e91929fa0517db4786dab27e17db</code>. <strong>Candidato de código:</strong> <code>2b4e855</code>. <a href="https://github.com/marcostoledo96/busca_empleos/issues/105">Issue y matriz de casos</a>.</p>
+        <p><strong>Rama:</strong> <code>feature/105-calibracion-visibilidad</code>. <strong>Base:</strong> <code>1af89ac9f5a7e91929fa0517db4786dab27e17db</code>. <strong>Candidato de código:</strong> <code>5a5cad2</code>. <a href="https://github.com/marcostoledo96/busca_empleos/issues/105">Issue y matriz de casos</a>.</p>
     </header>
     <section>
         <h2>Antes y después</h2>
@@ -55,7 +55,14 @@ Resultado válido + diagnóstico + vigencia → tabla, tarjeta, detalle y filtro
         <p>Por ejemplo, una misma respuesta puede contener <code>situacion_evaluacion: 'por_confirmar'</code> y <code>ultimo_intento_evaluacion: 'fallo_tecnico'</code>. Clasificarla solo por <code>estado_evaluacion</code> borraría esa diferencia.</p>
     </section>
     <section>
-        <h2>Correcciones tras la auditoría de la PR #108</h2>
+        <h2>Reauditoría: un veto necesita evidencia del perfil</h2>
+        <p>Que el aviso diga «Kubernetes es obligatorio» no demuestra que el candidato no sepa Kubernetes. El servicio contrasta la exclusión con el perfil efectivo, incluso al recuperar un resultado de caché. Si el modelo inventa «No tengo Kubernetes» y no hay una ausencia acreditada, conserva el 80 % como <strong>Por confirmar</strong> y no publica la afirmación falsa. Una ausencia realmente declarada puede sostener el veto.</p>
+        <p>La barra distingue <strong>3/4 resultados válidos</strong> de <strong>4/4 intentos procesados (100 %)</strong>. Si la API no envía el número de procesadas, no lo infiere. Esta distinción no cambia el estado laboral.</p>
+        <p>Una pregunta del perfil no prueba una ausencia. Tampoco reutilizo esa afirmación en el desglose si llegó duplicada bajo un rótulo como «Experiencia con Kubernetes».</p>
+        <p>Backend <code>4390634</code> y <code>5a5cad2</code>: Jest aislado, 4.067 aprobadas, 0 fallidas y 166 omitidas. Frontend <code>e010d18</code>: Karma 610 aprobadas y 4 omitidas; Playwright 90 aprobadas. Salida 0 en las tres suites finales. Los datos y proveedores fueron simulados; no se hizo backfill.</p>
+    </section>
+    <section>
+        <h2>Correcciones tras la auditoría anterior de la PR #108</h2>
         <ul>
             <li><strong>Sin descripción (F1):</strong> si no hay un veto determinístico acreditado, no se crea una evaluación válida. Queda <code>sin_evaluar</code>, sin afinidad ni firma nuevas. Procesar esa oferta no suma una evaluación válida ni un fallo técnico.</li>
             <li><strong>Pasada ordinaria (F2):</strong> conserva un «Por confirmar» si no cambian los criterios ni la entrada efectiva, aun sin caché. Una selección expresa, un marcador o un cambio real sí permiten evaluarla. Sin huella histórica, no se inventa una: se usa la firma y las invalidaciones registradas.</li>
