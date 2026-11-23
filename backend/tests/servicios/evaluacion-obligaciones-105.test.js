@@ -101,6 +101,17 @@ test.each([
     expect(guardarCache).toHaveBeenCalledTimes(1);
 });
 
+test('S16: una pregunta en el perfil no acredita una ausencia', async () => {
+    const descripcion = 'Kubernetes es obligatorio.';
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad estimada', explicacion: {
+        por_confirmar: [{ requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: descripcion, evidencia_perfil: '' }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Operaciones junior', descripcion }, null, null,
+        { perfil_profesional: '¿No tengo Kubernetes?' });
+    expect(resultado).toMatchObject({ pendiente: true, porcentaje: 80, explicacion: { exclusiones: [] } });
+    expect(resultado.explicacion.por_confirmar[0].evidencia_perfil).toBe('');
+});
+
 const AD = 'Active Directory';
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],

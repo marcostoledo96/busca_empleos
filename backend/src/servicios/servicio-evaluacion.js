@@ -215,8 +215,11 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const original = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
     const insuficienciaExplicita = original.por_confirmar?.some(item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable');
     const contrasteAcotado = !resultado.match && !insuficienciaExplicita;
-    const exclusionesObligatorias = new Set((original.exclusiones || []).filter(item => item.tipo === 'obligatorio')
-        .map(item => normalizarTextoComparacion(item.requisito)));
+    // Una copia del veto con un rótulo como «Experiencia con X» no es evidencia independiente.
+    const claveRequisito = item => normalizarTextoComparacion(item.requisito)
+        .replace(/^(?:experiencia|conocimientos?|manejo|dominio) (?:con|en|de) /, '');
+    const exclusionesObligatorias = new Set((original.exclusiones || []).filter(item => item.tipo === 'obligatorio').map(claveRequisito));
+    const duplicaExclusion = item => exclusionesObligatorias.has(claveRequisito(item));
     const requiereContraste = item => (item.tipo !== 'deseable' && requisitoVigilado(normalizarTextoComparacion(item.requisito)))
         || (item.tipo === 'obligatorio' && resultado.porcentaje >= UMBRAL_MATCH_MINIMO && !item.evidencia_perfil?.trim());
     const contrastePrevio = !contrasteAcotado || [...(original.exclusiones || []), ...(original.por_confirmar || [])].some(requiereContraste);
@@ -233,10 +236,10 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const formacionConfirmada = extraerFormacionConfirmada(candidato.perfil_profesional);
     const ausencias = new Map(candidato.conocimientos_ausentes.map(nombre => [normalizarTextoComparacion(nombre), nombre]));
     const stack = candidato.stack_tecnologico.map(normalizarTextoComparacion);
-    // Una frase citada o marcada como ejemplo no acredita una ausencia actual.
+    // Una pregunta o una frase citada no acredita una ausencia actual.
     const limitaciones = [candidato.perfil_profesional, candidato.limitaciones_explicitas]
         .flatMap(texto => typeof texto === 'string' ? texto.split(/\r?\n/) : [])
-        .filter(linea => !/[«»“”"'‘’`~<>]/.test(linea));
+        .filter(linea => !/[¿?«»“”"'‘’`~<>]/.test(linea));
     // El título no convierte una mención deseable del cuerpo en obligación acreditada.
     const textoOferta = oferta.descripcion;
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
@@ -304,10 +307,11 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             } });
         }
     }
-    if (!contrastePrevio && (original.exclusiones || []).every(item => exclusionesCorroboradas.has(item))) return resultado;
+    if (!contrastePrevio && (original.exclusiones || []).every(item => exclusionesCorroboradas.has(item))
+        && !(original.no_cumplidos || []).some(duplicaExclusion)) return resultado;
     const explicacion = Object.fromEntries(['cumplidos', 'no_cumplidos', 'por_confirmar', 'exclusiones']
         .map(categoria => [categoria, (original[categoria] || []).filter(item => !revisarObligacion(item, categoria)
-            && !(categoria === 'no_cumplidos' && exclusionesObligatorias.has(normalizarTextoComparacion(item.requisito))))]));
+            && !(categoria === 'no_cumplidos' && duplicaExclusion(item)))]));
     // Un deseable no constituye una exclusión, tampoco en la presentación.
     explicacion.no_cumplidos.push(...explicacion.exclusiones.filter(item => item.tipo === 'deseable'));
     explicacion.exclusiones = explicacion.exclusiones.filter(item => item.tipo !== 'deseable');

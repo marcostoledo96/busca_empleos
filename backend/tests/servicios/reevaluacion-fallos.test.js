@@ -147,6 +147,23 @@ test.each([false, true])('S12/S14/S16 lote mixto: ausencia real, Kubernetes por 
     expect(progreso()).not.toHaveProperty('por_confirmar');
 });
 
+test('S16: el detalle no publica una ausencia inventada bajo el alias de un requisito', async () => {
+    const descripcion = 'Kubernetes es obligatorio.';
+    filas[0].descripcion = descripcion;
+    filas[1].descripcion = 'Aplicaciones web junior.';
+    preferencias.obtenerPreferencias.mockResolvedValue({});
+    const veto = { requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: descripcion, evidencia_perfil: 'No tengo Kubernetes' };
+    proveedor.consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: veto.evidencia_perfil, explicacion: {
+        exclusiones: [veto], no_cumplidos: [{ ...veto, requisito: 'Experiencia con Kubernetes' }],
+    } })).mockResolvedValueOnce('{"match":true,"porcentaje":60,"razon":"Supera el umbral"}');
+    await iniciar([1, 2]);
+    const publicada = await detalleOferta(1);
+    expect(progreso()).toMatchObject({ total: 2, procesadas: 2, evaluadas: 2, por_confirmar: 1, aprobadas: 1, rechazadas: 0, errores: 0 });
+    expect(publicada).toMatchObject({ situacion_evaluacion: 'por_confirmar', porcentaje_match: 80, explicacion_evaluacion: { exclusiones: [] } });
+    expect(JSON.stringify(publicada)).not.toContain('No tengo Kubernetes');
+    expect(publicada.explicacion_evaluacion).not.toHaveProperty('hash_oferta');
+});
+
 test('S12 la proyección histórica reconoce ausencia real sin ocultar un resultado de 80 % ni su diagnóstico', async () => {
     Object.assign(filas[0], { estado_evaluacion: 'pendiente', descripcion: '   ', porcentaje_match: null,
         evaluacion_error_mensaje: 'TIMEOUT anterior', explicacion_evaluacion: { por_confirmar: [
