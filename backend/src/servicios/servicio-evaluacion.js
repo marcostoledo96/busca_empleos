@@ -200,35 +200,44 @@ function aplicaAlRequisito(clausula, requisito) {
 
 const PATRON_OBLIGACION_EXPLICITA = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/;
 
-function dudaContextualBloqueante(item, clausulas) {
+const esOpcionalEnOferta = texto => PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
+const noObligatoriaEnOferta = ({ texto }) => esOpcionalEnOferta(texto) || PATRON_NEGACION_EVIDENCIA.test(texto);
+const mencionesDelRequisito = (clausulas, requisito) => clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
+    && contieneTokenNormalizado(clausula.texto, requisito));
+const literalClausula = ({ texto, inicio, fin }) => texto.slice(-(fin - inicio));
+const esDecorativa = texto => /\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto);
+
+function citaContradictoria(relacionadas, requisito, cita, descripcion) {
+    if (!contieneTokenNormalizado(cita, requisito)) return false;
+    const contexto = ({ texto }) => ` ${texto} `.split(` ${requisito} `);
+    const esDeseable = clausula => {
+        const [antes, despues = ''] = contexto(clausula);
+        return !PATRON_NEGACION_EVIDENCIA.test(clausula.texto)
+            && (/^\s*(?:es |son |resulta )?(?:deseables?|opcional(?:es)?)\b/.test(despues)
+                || /(?:^| )se valora(?:n)?\s*$/.test(antes) || antes.trim() === 'deseable');
+    };
+    if (!relacionadas.some(esDeseable)) return false;
+    return relacionadas.some(clausula => {
+        if (noObligatoriaEnOferta(clausula) || esDecorativa(clausula.texto)) return false;
+        const literal = literalClausula(clausula);
+        // Una cita que abarca la oración obligatoria debe existir también en el texto fuente.
+        if (!contieneTokenNormalizado(literal, cita) && !(contieneTokenNormalizado(cita, literal)
+            && contieneTokenNormalizado(descripcion, cita))) return false;
+        const [antes, despues = ''] = contexto(clausula);
+        return /^\s*(?:es |son |resulta )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(despues)
+            || /(?:^| )se (?:requiere|exige|necesita)n?\s*$/.test(antes)
+            || /^(?:obligatorio|es obligatorio conocer)$/.test(antes.trim());
+    });
+}
+
+function dudaContextualBloqueante(item, clausulas, descripcion) {
     const requisito = normalizarTextoComparacion(item.requisito);
     const cita = normalizarTextoComparacion(item.evidencia_oferta);
     if (!contieneTokenNormalizado(cita, requisito)) return false;
-    const relacionadas = clausulas.filter(clausula => aplicaAlRequisito(clausula, requisito)
-        && contieneTokenNormalizado(clausula.texto, requisito));
-    const opcional = texto => PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
-    const noObligatoria = ({ texto }) => opcional(texto) || PATRON_NEGACION_EVIDENCIA.test(texto);
-    const citaPertinente = ({ texto, inicio, fin }) => contieneTokenNormalizado(texto.slice(-(fin - inicio)), cita)
-        && !/\b(?:logotipo|logo|eslogan|remeras?|merchandising)\b/.test(texto);
-    if (relacionadas.some(noObligatoria)) {
-        // Una mención opcional separada no borra una obligación explícita citada, pero tampoco prueba un veto.
-        const contexto = ({ texto }) => ` ${texto} `.split(` ${requisito} `);
-        const esDeseable = clausula => {
-            const [antes, despues = ''] = contexto(clausula);
-            return /^\s*(?:es |son |resulta )?(?:deseables?|opcional(?:es)?)\b/.test(despues)
-                || /(?:^| )se valora(?:n)?\s*$/.test(antes) || antes.trim() === 'deseable';
-        };
-        const esObligatoria = clausula => {
-            const [antes, despues = ''] = contexto(clausula);
-            return /^\s*(?:es |son |resulta )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?)\b/.test(despues)
-                || /(?:^| )se (?:requiere|exige|necesita)n?\s*$/.test(antes)
-                || /^(?:obligatorio|es obligatorio conocer)$/.test(antes.trim());
-        };
-        return relacionadas.some(clausula => !PATRON_NEGACION_EVIDENCIA.test(clausula.texto) && esDeseable(clausula))
-            && relacionadas.some(clausula => !noObligatoria(clausula) && citaPertinente(clausula) && esObligatoria(clausula));
-    }
+    const relacionadas = mencionesDelRequisito(clausulas, requisito);
+    if (relacionadas.some(noObligatoriaEnOferta)) return citaContradictoria(relacionadas, requisito, cita, descripcion);
     return relacionadas.some(clausula => {
-        if (!citaPertinente(clausula)) return false;
+        if (!contieneTokenNormalizado(literalClausula(clausula), cita) || esDecorativa(clausula.texto)) return false;
         const { texto } = clausula;
         const [antes, despues] = ` ${texto} `.split(` ${requisito} `);
         // El contexto se aplica también a los elementos coordinados de la misma cláusula.
@@ -271,6 +280,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         .filter(linea => !/[¿?«»“”"'‘’`~<>]/.test(linea));
     // El título no convierte una mención deseable del cuerpo en obligación acreditada.
     const textoOferta = oferta.descripcion;
+    const descripcionNormalizada = normalizarTextoComparacion(textoOferta);
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
     const exclusionesCorroboradas = new Set();
     const revisados = new Map();
@@ -290,16 +300,17 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const vigilado = requisitoVigilado(requisito);
             const menciones = vigilado ? clausulasOferta.filter(({ texto }) => requisitoVigilado(texto) === vigilado) : [];
             const noObligatorio = ({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto) || PATRON_NEGACION_EVIDENCIA.test(texto) || /\bse valora(?:n)?\b/.test(texto);
-            const noBloquea = vigilado ? menciones.length > 0 && menciones.every(noObligatorio) : soloDeseable;
+            const contradiccion = citaContradictoria(mencionesDelRequisito(clausulasOferta, requisito), requisito, ofertaCitada, descripcionNormalizada);
+            const noBloquea = !contradiccion && (vigilado ? menciones.length > 0 && menciones.every(noObligatorio) : soloDeseable);
             const coincideCita = ({ texto, oracionMixta }) => contieneTokenNormalizado(texto, ofertaCitada) || oracionMixta === ofertaCitada;
             const citaVigilada = vigilado && requisitoVigilado(ofertaCitada) === vigilado && menciones.some(coincideCita);
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
-            const ofertaAcreditada = vigilado ? citaVigilada && !menciones.some(noObligatorio)
+            const ofertaAcreditada = !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
                     && PATRON_OBLIGACION_EXPLICITA.test(cita.texto))
                 : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
-                    && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
+                    && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido);
             // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
             const nombres = [...new Set([requisito, claveRequisito(item), ...(vigilado ? [vigilado] : [])])];
             const ausenciaDeclarada = nombres.map(nombre => ausencias.get(nombre)).find(Boolean);
@@ -329,8 +340,8 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const prioridad = { cumplidos: 1, por_confirmar: 2, exclusiones: 3 };
             if (prioridad[revisados.get(requisito)?.destino] > prioridad[destino]) continue;
             revisados.set(requisito, { destino, item: destino === 'cumplidos' ? item : {
-                ...item, tipo: noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
-                evidencia_oferta: ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
+                ...item, tipo: contradiccion ? 'desconocido' : noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
+                evidencia_oferta: contradiccion || ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
                 evidencia_perfil: destino === 'exclusiones' ? ausenciaAcreditada : '',
                 explicacion: destino === 'exclusiones' ? 'Incompatibilidad respaldada por una ausencia declarada del candidato.'
                     : motivoAmbiguo || 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
@@ -364,7 +375,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable'
     );
     const requiereConfirmacion = item => item.tipo === 'obligatorio' || (item.tipo === 'desconocido'
-        && dudaContextualBloqueante(item, citasConOrigen));
+        && dudaContextualBloqueante(item, citasConOrigen, descripcionNormalizada));
     const obligatoriosPendientes = explicacion.por_confirmar.filter(requiereConfirmacion);
     if (!faltaInformacion && !obligatoriosPendientes.length) {
         if (contrasteAcotado) {
