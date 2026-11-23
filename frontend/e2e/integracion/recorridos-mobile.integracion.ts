@@ -401,7 +401,32 @@ test('B/G lecturas indisponibles, proveedor 429/503 y ciclo fallido recuperan si
     await info.attach('SQL-recuperacion-lecturas-proveedor-ciclo', { body: JSON.stringify(final, null, 4), contentType: 'application/json' });
 });
 
-test('E reevaluación individual y seleccionada conserva resultado anterior ante JSON incompleto y recupera', async ({ page, request }, info) => {
+const testConPerfilReevaluacion = test.extend<{ perfilReevaluacion: void }>({
+    perfilReevaluacion: async ({ request }, usar) => {
+        const url = `${api}/api/preferencias`;
+        const anterior = await request.get(url, { headers });
+        expect(anterior.status()).toBe(200);
+        const perfilAnterior = (await anterior.json()).datos.perfil_profesional;
+        expect(typeof perfilAnterior).toBe('string');
+        const perfil = 'Desarrollo junior JavaScript';
+        try {
+            const guardado = await request.put(url, { headers, data: { perfil_profesional: perfil } });
+            expect(guardado.status()).toBe(200);
+            const efectivo = await request.get(url, { headers });
+            expect(efectivo.status()).toBe(200);
+            expect((await efectivo.json()).datos).toMatchObject({
+                perfil_profesional: perfil, perfil_efectivo: { candidato: { perfil_profesional: perfil } },
+            });
+            await usar();
+        } finally {
+            const restaurado = await request.put(url, { headers, data: { perfil_profesional: perfilAnterior } });
+            expect(restaurado.status()).toBe(200);
+            expect((await restaurado.json()).datos.perfil_profesional).toBe(perfilAnterior);
+        }
+    },
+});
+
+testConPerfilReevaluacion('E reevaluación individual y seleccionada conserva resultado anterior ante JSON incompleto y recupera', async ({ page, request, perfilReevaluacion: _perfilReevaluacion }, info) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/?tema=oscuro');
     await abrir(page);
