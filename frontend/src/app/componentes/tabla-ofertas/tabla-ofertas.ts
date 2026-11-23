@@ -11,6 +11,7 @@ import { FormsModule } from '@angular/forms';
 import { Oferta } from '../../modelos/oferta.model';
 import { OfertasService } from '../../servicios/ofertas.service';
 import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
+import { compatibilidadVisible, estadoEtiqueta, etiquetaEvaluacion, situacionEvaluacion, tieneResultadoLaboral, ultimoIntento } from '../../utils/presentacion-evaluacion';
 
 @Component({
     selector: 'app-tabla-ofertas',
@@ -153,44 +154,34 @@ export class TablaOfertas {
         this.limpiarSeleccion();
     }
 
-    errorEvaluacionOferta(oferta: Oferta): string | null {
-        const mensaje = oferta.evaluacion_error_mensaje;
-        return mensaje && mensaje !== 'REEVALUACION_SOLICITADA' ? mensaje : null;
-    }
-
-    private resultadoConservado(oferta: Oferta): boolean {
-        const fecha = (oferta as Oferta & { fecha_evaluacion?: string | null }).fecha_evaluacion;
-        // Conservo también el contrato histórico de resultados fechados, sin presentarlos como nuevos.
-        return !!oferta.firma_criterios_evaluacion || !!(fecha && oferta.razon_evaluacion !== oferta.evaluacion_error_mensaje);
-    }
-
-    compatibilidadVisible(oferta: Oferta): boolean {
-        const porcentaje = oferta.porcentaje_match;
-        return porcentaje !== null && Number.isFinite(porcentaje) && porcentaje >= 0 && porcentaje <= 100
-            && oferta.estado_evaluacion !== 'pendiente'
-            && oferta.evaluacion_error_mensaje !== 'REEVALUACION_SOLICITADA'
-            && (!this.errorEvaluacionOferta(oferta) || this.resultadoConservado(oferta));
-    }
+    readonly compatibilidadVisible = compatibilidadVisible;
+    readonly situacionEvaluacion = situacionEvaluacion;
+    readonly estadoEtiqueta = estadoEtiqueta;
+    readonly ultimoIntento = ultimoIntento;
 
     nivelCompatibilidad(oferta: Oferta): string {
-        if (oferta.estado_evaluacion === 'rechazada') return 'bajo';
-        if (oferta.vigencia_evaluacion !== 'actual' || this.errorEvaluacionOferta(oferta)) return 'anterior';
+        const situacion = situacionEvaluacion(oferta);
+        if (situacion === 'rechazada' || situacion === 'bajo_umbral') return 'bajo';
+        if (oferta.vigencia_evaluacion !== 'actual' || ultimoIntento(oferta)) return 'anterior';
         return this.nivelMatch(oferta.porcentaje_match!);
     }
 
     etiquetaEvaluacion(oferta: Oferta): string {
-        return this.errorEvaluacionOferta(oferta) && !this.compatibilidadVisible(oferta)
-            ? 'Error técnico' : oferta.estado_evaluacion;
+        const estado = estadoEtiqueta(oferta);
+        if (estado === 'error') return 'ERROR TÉCNICO';
+        const etiqueta = etiquetaEvaluacion(oferta);
+        return estado === 'aprobada' || estado === 'rechazada' ? etiqueta.toUpperCase() : etiqueta;
     }
 
     textoVigencia(oferta: Oferta): string {
-        if (oferta.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') return 'Desactualizada · reevaluación pendiente';
-        if (this.errorEvaluacionOferta(oferta)) return this.compatibilidadVisible(oferta)
-            ? 'Resultado anterior conservado' : 'Sin resultado válido nuevo';
-        if (oferta.estado_evaluacion === 'pendiente') return 'Pendiente de evaluación';
         if (oferta.vigencia_evaluacion === 'actual') return 'Evaluación actual';
         if (oferta.vigencia_evaluacion === 'anterior') return 'Evaluación anterior';
+        if (situacionEvaluacion(oferta) === 'sin_evaluar') return 'Pendiente de evaluación';
         return 'Vigencia desconocida';
+    }
+
+    resultadoConservado(oferta: Oferta): boolean {
+        return tieneResultadoLaboral(oferta);
     }
 
     // Evento que emite cuando el usuario hace clic en una oferta.

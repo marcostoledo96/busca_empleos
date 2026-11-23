@@ -36,6 +36,9 @@ export interface ExplicacionEvaluacion {
     invalido?: boolean;
 }
 
+export type SituacionEvaluacion = 'aprobada' | 'rechazada' | 'por_confirmar' | 'bajo_umbral' | 'sin_evaluar' | 'legado';
+export type UltimoIntentoEvaluacion = 'fallo_tecnico' | 'reevaluacion_solicitada';
+
 // Interfaz que representa una oferta de empleo tal como viene de la API.
 // Mapea 1:1 con las columnas de la tabla "ofertas" de PostgreSQL.
 export interface Oferta {
@@ -74,6 +77,9 @@ export interface Oferta {
     descripcion_completitud?: 'completa' | 'parcial' | 'desconocida' | 'ausente' | string | null;
     descripcion_original?: string | null;
     descripcion_modificada_en?: string | null;
+    fecha_evaluacion?: string | null;
+    situacion_evaluacion?: SituacionEvaluacion;
+    ultimo_intento_evaluacion?: UltimoIntentoEvaluacion | null;
     evaluacion_error_mensaje?: string | null;
 }
 

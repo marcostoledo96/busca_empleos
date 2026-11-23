@@ -32,7 +32,33 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             exclusiones: [],
         },
     };
+    const resultadoPorConfirmar = {
+        situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+    } as const;
     const cambios: Record<string, Partial<Oferta>> = {
+        'calibracion-105': {
+            ...resultadoPorConfirmar,
+            titulo: 'Soporte Técnico Informático JR', ubicacion: 'CABA', modalidad: 'Presencial',
+            descripcion: 'Soporte informático junior presencial en CABA. El aviso menciona Active Directory sin indicar si es obligatorio.',
+            estado_evaluacion: 'pendiente', porcentaje_match: 80, prioridad_ia: false, puntaje_prioridad_ia: 0,
+            evidencias_prioridad_ia: [],
+            razon_evaluacion: 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia.',
+            evaluacion_error_mensaje: null,
+            explicacion_evaluacion: { desglose_disponible: true, cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                requisito('Active Directory', 'El aviso menciona Active Directory.', '', 'desconocido'),
+            ] },
+        },
+        'calibracion-105-kubernetes': {
+            ...resultadoPorConfirmar,
+            titulo: 'Operaciones de plataforma junior',
+            descripcion: 'Operaciones de plataforma junior. El aviso menciona Kubernetes sin indicar si es obligatorio.',
+            estado_evaluacion: 'pendiente', porcentaje_match: 80, prioridad_ia: false, puntaje_prioridad_ia: 0,
+            evidencias_prioridad_ia: [], evaluacion_error_mensaje: null,
+            razon_evaluacion: 'Confirmar si Kubernetes es obligatorio y si contás con esa experiencia.',
+            explicacion_evaluacion: { desglose_disponible: true, cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
+                requisito('Kubernetes', 'El aviso menciona Kubernetes sin indicar si es obligatorio.', '', 'desconocido'),
+            ] },
+        },
         aprobada: {},
         rechazada: {
             estado_evaluacion: 'rechazada', porcentaje_match: 88,
@@ -41,9 +67,11 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
                 requisito('Java obligatorio', 'Java es requisito obligatorio para el puesto.', 'No declaro Java; lo excluyo explícitamente.'),
             ] },
         },
-        pendiente: { estado_evaluacion: 'pendiente', porcentaje_match: 97, razon_evaluacion: null, explicacion_evaluacion: null, firma_criterios_evaluacion: null },
+        pendiente: { estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: null,
+            vigencia_evaluacion: 'desconocida', porcentaje_match: null, razon_evaluacion: null, explicacion_evaluacion: null, firma_criterios_evaluacion: null },
         confirmacion: {
-            estado_evaluacion: 'pendiente', porcentaje_match: 91, prioridad_ia: false, vigencia_evaluacion: 'desconocida',
+            estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar', ultimo_intento_evaluacion: null,
+            porcentaje_match: 91, prioridad_ia: false, vigencia_evaluacion: 'actual',
             firma_criterios_evaluacion: 'criterios-sinteticos-v7',
             descripcion: 'Desarrollo junior con Angular y TypeScript. Residencia obligatoria en provincia Delta.',
             evaluacion_error_mensaje: null,
@@ -53,28 +81,56 @@ export function crearOfertasDetalle(escenario: string): Oferta[] {
             ] },
         },
         'sin-descripcion': {
-            estado_evaluacion: 'pendiente', descripcion: null, descripcion_completitud: 'ausente',
+            estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: null,
+            descripcion: null, descripcion_completitud: 'ausente',
             porcentaje_match: null, prioridad_ia: false, vigencia_evaluacion: 'desconocida', evaluacion_error_mensaje: null,
-            firma_criterios_evaluacion: 'criterios-sinteticos-v7',
-            razon_evaluacion: 'Pendiente de confirmación: falta la descripción de la oferta.',
-            explicacion_evaluacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [
-                requisito('Descripción de la oferta', '', '', 'desconocido'),
-            ] },
+            firma_criterios_evaluacion: null, razon_evaluacion: null, explicacion_evaluacion: null,
         },
         error: { estado_evaluacion: 'pendiente', porcentaje_match: null, razon_evaluacion: null, explicacion_evaluacion: null,
             firma_criterios_evaluacion: null, evaluacion_error_mensaje: 'Servicio sintético no disponible (HTTP 503).' },
         'reevaluacion-fallida': { evaluacion_error_mensaje: 'La reevaluación sintética falló por tiempo de espera.' },
-        desactualizada: { estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA', vigencia_evaluacion: 'anterior' },
+        desactualizada: { estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar', ultimo_intento_evaluacion: 'reevaluacion_solicitada',
+            evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA', vigencia_evaluacion: 'desconocida', porcentaje_match: null,
+            firma_criterios_evaluacion: null, explicacion_evaluacion: null, prioridad_ia: false },
         historica: { explicacion_evaluacion: null, firma_criterios_evaluacion: null, vigencia_evaluacion: 'desconocida' },
         postulada: { estado_postulacion: 'cv_enviado', fecha_postulacion: '2026-01-14', nota_postulacion: 'Envié un CV sintético. Pendiente de respuesta; no realicé una postulación real.' },
         'textos-largos': { titulo: `Frontend sintética ${'AccesibilidadSinEspacios'.repeat(12)}`,
             empresa: `Empresa sintética ${'NombreCorporativoExtenso'.repeat(10)}`,
             descripcion: `${base.descripcion}\n\n${'Responsabilidades sintéticas: revisar accesibilidad y documentar decisiones. '.repeat(60)}\n${'IdentificadorSinEspacios'.repeat(40)}` },
     };
+    if (escenario === 'calibracion-105-f6') {
+        // Simulo la proyección de API, no el diagnóstico de la IA ni el contraste del backend.
+        const kubernetes = cambios['calibracion-105-kubernetes'];
+        const crearCaso = (id: number, titulo: string, tecnologia: string, evidencia: string, ausenciaConfirmada: boolean): Oferta => {
+            const descripcion = `${tecnologia} es un requisito obligatorio.`;
+            const item = requisito(tecnologia, descripcion, evidencia);
+            return {
+                ...base, ...kubernetes, id, url: `https://example.invalid/ofertas/${id}`, titulo, descripcion,
+                estado_evaluacion: ausenciaConfirmada ? 'rechazada' : 'pendiente',
+                situacion_evaluacion: ausenciaConfirmada ? 'rechazada' : 'por_confirmar',
+                razon_evaluacion: ausenciaConfirmada ? `Ausencia confirmada de experiencia con ${tecnologia}.`
+                    : `Confirmar el alcance de la experiencia con ${tecnologia}.`,
+                explicacion_evaluacion: { desglose_disponible: true, cumplidos: [], no_cumplidos: [],
+                    exclusiones: ausenciaConfirmada ? [item] : [], por_confirmar: ausenciaConfirmada ? [] : [item] },
+            };
+        };
+        // La API no conserva la afirmación negativa no acreditada, tampoco si el stack contradice al modelo.
+        const stackPositivo = crearCaso(502, 'Soporte de clústeres junior', 'Kubernetes', '', false);
+        // Un intento posterior fallido no añade una oferta ni borra el resultado válido.
+        stackPositivo.ultimo_intento_evaluacion = 'fallo_tecnico';
+        stackPositivo.evaluacion_error_mensaje = 'Tiempo de espera agotado en el último intento sintético.';
+        return [
+            crearCaso(501, 'Operaciones de plataforma junior', 'Kubernetes', '', false),
+            stackPositivo,
+            crearCaso(503, 'Infraestructura de contenedores junior', 'Kubernetes', 'Declaré que no tengo experiencia con Kubernetes.', true),
+            crearCaso(504, 'Soporte de directorio junior', 'Active Directory', 'Declaré que no tengo experiencia con Active Directory.', true),
+        ];
+    }
     if (!(escenario in cambios)) throw new Error(`Escenario de detalle no previsto: ${escenario}`);
     return structuredClone([{ ...base, ...cambios[escenario] }, {
         ...base, id: 502, titulo: 'Segunda oferta sintética para comprobar borradores independientes',
         url: 'https://example.invalid/ofertas/502', prioridad_ia: false,
+        ...(escenario === 'calibracion-105-kubernetes' ? { ...cambios['sin-descripcion'], titulo: 'Oferta sin descripción' } : {}),
     }]);
 }
 
@@ -95,7 +151,7 @@ export function crearHttpDetalle(ofertas: Oferta[], parametros: URLSearchParams)
         if (solicitud.method === 'GET' && ruta === '/ofertas') return responder(guardadas);
         if (solicitud.method === 'GET' && ruta === '/ofertas/sincronizacion') return of(new HttpResponse({ body: {
             exito: true, datos: structuredClone(guardadas), total: guardadas.length, total_inicial: guardadas.length,
-            max_id: 502, fecha_corte: FECHA_DETALLE, cursor_siguiente: null, completada: true,
+            max_id: Math.max(...guardadas.map(oferta => oferta.id)), fecha_corte: FECHA_DETALLE, cursor_siguiente: null, completada: true,
         } }));
         const coincidencia = ruta.match(/^\/ofertas\/(\d+)(?:\/(postulacion|seguimiento|descripcion))?$/);
         const reevaluar = ruta === '/evaluacion/ejecutar' && solicitud.method === 'POST';
@@ -128,7 +184,9 @@ export function crearHttpDetalle(ofertas: Oferta[], parametros: URLSearchParams)
                 if (typeof descripcion !== 'string' || descripcion.trim().length < 20 || descripcion.trim().length > 50000) return fallar(400, 'La descripción debe tener entre 20 y 50000 caracteres.');
                 oferta.descripcion_original ??= oferta.descripcion;
                 Object.assign(oferta, { descripcion: descripcion.trim(), origen_descripcion: 'manual', descripcion_completitud: 'completa',
-                    descripcion_modificada_en: FECHA_DETALLE, estado_evaluacion: 'pendiente', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA' });
+                    descripcion_modificada_en: FECHA_DETALLE, estado_evaluacion: 'pendiente', situacion_evaluacion: 'sin_evaluar',
+                    ultimo_intento_evaluacion: 'reevaluacion_solicitada', evaluacion_error_mensaje: 'REEVALUACION_SOLICITADA',
+                    porcentaje_match: null, firma_criterios_evaluacion: null, explicacion_evaluacion: null, vigencia_evaluacion: 'desconocida' });
             } else {
                 const ids = parametros.has('tabla') ? cambios['ids'] as number[] : [oferta.id];
                 if (!ids?.length || !ids.every(id => guardadas.some(item => item.id === id))) return fallar(400, 'IDs de reevaluación inválidos.');

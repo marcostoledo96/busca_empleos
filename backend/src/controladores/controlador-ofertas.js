@@ -13,15 +13,28 @@
 const modeloOferta = require('../modelos/oferta');
 const modeloPreferencia = require('../modelos/preferencia');
 const { crearFirmaCriterios, obtenerVigenciaEvaluacion } = require('../servicios/evaluacion/identidad-evaluacion');
+const { obtenerSituacionEvaluacion, obtenerUltimoIntentoEvaluacion } = require('../servicios/evaluacion/situacion-evaluacion');
 const baseDatos = require('../config/base-datos');
 const { normalizarIdPlataforma } = require('../config/plataformas');
+
+function proyectarOferta(oferta) {
+    const explicacion = oferta.explicacion_evaluacion;
+    if (!explicacion || !Object.hasOwn(explicacion, 'hash_oferta')) return oferta;
+    const { hash_oferta, ...explicacionPublica } = explicacion;
+    return { ...oferta, explicacion_evaluacion: explicacionPublica };
+}
 
 async function agregarVigencia(ofertas, soloLectura = false) {
     const prefs = soloLectura
         ? await modeloPreferencia.obtenerPreferencias({ soloLectura: true })
         : await modeloPreferencia.obtenerPreferencias();
     const firma = prefs ? crearFirmaCriterios(prefs) : null;
-    return ofertas.map(oferta => ({ ...oferta, vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma) }));
+    return ofertas.map(oferta => ({
+        ...proyectarOferta(oferta),
+        vigencia_evaluacion: obtenerVigenciaEvaluacion(oferta, firma),
+        situacion_evaluacion: obtenerSituacionEvaluacion(oferta),
+        ultimo_intento_evaluacion: obtenerUltimoIntentoEvaluacion(oferta),
+    }));
 }
 
 function validarIdEnteroPositivo(idParam) {
@@ -241,7 +254,7 @@ async function actualizarPostulacion(req, res) {
 
     res.json({
         exito: true,
-        datos: oferta,
+        datos: proyectarOferta(oferta),
         mensaje: `Estado de postulación actualizado a '${estado_postulacion}'.`,
     });
 }
@@ -376,7 +389,7 @@ async function actualizarSeguimiento(req, res) {
     }
     const oferta = await modeloOferta.actualizarSeguimiento(id, cambios);
     if (!oferta) return res.status(404).json({ exito: false, error: 'Oferta no encontrada.' });
-    return res.json({ exito: true, datos: oferta, mensaje: 'Seguimiento actualizado correctamente.' });
+    return res.json({ exito: true, datos: proyectarOferta(oferta), mensaje: 'Seguimiento actualizado correctamente.' });
 }
 
 module.exports = {

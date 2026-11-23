@@ -16,6 +16,19 @@ import { DemoService } from '../../servicios/demo.service';
 import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 import { EstadoOperativoSincronizacion } from '../../modelos/respuesta-api.model';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
+import { situacionEvaluacion, tieneResultadoLaboral, ultimoIntento } from '../../utils/presentacion-evaluacion';
+
+function categoriaOferta(oferta: Oferta): string | number {
+    if (oferta.estado_postulacion === 'cv_enviado' || oferta.estado_postulacion === 'en_proceso') return 1;
+    if (oferta.estado_postulacion === 'descartada') return 4;
+    const intento = ultimoIntento(oferta);
+    if (intento && !tieneResultadoLaboral(oferta)) return intento;
+    const situacion = situacionEvaluacion(oferta);
+    if (situacion === 'aprobada') return 0;
+    if (situacion === 'rechazada') return 2;
+    if (situacion === 'sin_evaluar') return 3;
+    return situacion;
+}
 
 @Component({
     selector: 'app-dashboard',
@@ -161,52 +174,35 @@ export class Dashboard implements OnInit, OnDestroy {
     // Computed: aplica el filtro de plataforma al array completo base.
     private readonly ofertasFiltradas = computed(() => {
         const plataforma = this.filtroPlataforma();
-        const todas = this.ofertas();
+        const todas = [...new Map(this.ofertas().map(oferta => [oferta.id, oferta])).values()];
         if (!plataforma) return todas;
         return todas.filter(o => o.plataforma === plataforma);
     });
 
-    // Tab 1: aprobadas por la IA y todavía no postuladas.
-    readonly ofertasAprobadas = computed(() =>
-        this.ordenarOfertas(this.ofertasFiltradas()
-            .filter(o =>
-                o.estado_evaluacion === 'aprobada' &&
-                o.estado_postulacion === 'no_postulado'
-            ))
-    );
+    readonly categoriasEvaluacion = [
+        { id: 'por_confirmar', etiqueta: 'Por confirmar' },
+        { id: 'bajo_umbral', etiqueta: 'Bajo el umbral' },
+        { id: 'fallo_tecnico', etiqueta: 'Fallos técnicos' },
+        { id: 'reevaluacion_solicitada', etiqueta: 'Reevaluación solicitada' },
+        { id: 'legado', etiqueta: 'Evaluaciones históricas' },
+    ];
 
-    // Tab 2: las que ya mandé CV o están en proceso.
-    readonly ofertasPostuladas = computed(() =>
-        this.ordenarOfertas(this.ofertasFiltradas()
-            .filter(o =>
-                o.estado_postulacion === 'cv_enviado' ||
-                o.estado_postulacion === 'en_proceso'
-            ))
-    );
+    readonly ofertasPorCategoria = computed(() => {
+        const grupos = new Map<string | number, Oferta[]>();
+        for (const oferta of this.ordenarOfertas(this.ofertasFiltradas())) {
+            const categoria = categoriaOferta(oferta);
+            const grupo = grupos.get(categoria);
+            if (grupo) grupo.push(oferta);
+            else grupos.set(categoria, [oferta]);
+        }
+        return grupos;
+    });
 
-    // Separo el rechazo de IA del descarte personal, sin duplicar postuladas.
-    readonly ofertasRechazadas = computed(() =>
-        this.ordenarOfertas(this.ofertasFiltradas()
-            .filter(o =>
-                o.estado_evaluacion === 'rechazada' &&
-                o.estado_postulacion === 'no_postulado'
-            ))
-    );
-
-    readonly ofertasDescartadas = computed(() =>
-        this.ordenarOfertas(this.ofertasFiltradas().filter(o => o.estado_postulacion === 'descartada'))
-    );
-
-    // Tab 4: pendientes de evaluación (no postuladas ni descartadas).
-    readonly ofertasPendientes = computed(() =>
-        this.ordenarOfertas(this.ofertasFiltradas()
-            .filter(o =>
-                o.estado_evaluacion === 'pendiente' &&
-                o.estado_postulacion !== 'cv_enviado' &&
-                o.estado_postulacion !== 'en_proceso' &&
-                o.estado_postulacion !== 'descartada'
-            ))
-    );
+    readonly ofertasAprobadas = computed(() => this.ofertasPorCategoria().get(0) ?? []);
+    readonly ofertasPostuladas = computed(() => this.ofertasPorCategoria().get(1) ?? []);
+    readonly ofertasRechazadas = computed(() => this.ofertasPorCategoria().get(2) ?? []);
+    readonly ofertasPendientes = computed(() => this.ofertasPorCategoria().get(3) ?? []);
+    readonly ofertasDescartadas = computed(() => this.ofertasPorCategoria().get(4) ?? []);
 
     // Cards superiores: derivadas de los mismos computed que las tabs,
     // garantizando consistencia total entre lo que muestra el resumen y las tabs.
@@ -481,7 +477,7 @@ export class Dashboard implements OnInit, OnDestroy {
         if (this.modoDemo() || this.accionMasivaEnCurso() || this.postulacionesPendientes().size) return;
         const estados = ['no_postulado', 'cv_enviado', 'en_proceso', 'descartada'];
         const categoria = this.modoReevaluacion() ? this.ofertasReevaluables()
-            : [this.ofertasAprobadas(), this.ofertasPostuladas(), this.ofertasRechazadas(), this.ofertasPendientes(), this.ofertasDescartadas()][Number(this.pestanaActiva())] ?? [];
+            : this.ofertasPorCategoria().get(this.pestanaActiva()) ?? [];
         const permitidas = new Set(categoria.map(o => o.id));
         const ids = [...new Set(evento.ids)];
         if (!estados.includes(evento.estadoPostulacion) || !ids.length

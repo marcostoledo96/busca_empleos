@@ -219,10 +219,11 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
     const clausulas = [];
     const origen = normalizarTextoComparacion(textoConSaltos);
     let cursorOrigen = 0;
-    const agregar = (texto, literal, desde, encabezado = false) => {
+    const agregar = (texto, literal, desde, encabezado = false, experienciaAjenaA) => {
         if (!conOrigen) return clausulas.push(texto);
         const inicio = origen.indexOf(literal, desde);
-        if (inicio >= 0) clausulas.push({ texto, inicio, fin: inicio + literal.length, encabezado });
+        if (inicio >= 0) clausulas.push({ texto, inicio, fin: inicio + literal.length, encabezado,
+            ...(experienciaAjenaA ? { experienciaAjenaA } : {}) });
     };
     let seccionActual = null; // 'opcional' | 'obligatoria' | null
 
@@ -306,16 +307,42 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
 
         // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
         // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
-        // O por otros signos de puntuación: [!?;]
-        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).filter(p => p.trim());
+        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).flatMap(oracion => {
+            // Una conjunción solo puede separar predicados después de una obligación explícita,
+            // no dentro de «Kubernetes y SQL» ni donde la negación continúa el mismo requisito.
+            const limite = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required)\b(\s+y\s+)|,/i.exec(oracion);
+            if (!limite) return [[oracion]];
+            const inicioSeparador = limite.index + limite[0].length - (limite[1]?.length ?? 1);
+            const primera = oracion.slice(0, inicioSeparador);
+            const condicion = normalizarTextoComparacion(primera);
+            const requisito = condicion.match(/^(.+?) (?:es |son )?(?:obligatori[oa]s?|excluyentes?|mandatory|required)$/)?.[1];
+            const restoTexto = oracion.slice(limite.index + limite[0].length);
+            const segunda = normalizarTextoComparacion(restoTexto);
+            const negacion = segunda.match(PATRON_NEGACION_EVIDENCIA);
+            const otroRequisito = negacion && negacion.index === 0
+                ? segunda.slice(negacion[0].length).trim()
+                : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1];
+            // Sin un objeto explícito, la negación puede continuar el mismo tópico.
+            if (!requisito || !otroRequisito || /^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)) return [[oracion]];
 
-        for (const parte of partes) {
+            // Una sigla declarada identifica el mismo requisito. Exigir experiencia es distinto
+            // de exigir la tecnología, aun cuando la frase de experiencia vuelva a nombrarla.
+            const alias = [...primera.matchAll(/\(([A-Z][A-Z0-9]{1,9})\)/g)].map(([, sigla]) => normalizarTextoComparacion(sigla));
+            const nombres = requisito.split(/ (?:y|o) /).concat(alias);
+            // Una negación coordinada puede alcanzar la tecnología además de la experiencia.
+            const experienciaDistinta = /^(?:la )?experiencia\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito)
+                && !/\b(?:y|e|o|u|ni|tampoco)\b/.test(otroRequisito) && !restoTexto.includes(',');
+            return experienciaDistinta || !nombres.some(nombre => contieneTokenNormalizado(segunda, nombre))
+                ? [[primera], [restoTexto, experienciaDistinta ? requisito : undefined]] : [[oracion]];
+        });
+
+        for (const [parte, experienciaAjenaA] of partes) {
             const parteNorm = normalizarTextoComparacion(parte);
             if (!parteNorm) continue;
 
             const contextual = seccionActual === 'opcional' ? `deseable ${parteNorm}`
                 : seccionActual === 'obligatoria' ? `obligatorio ${parteNorm}` : parteNorm;
-            agregar(contextual, parteNorm, cursorParte);
+            agregar(contextual, parteNorm, cursorParte, false, experienciaAjenaA);
             cursorParte = origen.indexOf(parteNorm, cursorParte) + parteNorm.length;
         }
 

@@ -43,14 +43,19 @@ test.each([
     expect(firmaNueva).not.toBe(identidad.crearFirmaCriterios(prefs));
 });
 
-test('v13 invalida firma y hash v12 incluso con instrucciones explícitas idénticas', () => {
+test('v14 distingue un rechazo firmado con v13 y separa su clave de caché', () => {
     const opciones = { instrucciones: 'Sistema sintético explícito' };
     const actual = identidad.construirIdentidadEvaluacion(oferta, prefs, opciones);
-    const anterior = identidad.construirIdentidadEvaluacion(oferta, prefs, { ...opciones, version: 'evaluacion-v12' });
-    expect(actual.criterios.version).toBe('evaluacion-v13');
-    expect(actual.firma_criterios_evaluacion).not.toBe(anterior.firma_criterios_evaluacion);
-    expect(actual.oferta.version).toBe('evaluacion-v13');
-    expect(actual.hash_oferta).not.toBe(identidad.crearHash({ ...actual.oferta, version: 'evaluacion-v12' }));
+    const version = 'evaluacion-v13';
+    const firmaAnterior = identidad.crearFirmaCriterios(prefs, { ...opciones, version });
+    expect(actual.criterios.version).toBe('evaluacion-v14');
+    expect(actual.firma_criterios_evaluacion).not.toBe(firmaAnterior);
+    expect(actual.oferta.version).toBe('evaluacion-v14');
+    expect(identidad.construirEntradaOferta(oferta, version)).toEqual({ ...actual.oferta, version });
+    expect(actual.hash_oferta).not.toBe(identidad.crearHash({ ...actual.oferta, version }));
+    const legado = { estado_evaluacion: 'rechazada', firma_criterios_evaluacion: firmaAnterior };
+    expect(identidad.obtenerVigenciaEvaluacion(legado, actual.firma_criterios_evaluacion)).toBe('anterior');
+    expect(legado).toEqual({ estado_evaluacion: 'rechazada', firma_criterios_evaluacion: firmaAnterior });
 });
 
 test('versionar reglas provoca miss sin modificar mensajes reales', () => {

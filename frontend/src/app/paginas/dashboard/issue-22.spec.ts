@@ -86,8 +86,9 @@ describe('Issue 22 — seguimiento visible, persistencia y concurrencia', () => 
             dashboard.ofertasRechazadas(), dashboard.ofertasPendientes()];
         // Verifico el quinto contador por el DOM, sin acoplar la prueba a un nuevo método.
         expect(buscar('[aria-labelledby="stat-label-descartadas"]')?.textContent).toContain('3');
-        expect(categorias.map(c => c.length)).toEqual([1, 6, 1, 1]);
-        expect(new Set(categorias.flat().map(o => o.id)).size).toBe(9);
+        expect(categorias.map(c => c.length)).toEqual([1, 6, 1, 0]);
+        expect(new Set(categorias.flat().map(o => o.id)).size).toBe(8);
+        expect(buscar('[aria-labelledby="stat-label-fallo_tecnico"]')?.textContent?.trim()).toBe('1');
         expect(fixture.nativeElement.textContent).toContain('RECHAZADAS POR IA');
         expect(fixture.nativeElement.textContent).toContain('DESCARTADAS MANUALMENTE');
         expect(dashboard.statTotal()).toBe(12);

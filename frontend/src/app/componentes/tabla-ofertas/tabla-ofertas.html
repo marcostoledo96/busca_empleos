@@ -59,17 +59,23 @@
 
 <ng-template #evaluacion let-oferta>
     <div class="evaluacion-resumen">
-        <span class="tag-estado" [attr.data-estado]="etiquetaEvaluacion(oferta) === 'Error técnico' ? 'error' : oferta.estado_evaluacion">
-            {{ etiquetaEvaluacion(oferta) | uppercase }}
-        </span>
+        <span class="tag-estado" [attr.data-estado]="estadoEtiqueta(oferta)">{{ etiquetaEvaluacion(oferta) }}</span>
+        @if (situacionEvaluacion(oferta) === 'por_confirmar' && oferta.razon_evaluacion) {
+            <span class="tag-vigencia"><strong>Motivo:</strong> {{ oferta.razon_evaluacion }}</span>
+        }
         @if (oferta.prioridad_ia) {
             <span class="tag-plataforma" [attr.aria-label]="'Prioridad IA: ' + (oferta.evidencias_prioridad_ia || []).join(', ')">IA</span>
         }
-        <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
-        @if (errorEvaluacionOferta(oferta); as error) {
+        @if (!oferta.situacion_evaluacion || resultadoConservado(oferta)) {
+            <span class="tag-vigencia">{{ textoVigencia(oferta) }}</span>
+        }
+        @if (ultimoIntento(oferta) === 'reevaluacion_solicitada') {
+            <span class="tag-vigencia">{{ oferta.situacion_evaluacion ? 'Reevaluación solicitada' : resultadoConservado(oferta) ? 'Reevaluación pendiente' : 'Desactualizada · reevaluación pendiente' }}</span>
+        } @else if (ultimoIntento(oferta) === 'fallo_tecnico') {
+            <span class="tag-vigencia">{{ resultadoConservado(oferta) ? 'Resultado anterior conservado' : 'Sin resultado válido nuevo' }}</span>
             <details class="error-evaluacion" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
                 <summary>Error técnico · ver diagnóstico</summary>
-                <p>{{ error }}</p>
+                <p>{{ oferta.evaluacion_error_mensaje || 'El último intento no se completó.' }}</p>
             </details>
         }
     </div>
@@ -194,7 +200,11 @@
                 <td class="columna-match">
                     @if (compatibilidadVisible(oferta)) {
                         <span class="celda-match" [attr.data-nivel]="nivelCompatibilidad(oferta)" [attr.aria-label]="textoVigencia(oferta) + ': ' + oferta.porcentaje_match + '%'">
-                            {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
+                            @if (situacionEvaluacion(oferta) === 'por_confirmar') {
+                                {{ oferta.porcentaje_match }} % de afinidad
+                            } @else {
+                                {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
+                            }
                         </span>
                     } @else {
                         <span class="texto-sin-dato">—</span>
@@ -320,7 +330,11 @@
                         </div>
                         @if (compatibilidadVisible(oferta)) {
                             <span class="card-oferta__match" [attr.data-nivel]="nivelCompatibilidad(oferta)" [attr.aria-label]="textoVigencia(oferta) + ': ' + oferta.porcentaje_match + '%'">
-                                {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
+                                @if (situacionEvaluacion(oferta) === 'por_confirmar') {
+                                    {{ oferta.porcentaje_match }} % de afinidad
+                                } @else {
+                                    {{ oferta.porcentaje_match }}<span class="match-pct">%</span>
+                                }
                             </span>
                         }
                     </div>

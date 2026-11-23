@@ -429,7 +429,19 @@ agregan en cada oferta:
   las filas históricas permanecen en null (sin backfill).
 - `vigencia_evaluacion: 'actual' | 'anterior' | 'desconocida'`: comparación con
   los criterios actualmente guardados. Una firma diferente es anterior; una
-  firma ausente, estado pendiente o error de evaluación es desconocido, nunca actual.
+  firma ausente o un resultado no verificable es desconocido. Un fallo posterior
+  no invalida por sí solo la firma de un resultado conservado.
+- `situacion_evaluacion`: `aprobada`, `rechazada`, `por_confirmar`, `bajo_umbral`,
+  `sin_evaluar` o `legado`. Se deriva de los campos existentes, no es un estado
+  nuevo de persistencia ni sustituye `estado_evaluacion` en los filtros de la API.
+- `ultimo_intento_evaluacion`: `fallo_tecnico`, `reevaluacion_solicitada` o `null`.
+  Es independiente de la situación laboral: una oferta puede seguir `por_confirmar`
+  y conservar su afinidad y vigencia aunque el siguiente intento falle. Si falta
+la descripción y no se acreditó un veto determinístico, la oferta queda `sin_evaluar`,
+sin afinidad ni firma nuevas. El diagnóstico de un intento previo no se borra.
+
+La edición de descripción también devuelve los campos derivados; no se toma el
+marcador `REEVALUACION_SOLICITADA` como fallo ni como resultado vigente.
 
 La vigencia describe **criterios del perfil**, no certifica que el contenido de
 una oferta no haya cambiado desde su evaluación. La identidad de caché sí incluye
@@ -1106,9 +1118,43 @@ No agrego endpoint de ejecución, reintentos, cambios de presupuesto ni recupera
 
 Retorno `{ exito: true, datos }` con los campos habituales y `estado`
 (`inactivo`, `activo`, `completado`, `cancelado` o `error`), `mensaje_error`,
-`procesadas` y `pendientes`. `evaluadas` cuenta resultados válidos persistidos;
-`aprobadas + rechazadas = evaluadas`, `procesadas = evaluadas + errores` y
-`pendientes = total - evaluadas` incluye fallos de proveedor y ofertas no procesadas.
+`procesadas` y `pendientes`. `evaluadas` cuenta resultados válidos persistidos,
+incluso aquellos que todavía no tienen una elegibilidad resuelta. `procesadas`
+incluye los resultados válidos, los errores y las supersedidas por concurrencia.
+`pendientes = total - evaluadas` incluye fallos de proveedor y ofertas sin evaluación válida en ese lote.
+Una oferta inspeccionada sin descripción puede quedar pendiente al completar el lote:
+suma a `procesadas`, no a `evaluadas` ni a `errores`. El estado del lote no es el
+de la evaluación laboral de las ofertas. Al recuperar un lote no completado, las
+procesadas reconstruidas por resultados y errores son un mínimo, no un total exacto.
+
+La pasada ordinaria omite un resultado válido `por_confirmar` si coinciden los
+criterios y la entrada efectiva. No reescribe la fecha ni el diagnóstico y no depende
+de la caché. Una selección explícita, el marcador de reevaluación o un cambio real
+permiten volver a evaluar. Para registros anteriores sin huella, se conserva la
+decisión si coincide la firma y no hay invalidación registrada; no se reconstruye
+una huella histórica. La huella de oferta no se expone en la API.
+
+El contrato `evaluacion-v14` separa la firma y la clave de caché de los resultados
+nuevos. Una evaluación firmada con `evaluacion-v13` se muestra como `anterior`,
+sin reescribirla. Para evitar reevaluaciones por el mero cambio de versión, la
+pasada ordinaria compara los pendientes por confirmar de v13 con la firma y la
+huella v13 de sus entradas actuales. La selección explícita y los cambios de
+perfil u oferta siguen habilitando una evaluación nueva bajo v14. Si el aviso
+exige una tecnología y aclara que no requiere experiencia previa, esa aclaración
+no convierte la tecnología en deseable: el requisito puede quedar `por_confirmar`.
+
+Un rechazo por un requisito obligatorio informado por la IA necesita una ausencia
+explícita en el perfil. El texto de la IA por sí solo no acredita esa ausencia;
+si falta respaldo o el stack declarado la contradice, conservo el porcentaje y,
+desde el 60 %, devuelvo `por_confirmar`. Este contraste también se aplica al leer
+una evaluación de la caché, sin invalidarla en bloque ni llamar de nuevo al proveedor.
+Las exclusiones determinísticas se siguen aplicando por separado.
+
+Mientras haya un lote en memoria, `datos.por_confirmar` y `datos.bajo_umbral`
+aportan un desglose por oferta. `bajo_umbral` ya está incluido en `rechazadas`
+y no se suma por segunda vez; `por_confirmar` es un resultado válido, no un error.
+Un intento fallido con resultado conservado se cuenta solo en `errores` del lote.
+Al rehidratar un lote sin estos campos, su ausencia significa «sin desglose», no cero.
 El porcentaje describe procesamiento, no garantiza éxito. Un fallo SQL detiene el
 lote sin contar la oferta fallida ni las siguientes; prevalece sobre una cancelación.
 El POST ya aceptado sigue siendo 200: consulto este progreso para conocer el resultado.

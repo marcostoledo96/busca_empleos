@@ -50,6 +50,12 @@
                 <span class="dashboard-stat__label" id="stat-label-descartadas">Descartadas manualmente</span>
                 <span class="dashboard-stat__valor" aria-labelledby="stat-label-descartadas">{{ statDescartadas() }}</span>
             </div>
+            @for (categoria of categoriasEvaluacion; track categoria.id) {
+                <div class="dashboard-stat" role="listitem">
+                    <span class="dashboard-stat__label" [id]="'stat-label-' + categoria.id">{{ categoria.etiqueta }}</span>
+                    <span class="dashboard-stat__valor" [attr.aria-labelledby]="'stat-label-' + categoria.id">{{ ofertasPorCategoria().get(categoria.id)?.length ?? 0 }}</span>
+                </div>
+            }
         </div>
         @if (estadoOperativoSincronizacion(); as estado) {
             <div class="dashboard__sincronizacion">
@@ -78,7 +84,7 @@
         (accionCompletada)="cargarDatos()"
         (evaluacionEnProgreso)="onProgresoEvaluacion()" />
 
-    <!-- Sección de resultados: filtro global + 4 tabs -->
+    <!-- Sección de resultados: filtro global y categorías -->
     <div class="resultados">
         <!-- Filtro global de plataforma y acción de reevaluación -->
         <div class="resultados__filtro" role="search" aria-label="Filtrar ofertas por plataforma">
@@ -160,6 +166,16 @@
                         }
                     </span>
                 </p-tab>
+                @for (categoria of categoriasEvaluacion; track categoria.id) {
+                    <p-tab [value]="categoria.id">
+                        <span class="tab-label">
+                            {{ categoria.etiqueta.toUpperCase() }}
+                            @if (ofertasPorCategoria().get(categoria.id)?.length; as cantidad) {
+                                <span class="tab-badge">{{ cantidad }}</span>
+                            }
+                        </span>
+                    </p-tab>
+                }
             </p-tablist>
 
             <p-tabpanels>
@@ -269,6 +285,26 @@
                         (postulacionPendiente)="onPostulacionPendiente($event)"
                         (accionMasiva)="onAccionMasiva($event)" />
                 </p-tabpanel>
+                @for (categoria of categoriasEvaluacion; track categoria.id) {
+                    <p-tabpanel [value]="categoria.id">
+                        @if (pestanaActiva() === categoria.id) {
+                            <app-tabla-ofertas
+                                [idSufijo]="categoria.id" [modoDemo]="modoDemo()"
+                                [ofertas]="ofertasPorCategoria().get(categoria.id) ?? []" [cargando]="cargando()"
+                                [conciliacionMasiva]="conciliacionMasiva()"
+                                [accionMasivaEnCurso]="accionMasivaEnCurso()" [accionMasivaConfirmada]="accionMasivaConfirmada()"
+                                [alcanceSeleccion]="alcanceSeleccion()" [totalOfertas]="ofertas().length"
+                                [filtroPlataformaActivo]="!!filtroPlataforma()" [idsPostulacionPendiente]="postulacionesPendientes()"
+                                (limpiarFiltros)="filtroPlataforma.set(null)"
+                                [evaluacionOcupada]="panelControl.evaluando() || panelControl.ejecutandoCiclo() || panelControl.scrapeandoAlguno() || sincronizando() || datosDesdeCache()"
+                                (reevaluarSeleccionadas)="panelControl.ejecutarEvaluacion($event)"
+                                (ofertaSeleccionada)="mostrarDetalle($event)"
+                                (postulacionActualizada)="onAccionCompletada()"
+                                (postulacionPendiente)="onPostulacionPendiente($event)"
+                                (accionMasiva)="onAccionMasiva($event)" />
+                        }
+                    </p-tabpanel>
+                }
             </p-tabpanels>
         </p-tabs>
         }

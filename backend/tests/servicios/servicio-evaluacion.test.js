@@ -1295,6 +1295,7 @@ describe('Servicio de evaluación con IA', () => {
                 nivel_requerido: 'junior',
             };
 
+            modeloPreferencia.obtenerPreferencias.mockResolvedValueOnce({ ...preferenciasEjemplo, conocimientos_ausentes: ['Java'] });
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaJavaReal]);
             consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
                 match: false,
@@ -1304,7 +1305,7 @@ describe('Servicio de evaluación con IA', () => {
                     cumplidos: [{ requisito: 'TypeScript', tipo: 'obligatorio', explicacion: 'Cumple' }],
                     no_cumplidos: [],
                     por_confirmar: [],
-                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', explicacion: 'No sabe Java' }],
+                    exclusiones: [{ requisito: 'Java', tipo: 'obligatorio', evidencia_oferta: 'Java', evidencia_perfil: 'Java', explicacion: 'Ausencia declarada' }],
                 },
             }));
             modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
@@ -1394,6 +1395,7 @@ describe('Servicio de evaluación con IA', () => {
                 nivel_requerido: 'junior',
             };
 
+            modeloPreferencia.obtenerPreferencias.mockResolvedValueOnce({ ...preferenciasEjemplo, conocimientos_ausentes: ['Docker'] });
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaDocker]);
             consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
                 match: false,
@@ -1403,7 +1405,7 @@ describe('Servicio de evaluación con IA', () => {
                     cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
                     no_cumplidos: [],
                     por_confirmar: [],
-                    exclusiones: [{ requisito: 'Docker', tipo: 'obligatorio', evidencia_oferta: 'Docker', explicacion: 'No sabe Docker' }],
+                    exclusiones: [{ requisito: 'Docker', tipo: 'obligatorio', evidencia_oferta: 'Docker', evidencia_perfil: 'Docker', explicacion: 'Ausencia declarada' }],
                 },
             }));
             modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({
@@ -1444,6 +1446,8 @@ describe('Servicio de evaluación con IA', () => {
                 nivel_requerido: 'junior',
             };
 
+            modeloPreferencia.obtenerPreferencias.mockResolvedValueOnce({ ...preferenciasEjemplo, stack_tecnologico: preferenciasEjemplo.stack_tecnologico.filter(tecnologia => tecnologia !== 'Node.js'),
+                conocimientos_ausentes: ['Node.js'] });
             modeloOferta.obtenerOfertasPendientes.mockResolvedValueOnce([ofertaNode]);
             consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({
                 match: false,
@@ -1453,7 +1457,7 @@ describe('Servicio de evaluación con IA', () => {
                     cumplidos: [{ requisito: 'Backend Developer', tipo: 'obligatorio', explicacion: 'Cumple puesto' }],
                     no_cumplidos: [],
                     por_confirmar: [],
-                    exclusiones: [{ requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', explicacion: 'No sabe Node.js' }],
+                    exclusiones: [{ requisito: 'Node.js', tipo: 'obligatorio', evidencia_oferta: 'Node.js', evidencia_perfil: 'Node.js', explicacion: 'Ausencia declarada' }],
                 },
             }));
             modeloOferta.actualizarEvaluacion.mockResolvedValueOnce({

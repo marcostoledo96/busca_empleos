@@ -55,11 +55,18 @@
 
                 <!-- Tags -->
                 <div class="detalle-tags">
-                    <span class="tag-detalle" [attr.data-estado]="etiquetaEvaluacion(o) === 'Error técnico' ? 'error' : o.estado_evaluacion">
-                        {{ etiquetaEvaluacion(o) | uppercase }}
+                    <span class="tag-detalle" [attr.data-estado]="pendienteLegadaDeConfirmacion(o) ? 'pendiente' : estadoEtiqueta(o)">
+                        {{ etiquetaEvaluacion(o) }}
                     </span>
                     @if (compatibilidadVigente(o)) {
-                        <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
+                        @if (situacionEvaluacion(o) === 'por_confirmar') {
+                            <span class="tag-match">{{ o.porcentaje_match }} % de afinidad</span>
+                        } @else {
+                            <span class="tag-match">Compatibilidad estimada: {{ o.porcentaje_match }}%</span>
+                        }
+                    }
+                    @if (o.situacion_evaluacion && tieneResultadoLaboral(o)) {
+                        <span class="tag-detalle">{{ o.vigencia_evaluacion === 'actual' ? 'Evaluación actual' : o.vigencia_evaluacion === 'anterior' ? 'Evaluación anterior' : 'Vigencia desconocida' }}</span>
                     }
                     @if (o.prioridad_ia) {
                         <span class="tag-detalle" aria-label="Oferta con prioridad por evidencia de IA">PRIORIDAD_IA</span>
@@ -67,7 +74,7 @@
                 </div>
             </div>
             <!-- Alerta cuando la evaluación está desactualizada o pendiente -->
-            @if (pendienteDeConfirmacion(o)) {
+            @if (situacionEvaluacion(o) === 'por_confirmar' || pendienteLegadaDeConfirmacion(o)) {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">help_outline</span>
                     <div class="alerta-desactualizada-texto">
@@ -75,27 +82,29 @@
                         <span>Necesito confirmar requisitos o completar información antes de aprobar o rechazar la oferta. Consultá el motivo y los aspectos por confirmar.</span>
                     </div>
                 </div>
-            } @else if (o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || (o.estado_evaluacion === 'pendiente' && !o.evaluacion_error_mensaje)) {
+            }
+            @if (ultimoIntento(o) === 'reevaluacion_solicitada' || (!o.situacion_evaluacion && !pendienteLegadaDeConfirmacion(o) && o.estado_evaluacion === 'pendiente' && !ultimoIntento(o))) {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">history</span>
                     <div class="alerta-desactualizada-texto">
-                        <strong>Evaluación desactualizada — pendiente de reevaluación</strong>
-                        <span>La descripción o los criterios se modificaron. Podés solicitar la reevaluación para refrescar el análisis.</span>
+                        @if (o.situacion_evaluacion) {
+                            <strong>Reevaluación solicitada</strong>
+                        } @else {
+                            <strong>Evaluación desactualizada — pendiente de reevaluación</strong>
+                            <span>La descripción o los criterios se modificaron. Podés solicitar la reevaluación para refrescar el análisis.</span>
+                        }
                     </div>
                 </div>
-            } @else if (o.evaluacion_error_mensaje) {
+            } @else if (ultimoIntento(o) === 'fallo_tecnico') {
                 <div class="alerta-desactualizada" role="status" aria-live="polite">
                     <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                     <div class="alerta-desactualizada-texto">
-                        @if (o.estado_evaluacion === 'pendiente') {
-                            <strong>Evaluación no completada (fallo técnico)</strong>
-                            <span>La evaluación no pudo completarse satisfactoriamente. Motivo: {{ o.evaluacion_error_mensaje }}</span>
-                        } @else if (o.firma_criterios_evaluacion) {
+                        @if (tieneResultadoLaboral(o)) {
                             <strong>Última reevaluación no aplicada</strong>
-                            <span>Se conserva la evaluación anterior válida. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                            <span>Se conserva la evaluación anterior válida.@if (o.evaluacion_error_mensaje) { Motivo: {{ o.evaluacion_error_mensaje }} }</span>
                         } @else {
-                            <strong>Evaluación no completada</strong>
-                            <span>La evaluación no pudo completarse satisfactoriamente. Motivo: {{ o.evaluacion_error_mensaje }}</span>
+                            <strong>{{ o.estado_evaluacion === 'pendiente' || o.situacion_evaluacion ? 'Evaluación no completada (fallo técnico)' : 'Evaluación no completada' }}</strong>
+                            <span>La evaluación no pudo completarse satisfactoriamente.@if (o.evaluacion_error_mensaje) { Motivo: {{ o.evaluacion_error_mensaje }} }</span>
                         }
                     </div>
                 </div>
@@ -117,7 +126,9 @@
 
                 @if (o.razon_evaluacion) {
                     <p class="detalle-razon">
-                        @if (!pendienteDeConfirmacion(o) && (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA')) {
+                        @if (situacionEvaluacion(o) === 'por_confirmar') {
+                            <strong>Motivo:</strong>
+                        } @else if (!tieneResultadoLaboral(o) && !pendienteLegadaDeConfirmacion(o) && (o.estado_evaluacion === 'pendiente' || ultimoIntento(o) === 'reevaluacion_solicitada')) {
                             <strong>Motivo de la evaluación anterior: </strong>
                         }
                         {{ o.razon_evaluacion }}
@@ -135,7 +146,7 @@
                         <div class="alerta-exclusion-score-alto" role="alert">
                             <span class="material-symbols-outlined" aria-hidden="true">warning</span>
                             <div class="alerta-exclusion-texto">
-                                @if (o.estado_evaluacion === 'rechazada' && compatibilidadVigente(o) && (o.porcentaje_match ?? 0) >= 70) {
+                                @if (situacionEvaluacion(o) === 'rechazada' && compatibilidadVigente(o) && (o.porcentaje_match ?? 0) >= 70) {
                                     <strong>Atención: Compatibilidad estimada alta rechazada por exclusión</strong>
                                 } @else {
                                     <strong>Exclusiones obligatorias detectadas</strong>
@@ -143,7 +154,7 @@
                                 @for (item of o.explicacion_evaluacion!.exclusiones; track item.requisito) {
                                     <span>{{ item.requisito }}{{ item.explicacion ? ': ' + item.explicacion : '' }}</span>
                                 }
-                                @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA') {
+                                @if (!tieneResultadoLaboral(o) && ultimoIntento(o) === 'reevaluacion_solicitada') {
                                     <span>Exclusiones de la evaluación anterior; pendientes de reevaluación.</span>
                                 }
                             </div>
@@ -393,7 +404,7 @@
                                 {{ (o.descripcion_completitud === 'parcial' || o.origen_descripcion === 'tarjeta' || !o.descripcion) ? 'Completar descripción' : 'Editar descripción' }}
                             </button>
 
-                            @if (o.estado_evaluacion === 'pendiente' || o.evaluacion_error_mensaje === 'REEVALUACION_SOLICITADA' || !tieneDesglose(o)) {
+                            @if (o.estado_evaluacion === 'pendiente' || ultimoIntento(o) === 'reevaluacion_solicitada' || !tieneDesglose(o)) {
                                 <button
                                     type="button"
                                     class="btn-accion-editorial btn-reevaluar-oferta"
