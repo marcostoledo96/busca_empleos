@@ -401,13 +401,39 @@ test('B/G lecturas indisponibles, proveedor 429/503 y ciclo fallido recuperan si
     await info.attach('SQL-recuperacion-lecturas-proveedor-ciclo', { body: JSON.stringify(final, null, 4), contentType: 'application/json' });
 });
 
-test('E reevaluación individual y seleccionada conserva resultado anterior ante JSON incompleto y recupera', async ({ page, request }, info) => {
+const testConPerfilReevaluacion = test.extend<{ perfilReevaluacion: void }>({
+    perfilReevaluacion: async ({ request }, usar) => {
+        const url = `${api}/api/preferencias`;
+        const anterior = await request.get(url, { headers });
+        expect(anterior.status()).toBe(200);
+        const perfilAnterior = (await anterior.json()).datos.perfil_profesional;
+        expect(typeof perfilAnterior).toBe('string');
+        const perfil = 'Desarrollo junior JavaScript';
+        try {
+            const guardado = await request.put(url, { headers, data: { perfil_profesional: perfil } });
+            expect(guardado.status()).toBe(200);
+            const efectivo = await request.get(url, { headers });
+            expect(efectivo.status()).toBe(200);
+            expect((await efectivo.json()).datos).toMatchObject({
+                perfil_profesional: perfil, perfil_efectivo: { candidato: { perfil_profesional: perfil } },
+            });
+            await usar();
+        } finally {
+            const restaurado = await request.put(url, { headers, data: { perfil_profesional: perfilAnterior } });
+            expect(restaurado.status()).toBe(200);
+            expect((await restaurado.json()).datos.perfil_profesional).toBe(perfilAnterior);
+        }
+    },
+});
+
+testConPerfilReevaluacion('E reevaluación individual y seleccionada conserva resultado anterior ante JSON incompleto y recupera', async ({ page, request, perfilReevaluacion: _perfilReevaluacion }, info) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/?tema=oscuro');
     await abrir(page);
     const antes = await evidencia(request);
     expect(antes.evaluaciones.map((fila: { estado_evaluacion: string }) => fila.estado_evaluacion)).toEqual(['pendiente', 'pendiente']);
     expect(antes.llamadas.filter((llamada: { tipo: string }) => llamada.tipo === 'http')).toEqual([]);
+    await control(request, { escenario: 'ia_aprobada_con_evidencia' });
     const individual = page.waitForResponse('**/api/evaluacion/ejecutar');
     await dialogo(page).getByRole('button', { name: 'Reevaluar oferta', exact: true }).click();
     const iniciada = await individual;
@@ -422,9 +448,21 @@ test('E reevaluación individual y seleccionada conserva resultado anterior ante
     expect(correcta.evaluaciones[0]).toMatchObject({ estado_evaluacion: 'aprobada', porcentaje_match: 85, firma_criterios_evaluacion: expect.any(String) });
     expect(correcta.evaluaciones[1]).toEqual(antes.evaluaciones[1]);
     await control(request, { escenario: 'ia_incompleta' });
-    await dialogo(page).getByRole('button', { name: 'Reevaluar oferta', exact: true }).click();
-    await esperarEvaluacion(request);
     await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Seleccionar ofertas para reevaluar', exact: true }).click();
+    await vista(page).getByRole('checkbox', { name: `Seleccionar en tarjeta ${titulo}`, exact: true }).check();
+    const region = page.getByRole('region', { name: 'Volver a evaluar ofertas seleccionadas', exact: true });
+    const confirmacion = page.getByRole('region', { name: 'Confirmar reevaluación', exact: true });
+    await region.getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true }).click();
+    const reevaluacionIncompleta = page.waitForResponse(respuesta =>
+        new URL(respuesta.url()).pathname === '/api/evaluacion/ejecutar' && respuesta.request().method() === 'POST'
+    );
+    await confirmacion.getByRole('button', { name: 'Confirmar reevaluación', exact: true }).click();
+    const iniciadaIncompleta = await reevaluacionIncompleta;
+    expect(iniciadaIncompleta.status()).toBe(200);
+    expect(iniciadaIncompleta.request().postDataJSON()).toEqual({ ids: [1] });
+    await esperarEvaluacion(request);
+    await page.getByRole('button', { name: 'Volver a las ofertas agrupadas', exact: true }).click();
     await refrescar(page);
     await abrir(page, 'APROBADAS');
     await expect(dialogo(page).getByText('Se conserva la evaluación anterior válida.', { exact: false })).toBeVisible();
@@ -433,12 +471,10 @@ test('E reevaluación individual y seleccionada conserva resultado anterior ante
     expect(incompleta.evaluaciones[0]).toMatchObject({ ...correcta.evaluaciones[0], evaluacion_error_mensaje: expect.any(String) });
     expect(incompleta.evaluaciones[1]).toEqual(antes.evaluaciones[1]);
     await page.keyboard.press('Escape');
-    await control(request, { escenario: 'correcto' });
+    await control(request, { escenario: 'ia_aprobada_con_evidencia' });
     await page.goto('/?reevaluar=1');
     await vista(page).getByRole('checkbox', { name: 'Seleccionar ofertas de esta página', exact: true }).check();
-    const region = page.getByRole('region', { name: 'Volver a evaluar ofertas seleccionadas', exact: true });
     await region.getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true }).click();
-    const confirmacion = page.getByRole('region', { name: 'Confirmar reevaluación', exact: true });
     await confirmacion.getByRole('button', { name: 'Cancelar', exact: true }).click();
     expect((await evidencia(request)).llamadas).toEqual(incompleta.llamadas);
     await region.getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true }).click();
