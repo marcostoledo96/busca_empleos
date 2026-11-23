@@ -6,7 +6,8 @@ const { VERSION_PRIORIDAD_IA } = require('./detector-prioridad-ia');
 const { ordenarObjeto, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./entradas-evaluacion');
 
 // Incremento esta versión cuando cambia el contrato de reglas o del parser.
-const VERSION_CONTRATO_EVALUACION = 'evaluacion-v13';
+const VERSION_CONTRATO_EVALUACION = 'evaluacion-v14';
+const VERSION_CONTRATO_EVALUACION_ANTERIOR = 'evaluacion-v13';
 
 function serializarCanonico(valor) {
     return JSON.stringify(ordenarObjeto(valor));
@@ -28,7 +29,7 @@ function construirCriteriosEvaluacion(prefs = {}, opciones = {}) {
     };
 }
 
-function construirEntradaOferta(oferta) {
+function construirEntradaOferta(oferta, version = VERSION_CONTRATO_EVALUACION) {
     const crudos = oferta.datos_crudos && typeof oferta.datos_crudos === 'object' ? oferta.datos_crudos : {};
     // Estas son las fuentes textuales utilizadas por las exclusiones contextuales.
     const datosCrudos = Object.fromEntries(['description', 'descriptionHtml', 'jobDescription', 'job_description', 'requirements', 'requisitos']
@@ -37,7 +38,7 @@ function construirEntradaOferta(oferta) {
         mensaje_usuario: construirPromptEvaluacion(oferta),
         datos_crudos: datosCrudos,
         modalidad_metadatos: crudos.normalizacion_modalidad?.metadatos ?? oferta.modalidad ?? null,
-        version: VERSION_CONTRATO_EVALUACION,
+        version,
     };
 }
 
@@ -65,5 +66,6 @@ function obtenerVigenciaEvaluacion(oferta, firmaActual) {
     return oferta.firma_criterios_evaluacion === firmaActual ? 'actual' : 'anterior';
 }
 
-module.exports = { VERSION_CONTRATO_EVALUACION, serializarCanonico, crearHash, construirCriteriosEvaluacion,
+module.exports = { VERSION_CONTRATO_EVALUACION, VERSION_CONTRATO_EVALUACION_ANTERIOR,
+    serializarCanonico, crearHash, construirCriteriosEvaluacion,
     construirEntradaOferta, construirIdentidadEvaluacion, crearFirmaCriterios, obtenerVigenciaEvaluacion };

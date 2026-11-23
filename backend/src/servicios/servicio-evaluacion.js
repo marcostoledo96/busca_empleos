@@ -29,7 +29,8 @@ const { resolverModalidadOferta } = require('./servicio-normalizacion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
 const { construirPerfilDesdePreferencias, construirPerfilEfectivoCanonico, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
-const { construirIdentidadEvaluacion, crearFirmaCriterios, crearHash, construirEntradaOferta } = require('./evaluacion/identidad-evaluacion');
+const { construirIdentidadEvaluacion, crearFirmaCriterios, crearHash, construirEntradaOferta,
+    VERSION_CONTRATO_EVALUACION, VERSION_CONTRATO_EVALUACION_ANTERIOR } = require('./evaluacion/identidad-evaluacion');
 const { REEVALUACION_SOLICITADA, obtenerSituacionEvaluacion } = require('./evaluacion/situacion-evaluacion');
 
 // Progreso de la evaluación en curso.
@@ -215,9 +216,10 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const original = resultado.explicacion || { cumplidos: [], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
     const insuficienciaExplicita = original.por_confirmar?.some(item => item.requisito === 'Información suficiente de la oferta' && item.tipo !== 'deseable');
     const contrasteAcotado = !resultado.match && !insuficienciaExplicita;
-    // Una copia del veto con un rótulo como «Experiencia con X» no es evidencia independiente.
-    const claveRequisito = item => normalizarTextoComparacion(item.requisito)
+    // Normalizo rótulos sintácticos sin convertirlos en evidencia ni reemplazar la cita del aviso.
+    const normalizarCapacidad = texto => normalizarTextoComparacion(texto)
         .replace(/^(?:experiencia|conocimientos?|manejo|dominio) (?:con|en|de) /, '');
+    const claveRequisito = item => normalizarCapacidad(item.requisito);
     const exclusionesObligatorias = new Set((original.exclusiones || []).filter(item => item.tipo === 'obligatorio').map(claveRequisito));
     const duplicaExclusion = item => exclusionesObligatorias.has(claveRequisito(item));
     const requiereContraste = item => (item.tipo !== 'deseable' && requisitoVigilado(normalizarTextoComparacion(item.requisito)))
@@ -234,8 +236,8 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         hechos.push(`${anios} ${anios === 1 ? 'año' : 'años'} de experiencia`);
     }
     const formacionConfirmada = extraerFormacionConfirmada(candidato.perfil_profesional);
-    const ausencias = new Map(candidato.conocimientos_ausentes.map(nombre => [normalizarTextoComparacion(nombre), nombre]));
-    const stack = candidato.stack_tecnologico.map(normalizarTextoComparacion);
+    const ausencias = new Map(candidato.conocimientos_ausentes.map(nombre => [normalizarCapacidad(nombre), nombre]));
+    const stack = candidato.stack_tecnologico.map(normalizarCapacidad);
     // Una pregunta o una frase citada no acredita una ausencia actual.
     const limitaciones = [candidato.perfil_profesional, candidato.limitaciones_explicitas]
         .flatMap(texto => typeof texto === 'string' ? texto.split(/\r?\n/) : [])
@@ -271,7 +273,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
                     && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido;
             // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
-            const nombres = [...new Set([requisito, ...(vigilado ? [vigilado] : [])])];
+            const nombres = [...new Set([requisito, claveRequisito(item), ...(vigilado ? [vigilado] : [])])];
             const ausenciaDeclarada = nombres.map(nombre => ausencias.get(nombre)).find(Boolean);
             const niegaRequisito = clausula => nombres.some(nombre =>
                 ['no cuento con ', 'no tengo ', 'no poseo ', 'no dispongo de ', 'carezco de ', 'sin '].some(prefijo => clausula === `${prefijo}${nombre}`));
@@ -288,7 +290,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 && fuentesCumplimiento.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto).includes(perfil)
                 && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)
                 && !PATRON_OPCIONAL_EVIDENCIA.test(perfil)
-                && !ausencias.has(requisito);
+                && !ausencias.has(claveRequisito(item));
             if (!contrastePrevio && exclusionObligatoria && ofertaAcreditada && !noBloquea && ausenciaAcreditada && ausenciaAcreditada === item.evidencia_perfil) {
                 exclusionesCorroboradas.add(item);
             }
@@ -684,12 +686,14 @@ async function evaluarOfertasPendientes(seleccionadas) {
         const instrucciones = construirInstruccionesDesdePreferencias(prefs);
         const modeloIA = normalizarModeloDeepSeek(prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO);
 
-        const firmaActual = crearFirmaCriterios(prefs, { instrucciones, modelo: modeloIA });
+        const versionesEstables = new Map([VERSION_CONTRATO_EVALUACION, VERSION_CONTRATO_EVALUACION_ANTERIOR]
+            .map(version => [crearFirmaCriterios(prefs, { instrucciones, modelo: modeloIA, version }), version]));
         const pendientes = seleccionadas || (await modeloOferta.obtenerOfertasPendientes()).filter(oferta => {
-            if (oferta.firma_criterios_evaluacion !== firmaActual || obtenerSituacionEvaluacion(oferta) !== 'por_confirmar') return true;
+            const version = versionesEstables.get(oferta.firma_criterios_evaluacion);
+            if (!version || obtenerSituacionEvaluacion(oferta) !== 'por_confirmar') return true;
             const hashAnterior = oferta.explicacion_evaluacion.hash_oferta;
-            // Sin huella histórica, sólo puedo confiar en la firma y las invalidaciones SQL existentes.
-            return hashAnterior != null && hashAnterior !== crearHash(construirEntradaOferta(oferta));
+            // La versión sola no crea trabajo ordinario. Sin huella, conservo las invalidaciones SQL existentes.
+            return hashAnterior != null && hashAnterior !== crearHash(construirEntradaOferta(oferta, version));
         });
 
         progresoEvaluacion.total = pendientes.length;

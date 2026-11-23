@@ -112,6 +112,49 @@ test('S16: una pregunta en el perfil no acredita una ausencia', async () => {
     expect(resultado.explicacion.por_confirmar[0].evidencia_perfil).toBe('');
 });
 
+test.each([false, true])('S20: contrasta el alias de Kubernetes con ausencia y stack (%s)', async contradiccion => {
+    const requisito = 'Experiencia con Kubernetes';
+    const descripcion = `${requisito} es obligatoria.`;
+    const oferta = { titulo: 'Operaciones junior', descripcion };
+    const perfil = { conocimientos_ausentes: ['Kubernetes'], stack_tecnologico: contradiccion ? ['Kubernetes'] : [] };
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
+        exclusiones: [{ requisito, tipo: 'obligatorio', evidencia_oferta: descripcion, evidencia_perfil: 'Kubernetes' }],
+    } }));
+    const resultado = await evaluarOferta(oferta, null, null, perfil);
+    expect(resultado.porcentaje).toBe(80);
+    expect(resultado.error).not.toBe(true);
+    expect(resultado.pendiente === true).toBe(contradiccion);
+    expect(resultado.explicacion.exclusiones).toEqual(contradiccion ? [] : [expect.objectContaining({ requisito, evidencia_perfil: 'Kubernetes' })]);
+    const [, , , anterior] = guardarCache.mock.calls[0];
+    buscarCache.mockResolvedValueOnce(structuredClone(anterior));
+    await expect(evaluarOferta(oferta, null, null, perfil)).resolves.toEqual(resultado);
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
+test.each([
+    ['Kubernetes es obligatorio, no se requiere experiencia previa.', 'Kubernetes es obligatorio', true],
+    ['Kubernetes no es obligatorio.', 'Kubernetes no es obligatorio', false],
+])('S22: la negación solo modifica al requisito citado (%s)', async (descripcion, evidencia, pendiente) => {
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: true, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
+        por_confirmar: [{ requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: '' }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Operaciones junior', descripcion }, null, null, {});
+    expect(resultado.porcentaje).toBe(80);
+    expect(resultado.pendiente === true).toBe(pendiente);
+    expect(resultado.explicacion.exclusiones).toEqual([]);
+});
+
+test('S22: una negación ajena no invalida un veto de Kubernetes acreditado', async () => {
+    const descripcion = 'Kubernetes es obligatorio, no se requiere experiencia previa.';
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify({ match: false, porcentaje: 80, razon: 'Evaluación sintética', explicacion: {
+        exclusiones: [{ requisito: 'Kubernetes', tipo: 'obligatorio', evidencia_oferta: 'Kubernetes es obligatorio', evidencia_perfil: 'Kubernetes' }],
+    } }));
+    const resultado = await evaluarOferta({ titulo: 'Operaciones junior', descripcion }, null, null, { conocimientos_ausentes: ['Kubernetes'] });
+    expect(resultado).toMatchObject({ match: false, porcentaje: 80, firma_criterios_evaluacion: expect.any(String) });
+    expect(resultado.pendiente === true).toBe(false);
+    expect(resultado.explicacion.exclusiones).toEqual([expect.objectContaining({ requisito: 'Kubernetes', evidencia_perfil: 'Kubernetes' })]);
+});
+
 const AD = 'Active Directory';
 const casos = [
     ['mención contextual reconocida como desconocida', 'El equipo trabaja con Active Directory.', AD, true, 'por_confirmar', 'desconocido', '', [], 'pendiente', 'desconocido'],

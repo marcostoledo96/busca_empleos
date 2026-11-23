@@ -306,8 +306,10 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
 
         // Divido la línea en oraciones respetando nombres de tecnologías con punto (ej. Node.js, ASP.NET)
         // Solo divido por punto cuando esté seguido de espacio o fin de línea: \.(?:\s+|$)
-        // O por otros signos de puntuación: [!?;]
-        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n)+/).filter(p => p.trim());
+        // Una coma que introduce una segunda condición negada no cambia el sentido de la anterior.
+        // Las demás comas conservan el contexto de listas y calificativos pospuestos.
+        const partes = lineaAProcesar.split(/(?:\.(?:\s+|$)|[!?;]|\n|,(?=\s*(?:no\s+(?:se\s+)?(?:requiere\w*|exige\w*|necesita\w*|pedimos)|sin\s+(?:necesidad|experiencia)|not\s+required|do\s+not\s+require)\b))+/i)
+            .filter(p => p.trim());
 
         for (const parte of partes) {
             const parteNorm = normalizarTextoComparacion(parte);

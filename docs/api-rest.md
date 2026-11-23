@@ -1134,6 +1134,13 @@ permiten volver a evaluar. Para registros anteriores sin huella, se conserva la
 decisión si coincide la firma y no hay invalidación registrada; no se reconstruye
 una huella histórica. La huella de oferta no se expone en la API.
 
+El contrato `evaluacion-v14` separa la firma y la clave de caché de los resultados
+nuevos. Una evaluación firmada con `evaluacion-v13` se muestra como `anterior`,
+sin reescribirla. Para evitar reevaluaciones por el mero cambio de versión, la
+pasada ordinaria compara los pendientes por confirmar de v13 con la firma y la
+huella v13 de sus entradas actuales. La selección explícita y los cambios de
+perfil u oferta siguen habilitando una evaluación nueva bajo v14.
+
 Un rechazo por un requisito obligatorio informado por la IA necesita una ausencia
 explícita en el perfil. El texto de la IA por sí solo no acredita esa ausencia;
 si falta respaldo o el stack declarado la contradice, conservo el porcentaje y,

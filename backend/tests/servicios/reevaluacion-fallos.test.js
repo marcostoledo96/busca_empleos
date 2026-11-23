@@ -209,6 +209,36 @@ test.each(['selección', 'marcador', 'descripción', 'metadatos efectivos', 'per
     expect([...cache.values()][0].explicacion).not.toHaveProperty('hash_oferta');
 });
 
+test.each(['sin huella', 'descripción', 'perfil', 'selección'])('S21: la versión sola no reevalúa un pendiente v13 (%s)', async cambio => {
+    const { construirEntradaOferta, crearHash, crearFirmaCriterios } = require('../../src/servicios/evaluacion/identidad-evaluacion');
+    const prefs = await preferencias.obtenerPreferencias();
+    Object.assign(filas[0], { estado_evaluacion: 'pendiente', descripcion: 'El equipo trabaja con Active Directory.' });
+    const respuesta = JSON.stringify({ match: true, porcentaje: 80, razon: 'Afinidad sintética.', explicacion: {
+        por_confirmar: [{ requisito: 'Active Directory', tipo: 'desconocido', evidencia_oferta: 'Active Directory', evidencia_perfil: '' }],
+    } });
+    proveedor.consultarDeepSeek.mockResolvedValue(respuesta);
+    await servicio.evaluarOfertasPendientes();
+    const firmaAnterior = crearFirmaCriterios(prefs, { version: 'evaluacion-v13' });
+    filas[0].firma_criterios_evaluacion = firmaAnterior;
+    filas[0].explicacion_evaluacion.hash_oferta = crearHash({ ...construirEntradaOferta(filas[0]), version: 'evaluacion-v13' });
+    if (cambio === 'sin huella') delete filas[0].explicacion_evaluacion.hash_oferta;
+    const anterior = structuredClone(filas[0]);
+    cache.clear(); escrituras = []; jest.clearAllMocks();
+    expect((await detalleOferta(1)).vigencia_evaluacion).toBe('anterior');
+    await expect(servicio.evaluarOfertasPendientes()).resolves.toMatchObject({ total: 0, evaluadas: 0, procesadas: 0 });
+    expect(filas[0]).toEqual(anterior);
+    expect(escrituras).toEqual([]);
+    expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
+    if (cambio === 'sin huella') return;
+    if (cambio === 'descripción') filas[0].descripcion += ' Hay dos vacantes.';
+    if (cambio === 'perfil') preferencias.obtenerPreferencias.mockResolvedValue({ ...prefs, stack_tecnologico: ['Angular'] });
+    if (cambio === 'selección') await iniciar([1]);
+    else await expect(servicio.evaluarOfertasPendientes()).resolves.toMatchObject({ total: 1, evaluadas: 1 });
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(filas[0].firma_criterios_evaluacion).not.toBe(firmaAnterior);
+    expect((await detalleOferta(1)).vigencia_evaluacion).toBe('actual');
+});
+
 test.each(['timeout', 'JSON inválido'])('B01 %s conserva todos los campos del resultado previo y permite recuperar caché', async fallo => {
     await servicio.evaluarOferta(filas[0]);
     const cacheAnterior = structuredClone([...cache]);
