@@ -219,11 +219,11 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
     const clausulas = [];
     const origen = normalizarTextoComparacion(textoConSaltos);
     let cursorOrigen = 0;
-    const agregar = (texto, literal, desde, encabezado = false, experienciaAjenaA) => {
+    const agregar = (texto, literal, desde, encabezado = false, experienciaAjenaA, oracionMixta) => {
         if (!conOrigen) return clausulas.push(texto);
         const inicio = origen.indexOf(literal, desde);
         if (inicio >= 0) clausulas.push({ texto, inicio, fin: inicio + literal.length, encabezado,
-            ...(experienciaAjenaA ? { experienciaAjenaA } : {}) });
+            ...(experienciaAjenaA ? { experienciaAjenaA } : {}), ...(oracionMixta ? { oracionMixta } : {}) });
     };
     let seccionActual = null; // 'opcional' | 'obligatoria' | null
 
@@ -319,10 +319,11 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
             const restoTexto = oracion.slice(limite.index + limite[0].length);
             const segunda = normalizarTextoComparacion(restoTexto);
             const negacion = segunda.match(PATRON_NEGACION_EVIDENCIA);
+            const opcional = segunda.match(/^(.+?) (?:es|son) (?:deseables?|opcional(?:es)?)$/)?.[1];
             const otroRequisito = negacion && negacion.index === 0
                 ? segunda.slice(negacion[0].length).trim()
-                : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1];
-            // Sin un objeto explícito, la negación puede continuar el mismo tópico.
+                : segunda.match(/^(.+?) no (?:es |son )?(?:obligatori[oa]s?|excluyentes?|requerid[oa]s?|necesari[oa]s?)\b/)?.[1] ?? opcional;
+            // Sin otro requisito explícito, el segundo predicado puede continuar el mismo tópico.
             if (!requisito || !otroRequisito || /^(?:para|en|por|a|de|hoy)\b/.test(otroRequisito)) return [[oracion]];
 
             // Una sigla declarada identifica el mismo requisito. Exigir experiencia es distinto
@@ -330,19 +331,20 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
             const alias = [...primera.matchAll(/\(([A-Z][A-Z0-9]{1,9})\)/g)].map(([, sigla]) => normalizarTextoComparacion(sigla));
             const nombres = requisito.split(/ (?:y|o) /).concat(alias);
             // Una negación coordinada puede alcanzar la tecnología además de la experiencia.
-            const experienciaDistinta = /^(?:la )?experiencia\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito)
+            const experienciaDistinta = !opcional && /^(?:la )?experiencia\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito)
                 && !/\b(?:y|e|o|u|ni|tampoco)\b/.test(otroRequisito) && !restoTexto.includes(',');
             return experienciaDistinta || !nombres.some(nombre => contieneTokenNormalizado(segunda, nombre))
-                ? [[primera], [restoTexto, experienciaDistinta ? requisito : undefined]] : [[oracion]];
+                ? [[primera, undefined, opcional ? normalizarTextoComparacion(oracion) : undefined],
+                    [restoTexto, experienciaDistinta ? requisito : undefined]] : [[oracion]];
         });
 
-        for (const [parte, experienciaAjenaA] of partes) {
+        for (const [parte, experienciaAjenaA, oracionMixta] of partes) {
             const parteNorm = normalizarTextoComparacion(parte);
             if (!parteNorm) continue;
 
             const contextual = seccionActual === 'opcional' ? `deseable ${parteNorm}`
                 : seccionActual === 'obligatoria' ? `obligatorio ${parteNorm}` : parteNorm;
-            agregar(contextual, parteNorm, cursorParte, false, experienciaAjenaA);
+            agregar(contextual, parteNorm, cursorParte, false, experienciaAjenaA, oracionMixta);
             cursorParte = origen.indexOf(parteNorm, cursorParte) + parteNorm.length;
         }
 

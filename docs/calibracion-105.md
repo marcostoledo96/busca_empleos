@@ -12,6 +12,8 @@ El corpus `105-v1` reconcilia la [matriz de la issue #105](https://github.com/ma
 
 Fuera del corpus, las pruebas ejecutan el servicio real con proveedor y persistencia simulados: AD obligatorio con ausencia declarada y afinidad alta; negación explícita en un aviso; entrada con una instrucción ficticia tratada como texto de oferta y una salida simulada rechazada por el parser; y fallos técnicos o de contrato. Se inyectan diagnósticos de timeout, cuota simulada, transporte, truncamiento, SSE cortado, incompletitud y HTTP 401. No se reproduce la red, la sesión Firebase ni la resistencia de un modelo real a instrucciones en contenido no confiable. La prueba 401 cubre la clasificación técnica del backend, no los efectos de sesión en la interfaz.
 
+Cuando dos cláusulas contiguas nombran requisitos distintos, el carácter deseable de uno no rebaja la obligación del otro. En «Active Directory es obligatorio y Azure es deseable», al 80 % y sin evidencia sobre Active Directory, la oferta queda por confirmar sin inventar una exclusión.
+
 ## Reproducir A/B
 
 Desde `backend/`:
