@@ -329,7 +329,9 @@ function extraerClausulasConContexto(textoOferta, conOrigen = false) {
             // de exigir la tecnología, aun cuando la frase de experiencia vuelva a nombrarla.
             const alias = [...primera.matchAll(/\(([A-Z][A-Z0-9]{1,9})\)/g)].map(([, sigla]) => normalizarTextoComparacion(sigla));
             const nombres = requisito.split(/ (?:y|o) /).concat(alias);
-            const experienciaDistinta = /^(?:la )?experiencia\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito);
+            // Una negación coordinada puede alcanzar la tecnología además de la experiencia.
+            const experienciaDistinta = /^(?:la )?experiencia\b/.test(otroRequisito) && !/\bexperiencia\b/.test(requisito)
+                && !/\b(?:y|e|o|u|ni|tampoco)\b/.test(otroRequisito) && !restoTexto.includes(',');
             return experienciaDistinta || !nombres.some(nombre => contieneTokenNormalizado(segunda, nombre))
                 ? [[primera], [restoTexto, experienciaDistinta ? requisito : undefined]] : [[oracion]];
         });

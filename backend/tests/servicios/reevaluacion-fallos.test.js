@@ -171,6 +171,26 @@ test.each([
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
 });
 
+test('S22/S24: negar la experiencia no oculta una segunda negación directa por sigla', async () => {
+    const requisito = 'Active Directory';
+    const evidencia = `${requisito} (AD) es obligatorio`;
+    filas[0].descripcion = `${evidencia} y no se requiere experiencia con AD ni se requiere AD para este puesto.`;
+    const perfil = { conocimientos_ausentes: [requisito] };
+    preferencias.obtenerPreferencias.mockResolvedValue(perfil);
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: false, porcentaje: 80, razon: 'Veto sintético.', explicacion: {
+        exclusiones: [{ requisito, tipo: 'obligatorio', evidencia_oferta: evidencia, evidencia_perfil: requisito }],
+    } }));
+    const anterior = structuredClone(filas[0]);
+    await expect(servicio.evaluarOferta(filas[0], null, null, perfil)).resolves.toMatchObject({ invalido: true, firma_criterios_evaluacion: null });
+    await iniciar([1]);
+    expect(await detalleOferta(1)).toMatchObject({ estado_evaluacion: 'aprobada', porcentaje_match: 81,
+        razon_evaluacion: anterior.razon_evaluacion, ultimo_intento_evaluacion: 'fallo_tecnico' });
+    expect({ ...filas[0], evaluacion_error_mensaje: null }).toEqual(anterior);
+    expect(progreso()).toMatchObject({ procesadas: 1, rechazadas: 0, errores: 1 });
+    expect(cache.size).toBe(0);
+    expect(escrituras).toEqual(['oferta1']);
+});
+
 test('S16: el detalle no publica una ausencia inventada bajo el alias de un requisito', async () => {
     const descripcion = 'Kubernetes es obligatorio.';
     filas[0].descripcion = descripcion;
