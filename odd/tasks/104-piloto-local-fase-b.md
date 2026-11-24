@@ -11,7 +11,7 @@ Alcance: preparar y verificar la simulación y el comando manual de vínculo y c
 
 - T1 · S1 · lanzador, pruebas y documentación · inline + verificación independiente · completada en `2ee0cc5363b777b880d5476eabaa156b56d259bc`.
 
-- T2 · S2 · CLI manual, pruebas sintéticas y documentación · inline + verificación independiente · commit pendiente.
+- T2 · S2 · CLI manual, pruebas sintéticas y documentación · inline + verificación independiente · completada en `ec81a7934c918579e213954f24a23714cd61784e`.
 
 ## Log
 
@@ -22,4 +22,5 @@ Alcance: preparar y verificar la simulación y el comando manual de vínculo y c
 - L5: el verificador aprobó S1 sobre `2ee0cc5363b777b880d5476eabaa156b56d259bc`: 35/35 pruebas sintéticas y 5/5 controles independientes. Confirmó red con solo loopback, entorno limpio, montaje de solo lectura y fallo sin alternativa fuera del aislamiento. La preparación del helper requirió indicar explícitamente `/var/tmp`; antes de ese ajuste no hubo ejecución del candidato.
 - L6: no se comprobó elegibilidad, catálogo real ni funcionamiento en otros sistemas. No hubo credenciales reales, OAuth, consumo de cupo, PostgreSQL ni acciones alojadas. Los controles independientes adicionales fueron evidencia de revisión, no cambios al candidato.
 - L7: el titular informó 35/35 pruebas en su Ubuntu y autorizó avanzar con «sigamos» sobre la propuesta de S2.
-- L8: RED falló por ausencia de `manual.js`. El primer GREEN reveló una fixture con forma incorrecta (`data` en vez de `models`); corregida con el contrato existente. Resultado propio: 8/8 focales (6 de la CLI y 2 del sandbox), 35/35 simuladas y ayuda CLI con exit 0. Sin OAuth, catálogo ni inferencias reales. Pendiente verificación independiente del candidato.
+- L8: RED falló por ausencia de `manual.js`. El primer GREEN reveló una fixture con forma incorrecta (`data` en vez de `models`); corregida con el contrato existente. Resultado propio: 8/8 focales (6 de la CLI y 2 del sandbox), 35/35 simuladas y ayuda CLI con exit 0. Sin OAuth, catálogo ni inferencias reales.
+- L9: S2 aprobada en revisión independiente de `ec81a7934c918579e213954f24a23714cd61784e`: 35/35 regresiones simuladas, 2/2 controles integrados con proveedor y navegador sintéticos, ayuda y rechazo sin terminal verificados. El primer control integrado falló por una aserción del verificador sobre su montaje de `/sys`; se corrigió esa aserción y el candidato no cambió. Se restituyó una nota documental sobre transporte y bearer, sin cambios ejecutables. Elegibilidad y catálogo reales no verificados.
