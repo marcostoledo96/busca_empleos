@@ -45,7 +45,7 @@ El ensayo no abre un navegador, no vincula una cuenta ni consulta modelos reales
 
 ## Vínculo personal y catálogo — comando manual
 
-**No se ha ejecutado con una cuenta real.** Usar solo después de autorizar por separado el vínculo para un proyecto personal y local. Requiere Ubuntu, Node.js 24, una terminal interactiva y `xdg-open` para el navegador del sistema. Desde la raíz del repositorio:
+El titular informó que completó el vínculo con su cuenta real y obtuvo el catálogo en Ubuntu. Eso no acredita una inferencia real. Usar solo después de autorizar por separado el vínculo para un proyecto personal y local. Requiere Ubuntu, Node.js 24, una terminal interactiva y `xdg-open` para el navegador del sistema. Desde la raíz del repositorio:
 
 ```sh
 node backend/piloto-chatgpt/manual.js --help

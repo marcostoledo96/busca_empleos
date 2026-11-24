@@ -15,7 +15,7 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 
 - T2 · S2 · CLI manual, pruebas sintéticas y documentación · inline + verificación independiente · completada en `ec81a7934c918579e213954f24a23714cd61784e`.
 
-- T3 · S3 · comando de prueba única, pruebas sintéticas y documentación · inline + verificación independiente · commit pendiente.
+- T3 · S3 · comando de prueba única, pruebas sintéticas y documentación · inline + verificación independiente · completada en `db0784c63ada7664e3083094a9becb8fbc12e2c3`.
 
 ## Log
 
@@ -29,4 +29,6 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - L8: RED falló por ausencia de `manual.js`. El primer GREEN reveló una fixture con forma incorrecta (`data` en vez de `models`); corregida con el contrato existente. Resultado propio: 8/8 focales (6 de la CLI y 2 del sandbox), 35/35 simuladas y ayuda CLI con exit 0. Sin OAuth, catálogo ni inferencias reales.
 - L9: S2 aprobada en revisión independiente de `ec81a7934c918579e213954f24a23714cd61784e`: 35/35 regresiones simuladas, 2/2 controles integrados con proveedor y navegador sintéticos, ayuda y rechazo sin terminal verificados. El primer control integrado falló por una aserción del verificador sobre su montaje de `/sys`; se corrigió esa aserción y el candidato no cambió. Se restituyó una nota documental sobre transporte y bearer, sin cambios ejecutables. Elegibilidad y catálogo reales no verificados en esa revisión sintética.
 - L10: el titular ejecutó manualmente vínculo y catálogo, e informó que el catálogo mostró diez modelos, incluido `gpt-6-luna`. Autorizó avanzar con «dale, continua» y confirmó que los créditos adicionales de la app están desactivados. La ejecución real será manual; el agente no accede a credenciales.
-- L11: RED exit 1 por ausencia de `prueba-luna.js`. GREEN propio: 11/11 focales (3 nuevas), 35/35 del sandbox y ayuda CLI exit 0. No se llamó al proveedor. Se requiere revisión independiente del candidato inmutable.
+- L11: RED exit 1 por ausencia de `prueba-luna.js`. GREEN propio: 11/11 focales (3 nuevas), 35/35 del sandbox y ayuda CLI exit 0. No se llamó al proveedor.
+- L12: revisión independiente de `db0784c63ada7664e3083094a9becb8fbc12e2c3`: 11/11 focales, 35/35 simuladas, 11/11 controles de CLI y 2/2 controles de no duplicación, además de sintaxis y diff. El primer prechequeo del helper falló antes de ejecutar el candidato; la preparación corregida permitió la verificación. Inferencia, cuenta y cuota reales no verificadas en T3.
+- L13: corte de revisión antes de T3, en `e858fffa2d9b4629255a34c8fecb3d5c450c8d39`. T3 se revisa como unidad separada; no se decidió publicación.
