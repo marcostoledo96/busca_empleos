@@ -20,7 +20,7 @@ El [alcance oficial](https://developers.openai.com/siwc/token-sharing-open-sourc
 
 Ruta predeterminada del módulo local: `~/.config/busco-trabajo/sesion.json`, con directorio privado `0700`, archivo `0600` y reemplazo atómico. Los tokens no se muestran al navegador ni se almacenan en el frontend. El identificador opaco del host y la referencia de registro pueden sobrevivir a la desconexión sin reutilizar los tokens eliminados. Un solo proceso puede abrir el almacén; si un cierre abrupto deja `propietario.lock`, no vuelvas a vincular ni retires el lock hasta confirmar que no queda ningún proceso propietario. No hay recuperación automática.
 
-En esta fase no hay botón en Angular ni comando para vincular una cuenta real. Los módulos `backend/piloto-chatgpt/oauth.js` y `responses.js` están sin montar y requieren transporte inyectado. En una futura ejecución autorizada, cada operación debe ejecutarse dentro de `sesion.conToken` y pasar el `AbortSignal` recibido al transporte; no se debe guardar el bearer por fuera de esa operación. Ante `invalid_grant` en el canje inicial, `iniciarVinculo({ reintentar: true })` inicia una autorización nueva, solo por acción explícita, con el ID emitido retenido en memoria. Si otra cuenta se está desvinculando, esperá que termine y solicitá la desvinculación de la cuenta correspondiente: su resultado no se comparte entre cuentas.
+No hay botón en Angular: los módulos `backend/piloto-chatgpt/oauth.js` y `responses.js` siguen sin montar en la aplicación. El comando manual documentado abajo usa su propio almacén y ejecuta el catálogo dentro de `sesion.conToken`, con el `AbortSignal` de la sesión. Ante `invalid_grant` en el canje inicial, `iniciarVinculo({ reintentar: true })` inicia una autorización nueva, solo por acción explícita, con el ID emitido retenido en memoria. Si otra cuenta se está desvinculando, esperá que termine y solicitá la desvinculación de la cuenta correspondiente: su resultado no se comparte entre cuentas.
 
 ## Propuesta para una validación real posterior — no autorizada ni ejecutada
 
@@ -42,6 +42,20 @@ sh backend/piloto-chatgpt/simulacion.sh
 El lanzador no admite argumentos ni tiene modo real. Ejecuta las pruebas sintéticas de OAuth y Responses con loopback aislado, entorno limpio y almacenamiento temporal. Solo monta los archivos del piloto necesarios y las bibliotecas de ejecución en modo lectura; no monta el home ni el resto del repositorio. Si el sandbox no arranca, termina con error, sin ejecutar las pruebas fuera del aislamiento.
 
 El ensayo no abre un navegador, no vincula una cuenta ni consulta modelos reales. Tampoco arranca Busco Trabajo, accede a PostgreSQL o consume cupo. Su resultado no acredita elegibilidad ni habilita producción.
+
+## Vínculo personal y catálogo — comando manual
+
+**No se ha ejecutado con una cuenta real.** Usar solo después de autorizar por separado el vínculo para un proyecto personal y local. Requiere Ubuntu, Node.js 24, una terminal interactiva y `xdg-open` para el navegador del sistema. Desde la raíz del repositorio:
+
+```sh
+node backend/piloto-chatgpt/manual.js --help
+node backend/piloto-chatgpt/manual.js vincular
+node backend/piloto-chatgpt/manual.js catalogo
+```
+
+`--help` no abre el almacén ni usa la red. `vincular` abre el consentimiento oficial; no imprime la URL ni inicia el catálogo. El titular elige la cuenta y los permisos en el navegador. `catalogo` consulta únicamente `GET /v1/models` y muestra los slugs y nombres visibles; si la sesión lo requiere, puede renovar la credencial. No hay comando de inferencia ni alternativa con API key. No compartir salidas de OAuth ni archivos de sesión.
+
+El almacén de esta CLI es `~/.config/busco-trabajo-catalogo/`, distinto del almacén del módulo por defecto. Para retirar la conexión local, usar `node backend/piloto-chatgpt/manual.js desvincular`; si no se confirma la revocación remota, desconectar la app desde los ajustes de ChatGPT. El vínculo, la renovación y la revocación no modifican Firebase, Railway, DeepSeek ni datos de Busco Trabajo.
 
 ## Verificación local de la Fase A
 
