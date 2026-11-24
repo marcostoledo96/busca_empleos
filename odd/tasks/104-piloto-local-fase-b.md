@@ -9,6 +9,8 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 
 - S3: «una inferencia de evaluación laboral en `gpt-6-luna`», «con una oferta y un perfil ficticios, sin reintentos, sin API key alternativa y sin guardar resultados en Busco Trabajo».
 
+- S4: «distinguir etapa local, intento de envío y estado HTTP, sin mostrar credenciales ni respuestas crudas».
+
 ## Tasks
 
 - T1 · S1 · lanzador, pruebas y documentación · inline + verificación independiente · completada en `2ee0cc5363b777b880d5476eabaa156b56d259bc`.
@@ -16,6 +18,8 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - T2 · S2 · CLI manual, pruebas sintéticas y documentación · inline + verificación independiente · completada en `ec81a7934c918579e213954f24a23714cd61784e`.
 
 - T3 · S3 · comando de prueba única, pruebas sintéticas y documentación · inline + verificación independiente · completada en `db0784c63ada7664e3083094a9becb8fbc12e2c3`.
+
+- T4 · S4 · diagnóstico sanitizado de la prueba única, regresiones y documentación · inline + verificación independiente · commit pendiente.
 
 ## Log
 
@@ -32,3 +36,6 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - L11: RED exit 1 por ausencia de `prueba-luna.js`. GREEN propio: 11/11 focales (3 nuevas), 35/35 del sandbox y ayuda CLI exit 0. No se llamó al proveedor.
 - L12: revisión independiente de `db0784c63ada7664e3083094a9becb8fbc12e2c3`: 11/11 focales, 35/35 simuladas, 11/11 controles de CLI y 2/2 controles de no duplicación, además de sintaxis y diff. El primer prechequeo del helper falló antes de ejecutar el candidato; la preparación corregida permitió la verificación. Inferencia, cuenta y cuota reales no verificadas en T3.
 - L13: corte de revisión antes de T3, en `e858fffa2d9b4629255a34c8fecb3d5c450c8d39`. T3 se revisa como unidad separada; no se decidió publicación.
+- L14: el titular ejecutó una vez el ensayo real; obtuvo `Prueba no completada (sin_diagnostico). No la repitas.` e informó «no, no aparece ningun consumo de gpt luna». Consumo no medido; no se autorizó repetir la inferencia.
+- L15: el titular autorizó corregir el diagnóstico con «hacelo». Se reproduce la ambigüedad con fallo local sin POST y HTTP 400 simulado con un POST; ambos devolvían el mismo mensaje.
+- L16: RED exit 1 (2 fallos esperados por el diagnóstico anterior, 2 PASS); GREEN propio, 12/12 focales, 35/35 simuladas y ayuda CLI exit 0. Sin POST real. Corte de revisión de T4 antes del candidato, en `9e738dd`.

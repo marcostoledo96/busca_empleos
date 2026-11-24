@@ -64,15 +64,37 @@ test('envía un único caso ficticio fijo a Luna y solo publica el estado valida
     assert.deepEqual(f.salida, ['{"modelo":"gpt-6-luna","estado":"por_confirmar","salida_validada":true}']);
 });
 
+test('el diagnóstico distingue fallo previo al POST, intento sin HTTP y respuesta HTTP', async () => {
+    const previo = preparar(() => { assert.fail('No se debe llamar al proveedor.'); });
+    assert.equal(await ejecutar(args, { ...previo.opciones, abrir() {
+        throw Object.assign(new Error('canario-privado'), { codigo: 'canario-privado' });
+    } }), 1);
+    assert.deepEqual(previo.llamadas, []);
+    assert.deepEqual(previo.conteos(), { aperturas: 0, cierres: 0 });
+    assert.deepEqual(previo.salida, ['Prueba no completada (sin_diagnostico; etapa=antes_del_post). No la repitas.']);
+
+    const transporte = preparar(() => { throw new Error('canario-privado'); });
+    assert.equal(await ejecutar(args, transporte.opciones), 1);
+    assert.equal(transporte.llamadas.length, 1);
+    assert.deepEqual(transporte.conteos(), { aperturas: 1, cierres: 1 });
+    assert.deepEqual(transporte.salida, ['Prueba no completada (fallo_de_transporte; etapa=post_intentado_sin_http). No la repitas.']);
+
+    const rechazo = preparar(() => Response.json({ error: { code: 'codigo_privado', message: 'canario-privado' } }, { status: 400 }));
+    assert.equal(await ejecutar(args, rechazo.opciones), 1);
+    assert.equal(rechazo.llamadas.length, 1);
+    assert.deepEqual(rechazo.conteos(), { aperturas: 1, cierres: 1 });
+    assert.deepEqual(rechazo.salida, ['Prueba no completada (solicitud_rechazada; etapa=respuesta_http; HTTP=400). No la repitas.']);
+});
+
 test('fallo de proveedor o de contrato termina sin reintentos ni salida privada', async () => {
-    for (const [responder, codigo] of [
-        [() => new Response('canario-privado', { status: 429 }), 'limite_de_uso'],
-        [() => completar({ estado: 'aprobada', motivo: 'canario-privado' }), 'salida_invalida'],
+    for (const [responder, codigo, http] of [
+        [() => new Response('canario-privado', { status: 429 }), 'limite_de_uso', 429],
+        [() => completar({ estado: 'aprobada', motivo: 'canario-privado' }), 'salida_invalida', 200],
     ]) {
         const f = preparar(responder);
         assert.equal(await ejecutar(args, f.opciones), 1);
         assert.equal(f.llamadas.length, 1);
         assert.deepEqual(f.conteos(), { aperturas: 1, cierres: 1 });
-        assert.deepEqual(f.salida, [`Prueba no completada (${codigo}). No la repitas.`]);
+        assert.deepEqual(f.salida, [`Prueba no completada (${codigo}; etapa=respuesta_http; HTTP=${http}). No la repitas.`]);
     }
 });

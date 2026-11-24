@@ -10,7 +10,8 @@ const USO = 'Uso: node backend/piloto-chatgpt/prueba-luna.js --creditos-desactiv
 const CASO = 'Oferta ficticia: Soporte IT Junior, presencial en CABA; Active Directory se menciona sin indicar si es obligatorio. Perfil ficticio: soporte básico, experiencia con Active Directory desconocida. Devolvé únicamente un objeto JSON con estado "por_confirmar" y motivo breve; no inventes experiencia.';
 const CODIGOS = new Set(['acceso_rechazado', 'limite_de_uso', 'proveedor_no_disponible', 'salida_invalida',
     'plazo_agotado', 'respuesta_incompleta', 'respuesta_fallida', 'stream_interrumpido', 'fallo_de_transporte',
-    'sin-sesion', 'alcance-insuficiente', 'cancelado']);
+    'solicitud_rechazada', 'stream_invalido', 'cuerpo_demasiado_grande',
+    'sin-sesion', 'alcance-insuficiente', 'red-oauth', 'oauth-proveedor', 'discovery-invalido', 'tokens-invalidos', 'cancelado']);
 
 async function ejecutar(args, { interactivo, fetch = globalThis.fetch, abrir = abrirSesion, escribir = console.log, signal } = {}) {
     if (args.length === 1 && args[0] === '--help') { escribir(USO); return 0; }
@@ -18,18 +19,22 @@ async function ejecutar(args, { interactivo, fetch = globalThis.fetch, abrir = a
     if (!interactivo) { escribir('La prueba requiere una terminal interactiva en Ubuntu.'); return 2; }
 
     let sesion;
-    let enviado = false;
+    let postIntentado = false;
+    let http;
     let fallo;
     try {
         signal?.throwIfAborted();
         const transporteOAuth = transporteManual('vincular', fetch, signal);
         sesion = abrir({ modo: 'local-manual', directorio: join(homedir(), '.config', 'busco-trabajo-catalogo'), fetch: transporteOAuth });
         // Consumo el único intento antes de enviarlo: un fallo de red no habilita otro.
-        const cliente = crearClienteResponses({ fetch: (destino, opciones) => {
-            if (enviado || destino !== RESPONSES || opciones.method !== 'POST') throw new Error('Solicitud no autorizada.');
+        const cliente = crearClienteResponses({ fetch: async (destino, opciones) => {
+            if (postIntentado || destino !== RESPONSES || opciones.method !== 'POST') throw new Error('Solicitud no autorizada.');
             signal?.throwIfAborted();
-            enviado = true;
-            return fetch(destino, { ...opciones, signal: signal ? AbortSignal.any([signal, opciones.signal]) : opciones.signal });
+            postIntentado = true;
+            const respuesta = await fetch(destino, { ...opciones, signal: signal ? AbortSignal.any([signal, opciones.signal]) : opciones.signal });
+            const estado = respuesta?.status;
+            if (Number.isInteger(estado) && estado >= 100 && estado <= 599) http = estado;
+            return respuesta;
         } });
         await sesion.conToken((contexto) => cliente.generarRespuesta({ ...contexto, modelo: MODELO,
             input: [{ role: 'user', content: CASO }],
@@ -42,7 +47,8 @@ async function ejecutar(args, { interactivo, fetch = globalThis.fetch, abrir = a
         try { await sesion?.cerrar(); } catch { fallo = 'cierre_local'; }
     }
     if (signal?.aborted || fallo) {
-        escribir(`Prueba no completada (${signal?.aborted ? 'cancelado' : fallo}). No la repitas.`);
+        const etapa = http !== undefined ? `respuesta_http; HTTP=${http}` : postIntentado ? 'post_intentado_sin_http' : 'antes_del_post';
+        escribir(`Prueba no completada (${signal?.aborted ? 'cancelado' : fallo}; etapa=${etapa}). No la repitas.`);
         return signal?.aborted ? 130 : 1;
     }
     escribir(JSON.stringify({ modelo: MODELO, estado: 'por_confirmar', salida_validada: true }));

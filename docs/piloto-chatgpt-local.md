@@ -67,6 +67,8 @@ node backend/piloto-chatgpt/prueba-luna.js --creditos-desactivados
 
 El argumento declara esa confirmación humana; el comando no lee el ajuste en ChatGPT. Envía **un solo caso fijo y ficticio**, sin reintento, sin modelo alternativo ni API key. No recibe CV ni ofertas como entrada, no escribe en Busco Trabajo y no inicia el backend. Puede renovar la sesión de ChatGPT ya vinculada, si es necesario. En éxito muestra el modelo, el estado validado y ningún texto del proveedor. Ante error o cancelación, **no vuelvas a lanzarlo**: podría haberse consumido cupo aunque no se haya recibido una salida válida. Si el cambio de cupo no se observa en Uso, se registra como no medido.
 
+En fallo, la salida incluye un código de diagnóstico permitido y una etapa: `antes_del_post` (no se intentó la inferencia), `post_intentado_sin_http` (se inició el envío, sin confirmación de recepción) o `respuesta_http` (hubo una respuesta al POST y se muestra su estado numérico). El estado HTTP no prueba que la inferencia haya terminado ni cuánto cupo consumió. No se muestran credenciales, mensajes de error crudos, cabeceras ni cuerpos del proveedor.
+
 ## Verificación local de la Fase A
 
 Base: `896752d4816f7303a4fcf4a9dbebdc61e5bc5f47`. Node `24.18.0`. Las pruebas usan datos ficticios y `bwrap --unshare-net` con solo loopback, sin ruta externa. No se arrancó el backend de la aplicación.
