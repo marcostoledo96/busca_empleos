@@ -31,6 +31,18 @@ En esta fase no hay botón en Angular ni comando para vincular una cuenta real. 
 - Slugs exactos: pendientes del catálogo. Esfuerzo solicitado en la primera prueba: **omitido**, sin afirmar valor efectivo. El primer request no dará por supuesto `text.format` estricto; solicita JSON y lo valida en servidor. Si hace falta probar parámetros de esfuerzo o Structured Outputs, se define el request y se autoriza el consumo por separado; no se infiere soporte de otra modalidad.
 - Observar latencia, evento terminal, validación local, código e ID de solicitud sanitizados, y el cambio visible en Usage si existe. Una diferencia de cuota no observable se registra como **no medida**. Cancelar interrumpe la espera y descarta resultados tardíos; no garantiza recuperar cuota ya consumida. Ante denegación, ineligibilidad, cuota, cancelación o fallo, no enviar la siguiente inferencia automáticamente.
 
+## Ensayo manual aislado — preparación de Fase B
+
+Desde la raíz del checkout, con Node.js y Bubblewrap (`bwrap`) disponibles:
+
+```sh
+sh backend/piloto-chatgpt/simulacion.sh
+```
+
+El lanzador no admite argumentos ni tiene modo real. Ejecuta las pruebas sintéticas de OAuth y Responses con loopback aislado, entorno limpio y almacenamiento temporal. Solo monta los archivos del piloto necesarios y las bibliotecas de ejecución en modo lectura; no monta el home ni el resto del repositorio. Si el sandbox no arranca, termina con error, sin ejecutar las pruebas fuera del aislamiento.
+
+El ensayo no abre un navegador, no vincula una cuenta ni consulta modelos reales. Tampoco arranca Busco Trabajo, accede a PostgreSQL o consume cupo. Su resultado no acredita elegibilidad ni habilita producción.
+
 ## Verificación local de la Fase A
 
 Base: `896752d4816f7303a4fcf4a9dbebdc61e5bc5f47`. Node `24.18.0`. Las pruebas usan datos ficticios y `bwrap --unshare-net` con solo loopback, sin ruta externa. No se arrancó el backend de la aplicación.
