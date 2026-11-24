@@ -57,6 +57,16 @@ node backend/piloto-chatgpt/manual.js catalogo
 
 El almacén de esta CLI es `~/.config/busco-trabajo-catalogo/`, distinto del almacén del módulo por defecto. Para retirar la conexión local, usar `node backend/piloto-chatgpt/manual.js desvincular`; si no se confirma la revocación remota, desconectar la app desde los ajustes de ChatGPT. El vínculo, la renovación y la revocación no modifican Firebase, Railway, DeepSeek ni datos de Busco Trabajo.
 
+## Primera inferencia ficticia — GPT-6-Luna
+
+Solo el titular, desde Ubuntu, después de vincular la cuenta, comprobar que el catálogo muestra `gpt-6-luna` y confirmar en **ChatGPT → Configuración → Uso** que los créditos adicionales de la app están desactivados:
+
+```sh
+node backend/piloto-chatgpt/prueba-luna.js --creditos-desactivados
+```
+
+El argumento declara esa confirmación humana; el comando no lee el ajuste en ChatGPT. Envía **un solo caso fijo y ficticio**, sin reintento, sin modelo alternativo ni API key. No recibe CV ni ofertas como entrada, no escribe en Busco Trabajo y no inicia el backend. Puede renovar la sesión de ChatGPT ya vinculada, si es necesario. En éxito muestra el modelo, el estado validado y ningún texto del proveedor. Ante error o cancelación, **no vuelvas a lanzarlo**: podría haberse consumido cupo aunque no se haya recibido una salida válida. Si el cambio de cupo no se observa en Uso, se registra como no medido.
+
 ## Verificación local de la Fase A
 
 Base: `896752d4816f7303a4fcf4a9dbebdc61e5bc5f47`. Node `24.18.0`. Las pruebas usan datos ficticios y `bwrap --unshare-net` con solo loopback, sin ruta externa. No se arrancó el backend de la aplicación.
