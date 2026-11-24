@@ -23,7 +23,7 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 
 - T4 · S4 · diagnóstico sanitizado de la prueba única, regresiones y documentación · inline + verificación independiente · completada en `f7bb782c2eda46d9d853e9f5ef995c30dec7ea85`.
 
-- T5 · S5 · revisión del contrato SSE, diagnóstico sanitizado, pruebas y documentación · inline + verificación independiente · commit pendiente.
+- T5 · S5 · revisión del contrato SSE, diagnóstico sanitizado, pruebas y documentación · inline + verificación independiente · completada en `a7a2ce121b706aee421a6657b6b309c4fe860c7a`.
 
 ## Log
 
@@ -47,3 +47,4 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - L18: nueva ejecución autorizada por el titular («autorizo») devolvió `Prueba no completada (stream_invalido; etapa=respuesta_http; HTTP=200). No la repitas.`. No se confirmó inferencia completada ni cupo; cuatro fixtures reprodujeron la misma salida.
 - L19: el titular autorizó continuar con «continua». El contrato SIWC exige `store: false` y `stream: true`; la referencia de Responses ejemplifica SSE con nombre concordante con `type`, y `response.completed` con estado `completed` y `output`. Se conserva la validación y se distingue el diagnóstico, sin repetir inferencia.
 - L20: RED exit 1 (1 fallo esperado y 4 PASS); GREEN propio, 13/13 focales y 35/35 simuladas. El código general y los criterios SSE se conservan; solo se agrega un detalle estático en cuatro puntos del cliente de inferencia. Corte de revisión de T5: `09c2be4`.
+- L21: verificación independiente S5 sobre `a7a2ce121b706aee421a6657b6b309c4fe860c7a`, 15/15 controles PASS; base 9 PASS / 6 FAIL esperados por el detalle ausente. Se conservan validación, límites y ausencia de reintentos; solo se publican etiquetas permitidas. El primer prechequeo del helper no ejecutó pruebas; el candidato se verificó tras preparar un directorio vacío. Las suites de 13 y 35 corresponden al implementador. Sin nueva ejecución real, causa retrospectiva o consumo medido.
