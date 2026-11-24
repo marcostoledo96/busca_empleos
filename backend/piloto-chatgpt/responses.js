@@ -76,6 +76,10 @@ async function leerJson(respuesta, contexto) {
     return JSON.parse(texto);
 }
 
+function errorStream(contexto, detalleStream) {
+    return Object.assign(contexto.error('stream_invalido'), { detalleStream });
+}
+
 async function* eventosSse(respuesta, contexto) {
     let linea = '';
     let omitirLf = false;
@@ -89,9 +93,9 @@ async function* eventosSse(respuesta, contexto) {
             if (linea === '') {
                 if (datos.length) {
                     let evento;
-                    try { evento = JSON.parse(datos.join('\n')); } catch { throw contexto.error('stream_invalido'); }
+                    try { evento = JSON.parse(datos.join('\n')); } catch { throw errorStream(contexto, 'evento_json_invalido'); }
                     if (typeof evento?.type !== 'string' || (nombre && nombre !== evento.type)) {
-                        throw contexto.error('stream_invalido');
+                        throw errorStream(contexto, 'evento_tipo_invalido');
                     }
                     yield evento;
                 }
@@ -110,7 +114,9 @@ async function* eventosSse(respuesta, contexto) {
 }
 
 function extraerTexto(respuesta, contexto) {
-    if (respuesta?.status !== 'completed' || !Array.isArray(respuesta.output)) throw contexto.error('stream_invalido');
+    if (respuesta?.status !== 'completed' || !Array.isArray(respuesta.output)) {
+        throw errorStream(contexto, 'estructura_terminal_invalida');
+    }
     const partes = [];
     for (const item of respuesta.output) {
         if (item?.type === 'reasoning') continue;
@@ -225,7 +231,7 @@ function crearClienteResponses({ fetch, plazoMs = 30000 } = {}) {
         }, async (respuesta, contexto, falloProveedor) => {
             if (respuesta.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'text/event-stream') {
                 cancelar(respuesta.body);
-                throw contexto.error('stream_invalido');
+                throw errorStream(contexto, 'tipo_no_sse');
             }
             for await (const evento of eventosSse(respuesta, contexto)) {
                 if (evento.type === 'response.failed' || evento.type === 'error') {

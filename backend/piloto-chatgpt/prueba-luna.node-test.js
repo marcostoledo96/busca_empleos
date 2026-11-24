@@ -86,6 +86,23 @@ test('el diagnóstico distingue fallo previo al POST, intento sin HTTP y respues
     assert.deepEqual(rechazo.salida, ['Prueba no completada (solicitud_rechazada; etapa=respuesta_http; HTTP=400). No la repitas.']);
 });
 
+test('distingue cuatro rechazos SSE con HTTP 200 sin revelar contenido ni reintentar', async () => {
+    const sse = (body) => new Response(body, { headers: { 'content-type': 'text/event-stream' } });
+    for (const [detalle, responder] of [
+        ['tipo_no_sse', () => new Response('canario-privado', { headers: { 'content-type': 'application/json; canario=privado' } })],
+        ['evento_json_invalido', () => sse('data: canario-privado\n\n')],
+        ['evento_tipo_invalido', () => sse('event: response.completed\ndata: {"type":"canario-privado"}\n\n')],
+        ['evento_tipo_invalido', () => sse('data: {"canario":"privado"}\n\n')],
+        ['estructura_terminal_invalida', () => sse('event: response.completed\ndata: {"type":"response.completed","response":{"status":"completed","canario":"privado"}}\n\n')],
+    ]) {
+        const f = preparar(responder);
+        assert.equal(await ejecutar(args, f.opciones), 1);
+        assert.equal(f.llamadas.length, 1);
+        assert.deepEqual(f.conteos(), { aperturas: 1, cierres: 1 });
+        assert.deepEqual(f.salida, [`Prueba no completada (stream_invalido; detalle_stream=${detalle}; etapa=respuesta_http; HTTP=200). No la repitas.`]);
+    }
+});
+
 test('fallo de proveedor o de contrato termina sin reintentos ni salida privada', async () => {
     for (const [responder, codigo, http] of [
         [() => new Response('canario-privado', { status: 429 }), 'limite_de_uso', 429],

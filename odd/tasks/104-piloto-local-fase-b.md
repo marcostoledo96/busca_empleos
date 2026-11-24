@@ -11,6 +11,8 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 
 - S4: «distinguir etapa local, intento de envío y estado HTTP, sin mostrar credenciales ni respuestas crudas».
 
+- S5: «contrastar esas cuatro validaciones con el contrato oficial de OpenAI y ajustar solo lo que se pueda demostrar con pruebas locales. Si el validador es correcto, conviene distinguir cada causa en el diagnóstico, no aceptar respuestas incompletas para que la prueba pase».
+
 ## Tasks
 
 - T1 · S1 · lanzador, pruebas y documentación · inline + verificación independiente · completada en `2ee0cc5363b777b880d5476eabaa156b56d259bc`.
@@ -20,6 +22,8 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - T3 · S3 · comando de prueba única, pruebas sintéticas y documentación · inline + verificación independiente · completada en `db0784c63ada7664e3083094a9becb8fbc12e2c3`.
 
 - T4 · S4 · diagnóstico sanitizado de la prueba única, regresiones y documentación · inline + verificación independiente · completada en `f7bb782c2eda46d9d853e9f5ef995c30dec7ea85`.
+
+- T5 · S5 · revisión del contrato SSE, diagnóstico sanitizado, pruebas y documentación · inline + verificación independiente · commit pendiente.
 
 ## Log
 
@@ -40,3 +44,6 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - L15: el titular autorizó corregir el diagnóstico con «hacelo». Se reproduce la ambigüedad con fallo local sin POST y HTTP 400 simulado con un POST; ambos devolvían el mismo mensaje.
 - L16: RED exit 1 (2 fallos esperados por el diagnóstico anterior, 2 PASS); GREEN propio, 12/12 focales, 35/35 simuladas y ayuda CLI exit 0. Sin POST real. Corte de revisión de T4 antes del candidato, en `9e738dd`.
 - L17: el verificador aprobó S4 sobre `f7bb782c2eda46d9d853e9f5ef995c30dec7ea85`: 17/17 controles de diagnóstico, 35/35 regresiones simuladas y comprobaciones de ayuda, sintaxis y diff. Confirmó etapas, cancelación, no duplicación y ausencia de datos crudos. Su primer control agotó el tiempo por una fixture que no respetaba la cancelación; solo cambió la fixture de verificación. No repitió las 12 pruebas focales ya registradas por el implementador. No hubo acceso real al proveedor; el intento previo sigue sin causa ni consumo acreditados.
+- L18: nueva ejecución autorizada por el titular («autorizo») devolvió `Prueba no completada (stream_invalido; etapa=respuesta_http; HTTP=200). No la repitas.`. No se confirmó inferencia completada ni cupo; cuatro fixtures reprodujeron la misma salida.
+- L19: el titular autorizó continuar con «continua». El contrato SIWC exige `store: false` y `stream: true`; la referencia de Responses ejemplifica SSE con nombre concordante con `type`, y `response.completed` con estado `completed` y `output`. Se conserva la validación y se distingue el diagnóstico, sin repetir inferencia.
+- L20: RED exit 1 (1 fallo esperado y 4 PASS); GREEN propio, 13/13 focales y 35/35 simuladas. El código general y los criterios SSE se conservan; solo se agrega un detalle estático en cuatro puntos del cliente de inferencia. Corte de revisión de T5: `09c2be4`.

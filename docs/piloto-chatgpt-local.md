@@ -69,6 +69,8 @@ El argumento declara esa confirmación humana; el comando no lee el ajuste en Ch
 
 En fallo, la salida incluye un código de diagnóstico permitido y una etapa: `antes_del_post` (no se intentó la inferencia), `post_intentado_sin_http` (se inició el envío, sin confirmación de recepción) o `respuesta_http` (hubo una respuesta al POST y se muestra su estado numérico). El estado HTTP no prueba que la inferencia haya terminado ni cuánto cupo consumió. No se muestran credenciales, mensajes de error crudos, cabeceras ni cuerpos del proveedor.
 
+Si el código es `stream_invalido`, `detalle_stream` distingue `tipo_no_sse` (tipo de contenido distinto de SSE), `evento_json_invalido` (datos del evento no interpretables como JSON), `evento_tipo_invalido` (tipo ausente, inválido o discordante con el nombre SSE) y `estructura_terminal_invalida` (evento final sin estado `completed` o sin arreglo `output`). Se mantiene el contrato de [SIWC](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference) y [Responses en streaming](https://developers.openai.com/api/reference/resources/responses/methods/create): HTTP 200 por sí solo no acredita una respuesta completa.
+
 ## Verificación local de la Fase A
 
 Base: `896752d4816f7303a4fcf4a9dbebdc61e5bc5f47`. Node `24.18.0`. Las pruebas usan datos ficticios y `bwrap --unshare-net` con solo loopback, sin ruta externa. No se arrancó el backend de la aplicación.

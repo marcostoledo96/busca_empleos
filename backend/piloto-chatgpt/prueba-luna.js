@@ -12,6 +12,7 @@ const CODIGOS = new Set(['acceso_rechazado', 'limite_de_uso', 'proveedor_no_disp
     'plazo_agotado', 'respuesta_incompleta', 'respuesta_fallida', 'stream_interrumpido', 'fallo_de_transporte',
     'solicitud_rechazada', 'stream_invalido', 'cuerpo_demasiado_grande',
     'sin-sesion', 'alcance-insuficiente', 'red-oauth', 'oauth-proveedor', 'discovery-invalido', 'tokens-invalidos', 'cancelado']);
+const DETALLES_STREAM = new Set(['tipo_no_sse', 'evento_json_invalido', 'evento_tipo_invalido', 'estructura_terminal_invalida']);
 
 async function ejecutar(args, { interactivo, fetch = globalThis.fetch, abrir = abrirSesion, escribir = console.log, signal } = {}) {
     if (args.length === 1 && args[0] === '--help') { escribir(USO); return 0; }
@@ -22,6 +23,7 @@ async function ejecutar(args, { interactivo, fetch = globalThis.fetch, abrir = a
     let postIntentado = false;
     let http;
     let fallo;
+    let detalleStream = '';
     try {
         signal?.throwIfAborted();
         const transporteOAuth = transporteManual('vincular', fetch, signal);
@@ -43,12 +45,16 @@ async function ejecutar(args, { interactivo, fetch = globalThis.fetch, abrir = a
         }));
     } catch (error) {
         fallo = CODIGOS.has(error?.codigo) ? error.codigo : 'sin_diagnostico';
+        if (fallo === 'stream_invalido' && DETALLES_STREAM.has(error.detalleStream)) {
+            detalleStream = `; detalle_stream=${error.detalleStream}`;
+        }
     } finally {
         try { await sesion?.cerrar(); } catch { fallo = 'cierre_local'; }
     }
     if (signal?.aborted || fallo) {
         const etapa = http !== undefined ? `respuesta_http; HTTP=${http}` : postIntentado ? 'post_intentado_sin_http' : 'antes_del_post';
-        escribir(`Prueba no completada (${signal?.aborted ? 'cancelado' : fallo}; etapa=${etapa}). No la repitas.`);
+        const diagnostico = signal?.aborted ? 'cancelado' : fallo + (fallo === 'stream_invalido' ? detalleStream : '');
+        escribir(`Prueba no completada (${diagnostico}; etapa=${etapa}). No la repitas.`);
         return signal?.aborted ? 130 : 1;
     }
     escribir(JSON.stringify({ modelo: MODELO, estado: 'por_confirmar', salida_validada: true }));
