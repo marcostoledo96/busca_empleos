@@ -19,7 +19,7 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 
 - T3 · S3 · comando de prueba única, pruebas sintéticas y documentación · inline + verificación independiente · completada en `db0784c63ada7664e3083094a9becb8fbc12e2c3`.
 
-- T4 · S4 · diagnóstico sanitizado de la prueba única, regresiones y documentación · inline + verificación independiente · commit pendiente.
+- T4 · S4 · diagnóstico sanitizado de la prueba única, regresiones y documentación · inline + verificación independiente · completada en `f7bb782c2eda46d9d853e9f5ef995c30dec7ea85`.
 
 ## Log
 
@@ -39,3 +39,4 @@ Alcance: simulación, vínculo y catálogo manuales, y preparación de una únic
 - L14: el titular ejecutó una vez el ensayo real; obtuvo `Prueba no completada (sin_diagnostico). No la repitas.` e informó «no, no aparece ningun consumo de gpt luna». Consumo no medido; no se autorizó repetir la inferencia.
 - L15: el titular autorizó corregir el diagnóstico con «hacelo». Se reproduce la ambigüedad con fallo local sin POST y HTTP 400 simulado con un POST; ambos devolvían el mismo mensaje.
 - L16: RED exit 1 (2 fallos esperados por el diagnóstico anterior, 2 PASS); GREEN propio, 12/12 focales, 35/35 simuladas y ayuda CLI exit 0. Sin POST real. Corte de revisión de T4 antes del candidato, en `9e738dd`.
+- L17: el verificador aprobó S4 sobre `f7bb782c2eda46d9d853e9f5ef995c30dec7ea85`: 17/17 controles de diagnóstico, 35/35 regresiones simuladas y comprobaciones de ayuda, sintaxis y diff. Confirmó etapas, cancelación, no duplicación y ausencia de datos crudos. Su primer control agotó el tiempo por una fixture que no respetaba la cancelación; solo cambió la fixture de verificación. No repitió las 12 pruebas focales ya registradas por el implementador. No hubo acceso real al proveedor; el intento previo sigue sin causa ni consumo acreditados.
