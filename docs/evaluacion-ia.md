@@ -138,9 +138,10 @@ node backend/scripts/comparacion-presupuesto-117.js --preparar
 node --test backend/tests/scripts/comparacion-presupuesto-117.node.cjs
 ```
 
-El primer comando muestra el SHA, los hashes de los seis cuerpos HTTP, la
-huella común de cada par sin `max_tokens` y el peor costo calculado, sin mostrar
-los mensajes. El caso 17 no envía su
+El primer comando comprueba que los archivos efectivos del ejecutor, las entradas
+sintéticas y el validador coinciden byte por byte con el commit anunciado. Muestra
+el SHA, los hashes de los seis cuerpos HTTP, la huella común de cada par sin
+`max_tokens` y el peor costo calculado, sin mostrar los mensajes. El caso 17 no envía su
 respuesta simulada ni la usa como oráculo. Ningún caso es una etiqueta humana
 aprobada. El ejecutor usa los constructores de mensajes y el parser del contrato,
 no el cliente de la aplicación ni su política de reintentos.
@@ -156,14 +157,22 @@ medir la entrada. Antes de autorizar, contrastar de nuevo modelo y tarifas con l
 fuentes oficiales si ya no están vigentes.
 
 Solo tras la autorización expresa, `--ejecutar <directorio-privado> <SHA> <huella>`
-requiere la credencial por el entorno legítimo (no carga `.env`). La marca local
-de intento único compartida por los worktrees no se restablece al interrumpir o
-cambiar de SHA. Al recibir `REVISAR intento=N`, abrir `intento-N-resultado.json`
-en el directorio privado y responder por la entrada estándar en una sola línea
-JSON, por ejemplo `{"continuar":true,"evidencia":"Requisitos y decisión revisados"}`.
-Indicar `false` ante deterioro material o datos privados (sin copiarlos a la nota).
-El proceso corta si faltan respuesta o evidencia tras 90 segundos. El resultado
-se conserva aunque se corte; un timeout HTTP se registra como gasto incierto.
+requiere la credencial por el entorno legítimo (no carga `.env`) y rechaza
+fuentes locales distintas del commit. La marca de intento único se comparte entre
+clones y worktrees para el mismo usuario de Linux y el mismo equipo. No se
+restablece por interrupción, cambio de directorio o SHA.
+
+**Canal de revisión en Linux:** conectar la entrada estándar a un FIFO privado y
+el descriptor 3 a `<directorio-privado>/salida-revision.fifo`, ambos con permisos
+0600. Mantener abierto el extremo lector del segundo FIFO antes de ejecutar. Al
+recibir `REVISAR intento=N`, leer una línea `{intento,contenido}` del segundo FIFO;
+el texto del modelo no se guarda ni se muestra en el log. Responder por la entrada
+estándar en una sola línea JSON, por ejemplo
+`{"continuar":true,"evidencia":"Requisitos y decisión revisados"}`.
+Indicar `false` ante deterioro material o datos privados, sin copiarlos a la nota.
+Hay 90 segundos para entregar la salida y recibir la revisión. Sólo se conservan
+los metadatos, la nota sanitizada del revisor y, si aprueba continuar, `match` y
+`porcentaje`. Un timeout HTTP representa gasto incierto.
 
 En la revisión, contrastar JavaScript/HTML5/CSS3 y los plus del caso 16; coherencia
 y evidencias de PHP/Laravel del 17; TypeScript/Node.js y la incertidumbre sobre
