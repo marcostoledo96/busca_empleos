@@ -53,7 +53,7 @@ El callback se ejecuta una vez por consulta, también ante fallo de transporte;
 sus excepciones no invalidan una respuesta ni generan solicitudes adicionales.
 El retorno sigue siendo texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
 
-### Diagnóstico de fallos de evaluación (#70, T1)
+### Diagnóstico de fallos de evaluación (#70, #116)
 
 Consumo ese callback en el evaluador existente. Cada fallo registra un único
 `console.error('[Evaluación] Fallo técnico de IA', campos)` con ID numérico seguro,
@@ -90,11 +90,50 @@ del UPDATE exitoso. No cambio resultados correctos, decisiones manuales ni
 postulaciones. Mantengo cuatro intentos máximos de transporte, presupuestos,
 modelos, razonamiento, prompts y scoring: no hay evidencia para más reintentos.
 
-**Límite de la evidencia:** estos diagnósticos distinguen fallos futuros; los
-mensajes históricos genéricos no prueban por qué fallaron aquellas consultas.
-La verificación de telemetría es sintética con fetch/almacenamiento simulados,
-sin proveedor real ni producción. El preview siguiente no recupera ofertas
-automáticamente ni identifica los errores históricos.
+El detalle de la oferta muestra el mensaje persistido del último intento. Un
+cierre `length` indica que la respuesta terminó antes de completarse: no obtuve
+una evaluación nueva válida, aun si el contenido parece JSON completo. Otro cierre
+incompleto tiene un mensaje distinto. Un cierre `stop` tampoco garantiza validez:
+puede faltar contenido, fallar el parseo de JSON o no cumplirse el contrato de evaluación.
+
+Un fallo técnico no es un rechazo laboral. Si la oferta ya tenía un resultado
+válido, incluso «Por confirmar», solo registro el diagnóstico y conservo ese
+resultado; si no, la oferta sigue pendiente. No incorporo el fallo a la caché.
+
+**Límite de la evidencia:** al reiniciar, el sistema puede reconstruir el progreso
+desde el último lote persistido y mostrar un error histórico sin ejecutar una
+consulta nueva. No reclasifico ni reescribo mensajes históricos genéricos: no
+identifican un código exacto. Los mocks de transporte y almacenamiento prueban el
+diagnóstico, no que DeepSeek funcione hoy, que se haya llenado la entrada o que
+más presupuesto de salida resuelva el truncamiento.
+
+### Comparación de presupuesto de salida (protocolo pendiente, #117)
+
+**No ejecutar sin autorización expresa.** Usar tres casos del [corpus sintético](../backend/tests/fixtures/casos-muestra-matching.js),
+fijados por SHA: 16 (obligatorios cumplidos y deseable ausente), 17 (coherencia
+entre decisión y porcentaje) y 15 (requisitos «Por confirmar»). Comparar cada caso
+con 4096 y 8192: mismo modelo, razonamiento, prompt, contrato y entrada. No usar
+CV, ofertas ni perfiles privados, DB o caché productiva, ni iniciar el backend.
+
+- Contar **hasta seis intentos HTTP efectivos**, sin reintentos automáticos en el
+  experimento, sin cambiar la política de la aplicación. `8192` es una hipótesis.
+- Revalidar [modelo y parámetros](https://api-docs.deepseek.com/api/create-chat-completion/),
+  [tarifas vigentes](https://api-docs.deepseek.com/quick_start/pricing/) y el techo
+  conservador de tokens de entrada de los payloads sin hacer llamadas extra.
+  No empezar si el peor costo total no se puede acotar a **US$0.10**; antes de
+  cada intento verificar que el peor costo restante cabe en ese presupuesto.
+- Cortar si se alcanza el límite de intentos, si hay un error de autenticación o
+  transporte, costo no acotable, datos privados o deterioro material confirmado
+  de requisitos, evidencias o decisiones. Un `length` es un resultado técnico a
+  medir: no aceptar su contenido ni ampliar la muestra si no se reproduce.
+- Registrar por SHA, caso y variante: intentos, `finish_reason`, validación de
+  contrato y reglas (umbral del 60 %, vetos, deseables y «Por confirmar»), tokens de
+  entrada/salida/razonamiento, costo calculado y latencia, sin contenido privado ni
+  razonamiento del proveedor. Un `stop` inválido se analiza por separado.
+
+Cambiar `max_tokens` en la aplicación requeriría otra autorización: participa en la
+firma de evaluación y puede reducir aciertos de caché, aumentar costo y latencia.
+No se conserva artificialmente una firma anterior ni se borran resultados o caché.
 
 ## Perfil del candidato
 

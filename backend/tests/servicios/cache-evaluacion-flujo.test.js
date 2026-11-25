@@ -63,17 +63,20 @@ test.each(['SALIDA_TRUNCADA', 'SALIDA_INCOMPLETA', 'JSON_INVALIDO'])('error téc
     expect(registros.size).toBe(1);
 });
 
-test('una reevaluación incompleta conserva el resultado válido y no sustituye su caché', async () => {
+test('una reevaluación truncada conserva el resultado válido y no sustituye su caché', async () => {
     const anterior = { ...oferta, estado_evaluacion: 'aprobada', fecha_evaluacion: '2026-01-01', razon_evaluacion: 'Confirmada',
         porcentaje_match: 80, firma_criterios_evaluacion: 'anterior' };
     await servicio.evaluarOferta(oferta);
     const almacenada = [...registros.values()][0];
-    proveedor.consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('Salida incompleta'), { codigo: 'SALIDA_TRUNCADA' }));
+    proveedor.consultarDeepSeek.mockRejectedValueOnce(Object.assign(new Error('Salida truncada'), { codigo: 'SALIDA_TRUNCADA' }));
     const resumen = await servicio.evaluarOfertasPendientes([anterior]);
     expect(resumen.errores).toBe(1);
     expect(resumen.rechazadas).toBe(0);
     expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
-    expect(ofertas.registrarErrorEvaluacion).toHaveBeenCalledWith(9, expect.stringContaining('respuesta incompleta'), anterior.descripcion);
+    expect(ofertas.registrarErrorEvaluacion).toHaveBeenCalledWith(
+        9, 'Error al evaluar con DeepSeek: DeepSeek terminó la respuesta antes de completarla. No se obtuvo una evaluación nueva válida.',
+        anterior.descripcion
+    );
     expect([...registros.values()]).toEqual([almacenada]);
     expect(anterior.porcentaje_match).toBe(80);
     expect(anterior.firma_criterios_evaluacion).toBe('anterior');
