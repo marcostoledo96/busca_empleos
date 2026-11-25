@@ -162,7 +162,7 @@ test.each(['SALIDA_TRUNCADA', 'ERROR_TRANSPORTE'])('fallo %s conserva pendiente 
         firma_criterios_evaluacion: null, explicacion_evaluacion: null,
         evaluacion_error_mensaje: guardada.razon_evaluacion }));
     expect(guardada.razon_evaluacion).toBe(codigo === 'SALIDA_TRUNCADA'
-        ? 'Error al evaluar con DeepSeek: DeepSeek devolvió una respuesta incompleta. Volvé a intentar.'
+        ? 'Error al evaluar con DeepSeek: DeepSeek terminó la respuesta antes de completarla. No se obtuvo una evaluación nueva válida.'
         : 'Error al evaluar con DeepSeek: Error técnico (ERROR_TRANSPORTE). Volvé a intentar.');
     expect(resumen).toEqual(expect.objectContaining({ evaluadas: 0, procesadas: 1, rechazadas: 0, aprobadas: 0, errores: 1, pendientes: 1, estado: 'error' }));
     expect(cache.guardarCache).not.toHaveBeenCalled();

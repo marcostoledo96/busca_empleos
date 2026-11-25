@@ -133,6 +133,17 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
         } });
         const resumen = await servicio.evaluarOfertasPendientes();
         comprobarError(resumen);
+        const mensajesEsperados = {
+            SALIDA_TRUNCADA: 'Error al evaluar con DeepSeek: DeepSeek terminó la respuesta antes de completarla. No se obtuvo una evaluación nueva válida.',
+            SALIDA_INCOMPLETA: 'Error al evaluar con DeepSeek: DeepSeek devolvió una respuesta incompleta. Volvé a intentar.',
+        };
+        if (mensajesEsperados[codigo]) expect(resumen.mensaje_error).toBe(mensajesEsperados[codigo]);
+        expect(ofertas.actualizarEvaluacion).toHaveBeenCalledTimes(1);
+        expect(ofertas.actualizarEvaluacion).toHaveBeenCalledWith(
+            OFERTA.id, 'pendiente', resumen.mensaje_error,
+            null, resumen.mensaje_error, null, null, null, OFERTA.descripcion
+        );
+        expect(ofertas.registrarErrorEvaluacion).not.toHaveBeenCalled();
         expect(console.error).toHaveBeenCalledTimes(1);
         expect(console.error).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', {
             oferta_id: OFERTA.id, codigo, modelo_solicitado: 'deepseek-flash', max_tokens: 4096,

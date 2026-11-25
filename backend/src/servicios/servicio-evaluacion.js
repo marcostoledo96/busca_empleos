@@ -620,7 +620,7 @@ async function evaluarOferta(oferta, instrucciones, modelo, preferencias, opcion
         const codigo = /^(?:SALIDA_TRUNCADA|SALIDA_INCOMPLETA|CHOICES_AUSENTES|SALIDA_VACIA|JSON_INVALIDO|TIMEOUT|CANCELADA|ERROR_TRANSPORTE|HTTP_[45]\d{2})$/.test(codigoRecibido)
             ? codigoRecibido : 'ERROR_EVALUACION';
         const mensajes = {
-            SALIDA_TRUNCADA: 'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.',
+            SALIDA_TRUNCADA: 'DeepSeek terminó la respuesta antes de completarla. No se obtuvo una evaluación nueva válida.',
             SALIDA_INCOMPLETA: 'DeepSeek devolvió una respuesta incompleta. Volvé a intentar.',
             CHOICES_AUSENTES: 'DeepSeek devolvió una respuesta sin opciones. Volvé a intentar.',
             SALIDA_VACIA: 'DeepSeek devolvió una respuesta vacía. Volvé a intentar.',
