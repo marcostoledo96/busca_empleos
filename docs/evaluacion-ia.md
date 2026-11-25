@@ -131,6 +131,45 @@ CV, ofertas ni perfiles privados, DB o caché productiva, ni iniciar el backend.
   entrada/salida/razonamiento, costo calculado y latencia, sin contenido privado ni
   razonamiento del proveedor. Un `stop` inválido se analiza por separado.
 
+**Preparación local, sin consumo** (desde la raíz del checkout):
+
+```sh
+node backend/scripts/comparacion-presupuesto-117.js --preparar
+node --test backend/tests/scripts/comparacion-presupuesto-117.node.cjs
+```
+
+El primer comando muestra el SHA, los hashes de los seis cuerpos HTTP, la
+huella común de cada par sin `max_tokens` y el peor costo calculado, sin mostrar
+los mensajes. El caso 17 no envía su
+respuesta simulada ni la usa como oráculo. Ningún caso es una etiqueta humana
+aprobada. El ejecutor usa los constructores de mensajes y el parser del contrato,
+no el cliente de la aplicación ni su política de reintentos.
+
+La cota de entrada no es un conteo de tokens: parte del máximo de bytes UTF-8 del
+JSON y del formato completo de chat, y agrega 1024 tokens de margen. La
+[revisión pública de Flash-1017](https://huggingface.co/deepseek-ai/DeepSeek-V4.1-Flash-1017/tree/08c8657f02291e11b6f6b63e0e16014f8e748518)
+usa un tokenizador BPE de bytes sin prefijo en el pretokenizador: partir de un
+símbolo por byte y aplicar fusiones no aumenta el conteo. La plantilla incluye los
+roles, el prefijo de esfuerzo y el inicio de razonamiento. Se presupuesta el pico
+sin caché, no se descuentan aciertos supuestos y no se hace otra consulta para
+medir la entrada. Antes de autorizar, contrastar de nuevo modelo y tarifas con las
+fuentes oficiales si ya no están vigentes.
+
+Solo tras la autorización expresa, `--ejecutar <directorio-privado> <SHA> <huella>`
+requiere la credencial por el entorno legítimo (no carga `.env`). La marca local
+de intento único compartida por los worktrees no se restablece al interrumpir o
+cambiar de SHA. Al recibir `REVISAR intento=N`, abrir `intento-N-resultado.json`
+en el directorio privado y responder por la entrada estándar en una sola línea
+JSON, por ejemplo `{"continuar":true,"evidencia":"Requisitos y decisión revisados"}`.
+Indicar `false` ante deterioro material o datos privados (sin copiarlos a la nota).
+El proceso corta si faltan respuesta o evidencia tras 90 segundos. El resultado
+se conserva aunque se corte; un timeout HTTP se registra como gasto incierto.
+
+En la revisión, contrastar JavaScript/HTML5/CSS3 y los plus del caso 16; coherencia
+y evidencias de PHP/Laravel del 17; TypeScript/Node.js y la incertidumbre sobre
+Docker/AWS ECS del 15. No equiparar el resultado del parser con la elegibilidad
+productiva.
+
 Cambiar `max_tokens` en la aplicación requeriría otra autorización: participa en la
 firma de evaluación y puede reducir aciertos de caché, aumentar costo y latencia.
 No se conserva artificialmente una firma anterior ni se borran resultados o caché.
