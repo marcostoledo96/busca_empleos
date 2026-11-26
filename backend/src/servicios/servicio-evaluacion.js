@@ -334,9 +334,9 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                 const veto = { ...item, tipo: 'obligatorio', evidencia_perfil: ausencia,
                     explicacion: 'Incompatibilidad respaldada por una ausencia declarada del candidato.' };
                 decisiones.set(requisito, { destino: 'exclusiones', item: veto });
-                corregirRazon ||= !negativas.length || negativas.some(negativa =>
-                    normalizarTextoComparacion(negativa.evidencia_oferta) !== normalizarTextoComparacion(veto.evidencia_oferta)
-                    || normalizarTextoComparacion(negativa.evidencia_perfil) !== normalizarTextoComparacion(ausencia));
+                corregirRazon ||= grupo.some(({ item: previo }) =>
+                    normalizarTextoComparacion(previo.evidencia_oferta) !== normalizarTextoComparacion(veto.evidencia_oferta)
+                    || normalizarTextoComparacion(previo.evidencia_perfil) !== normalizarTextoComparacion(ausencia));
                 continue;
             }
             corregirRazon = true;

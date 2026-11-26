@@ -71,23 +71,26 @@ test('issue 120: corrige la caché vigente y mantiene identidad, inmutabilidad y
     expect(situacion120(nuevo)).toBe('bajo_umbral');
 });
 
-test('issue 120 L17: una obligación corroborada se clasifica igual en las tres listas', async () => {
+test.each([
+    ['evidencia por corregir', '', razonUmbral120, 'Incompatibilidad confirmada: PHP. Afinidad técnica estimada: 15%.'],
+    ['evidencia ya corroborada', 'PHP', 'No cumple el requisito confirmado.', 'No cumple el requisito confirmado.'],
+])('issue 120: evidencia y razón son iguales en las tres listas (%s)', async (_caso, evidencia_perfil, razonEntrada, razonEsperada) => {
     const oferta = { ...oferta120, descripcion: 'PHP es obligatorio.' };
     const perfil = { conocimientos_ausentes: ['PHP'] };
-    const item = items120[0];
+    const item = { ...items120[0], evidencia_perfil };
     const entradas = {
         no_cumplidos: desglose120([item]),
         por_confirmar: desglose120([], [item]),
         exclusiones: desglose120([], [], [item]),
     };
-    const respuesta = JSON.stringify(resultado120(razonUmbral120, entradas.no_cumplidos));
+    const respuesta = JSON.stringify(resultado120(razonEntrada, entradas.no_cumplidos));
     consultarDeepSeek.mockResolvedValueOnce(respuesta);
     const nuevo = await evaluarOferta(oferta, null, null, perfil);
     const [hash, firma, modelo, guardado] = guardarCache.mock.calls[0];
     const antesGuardado = structuredClone(guardado);
     const resultados = {};
     for (const [lista, explicacion] of Object.entries(entradas)) {
-        let anterior = { ...structuredClone(resultado120(razonUmbral120, explicacion)), firma_criterios_evaluacion: firma };
+        let anterior = { ...structuredClone(resultado120(razonEntrada, explicacion)), firma_criterios_evaluacion: firma };
         resultados[lista] = [];
         for (let n = 0; n < 3; n++) {
             const copia = structuredClone(anterior);
@@ -104,8 +107,8 @@ test('issue 120 L17: una obligación corroborada se clasifica igual en las tres 
     expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
     expect(guardarCache).toHaveBeenCalledTimes(1);
     const veto = veto120(item, 'PHP');
-    const esperado = { ...resultado120('Incompatibilidad confirmada: PHP. Afinidad técnica estimada: 15%.',
-        desglose120([veto], [], [veto])), pendiente: false, firma_criterios_evaluacion: firma };
+    const esperado = { ...resultado120(razonEsperada, desglose120([veto], [], [veto])),
+        pendiente: false, firma_criterios_evaluacion: firma };
     expect([nuevo, guardado]).toEqual([esperado, esperado]);
     expect(resultados).toEqual(Object.fromEntries(Object.keys(entradas).map(lista => [lista, Array(3).fill(esperado)])));
 });
