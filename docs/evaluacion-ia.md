@@ -773,6 +773,19 @@ inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones
 Esta comprobación literal es conservadora: no pretende interpretar cualquier
 redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
 
+**Rechazos por debajo del umbral (#120):** también contrasto los requisitos
+obligatorios de `no_cumplidos`. Sólo presento una incompatibilidad si el aviso
+exige ese requisito y el perfil declara su ausencia. Si la evidencia no alcanza,
+lo paso a `por_confirmar` y retiro esa incompatibilidad de la razón. Un requisito
+por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
+sin un veto respaldado, con 15% sigue «Bajo umbral», sin cambiar el porcentaje ni
+marcarlo como fallo técnico. Si el resultado ya registraba la duda correctamente,
+conservo su razón.
+
+Aplico la misma validación a evaluaciones nuevas y a los hits de la clave vigente
+(`evaluacion-v14`), sin cambiar firma ni hash, ni consultar al proveedor o
+reescribir la caché en un hit. No es una corrección al truncamiento de respuestas.
+
 Ante evidencia incierta el servicio agrega `pendiente: true` al resultado afín,
 sin invertir `match` ni recalcular su porcentaje válido. Ante incompatibilidad
 acreditada fija `match: false`, conserva el porcentaje técnico y emite la razón
