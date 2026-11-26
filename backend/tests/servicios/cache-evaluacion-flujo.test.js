@@ -98,11 +98,21 @@ test.each([new SyntaxError('CV_PRIVADO'), Object.assign(new Error('CV_PRIVADO'),
 });
 
 test('mismas entradas reales reutilizan caché: una sola llamada al proveedor', async () => {
-    const primera = await servicio.evaluarOferta(oferta);
-    const segunda = await servicio.evaluarOferta({ ...oferta, id: 10 });
-    expect(segunda).toEqual(primera);
-    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
-    expect(registros.size).toBe(1);
+    const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+    const info = jest.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+        const primera = await servicio.evaluarOferta(oferta);
+        const segunda = await servicio.evaluarOferta({ ...oferta, id: 10 });
+        expect(segunda).toEqual(primera);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+        expect(registros.size).toBe(1);
+        expect(error).not.toHaveBeenCalled();
+        expect(info).not.toHaveBeenCalled();
+        expect(JSON.stringify([primera, segunda, ...registros.values()])).not.toContain('bytes_mensaje_');
+    } finally {
+        error.mockRestore();
+        info.mockRestore();
+    }
 });
 
 test.each([

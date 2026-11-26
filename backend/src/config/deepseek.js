@@ -217,6 +217,12 @@ async function consultarDeepSeek(mensajeSistema, mensajeUsuario, modelo, opcione
     const configuracion = opciones.importacionCv ? CONFIGURACION_IMPORTACION : CONFIGURACION_DECISION;
     const inicio = Date.now();
     const metadatos = { modelo_solicitado: modeloEfectivo, max_tokens: configuracion.max_tokens };
+    if (typeof mensajeSistema === 'string') {
+        metadatos.bytes_mensaje_sistema = Buffer.byteLength(mensajeSistema, 'utf8');
+    }
+    if (typeof mensajeUsuario === 'string') {
+        metadatos.bytes_mensaje_usuario = Buffer.byteLength(mensajeUsuario, 'utf8');
+    }
     try {
         const datos = await fetchConTimeoutYRetry(DEEPSEEK_URL, {
             method: 'POST',
