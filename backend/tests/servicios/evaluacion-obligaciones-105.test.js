@@ -168,6 +168,9 @@ const php120 = items120[0];
 const ambosAusentes120 = { conocimientos_ausentes: ['PHP', 'Laravel'] };
 const autorizacion120 = { ...php120, requisito: 'Autorización laboral', evidencia_oferta: 'Autorización laboral es obligatoria' };
 const dudaNoRelacionada120 = { ...items120[1], tipo: 'deseable' };
+const adObligatorio120 = { ...php120, requisito: 'Active Directory', evidencia_oferta: 'Active Directory es obligatorio' };
+const matricula120 = { ...php120, requisito: 'Matrícula profesional', evidencia_oferta: 'Matrícula profesional',
+    evidencia_perfil: 'No cuento con matrícula profesional.' };
 
 test.each([
     ['cita literal de encabezado e ítem', encabezado120, ambosAusentes120, desglose120([{ ...php120, evidencia_oferta: encabezado120 }]), ['PHP'], []],
@@ -179,9 +182,20 @@ test.each([
     ['duda incidental junto a otro requisito vigilado cumplido', `${incidental120}. ${autorizacion120.evidencia_oferta}.`,
         { conocimientos_ausentes: ['Active Directory'] }, { ...desglose120([{ ...php120, requisito: 'Active Directory', evidencia_oferta: incidental120 }]),
             cumplidos: [autorizacion120] }, [], ['Active Directory']],
-])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15) => {
+    ['duda con cita válida no reabre un requisito ajeno', `${adObligatorio120.evidencia_oferta}. ${autorizacion120.evidencia_oferta}.`,
+        { conocimientos_ausentes: ['Autorización laboral'] }, { ...desglose120([adObligatorio120]), cumplidos: [autorizacion120] }, [], ['Active Directory']],
+    ...['Se requieren PHP y Laravel', 'Requisitos obligatorios:\n- PHP y Laravel'].map(descripcion =>
+        ['lista conjunta; ' + descripcion, descripcion, { conocimientos_ausentes: ['Laravel'] },
+            desglose120([{ ...items120[1], evidencia_oferta: descripcion }]), ['Laravel'], []]),
+    ['obligación de otro equipo', 'PHP es obligatorio solo para el equipo de datos. La vacante corresponde al equipo web.',
+        { conocimientos_ausentes: ['PHP'] }, desglose120([{ ...php120, evidencia_oferta: 'PHP es obligatorio solo para el equipo de datos' }]), [], ['PHP']],
+    ['obligación independiente junto a alternativas', 'PHP es obligatorio y se requiere Laravel o Symfony',
+        { conocimientos_ausentes: ['PHP'] }, desglose120([php120, { ...items120[1], evidencia_oferta: 'se requiere Laravel o Symfony' }]), ['PHP'], ['Laravel']],
+    ['razón respaldada de #80 permanece al releer', 'Matrícula profesional obligatoria.',
+        { limitaciones_explicitas: matricula120.evidencia_perfil }, desglose120([matricula120]), ['Matrícula profesional'], [], 25, 'No cumple el requisito confirmado.'],
+])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15, razonCorroborada) => {
     const oferta = { ...oferta120, descripcion };
-    const original = { ...resultado120('Incompatibilidad sintética.', explicacion), porcentaje };
+    const original = { ...resultado120(razonCorroborada ?? 'Incompatibilidad sintética.', explicacion), porcentaje };
     const respuesta = JSON.stringify(original);
     consultarDeepSeek.mockResolvedValueOnce(respuesta);
     const nuevo = await evaluarOferta(oferta, null, null, perfil);
@@ -200,18 +214,19 @@ test.each([
     expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
     expect(guardarCache).toHaveBeenCalledTimes(1);
 
-    const razon = vetos.length ? `Incompatibilidad confirmada: ${vetos.join('; ')}. Afinidad técnica estimada: ${porcentaje}%.`
-        : `Afinidad técnica estimada: ${porcentaje}% (por debajo del umbral del 60%).`;
+    const razon = razonCorroborada ?? (vetos.length ? `Incompatibilidad confirmada: ${vetos.join('; ')}. Afinidad técnica estimada: ${porcentaje}%.`
+        : `Afinidad técnica estimada: ${porcentaje}% (por debajo del umbral del 60%).`);
     for (const resultado of [nuevo, guardado, hitAnterior, hit, repetido]) {
         expect(resultado).toMatchObject({ match: false, porcentaje, razon, firma_criterios_evaluacion: firma, desglose_disponible: true });
         expect(Boolean(resultado.pendiente || resultado.error || resultado.invalido || resultado.inconsistente)).toBe(false);
         expect(situacion120(resultado)).toBe(vetos.length ? 'rechazada' : 'bajo_umbral');
         expect(resultado.explicacion.cumplidos).toEqual(explicacion.cumplidos);
-        const incompatibilidades = explicacion.no_cumplidos.filter(item => vetos.includes(item.requisito)).map(item => veto120(item, item.requisito));
+        const incompatibilidades = explicacion.no_cumplidos.filter(item => vetos.includes(item.requisito))
+            .map(item => veto120(item, item.evidencia_perfil || item.requisito));
         expect(resultado.explicacion.exclusiones).toEqual(incompatibilidades);
         expect(resultado.explicacion.no_cumplidos).toEqual(incompatibilidades);
         expect(resultado.explicacion.por_confirmar.map(item => item.requisito)).toEqual(dudas);
-        if (dudas.includes('Laravel')) expect(resultado.explicacion.por_confirmar).toContainEqual(dudaNoRelacionada120);
+        if (explicacion.por_confirmar.includes(dudaNoRelacionada120)) expect(resultado.explicacion.por_confirmar).toContainEqual(dudaNoRelacionada120);
         expect(resultado).toEqual(nuevo);
     }
 });

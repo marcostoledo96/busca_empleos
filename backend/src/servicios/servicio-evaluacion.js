@@ -201,13 +201,16 @@ function acreditaObligacionCitada(cita, requisito, evidencia) {
     const literal = literalClausula(cita);
     const citaConEncabezado = cita.texto === `obligatorio ${literal}` && contieneTokenNormalizado(evidencia, literal);
     if (!contieneTokenNormalizado(literal, evidencia) && cita.oracionMixta !== evidencia && !citaConEncabezado) return false;
-    if (esDecorativa(cita.texto) || noObligatoriaEnOferta(cita) || /\b(?:o|u|or)\b/.test(literal)) return false;
-    const [antes, despues = ''] = ` ${cita.texto} `.split(` ${requisito} `);
-    const sujetos = literal.match(/^(.+?) son (?:obligatori[oa]s|excluyentes|requerid[oa]s)\b/)?.[1].split(/ (?:y|e) /);
-    // La marca debe calificar al requisito citado, no a otro tópico de la oración.
-    return /^(?:obligatorio|(?:se )?(?:requiere|exige|necesita)n?|es obligatori[oa])(?: (?:conocer|dominar|manejar|contar con|experiencia (?:en|con)|conocimientos? (?:en|de)))?$/.test(antes.trim())
-        || (!antes.trim() && /^\s*(?:(?:es|son|resulta) )?(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?)\b/.test(despues))
-        || sujetos?.includes(requisito);
+    if (esDecorativa(cita.texto) || noObligatoriaEnOferta(cita)) return false;
+    // Una segunda exigencia no cambia el alcance de la primera, aunque incluya alternativas.
+    return cita.texto.split(/ (?:y|e) (?=se (?:requiere|exige|necesita)n?\b)/).some(condicion => {
+        if (!contieneTokenNormalizado(condicion, requisito) || /\b(?:o|u|or|(?:solo|solamente|unicamente) para)\b/.test(condicion)) return false;
+        const lista = condicion.match(/^(?:obligatorio|(?:se )?(?:requiere|exige|necesita)n?|es obligatori[oa])(?: (?:conocer|dominar|manejar|contar con|experiencia (?:en|con)|conocimientos? (?:en|de)))? (.+)$/)?.[1]
+            ?? condicion.match(/^(.+?) son (?:obligatori[oa]s|excluyentes|requerid[oa]s)\b/)?.[1];
+        const [antes, despues = ''] = ` ${condicion} `.split(` ${requisito} `);
+        return lista?.split(/ (?:y|e) /).includes(requisito)
+            || (!antes.trim() && /^\s*(?:(?:es|son|resulta) )?(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?)\b/.test(despues));
+    });
 }
 
 function dudaContextualBloqueante(item, clausulas, descripcion) {
@@ -241,18 +244,21 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const requiereContraste = item => (item.tipo !== 'deseable' && requisitoVigilado(normalizarTextoComparacion(item.requisito)))
         || (item.tipo === 'obligatorio' && resultado.porcentaje >= UMBRAL_MATCH_MINIMO && !item.evidencia_perfil?.trim());
     const bajoUmbral = contrasteAcotado && resultado.porcentaje < UMBRAL_MATCH_MINIMO;
-    // Una duda desconocida sin cita no justifica abrir el contraste de otras categorías al releer el resultado.
+    // Bajo el umbral, contrasto cada duda vigilada sin abrir la revisión de otros requisitos.
+    const revisarDudaBajoUmbral = item => bajoUmbral && requiereContraste(item)
+        && (item.tipo !== 'desconocido' || item.evidencia_oferta?.trim());
+    const hayDudasVigiladas = (original.por_confirmar || []).some(revisarDudaBajoUmbral);
     const contrastePrevio = !contrasteAcotado || (original.exclusiones || []).some(requiereContraste)
-        || (original.por_confirmar || []).some(item => requiereContraste(item)
-            && (!bajoUmbral || item.tipo !== 'desconocido' || item.evidencia_oferta?.trim()));
+        || (!bajoUmbral && (original.por_confirmar || []).some(requiereContraste));
     const revisarIncumplimiento = item => bajoUmbral && item.tipo === 'obligatorio' && !duplicaExclusion(item);
     const incumplimientos = new Set((original.no_cumplidos || []).filter(revisarIncumplimiento).map(claveRequisito));
     const hayIncumplimientos = incumplimientos.size > 0;
     const dudaQueSeReclasifica = (item, categoria) => categoria === 'por_confirmar' && incumplimientos.has(claveRequisito(item));
-    if (!contrastePrevio && !exclusionesObligatorias.size && !hayIncumplimientos) return resultado;
+    if (!contrastePrevio && !exclusionesObligatorias.size && !hayIncumplimientos && !hayDudasVigiladas) return resultado;
     const revisarObligacion = (item, categoria) => (contrastePrevio && (requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio')))
         || (categoria === 'exclusiones' && item.tipo === 'obligatorio')
-        || (categoria === 'no_cumplidos' && revisarIncumplimiento(item));
+        || (categoria === 'no_cumplidos' && revisarIncumplimiento(item))
+        || (categoria === 'por_confirmar' && revisarDudaBajoUmbral(item));
     const candidato = construirPerfilEfectivoCanonico(preferencias).candidato;
     const hechos = [candidato.perfil_profesional, candidato.nivel_real_seniority, candidato.idioma_candidato,
         ...candidato.stack_tecnologico, ...candidato.tecnologias_detalle.filter(t => t.nivel !== 'ninguno').flatMap(t => [t.nombre, t.evidencia])];
@@ -343,7 +349,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             } });
         }
     }
-    if (!contrastePrevio && !hayIncumplimientos && (original.exclusiones || []).every(item => exclusionesCorroboradas.has(item))
+    if (!contrastePrevio && !hayIncumplimientos && !hayDudasVigiladas && (original.exclusiones || []).every(item => exclusionesCorroboradas.has(item))
         && !(original.no_cumplidos || []).some(duplicaExclusion)) return resultado;
     const explicacion = Object.fromEntries(['cumplidos', 'no_cumplidos', 'por_confirmar', 'exclusiones']
         .map(categoria => [categoria, (original[categoria] || []).filter(item => !revisarObligacion(item, categoria)
@@ -355,10 +361,21 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         explicacion[destino].push(item);
         if (destino === 'exclusiones') explicacion.no_cumplidos.push(item);
     }
-    if (explicacion.exclusiones.some(item => item.tipo === 'obligatorio')) return {
-        ...resultado, match: false, pendiente: false, prioridad_ia: null, explicacion, desglose_disponible: true,
-        razon: `Incompatibilidad confirmada: ${explicacion.exclusiones.filter(item => item.tipo === 'obligatorio').map(item => item.requisito).join('; ')}. Afinidad técnica estimada: ${resultado.porcentaje}%.`,
-    };
+    const vetos = explicacion.exclusiones.filter(item => item.tipo === 'obligatorio');
+    if (vetos.length) {
+        const negativos = [...(original.no_cumplidos || []), ...(original.exclusiones || [])].filter(item => item.tipo === 'obligatorio');
+        const mismoRespaldo = (a, b) => claveRequisito(a) === claveRequisito(b)
+            && normalizarTextoComparacion(a.evidencia_oferta) === normalizarTextoComparacion(b.evidencia_oferta)
+            && normalizarTextoComparacion(a.evidencia_perfil) === normalizarTextoComparacion(b.evidencia_perfil);
+        // Canonizar el desglose no invalida una razón ya respaldada por las mismas incompatibilidades.
+        const conservaRazon = bajoUmbral && negativos.every(item => vetos.some(veto => mismoRespaldo(item, veto)))
+            && vetos.every(veto => negativos.some(item => mismoRespaldo(item, veto)));
+        return {
+            ...resultado, match: false, pendiente: false, prioridad_ia: null, explicacion, desglose_disponible: true,
+            razon: conservaRazon ? resultado.razon
+                : `Incompatibilidad confirmada: ${vetos.map(item => item.requisito).join('; ')}. Afinidad técnica estimada: ${resultado.porcentaje}%.`,
+        };
+    }
     if (bajoUmbral) {
         return { ...resultado, explicacion, ...((exclusionesObligatorias.size || hayIncumplimientos) && {
             razon: `Afinidad técnica estimada: ${resultado.porcentaje}% (por debajo del umbral del ${UMBRAL_MATCH_MINIMO}%).`,
