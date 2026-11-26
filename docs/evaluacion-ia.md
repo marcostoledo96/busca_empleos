@@ -775,8 +775,11 @@ redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
 
 **Rechazos por debajo del umbral (#120):** también contrasto los requisitos
 obligatorios de `no_cumplidos`. Sólo presento una incompatibilidad si el aviso
-exige ese requisito y el perfil declara su ausencia. Si la evidencia no alcanza,
-lo paso a `por_confirmar` y retiro esa incompatibilidad de la razón. Un requisito
+exige ese requisito y el perfil declara su ausencia. Una lista obligatoria o una
+frase como «PHP y Laravel son obligatorios» puede exigir ambas tecnologías;
+«Se requiere PHP o Laravel» no exige PHP por separado. Si la evidencia no alcanza,
+lo paso a `por_confirmar` sin duplicar una duda previa del mismo requisito y retiro
+esa incompatibilidad de la razón. Un requisito
 por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
 sin un veto respaldado, con 15% sigue «Bajo umbral», sin cambiar el porcentaje ni
 marcarlo como fallo técnico. Si el resultado ya registraba la duda correctamente,

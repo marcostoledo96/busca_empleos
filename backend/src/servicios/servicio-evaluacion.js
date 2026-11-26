@@ -198,12 +198,16 @@ function requisitoVigilado(texto) {
 const PATRON_OBLIGACION_EXPLICITA = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/;
 
 function acreditaObligacionCitada(cita, requisito, evidencia) {
-    if (!contieneTokenNormalizado(literalClausula(cita), evidencia) && cita.oracionMixta !== evidencia) return false;
-    if (esDecorativa(cita.texto) || noObligatoriaEnOferta(cita)) return false;
+    const literal = literalClausula(cita);
+    const citaConEncabezado = cita.texto === `obligatorio ${literal}` && contieneTokenNormalizado(evidencia, literal);
+    if (!contieneTokenNormalizado(literal, evidencia) && cita.oracionMixta !== evidencia && !citaConEncabezado) return false;
+    if (esDecorativa(cita.texto) || noObligatoriaEnOferta(cita) || /\b(?:o|u|or)\b/.test(literal)) return false;
     const [antes, despues = ''] = ` ${cita.texto} `.split(` ${requisito} `);
+    const sujetos = literal.match(/^(.+?) son (?:obligatori[oa]s|excluyentes|requerid[oa]s)\b/)?.[1].split(/ (?:y|e) /);
     // La marca debe calificar al requisito citado, no a otro tópico de la oración.
     return /^(?:obligatorio|(?:se )?(?:requiere|exige|necesita)n?|es obligatori[oa])(?: (?:conocer|dominar|manejar|contar con|experiencia (?:en|con)|conocimientos? (?:en|de)))?$/.test(antes.trim())
-        || (!antes.trim() && /^\s*(?:(?:es|son|resulta) )?(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?)\b/.test(despues));
+        || (!antes.trim() && /^\s*(?:(?:es|son|resulta) )?(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?)\b/.test(despues))
+        || sujetos?.includes(requisito);
 }
 
 function dudaContextualBloqueante(item, clausulas, descripcion) {
@@ -236,10 +240,15 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const duplicaExclusion = item => exclusionesObligatorias.has(claveRequisito(item));
     const requiereContraste = item => (item.tipo !== 'deseable' && requisitoVigilado(normalizarTextoComparacion(item.requisito)))
         || (item.tipo === 'obligatorio' && resultado.porcentaje >= UMBRAL_MATCH_MINIMO && !item.evidencia_perfil?.trim());
-    const contrastePrevio = !contrasteAcotado || [...(original.exclusiones || []), ...(original.por_confirmar || [])].some(requiereContraste);
     const bajoUmbral = contrasteAcotado && resultado.porcentaje < UMBRAL_MATCH_MINIMO;
+    // Una duda desconocida sin cita no justifica abrir el contraste de otras categorías al releer el resultado.
+    const contrastePrevio = !contrasteAcotado || (original.exclusiones || []).some(requiereContraste)
+        || (original.por_confirmar || []).some(item => requiereContraste(item)
+            && (!bajoUmbral || item.tipo !== 'desconocido' || item.evidencia_oferta?.trim()));
     const revisarIncumplimiento = item => bajoUmbral && item.tipo === 'obligatorio' && !duplicaExclusion(item);
-    const hayIncumplimientos = (original.no_cumplidos || []).some(revisarIncumplimiento);
+    const incumplimientos = new Set((original.no_cumplidos || []).filter(revisarIncumplimiento).map(claveRequisito));
+    const hayIncumplimientos = incumplimientos.size > 0;
+    const dudaQueSeReclasifica = (item, categoria) => categoria === 'por_confirmar' && incumplimientos.has(claveRequisito(item));
     if (!contrastePrevio && !exclusionesObligatorias.size && !hayIncumplimientos) return resultado;
     const revisarObligacion = (item, categoria) => (contrastePrevio && (requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio')))
         || (categoria === 'exclusiones' && item.tipo === 'obligatorio')
@@ -266,7 +275,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const revisados = new Map();
     for (const categoria of ['cumplidos', 'no_cumplidos', 'exclusiones', 'por_confirmar']) {
         for (const item of original[categoria] || []) {
-            if (!revisarObligacion(item, categoria)) continue;
+            if (dudaQueSeReclasifica(item, categoria) || !revisarObligacion(item, categoria)) continue;
             const requisito = normalizarTextoComparacion(item.requisito);
             const perfil = normalizarTextoComparacion(item.evidencia_perfil);
             const ofertaCitada = normalizarTextoComparacion(item.evidencia_oferta);
@@ -290,7 +299,8 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const ofertaAcreditada = !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
                     && PATRON_OBLIGACION_EXPLICITA.test(cita.texto))
-                : contieneTokenNormalizado(ofertaCitada, requisito) && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
+                : contieneTokenNormalizado(ofertaCitada, requisito)
+                    && (incumplimientoAcotado || exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
                     && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido)
                 && (!incumplimientoAcotado || mencionesDelRequisito(clausulasOferta, requisito)
                     .some(cita => acreditaObligacionCitada(cita, requisito, ofertaCitada)));
@@ -337,7 +347,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         && !(original.no_cumplidos || []).some(duplicaExclusion)) return resultado;
     const explicacion = Object.fromEntries(['cumplidos', 'no_cumplidos', 'por_confirmar', 'exclusiones']
         .map(categoria => [categoria, (original[categoria] || []).filter(item => !revisarObligacion(item, categoria)
-            && !(categoria === 'no_cumplidos' && duplicaExclusion(item)))]));
+            && !dudaQueSeReclasifica(item, categoria) && !(categoria === 'no_cumplidos' && duplicaExclusion(item)))]));
     // Un deseable no constituye una exclusión, tampoco en la presentación.
     explicacion.no_cumplidos.push(...explicacion.exclusiones.filter(item => item.tipo === 'deseable'));
     explicacion.exclusiones = explicacion.exclusiones.filter(item => item.tipo !== 'deseable');

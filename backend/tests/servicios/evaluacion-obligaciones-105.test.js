@@ -160,6 +160,62 @@ test('issue 120: la duda de Active Directory no se convierte en veto al reutiliz
     expect(nuevo.explicacion.por_confirmar[0].evidencia_oferta).toBe('');
 });
 
+const encabezado120 = 'Requisitos obligatorios:\n- PHP';
+const coordinados120 = 'PHP y Laravel son obligatorios';
+const alternativos120 = 'Se requiere PHP o Laravel';
+const incidental120 = 'El equipo trabaja con Active Directory y se requiere Laravel';
+const php120 = items120[0];
+const ambosAusentes120 = { conocimientos_ausentes: ['PHP', 'Laravel'] };
+const autorizacion120 = { ...php120, requisito: 'Autorización laboral', evidencia_oferta: 'Autorización laboral es obligatoria' };
+const dudaNoRelacionada120 = { ...items120[1], tipo: 'deseable' };
+
+test.each([
+    ['cita literal de encabezado e ítem', encabezado120, ambosAusentes120, desglose120([{ ...php120, evidencia_oferta: encabezado120 }]), ['PHP'], []],
+    ['obligaciones coordinadas', coordinados120, ambosAusentes120, desglose120(items120.map(item => ({ ...item, evidencia_oferta: coordinados120 }))), ['PHP', 'Laravel'], []],
+    ['alternativas con Laravel acreditado', alternativos120, { conocimientos_ausentes: ['PHP'], stack_tecnologico: ['Laravel'] },
+        desglose120([{ ...php120, evidencia_oferta: alternativos120 }]), [], ['PHP']],
+    ['duda previa repetida al reclasificar al 0%', 'PHP es obligatorio.', {},
+        desglose120([php120], [php120, dudaNoRelacionada120]), [], ['Laravel', 'PHP'], 0],
+    ['duda incidental junto a otro requisito vigilado cumplido', `${incidental120}. ${autorizacion120.evidencia_oferta}.`,
+        { conocimientos_ausentes: ['Active Directory'] }, { ...desglose120([{ ...php120, requisito: 'Active Directory', evidencia_oferta: incidental120 }]),
+            cumplidos: [autorizacion120] }, [], ['Active Directory']],
+])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15) => {
+    const oferta = { ...oferta120, descripcion };
+    const original = { ...resultado120('Incompatibilidad sintética.', explicacion), porcentaje };
+    const respuesta = JSON.stringify(original);
+    consultarDeepSeek.mockResolvedValueOnce(respuesta);
+    const nuevo = await evaluarOferta(oferta, null, null, perfil);
+    const [hash, firma, modelo, guardado] = guardarCache.mock.calls[0];
+    const anterior = { ...structuredClone(original), firma_criterios_evaluacion: firma };
+    const [antesAnterior, antesGuardado] = [structuredClone(anterior), structuredClone(guardado)];
+    buscarCache.mockResolvedValueOnce(anterior).mockResolvedValueOnce(guardado);
+    const hitAnterior = await evaluarOferta(oferta, null, null, perfil);
+    const hit = await evaluarOferta(oferta, null, null, perfil);
+    const antesHit = structuredClone(hit);
+    buscarCache.mockResolvedValueOnce(hit);
+    const repetido = await evaluarOferta(oferta, null, null, perfil);
+    expect([anterior, guardado, hit]).toEqual([antesAnterior, antesGuardado, antesHit]);
+    await expect(consultarDeepSeek.mock.results[0].value).resolves.toBe(respuesta);
+    expect(buscarCache.mock.calls).toEqual(Array(4).fill([hash, firma, modelo]));
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(guardarCache).toHaveBeenCalledTimes(1);
+
+    const razon = vetos.length ? `Incompatibilidad confirmada: ${vetos.join('; ')}. Afinidad técnica estimada: ${porcentaje}%.`
+        : `Afinidad técnica estimada: ${porcentaje}% (por debajo del umbral del 60%).`;
+    for (const resultado of [nuevo, guardado, hitAnterior, hit, repetido]) {
+        expect(resultado).toMatchObject({ match: false, porcentaje, razon, firma_criterios_evaluacion: firma, desglose_disponible: true });
+        expect(Boolean(resultado.pendiente || resultado.error || resultado.invalido || resultado.inconsistente)).toBe(false);
+        expect(situacion120(resultado)).toBe(vetos.length ? 'rechazada' : 'bajo_umbral');
+        expect(resultado.explicacion.cumplidos).toEqual(explicacion.cumplidos);
+        const incompatibilidades = explicacion.no_cumplidos.filter(item => vetos.includes(item.requisito)).map(item => veto120(item, item.requisito));
+        expect(resultado.explicacion.exclusiones).toEqual(incompatibilidades);
+        expect(resultado.explicacion.no_cumplidos).toEqual(incompatibilidades);
+        expect(resultado.explicacion.por_confirmar.map(item => item.requisito)).toEqual(dudas);
+        if (dudas.includes('Laravel')) expect(resultado.explicacion.por_confirmar).toContainEqual(dudaNoRelacionada120);
+        expect(resultado).toEqual(nuevo);
+    }
+});
+
 test.each([
     ['El puesto menciona Kubernetes; no especifica si es requisito obligatorio.', 'menciona Kubernetes', 80, true],
     ['El equipo trabaja con Terraform.', 'trabaja con Terraform', 60, true, 'Terraform'],
