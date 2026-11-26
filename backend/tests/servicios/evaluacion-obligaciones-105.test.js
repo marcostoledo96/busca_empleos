@@ -172,6 +172,9 @@ const adObligatorio120 = { ...php120, requisito: 'Active Directory', evidencia_o
 const matricula120 = { ...php120, requisito: 'Matrícula profesional', evidencia_oferta: 'Matrícula profesional',
     evidencia_perfil: 'No cuento con matrícula profesional.' };
 const phpEquipo120 = { ...php120, evidencia_oferta: 'PHP es obligatorio solo para el equipo de datos' };
+const adEquipo120 = { ...adObligatorio120, evidencia_oferta: 'Active Directory es obligatorio solo para el equipo de datos' };
+const mixta120 = 'PHP es obligatorio y Laravel es deseable';
+const laravelDeseable120 = { ...dudaNoRelacionada120, evidencia_oferta: 'Laravel es deseable' };
 
 test.each([
     ['cita literal de encabezado e ítem', encabezado120, ambosAusentes120, desglose120([{ ...php120, evidencia_oferta: encabezado120 }]), ['PHP'], []],
@@ -197,8 +200,22 @@ test.each([
     ['obligación del propio equipo de la vacante', `${phpEquipo120.evidencia_oferta}. La vacante corresponde al equipo de datos.`,
         { conocimientos_ausentes: ['PHP'] }, desglose120([phpEquipo120]), ['PHP'], []],
     ['exclusión previa de otro equipo bajo la misma clave', `${phpEquipo120.evidencia_oferta}. La vacante corresponde al equipo web.`,
-        { conocimientos_ausentes: ['PHP'] }, desglose120([phpEquipo120]), [], ['PHP'], 15, undefined, veto120(phpEquipo120, 'PHP')],
-])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15, razonCorroborada, vetoAnterior) => {
+        { conocimientos_ausentes: ['PHP'] }, desglose120([phpEquipo120]), [], ['PHP'], 15, undefined,
+        desglose120([veto120(phpEquipo120, 'PHP')], [], [veto120(phpEquipo120, 'PHP')])],
+    ['un veto nuevo no reabre un requisito ajeno', `${adObligatorio120.evidencia_oferta}. ${autorizacion120.evidencia_oferta}.`,
+        { conocimientos_ausentes: ['Active Directory', 'Autorización laboral'] },
+        { ...desglose120([adObligatorio120]), cumplidos: [autorizacion120] }, ['Active Directory'], []],
+    ...[true, false].map(duplicado => {
+        const vetado = veto120(adEquipo120, 'Active Directory');
+        return [`veto de otro equipo guardado; duplicado: ${duplicado}`, `${adEquipo120.evidencia_oferta}. La vacante corresponde al equipo web.`,
+            { conocimientos_ausentes: ['Active Directory'] }, desglose120([adEquipo120]), [], ['Active Directory'], 15, undefined,
+            desglose120(duplicado ? [vetado] : [], [], [vetado])];
+    }),
+    ['alcance de otro equipo sin «solo»', 'PHP es obligatorio para el equipo de datos. La vacante corresponde al equipo web.',
+        { conocimientos_ausentes: ['PHP'] }, desglose120([{ ...php120, evidencia_oferta: 'PHP es obligatorio para el equipo de datos' }]), [], ['PHP']],
+    ...[php120.evidencia_oferta, mixta120].map(evidencia_oferta => [`obligación junto a deseable, cita: ${evidencia_oferta}`, `${mixta120}.`,
+        { conocimientos_ausentes: ['PHP'] }, desglose120([{ ...php120, evidencia_oferta }], [laravelDeseable120]), ['PHP'], ['Laravel']]),
+])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15, razonCorroborada, explicacionAnterior) => {
     const oferta = { ...oferta120, descripcion };
     const original = { ...resultado120(razonCorroborada ?? 'Incompatibilidad sintética.', explicacion), porcentaje };
     const respuesta = JSON.stringify(original);
@@ -206,24 +223,28 @@ test.each([
     const nuevo = await evaluarOferta(oferta, null, null, perfil);
     const [hash, firma, modelo, guardado] = guardarCache.mock.calls[0];
     const anterior = { ...structuredClone(original), firma_criterios_evaluacion: firma };
-    if (vetoAnterior) Object.assign(anterior, resultado120('Incompatibilidad confirmada: PHP. Afinidad técnica estimada: 15%.',
-        desglose120([vetoAnterior], [], [vetoAnterior])), { pendiente: false });
+    if (explicacionAnterior) Object.assign(anterior, resultado120(
+        `Incompatibilidad confirmada: ${explicacionAnterior.exclusiones[0].requisito}. Afinidad técnica estimada: 15%.`,
+        explicacionAnterior), { pendiente: false });
     const [antesAnterior, antesGuardado] = [structuredClone(anterior), structuredClone(guardado)];
     buscarCache.mockResolvedValueOnce(anterior).mockResolvedValueOnce(guardado);
     const hitAnterior = await evaluarOferta(oferta, null, null, perfil);
     const hit = await evaluarOferta(oferta, null, null, perfil);
-    const antesHit = structuredClone(hit);
-    buscarCache.mockResolvedValueOnce(hit);
+    const antesHitAnterior = structuredClone(hitAnterior);
+    buscarCache.mockResolvedValueOnce(hitAnterior);
     const repetido = await evaluarOferta(oferta, null, null, perfil);
-    expect([anterior, guardado, hit]).toEqual([antesAnterior, antesGuardado, antesHit]);
+    const antesRepetido = structuredClone(repetido);
+    buscarCache.mockResolvedValueOnce(repetido);
+    const segundo = await evaluarOferta(oferta, null, null, perfil);
+    expect([anterior, guardado, hitAnterior, repetido]).toEqual([antesAnterior, antesGuardado, antesHitAnterior, antesRepetido]);
     await expect(consultarDeepSeek.mock.results[0].value).resolves.toBe(respuesta);
-    expect(buscarCache.mock.calls).toEqual(Array(4).fill([hash, firma, modelo]));
+    expect(buscarCache.mock.calls).toEqual(Array(5).fill([hash, firma, modelo]));
     expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
     expect(guardarCache).toHaveBeenCalledTimes(1);
 
     const razon = razonCorroborada ?? (vetos.length ? `Incompatibilidad confirmada: ${vetos.join('; ')}. Afinidad técnica estimada: ${porcentaje}%.`
         : `Afinidad técnica estimada: ${porcentaje}% (por debajo del umbral del 60%).`);
-    for (const resultado of [nuevo, guardado, hitAnterior, hit, repetido]) {
+    for (const resultado of [nuevo, guardado, hitAnterior, hit, repetido, segundo]) {
         expect(resultado).toMatchObject({ match: false, porcentaje, razon, firma_criterios_evaluacion: firma, desglose_disponible: true });
         expect(Boolean(resultado.pendiente || resultado.error || resultado.invalido || resultado.inconsistente)).toBe(false);
         expect(situacion120(resultado)).toBe(vetos.length ? 'rechazada' : 'bajo_umbral');
@@ -233,7 +254,9 @@ test.each([
         expect(resultado.explicacion.exclusiones).toEqual(incompatibilidades);
         expect(resultado.explicacion.no_cumplidos).toEqual(incompatibilidades);
         expect(resultado.explicacion.por_confirmar.map(item => item.requisito)).toEqual(dudas);
-        if (explicacion.por_confirmar.includes(dudaNoRelacionada120)) expect(resultado.explicacion.por_confirmar).toContainEqual(dudaNoRelacionada120);
+        for (const deseable of explicacion.por_confirmar.filter(item => item.tipo === 'deseable')) {
+            expect(resultado.explicacion.por_confirmar).toContainEqual(deseable);
+        }
         expect(resultado).toEqual(nuevo);
     }
 });

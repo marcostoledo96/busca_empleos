@@ -773,15 +773,17 @@ inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones
 Esta comprobación literal es conservadora: no pretende interpretar cualquier
 redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
 
-**Rechazos por debajo del umbral (#120):** también contrasto los requisitos
-obligatorios de `no_cumplidos`. Sólo presento una incompatibilidad si el aviso
-exige ese requisito para la vacante y el perfil declara su ausencia. Una lista
+**Rechazos por debajo del umbral (#120):** contrasto cada incumplimiento
+obligatorio una sola vez, reuniendo sus apariciones en `no_cumplidos`,
+`exclusiones` y `por_confirmar`. Sólo presento una incompatibilidad si el
+fragmento citado exige ese requisito para la vacante y el perfil declara su
+ausencia. Una obligación para otro equipo no se aplica a esta vacante. Una lista
 obligatoria o «Se requieren PHP y Laravel» puede exigir ambas tecnologías;
 «Se requiere PHP o Laravel» no exige PHP por separado ni anula otra obligación
 independiente. Si la evidencia no alcanza, paso el requisito a `por_confirmar`
-sin duplicar una duda previa y retiro esa incompatibilidad de la razón. Una duda
-no abre la revisión de los demás requisitos al releer la caché. Si se confirman
-las mismas incompatibilidades con la evidencia declarada, conservo la razón.
+sin duplicar una duda previa y retiro esa incompatibilidad de la razón. Ni una
+duda ni un veto abren la revisión de los demás requisitos al releer la caché. Si se
+confirman las mismas incompatibilidades con la evidencia declarada, conservo la razón.
 Un requisito
 por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
 sin un veto respaldado, con 15% sigue «Bajo umbral», sin cambiar el porcentaje ni
