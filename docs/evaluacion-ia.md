@@ -773,6 +773,32 @@ inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones
 Esta comprobación literal es conservadora: no pretende interpretar cualquier
 redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
 
+**Rechazos por debajo del umbral (#120):** contrasto cada incumplimiento
+obligatorio una sola vez, reuniendo sus apariciones en `no_cumplidos`,
+`exclusiones` y `por_confirmar`. Sólo presento una incompatibilidad si el
+fragmento citado exige ese requisito para la vacante y el perfil declara su
+ausencia. Una obligación para otro equipo no se aplica a esta vacante. Una lista
+obligatoria o «Se requieren PHP y Laravel» puede exigir ambas tecnologías;
+«Se requiere PHP o Laravel» no exige PHP por separado ni anula otra obligación
+independiente. Si la evidencia no alcanza, paso el requisito a `por_confirmar`
+sin duplicar una duda previa y retiro esa incompatibilidad de la razón. Una duda
+sólo pasa a exclusión si cuenta con la obligación aplicable y la ausencia declarada,
+aunque aparezca únicamente en `por_confirmar`. Ni una duda ni un veto cambian la
+revisión de los demás requisitos al releer la caché. Si se confirman las mismas
+incompatibilidades con la evidencia declarada, conservo la razón. Cuando el aviso
+se contradice para un mismo requisito, lo dejo por confirmar como `desconocido`
+con su cita literal, sin adjudicarle una incompatibilidad. Una decisión reemplaza
+una fila en `cumplidos` sólo si corresponde al mismo requisito.
+
+Un requisito por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
+sin un veto respaldado, con 15% sigue «Bajo umbral», sin cambiar el porcentaje ni
+marcarlo como fallo técnico. Si el resultado ya registraba la duda correctamente,
+conservo su razón.
+
+Aplico la misma validación a evaluaciones nuevas y a los hits de la clave vigente
+(`evaluacion-v14`), sin cambiar firma ni hash, ni consultar al proveedor o
+reescribir la caché en un hit. No es una corrección al truncamiento de respuestas.
+
 Ante evidencia incierta el servicio agrega `pendiente: true` al resultado afín,
 sin invertir `match` ni recalcular su porcentaje válido. Ante incompatibilidad
 acreditada fija `match: false`, conserva el porcentaje técnico y emite la razón
