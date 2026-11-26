@@ -1,4 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { formatDate } from '@angular/common';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
@@ -13,14 +14,29 @@ import { DemoService } from '../../servicios/demo.service';
 import { TablaOfertas } from '../../componentes/tabla-ofertas/tabla-ofertas';
 import { Oferta } from '../../modelos/oferta.model';
 
-const ofertaSintetica = (id: number, vigencia = 'anterior', dias = 1): Oferta => ({
+const AHORA = Date.parse('2026-06-15T12:00:00Z');
+const fechaHaceDias = (dias: number) => new Date(Date.now() - dias * 86400000).toISOString();
+
+const ofertaSintetica = (id: number, vigencia: Oferta['vigencia_evaluacion'] = 'anterior', dias = 1): Oferta => ({
     id, titulo: `Oferta sintética ${id}`, empresa: 'Empresa de prueba', ubicacion: null, modalidad: null,
     descripcion: null, url: 'https://prueba.invalid', plataforma: 'linkedin', nivel_requerido: null,
     salario_min: null, salario_max: null, moneda: null, estado_evaluacion: 'rechazada',
     razon_evaluacion: 'Evaluación anterior', porcentaje_match: 20, estado_postulacion: 'cv_enviado',
-    fecha_publicacion: null, fecha_extraccion: new Date(Date.now() - dias * 86400000).toISOString(),
+    fecha_publicacion: null, fecha_extraccion: fechaHaceDias(dias),
     datos_crudos: null, firma_criterios_evaluacion: null, vigencia_evaluacion: vigencia,
-} as Oferta);
+});
+
+const ofertaReaparecida = (): Oferta => ({
+    ...ofertaSintetica(1, 'anterior', 40),
+    fecha_ultima_extraccion: fechaHaceDias(1),
+    fecha_publicacion: '2026-05-01',
+    situacion_evaluacion: 'por_confirmar',
+    estado_evaluacion: 'pendiente',
+    razon_evaluacion: 'Motivo sintético de confirmación',
+    porcentaje_match: 60,
+    fecha_postulacion: '2026-05-08',
+    nota_postulacion: 'Seguimiento manual sintético',
+});
 
 // Controlo solamente el reloj del polling; Angular y los demás timers siguen reales.
 function controlarPolling() {
@@ -103,6 +119,7 @@ describe('Reevaluación — selección visible', () => {
     let fixture: ComponentFixture<TablaOfertas>;
 
     beforeEach(async () => {
+        spyOn(Date, 'now').and.returnValue(AHORA);
         await TestBed.configureTestingModule({ imports: [TablaOfertas],
             providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations()],
         }).compileComponents();
@@ -123,6 +140,7 @@ describe('Reevaluación — selección visible', () => {
         const confirmacion = fixture.nativeElement.querySelector('[aria-label="Confirmar reevaluación"]');
         expect(confirmacion?.textContent).toContain('1 oferta');
         expect(confirmacion?.textContent).toContain('30 días');
+        expect(confirmacion?.textContent).toContain('la última detección o, si no está registrada, la primera');
         expect(confirmacion?.textContent).toContain('perfil guardado');
         expect(confirmacion?.textContent).toContain('pagas');
     });
@@ -158,6 +176,23 @@ describe('Reevaluación — selección visible', () => {
         (fixture.nativeElement.querySelector('[data-accion="confirmar-reevaluacion"]') as HTMLButtonElement).click();
         expect(emitir).toHaveBeenCalledOnceWith([2]);
         expect(fixture.componentInstance.seleccionadas().size).toBe(0);
+    });
+
+    it('habilita la confirmación en la tabla independiente para una oferta reaparecida', async () => {
+        fixture.componentRef.setInput('ofertas', [ofertaReaparecida()]);
+        await fixture.whenStable();
+        const raiz = fixture.nativeElement as HTMLElement;
+        const emitir = spyOn(fixture.componentInstance.reevaluarSeleccionadas, 'emit');
+        raiz.querySelector<HTMLInputElement>('input[aria-label="Seleccionar Oferta sintética 1"]')!.click();
+        await fixture.whenStable();
+        const boton = raiz.querySelector<HTMLButtonElement>('[data-accion="reevaluar"]')!;
+        expect(boton.disabled).withContext('primera detección hace 40 días; última hace 1 día').toBeFalse();
+        expect(emitir).not.toHaveBeenCalled();
+        if (boton.disabled) return;
+        boton.click();
+        await fixture.whenStable();
+        expect(raiz.querySelector('[aria-label="Confirmar reevaluación"]')).not.toBeNull();
+        expect(emitir).not.toHaveBeenCalled();
     });
 
     it('bloquea históricos, más de 200, ocupación y demo; permite exactamente 200 recientes', async () => {
@@ -246,12 +281,13 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
     let http: HttpTestingController;
     let harness: RouterTestingHarness;
     let reloj: ReturnType<typeof controlarPolling>;
-    const progreso = (activo: boolean) => ({ exito: true, datos: { activo, total: 2,
-        evaluadas: activo ? 1 : 2, aprobadas: 2, rechazadas: 0, errores: 0, porcentaje: activo ? 50 : 100 } });
+    const progreso = (activo: boolean) => ({ exito: true, datos: { activo, total: 1,
+        evaluadas: activo ? 0 : 1, aprobadas: activo ? 0 : 1, rechazadas: 0, errores: 0, porcentaje: activo ? 0 : 100 } });
     const sincronizacion = (datos: Oferta[]) => ({ exito: true, datos, completada: true,
         cursor_siguiente: null, fecha_corte: '2026-01-01', max_id: 3, total_inicial: datos.length });
 
     beforeEach(async () => {
+        spyOn(Date, 'now').and.returnValue(AHORA);
         await TestBed.configureTestingModule({
             providers: [provideHttpClient(), provideHttpClientTesting(), provideNoopAnimations(),
                 provideRouter([{ path: 'preferencias', component: Preferencias }, { path: '', component: Dashboard }]),
@@ -275,7 +311,8 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         TestBed.inject(PersistenciaDashboardService).limpiarCache();
     });
 
-    it('guarda, navega, selecciona dos recientes, confirma, cancela y sincroniza resultados actuales sin pisar postulación', async () => {
+    it('admite la oferta reaparecida, cancela sin POST, confirma un solo ID y refresca sin pisar postulación', async () => {
+        const reaparecida = ofertaReaparecida();
         TestBed.inject(PersistenciaDashboardService).guardarCache({
             ofertas: [ofertaSintetica(1, 'actual')], estadisticas: null,
             fechaGuardado: new Date().toISOString(), version: 1,
@@ -306,55 +343,76 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         const casillaCache = harness.routeNativeElement!.querySelector('input[aria-label="Seleccionar Oferta sintética 1"]') as HTMLInputElement;
         expect(casillaCache.disabled).toBeTrue();
         http.expectOne(req => req.url === `${url}/ofertas/sincronizacion`).flush(sincronizacion([
-            ofertaSintetica(1), ofertaSintetica(2, 'desconocida'), ofertaSintetica(3, 'anterior', 31),
+            reaparecida, ofertaSintetica(2, 'desconocida'), ofertaSintetica(3, 'anterior', 31),
         ]));
         await harness.fixture.whenStable();
         await new Promise(resolve => setTimeout(resolve, 0));
         await harness.fixture.whenStable();
         const raiz = harness.routeNativeElement!;
         expect(raiz.textContent).toContain('Seleccionar ofertas para reevaluar');
-        expect(raiz.textContent).toContain('Oferta sintética 1');
+        expect(raiz.textContent).toContain('desde la última detección; si no está registrada, desde la primera');
         expect(raiz.textContent).not.toContain('Oferta sintética 3');
-        expect(raiz.textContent).toContain('Evaluación anterior');
         expect(raiz.textContent).toContain('Vigencia desconocida');
-        expect(harness.routeDebugElement!.query(By.directive(TablaOfertas)).componentInstance.seleccionadas().size).toBe(0);
-        const seleccion = raiz.querySelector('input[aria-label="Seleccionar Oferta sintética 1"]') as HTMLInputElement;
-        expect(seleccion).not.toBeNull();
+        const tabla = harness.routeDebugElement!.query(By.directive(TablaOfertas)).componentInstance as TablaOfertas;
+        expect(tabla.seleccionadas().size).toBe(0);
+        const seleccion = raiz.querySelector<HTMLInputElement>('input[aria-label="Seleccionar Oferta sintética 1"]');
+        expect(seleccion).withContext('primera detección hace 40 días; última hace 1 día').not.toBeNull();
+        http.expectNone(req => req.method === 'POST');
         if (!seleccion) return;
+        for (const vista of ['.vista-desktop', '.vista-mobile']) {
+            const region = raiz.querySelector(vista)!;
+            expect(region.querySelector('[data-estado="por_confirmar"]')?.textContent).toContain('Por confirmar');
+            expect(region.textContent).toContain('Motivo sintético de confirmación');
+            expect(region.textContent).toContain('Evaluación anterior');
+            const fecha = (valor: string) => formatDate(valor, 'dd/MM/yyyy HH:mm', 'en-US');
+            expect(region.querySelector('[title^="Primera detección:"]')?.getAttribute('title')).toBe(
+                `Primera detección: ${fecha(reaparecida.fecha_extraccion)} | Última detección: ${fecha(reaparecida.fecha_ultima_extraccion!)}`);
+            expect(region.textContent).toContain('Pub: 01/05/26');
+        }
         seleccion.click();
-        (raiz.querySelector('input[aria-label="Seleccionar Oferta sintética 2"]') as HTMLInputElement).click();
         await harness.fixture.whenStable();
-        (raiz.querySelector('[data-accion="reevaluar"]') as HTMLButtonElement).click();
-        await harness.fixture.whenStable();
-        const confirmacion = raiz.querySelector('[aria-label="Confirmar reevaluación"]')!;
-        expect(confirmacion.textContent).toContain('2 ofertas');
+        const abrirConfirmacion = async () => {
+            raiz.querySelector<HTMLButtonElement>('[data-accion="reevaluar"]')!.click();
+            await harness.fixture.whenStable();
+            return raiz.querySelector<HTMLElement>('[aria-label="Confirmar reevaluación"]')!;
+        };
+        const confirmacion = await abrirConfirmacion();
+        expect(confirmacion.textContent).toContain('1 oferta');
         expect(confirmacion.textContent).toContain('30 días');
         expect(confirmacion.textContent).toContain('perfil guardado');
         expect(confirmacion.textContent).toContain('pagas');
         http.expectNone(req => req.method === 'POST');
-        (raiz.querySelector('[data-accion="confirmar-reevaluacion"]') as HTMLButtonElement).click();
+        confirmacion.querySelector<HTMLButtonElement>('.btn-bulk-cancelar')!.click();
+        await harness.fixture.whenStable();
+        expect(raiz.querySelector('[aria-label="Confirmar reevaluación"]')).toBeNull();
+        expect(seleccion.checked).toBeTrue();
+        http.expectNone(req => req.method === 'POST');
+        await abrirConfirmacion();
+        raiz.querySelector<HTMLButtonElement>('[data-accion="confirmar-reevaluacion"]')!.click();
         const inicio = http.expectOne(`${url}/evaluacion/ejecutar`);
-        expect(inicio.request.body).toEqual({ ids: [1, 2] });
-        inicio.flush({ exito: true, mensaje: 'Evaluación iniciada.', en_curso: true, cantidad: 2, periodo_dias: 30 });
+        expect(inicio.request.method).toBe('POST');
+        expect(inicio.request.body).toEqual({ ids: [1] });
+        inicio.flush({ exito: true, mensaje: 'Evaluación iniciada.', en_curso: true, cantidad: 1, periodo_dias: 30 });
         await harness.fixture.whenStable();
         expect(raiz.querySelector('[aria-label="Cancelar evaluación en progreso"]')).not.toBeNull();
         expect(reloj.activos()).toBe(1);
         reloj.avanzar();
         http.expectOne(`${url}/evaluacion/progreso`).flush(progreso(true));
         http.expectOne(`${url}/ofertas`).flush({ exito: true,
-            datos: [ofertaSintetica(1), ofertaSintetica(2, 'desconocida')] });
+            datos: [reaparecida, ofertaSintetica(2, 'desconocida')] });
         await harness.fixture.whenStable();
         const barra = raiz.querySelector('[role="progressbar"][aria-label="Progreso de evaluación"]');
-        expect(barra?.getAttribute('aria-valuenow')).toBe('50');
-        expect(barra?.getAttribute('aria-valuetext')).toBe('Resultados válidos: 1/2 · Intentos procesados: 50%');
+        expect(barra?.getAttribute('aria-valuenow')).toBe('0');
+        expect(barra?.getAttribute('aria-valuetext')).toBe('Resultados válidos: 0/1 · Intentos procesados: 0%');
         (raiz.querySelector('[aria-label="Cancelar evaluación en progreso"]') as HTMLButtonElement).click();
         http.expectOne(`${url}/evaluacion/cancelar`).flush({ exito: true });
         http.expectNone(req => req.url.includes('scraping'));
         // Avanzo el polling reutilizado después de cancelar, con HTTP sintético.
         reloj.avanzar();
         http.expectOne(`${url}/evaluacion/progreso`).flush(progreso(false));
-        const actuales = [1, 2].map(id => ({ ...ofertaSintetica(id, 'actual'), estado_evaluacion: 'aprobada' as const,
-            porcentaje_match: 90, razon_evaluacion: 'Nuevo resultado', firma_criterios_evaluacion: 'nueva' }));
+        const actuales: Oferta[] = [{ ...reaparecida, estado_evaluacion: 'aprobada', situacion_evaluacion: 'aprobada',
+            vigencia_evaluacion: 'actual', porcentaje_match: 90, razon_evaluacion: 'Nuevo resultado',
+            firma_criterios_evaluacion: 'nueva' }, ofertaSintetica(2, 'desconocida')];
         http.expectOne(`${url}/ofertas`).flush({ exito: true, datos: actuales });
         await harness.fixture.whenStable();
         http.expectOne(req => req.url === `${url}/ofertas/sincronizacion`).flush(sincronizacion(actuales));
@@ -364,8 +422,14 @@ describe('Reevaluación — recorrido HTTP y DOM integrado', () => {
         expect(raiz.textContent).toContain('Evaluación actual');
         expect(raiz.textContent).toContain('90');
         const dashboard = harness.routeDebugElement!.componentInstance as Dashboard;
-        expect(dashboard.ofertas().every(o => o.estado_postulacion === 'cv_enviado')).toBeTrue();
-        expect(dashboard.ofertas().every(o => o.razon_evaluacion === 'Nuevo resultado')).toBeTrue();
+        expect(dashboard.ofertas().find(o => o.id === 1)).toEqual(jasmine.objectContaining({
+            estado_postulacion: 'cv_enviado', fecha_postulacion: reaparecida.fecha_postulacion,
+            nota_postulacion: reaparecida.nota_postulacion, razon_evaluacion: 'Nuevo resultado',
+            fecha_extraccion: reaparecida.fecha_extraccion, fecha_publicacion: reaparecida.fecha_publicacion,
+        }));
+        expect(raiz.querySelector('[aria-label="Confirmar reevaluación"]')).toBeNull();
+        expect(tabla.seleccionadas().size).toBe(0);
+        http.expectNone(`${url}/evaluacion/ejecutar`);
         expect(harness.routeDebugElement!.query(By.directive(PanelControl)).componentInstance.evaluando()).toBeFalse();
         expect(reloj.activos()).toBe(0);
         reloj.avanzar();

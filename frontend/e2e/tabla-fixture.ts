@@ -5,7 +5,7 @@ import { crearHttpDetalle, crearOfertasDetalle } from './detalle-fixture';
 
 export const FECHA_TABLA = '2026-10-19T12:00:00.000Z';
 
-export function crearOfertasTabla(): Oferta[] {
+export function crearOfertasTabla(issue122 = false): Oferta[] {
     const base = crearOfertasDetalle('aprobada')[0];
     const aprobadas = Array.from({ length: 45 }, (_, indice): Oferta => ({
         ...structuredClone(base), id: 1001 + indice,
@@ -15,6 +15,14 @@ export function crearOfertasTabla(): Oferta[] {
         plataforma: indice % 2 ? 'computrabajo' : 'linkedin', porcentaje_match: 90 - indice,
         fecha_extraccion: '2026-10-18T12:00:00.000Z', fecha_ultima_extraccion: FECHA_TABLA,
         fecha_publicacion: '2026-10-17T12:00:00.000Z', prioridad_ia: indice === 0,
+        ...(issue122 && indice === 0 ? {
+            fecha_extraccion: '2026-09-09T12:00:00.000Z', fecha_ultima_extraccion: '2026-10-18T12:00:00.000Z',
+            estado_evaluacion: 'pendiente', situacion_evaluacion: 'por_confirmar',
+            fecha_evaluacion: '2026-09-10T12:00:00.000Z', vigencia_evaluacion: 'anterior',
+            razon_evaluacion: 'Evaluación sintética anterior: falta confirmar el horario.',
+            estado_postulacion: 'cv_enviado', fecha_postulacion: '2026-09-11',
+            nota_postulacion: 'Seguimiento sintético: pendiente de respuesta.',
+        } : {}),
     }));
     const estados = ['rechazada', 'pendiente', 'error', 'reevaluacion-fallida', 'desactualizada', 'historica', 'postulada', 'textos-largos'];
     return [...aprobadas, ...estados.map((estado, indice): Oferta => ({
