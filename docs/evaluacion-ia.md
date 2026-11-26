@@ -781,9 +781,11 @@ ausencia. Una obligación para otro equipo no se aplica a esta vacante. Una list
 obligatoria o «Se requieren PHP y Laravel» puede exigir ambas tecnologías;
 «Se requiere PHP o Laravel» no exige PHP por separado ni anula otra obligación
 independiente. Si la evidencia no alcanza, paso el requisito a `por_confirmar`
-sin duplicar una duda previa y retiro esa incompatibilidad de la razón. Ni una
-duda ni un veto abren la revisión de los demás requisitos al releer la caché. Si se
-confirman las mismas incompatibilidades con la evidencia declarada, conservo la razón.
+sin duplicar una duda previa y retiro esa incompatibilidad de la razón. Una duda
+sólo pasa a exclusión si cuenta con la obligación aplicable y la ausencia declarada,
+aunque aparezca únicamente en `por_confirmar`. Ni una duda ni un veto cambian la
+revisión de los demás requisitos al releer la caché. Si se confirman las mismas
+incompatibilidades con la evidencia declarada, conservo la razón.
 Un requisito
 por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
 sin un veto respaldado, con 15% sigue «Bajo umbral», sin cambiar el porcentaje ni

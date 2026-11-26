@@ -71,6 +71,45 @@ test('issue 120: corrige la caché vigente y mantiene identidad, inmutabilidad y
     expect(situacion120(nuevo)).toBe('bajo_umbral');
 });
 
+test('issue 120 L17: una obligación corroborada se clasifica igual en las tres listas', async () => {
+    const oferta = { ...oferta120, descripcion: 'PHP es obligatorio.' };
+    const perfil = { conocimientos_ausentes: ['PHP'] };
+    const item = items120[0];
+    const entradas = {
+        no_cumplidos: desglose120([item]),
+        por_confirmar: desglose120([], [item]),
+        exclusiones: desglose120([], [], [item]),
+    };
+    const respuesta = JSON.stringify(resultado120(razonUmbral120, entradas.no_cumplidos));
+    consultarDeepSeek.mockResolvedValueOnce(respuesta);
+    const nuevo = await evaluarOferta(oferta, null, null, perfil);
+    const [hash, firma, modelo, guardado] = guardarCache.mock.calls[0];
+    const antesGuardado = structuredClone(guardado);
+    const resultados = {};
+    for (const [lista, explicacion] of Object.entries(entradas)) {
+        let anterior = { ...structuredClone(resultado120(razonUmbral120, explicacion)), firma_criterios_evaluacion: firma };
+        resultados[lista] = [];
+        for (let n = 0; n < 3; n++) {
+            const copia = structuredClone(anterior);
+            buscarCache.mockResolvedValueOnce(anterior);
+            const hit = await evaluarOferta(oferta, null, null, perfil);
+            expect(anterior).toEqual(copia);
+            resultados[lista].push(hit);
+            anterior = hit;
+        }
+    }
+    expect(guardado).toEqual(antesGuardado);
+    await expect(consultarDeepSeek.mock.results[0].value).resolves.toBe(respuesta);
+    expect(buscarCache.mock.calls).toEqual(Array(10).fill([hash, firma, modelo]));
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(guardarCache).toHaveBeenCalledTimes(1);
+    const veto = veto120(item, 'PHP');
+    const esperado = { ...resultado120('Incompatibilidad confirmada: PHP. Afinidad técnica estimada: 15%.',
+        desglose120([veto], [], [veto])), pendiente: false, firma_criterios_evaluacion: firma };
+    expect([nuevo, guardado]).toEqual([esperado, esperado]);
+    expect(resultados).toEqual(Object.fromEntries(Object.keys(entradas).map(lista => [lista, Array(3).fill(esperado)])));
+});
+
 test('issue 120: conserva la razón y el desglose del control sintético de 4096', async () => {
     const control = resultado120('Afinidad insuficiente; falta confirmar PHP y Laravel.', desglose120([], items120));
     consultarDeepSeek.mockResolvedValueOnce(JSON.stringify(control));
@@ -112,16 +151,18 @@ test('issue 120: un veto corroborado no evita revisar otro incumplimiento obliga
     expect(guardarCache).toHaveBeenCalledTimes(0);
 });
 
-test('issue 120: una mención incidental no gana un veto y no se amplía el contraste de otras categorías', async () => {
+test('issue 120: una mención incidental no gana un veto aunque otra duda tenga respaldo propio', async () => {
     const oferta = { ...oferta120, descripcion: 'El equipo trabaja con PHP y se requiere Laravel. SQL es deseable.' };
     const php = { ...items120[0], evidencia_oferta: 'El equipo trabaja con PHP y se requiere Laravel' };
     const laravel = { ...items120[1], evidencia_oferta: 'se requiere Laravel' };
     const sql = { ...items120[0], requisito: 'SQL', tipo: 'deseable', evidencia_oferta: 'SQL es deseable' };
     consultarDeepSeek.mockResolvedValueOnce(JSON.stringify(resultado120(defectuoso120.razon, desglose120([php, sql], [laravel]))));
     const resultado = await evaluarOferta(oferta, null, null, { conocimientos_ausentes: ['PHP', 'Laravel'] });
-    expect(resultado).toEqual({ ...resultado120(razonUmbral120, desglose120([sql], [laravel, duda120({ ...php, evidencia_oferta: '' })])),
-        firma_criterios_evaluacion: expect.any(String) });
-    expect(situacion120(resultado)).toBe('bajo_umbral');
+    const vetoLaravel = veto120(laravel, 'Laravel');
+    expect(resultado).toEqual({ ...resultado120('Incompatibilidad confirmada: Laravel. Afinidad técnica estimada: 15%.',
+        desglose120([sql, vetoLaravel], [duda120({ ...php, evidencia_oferta: '' })], [vetoLaravel])),
+        pendiente: false, firma_criterios_evaluacion: expect.any(String) });
+    expect(situacion120(resultado)).toBe('rechazada');
     expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
     expect(guardarCache).toHaveBeenCalledTimes(1);
 });
