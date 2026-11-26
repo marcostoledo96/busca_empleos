@@ -113,6 +113,32 @@ test.each([
     expect(resultados).toEqual(Object.fromEntries(Object.keys(entradas).map(lista => [lista, Array(3).fill(esperado)])));
 });
 
+test('issue 120: un veto desplaza sólo el cumplido del mismo requisito', async () => {
+    const php = { ...items120[0], evidencia_perfil: 'PHP' };
+    const ajeno = { ...items120[1], requisito: 'Autorización laboral', evidencia_oferta: 'Autorización laboral es obligatoria', evidencia_perfil: '' };
+    const oferta = { ...oferta120, descripcion: 'PHP es obligatorio. Autorización laboral es obligatoria.' };
+    const perfil = { conocimientos_ausentes: ['PHP'] };
+    const razon = 'No cumple el requisito confirmado.';
+    const entrada = resultado120(razon, { ...desglose120([php]), cumplidos: [php, ajeno] });
+    consultarDeepSeek.mockResolvedValueOnce(JSON.stringify(entrada));
+    const nuevo = await evaluarOferta(oferta, null, null, perfil);
+    const [hash, firma, modelo, guardado] = guardarCache.mock.calls[0];
+    const anterior = { ...structuredClone(entrada), firma_criterios_evaluacion: firma };
+    const copia = structuredClone(anterior);
+    buscarCache.mockResolvedValueOnce(anterior);
+    const hit = await evaluarOferta(oferta, null, null, perfil);
+    buscarCache.mockResolvedValueOnce(hit);
+    const repetido = await evaluarOferta(oferta, null, null, perfil);
+    const veto = veto120(php, 'PHP');
+    const esperado = { ...resultado120(razon, { ...desglose120([veto], [], [veto]), cumplidos: [ajeno] }),
+        pendiente: false, firma_criterios_evaluacion: firma };
+    expect([nuevo, guardado, hit, repetido]).toEqual(Array(4).fill(esperado));
+    expect(anterior).toEqual(copia);
+    expect(buscarCache.mock.calls).toEqual(Array(3).fill([hash, firma, modelo]));
+    expect(consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(guardarCache).toHaveBeenCalledTimes(1);
+});
+
 test('issue 120: conserva la razón y el desglose del control sintético de 4096', async () => {
     const control = resultado120('Afinidad insuficiente; falta confirmar PHP y Laravel.', desglose120([], items120));
     consultarDeepSeek.mockResolvedValueOnce(JSON.stringify(control));

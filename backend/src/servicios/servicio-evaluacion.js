@@ -298,10 +298,14 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         for (const [requisito, grupo] of grupos) {
             const negativas = grupo.filter(({ afirmaIncumplimiento }) => afirmaIncumplimiento).map(({ item }) => item);
             const relacionadas = mencionesDelRequisito(citasConOrigen, requisito);
-            const acreditado = grupo.map(({ item }) => item).find(item => {
-                if (!negativas.length && item.tipo === 'deseable') return false;
-                const evidencia = normalizarTextoComparacion(item.evidencia_oferta);
-                if (!contieneTokenNormalizado(evidencia, requisito) || citaContradictoria(relacionadas, requisito, evidencia, descripcionNormalizada)) return false;
+            const evidencias = grupo.map(({ item }) => {
+                const cita = normalizarTextoComparacion(item.evidencia_oferta);
+                const relacionada = contieneTokenNormalizado(cita, requisito);
+                return { item, cita, relacionada, contradictoria: relacionada
+                    && citaContradictoria(relacionadas, requisito, cita, descripcionNormalizada) };
+            });
+            const acreditado = evidencias.find(({ item, cita: evidencia, relacionada, contradictoria }) => {
+                if (!relacionada || contradictoria || (!negativas.length && item.tipo === 'deseable')) return false;
                 return relacionadas.some(cita => {
                     const literal = literalClausula(cita);
                     const citaCompleta = cita.oracionMixta === evidencia
@@ -318,18 +322,18 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
                                 { exclusiones: [{ ...item, tipo: 'obligatorio', evidencia_oferta: citaLiteral }] }, textoOferta).invalido;
                     });
                 });
-            });
+            })?.item;
             const vigilado = requisitoVigilado(requisito);
             const ausencia = acreditado && acreditarAusencia(acreditado, requisito, vigilado);
             // Una duda aislada sólo cambia si las dos fuentes respaldan el veto.
             if (!negativas.length && !ausencia) continue;
-            const deseable = !acreditado && grupo.map(({ item }) => item).find(item => {
-                const evidencia = normalizarTextoComparacion(item.evidencia_oferta);
+            const contradiccion = !acreditado && evidencias.find(({ contradictoria }) => contradictoria)?.item;
+            const deseable = !acreditado && !contradiccion && evidencias.find(({ cita: evidencia, relacionada }) => {
+                if (!relacionada) return false;
                 const citadas = relacionadas.filter(cita => contieneTokenNormalizado(literalClausula(cita), evidencia));
-                return contieneTokenNormalizado(evidencia, requisito) && citadas.length && citadas.every(noObligatoriaEnOferta)
-                    && !citaContradictoria(relacionadas, requisito, evidencia, descripcionNormalizada);
-            });
-            const item = acreditado || deseable || negativas[0];
+                return citadas.length && citadas.every(noObligatoriaEnOferta);
+            })?.item;
+            const item = acreditado || contradiccion || deseable || negativas[0];
             if (ausencia) {
                 const veto = { ...item, tipo: 'obligatorio', evidencia_perfil: ausencia,
                     explicacion: 'Incompatibilidad respaldada por una ausencia declarada del candidato.' };
@@ -341,16 +345,16 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             }
             corregirRazon = true;
             decisiones.set(requisito, { destino: 'por_confirmar', item: {
-                ...item, tipo: deseable ? 'deseable' : !acreditado && vigilado ? 'desconocido' : 'obligatorio',
-                evidencia_oferta: acreditado || deseable ? item.evidencia_oferta : '', evidencia_perfil: '',
+                ...item, tipo: contradiccion || (!acreditado && !deseable && vigilado) ? 'desconocido' : deseable ? 'deseable' : 'obligatorio',
+                evidencia_oferta: acreditado || contradiccion || deseable ? item.evidencia_oferta : '', evidencia_perfil: '',
                 explicacion: !acreditado && !deseable && vigilado && vigilado !== 'autorizacion laboral'
                     ? 'Confirmar si Active Directory es obligatorio y si contás con esa experiencia'
                     : 'Necesito confirmar el requisito y su cumplimiento con evidencia relacionada del aviso y del perfil; no acredito equivalencias ni incompatibilidad por omisión.',
             } });
         }
         if (!decisiones.size) return resultado;
-        const explicacion = { cumplidos: original.cumplidos || [], ...Object.fromEntries(categorias.map(categoria =>
-            [categoria, (original[categoria] || []).filter(item => !decisiones.has(nombre(item)))])) };
+        const explicacion = Object.fromEntries(['cumplidos', ...categorias].map(categoria =>
+            [categoria, (original[categoria] || []).filter(item => !decisiones.has(nombre(item)))]));
         explicacion.no_cumplidos.push(...explicacion.exclusiones.filter(item => item.tipo === 'deseable'));
         explicacion.exclusiones = explicacion.exclusiones.filter(item => item.tipo !== 'deseable');
         for (const { destino, item } of decisiones.values()) {

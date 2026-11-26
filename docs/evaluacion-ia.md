@@ -785,9 +785,12 @@ sin duplicar una duda previa y retiro esa incompatibilidad de la razón. Una dud
 sólo pasa a exclusión si cuenta con la obligación aplicable y la ausencia declarada,
 aunque aparezca únicamente en `por_confirmar`. Ni una duda ni un veto cambian la
 revisión de los demás requisitos al releer la caché. Si se confirman las mismas
-incompatibilidades con la evidencia declarada, conservo la razón.
-Un requisito
-por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
+incompatibilidades con la evidencia declarada, conservo la razón. Cuando el aviso
+se contradice para un mismo requisito, lo dejo por confirmar como `desconocido`
+con su cita literal, sin adjudicarle una incompatibilidad. Una decisión reemplaza
+una fila en `cumplidos` sólo si corresponde al mismo requisito.
+
+Un requisito por confirmar en el desglose no convierte por sí solo la oferta en «Por confirmar»:
 sin un veto respaldado, con 15% sigue «Bajo umbral», sin cambiar el porcentaje ni
 marcarlo como fallo técnico. Si el resultado ya registraba la duda correctamente,
 conservo su razón.
