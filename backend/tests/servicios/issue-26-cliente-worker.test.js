@@ -19,7 +19,7 @@ const RESPUESTA_VALIDA = JSON.stringify({ match: true, porcentaje: 81, razon: 'C
 const OFERTA = {
     id: 26,
     titulo: 'Desarrollador junior',
-    descripcion: 'Desarrollo de aplicaciones con JavaScript y React.',
+    descripcion: 'OFERTA_PRIVADA: Desarrollo de aplicaciones con JavaScript y React.',
     modalidad: 'remoto',
     ubicacion: 'Argentina',
     estado_evaluacion: 'pendiente',
@@ -28,7 +28,7 @@ const OFERTA = {
 };
 
 function crearSobre(contenido = RESPUESTA_VALIDA, finalizacion = 'stop') {
-    return { choices: [{ finish_reason: finalizacion, message: { content: contenido } }] };
+    return { choices: [{ finish_reason: finalizacion, message: { content: contenido, reasoning_content: 'RAZONAMIENTO_PRIVADO' } }] };
 }
 
 describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () => {
@@ -54,6 +54,9 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
         lotes = require('../../src/modelos/evaluacion-lote');
         require('../../src/modelos/preferencia').obtenerPreferencias.mockResolvedValue({
             modelo_ia_evaluacion: 'deepseek-flash',
+            nombre: 'PERFIL_PRIVADO',
+            usar_prompt_personalizado: true,
+            prompt_personalizado: 'PROMPT_PRIVADO: Evaluación sintética.',
         });
         ofertas.obtenerOfertasPendientes.mockResolvedValue([{ ...OFERTA }]);
         ofertas.actualizarEvaluacion.mockResolvedValue({ id: OFERTA.id });
@@ -70,6 +73,17 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
 
     function responder(sobre) {
         fetchSimulado.mockResolvedValueOnce({ ok: true, json: async () => sobre });
+    }
+
+    function tamanosEnviados() {
+        const [sistema, usuario] = JSON.parse(fetchSimulado.mock.calls[0][1].body).messages;
+        expect(sistema.content).toContain('PERFIL_PRIVADO');
+        expect(sistema.content).toContain('PROMPT_PRIVADO');
+        expect(usuario.content).toContain('OFERTA_PRIVADA');
+        return {
+            bytes_mensaje_sistema: Buffer.from(sistema.content, 'utf8').length,
+            bytes_mensaje_usuario: Buffer.from(usuario.content, 'utf8').length,
+        };
     }
 
     function comprobarError(resumen, estado = 'pendiente') {
@@ -149,8 +163,10 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
             oferta_id: OFERTA.id, codigo, modelo_solicitado: 'deepseek-flash', max_tokens: 4096,
             duracion_ms: expect.any(Number), tokens_entrada: 12, tokens_salida: 8, tokens_razonamiento: 3,
             ...(finishReason === 'CV_PRIVADO' ? {} : { finish_reason: finishReason }),
+            ...tamanosEnviados(),
         });
-        expect(JSON.stringify([resumen, ofertas.actualizarEvaluacion.mock.calls, console.error.mock.calls])).not.toContain('CV_PRIVADO');
+        expect(JSON.stringify(console.error.mock.calls)).not.toMatch(/PRIVAD[OA]|clave-sintetica-sin-acceso|Bearer/);
+        expect(JSON.stringify([resumen, ofertas.actualizarEvaluacion.mock.calls])).not.toContain('CV_PRIVADO');
         expect(cache.guardarCache).not.toHaveBeenCalled();
         expect(fetchSimulado).toHaveBeenCalledTimes(1);
     });
@@ -161,7 +177,7 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
         comprobarError(resumen);
         expect(console.error).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', {
             oferta_id: OFERTA.id, codigo: 'CHOICES_AUSENTES', modelo_solicitado: 'deepseek-flash',
-            max_tokens: 4096, duracion_ms: expect.any(Number),
+            max_tokens: 4096, duracion_ms: expect.any(Number), ...tamanosEnviados(),
         });
         expect(fetchSimulado).toHaveBeenCalledTimes(1);
         expect(cache.guardarCache).not.toHaveBeenCalled();
@@ -182,7 +198,7 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
             comprobarError(resumen);
             expect(console.error).toHaveBeenCalledWith('[Evaluación] Fallo técnico de IA', {
                 oferta_id: OFERTA.id, codigo: typeof caso === 'number' ? `HTTP_${caso}` : caso === 'timeout' ? 'TIMEOUT' : 'CANCELADA',
-                modelo_solicitado: 'deepseek-flash', max_tokens: 4096, duracion_ms: expect.any(Number),
+                modelo_solicitado: 'deepseek-flash', max_tokens: 4096, duracion_ms: expect.any(Number), ...tamanosEnviados(),
             });
             expect(JSON.stringify([resumen, console.error.mock.calls, ofertas.actualizarEvaluacion.mock.calls])).not.toContain('CV_PRIVADO');
             expect(cache.guardarCache).not.toHaveBeenCalled();
@@ -242,6 +258,8 @@ describe('Issue #26: conecto el cliente DeepSeek real con el worker real', () =>
         );
         expect(ofertas.registrarErrorEvaluacion).not.toHaveBeenCalled();
         expect(lotes.finalizarLote).toHaveBeenLastCalledWith(26, 'completado');
+        expect(console.error).not.toHaveBeenCalled();
+        expect(JSON.stringify([ofertas.actualizarEvaluacion.mock.calls, cache.guardarCache.mock.calls])).not.toContain('bytes_mensaje_');
     });
 
     test('conservo la aprobación y caché previas ante reevaluación explícita truncada y aplico el reintento válido', async () => {

@@ -49,6 +49,15 @@ Solo acepto los cierres exactos `stop`, `length`, `content_filter`, `tool_calls`
 `function_call`, `aborted` e `insufficient_system_resource`; omito cualquier otro
 texto. Los tokens deben ser enteros seguros no negativos: cero es válido, ausencia
 no equivale a cero. No exporto `reasoning_content`, prompts, CV ni respuestas.
+Después de validar la credencial y el modelo, cuento localmente los bytes UTF-8
+exactos del contenido que va en `messages[].content`: `bytes_mensaje_sistema`
+para el mensaje de sistema y `bytes_mensaje_usuario` para el de usuario. Por
+ejemplo, con los textos sintéticos `" A\n"` (espacio, A, salto de línea) y `"ñ😀"`,
+los tamaños son 3 y 6 bytes, respectivamente. `""` aporta 0; si el argumento es
+`null`, `undefined` o no es un string primitivo, omito su campo sin convertirlo.
+No son tokens ni el tamaño total del cuerpo HTTP serializado. No recorto ni
+normalizo mensajes; el proveedor no puede sobrescribir estas medidas.
+
 El callback se ejecuta una vez por consulta, también ante fallo de transporte;
 sus excepciones no invalidan una respuesta ni generan solicitudes adicionales.
 El retorno sigue siendo texto. Ver [preferencias](preferencias.md) y [comparación manual pendiente](comparacion-deepseek-issue-26.md).
@@ -58,8 +67,9 @@ El retorno sigue siendo texto. Ver [preferencias](preferencias.md) y [comparaci�
 Consumo ese callback en el evaluador existente. Cada fallo registra un único
 `console.error('[Evaluación] Fallo técnico de IA', campos)` con ID numérico seguro,
 metadatos anteriores y código normalizado; nunca registro el objeto Error, stack,
-mensajes originales, respuestas ni evidencias del parser. Una evaluación válida,
-una exclusión o un hit de caché no emiten ese diagnóstico de fallo.
+mensajes originales, respuestas ni evidencias del parser. No agrego un evento
+para evaluaciones válidas, exclusiones o hits de caché. Si se registra un fallo
+sin una consulta al proveedor, no se inventan tamaños.
 
 | Código diagnóstico | Evidencia disponible |
 | --- | --- |
@@ -105,11 +115,24 @@ desde el último lote persistido y mostrar un error histórico sin ejecutar una
 consulta nueva. No reclasifico ni reescribo mensajes históricos genéricos: no
 identifican un código exacto. Los mocks de transporte y almacenamiento prueban el
 diagnóstico, no que DeepSeek funcione hoy, que se haya llenado la entrada o que
-más presupuesto de salida resuelva el truncamiento.
+más presupuesto de salida resuelva el truncamiento. Los tamaños de fallos no
+permiten calcular por sí solos una tasa de fallos: falta el total de consultas.
+Tampoco reconstruyen las solicitudes históricas ni demuestran que el tamaño de
+los mensajes haya causado un truncamiento. El conteo no agrega solicitudes ni
+cambia el cuerpo, el presupuesto, la firma o la caché; no mide mejoras de costo,
+latencia ni tasa de éxito.
 
-### Comparación de presupuesto de salida (protocolo pendiente, #117)
+### Comparación de presupuesto de salida (#117, antecedente cerrado)
 
-**No ejecutar sin autorización expresa.** Usar tres casos del [corpus sintético](../backend/tests/fixtures/casos-muestra-matching.js),
+La preparación del ensayo se integró; la ejecución real posterior fue privada y
+ya terminó. Según el informe del titular, hubo cuatro intentos (dos pares), no
+se reprodujo `length` y el caso 17 activó el corte por deterioro semántico. El
+caso 15 no se envió. No se acreditó un beneficio al adoptar 8192: la evaluación
+mantiene 4096. El defecto semántico se trató después por separado en #120/#121.
+No se publican los JSON privados ni se autoriza repetir el ensayo.
+
+El protocolo original se conserva a continuación como referencia histórica.
+Preveía tres casos del [corpus sintético](../backend/tests/fixtures/casos-muestra-matching.js),
 fijados por SHA: 16 (obligatorios cumplidos y deseable ausente), 17 (coherencia
 entre decisión y porcentaje) y 15 (requisitos «Por confirmar»). Comparar cada caso
 con 4096 y 8192: mismo modelo, razonamiento, prompt, contrato y entrada. No usar
