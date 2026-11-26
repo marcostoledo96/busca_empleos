@@ -106,7 +106,8 @@
         @if (modoReevaluacion()) {
             <section aria-label="Selección para reevaluación">
                 <h2>Seleccionar ofertas para reevaluar</h2>
-                <p>Últimos 30 días desde la extracción. Incluyo todos los estados de evaluación, también rechazadas y vigencia desconocida.
+                <p>La ventana de 30 días se calcula desde la última detección; si no está registrada, desde la primera.
+                    Incluyo todos los estados de evaluación, también rechazadas y ofertas de vigencia desconocida.
                     Seleccioná hasta 200 ofertas; no se ejecuta nada hasta confirmar.</p>
                 <app-tabla-ofertas [modoDemo]="modoDemo()" [ofertas]="ofertasReevaluables()" [cargando]="sincronizando()"
                     [conciliacionMasiva]="conciliacionMasiva()"

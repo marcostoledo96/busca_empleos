@@ -12,6 +12,7 @@ import { Oferta } from '../../modelos/oferta.model';
 import { OfertasService } from '../../servicios/ofertas.service';
 import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 import { compatibilidadVisible, estadoEtiqueta, etiquetaEvaluacion, situacionEvaluacion, tieneResultadoLaboral, ultimoIntento } from '../../utils/presentacion-evaluacion';
+import { esRecienteParaReevaluar } from '../../utils/recencia-reevaluacion';
 
 @Component({
     selector: 'app-tabla-ofertas',
@@ -129,8 +130,7 @@ export class TablaOfertas {
     }
 
     esReciente(oferta: Oferta): boolean {
-        const fecha = new Date(oferta.fecha_extraccion).getTime();
-        return Number.isFinite(fecha) && fecha >= Date.now() - 30 * 86400000;
+        return esRecienteParaReevaluar(oferta);
     }
 
     readonly seleccionReevaluable = computed(() => {

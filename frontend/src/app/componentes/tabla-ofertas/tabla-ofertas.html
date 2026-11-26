@@ -1,17 +1,18 @@
 @if (algunaSeleccionada() && !modoDemo()) {
     <div class="barra-bulk reevaluacion-seleccion" role="region" aria-label="Volver a evaluar ofertas seleccionadas">
         <p>{{ seleccionadas().size }} oferta{{ seleccionadas().size === 1 ? '' : 's' }} seleccionada{{ seleccionadas().size === 1 ? '' : 's' }}.
-            Período fijo: últimos 30 días desde la extracción. Máximo 200 ofertas.</p>
+            La ventana de 30 días se calcula desde la última detección; si no está registrada, desde la primera. Máximo 200 ofertas.</p>
         @if (!seleccionReevaluable()) {
-            <p role="alert">Seleccioná entre 1 y 200 ofertas extraídas en los últimos 30 días; las históricas no se pueden reevaluar.</p>
+            <p role="alert">Seleccioná entre 1 y 200 ofertas cuya última detección esté dentro de los últimos 30 días. Si no está registrada, se usa la primera.</p>
         }
         @if (!confirmandoReevaluacion()) {
             <button type="button" class="btn-bulk-aplicar" data-accion="reevaluar"
                 [disabled]="evaluacionOcupada() || procesandoBulk() || hayPostulacionesPendientes() || !seleccionReevaluable()" (click)="solicitarReevaluacion()">Volver a evaluar seleccionadas</button>
         } @else {
             <div role="region" aria-label="Confirmar reevaluación" aria-live="polite">
-                <p>Voy a volver a evaluar {{ seleccionadas().size }} oferta{{ seleccionadas().size === 1 ? '' : 's' }} de los últimos 30 días desde la extracción,
-                    usando el perfil guardado. Esta acción fuerza la evaluación y puede generar llamadas pagas a la IA. No realiza scraping.</p>
+                <p>Voy a volver a evaluar {{ seleccionadas().size }} oferta{{ seleccionadas().size === 1 ? '' : 's' }} con detección en los últimos 30 días.
+                    Se cuenta la última detección o, si no está registrada, la primera. Voy a usar el perfil guardado.
+                    Esta acción fuerza la evaluación y puede generar llamadas pagas a la IA. No realiza scraping.</p>
                 <button type="button" class="btn-bulk-aplicar" data-accion="confirmar-reevaluacion"
                     [disabled]="evaluacionOcupada() || procesandoBulk() || hayPostulacionesPendientes() || !seleccionReevaluable()" (click)="confirmarReevaluacion()">Confirmar reevaluación</button>
                 <button type="button" class="btn-bulk-cancelar" (click)="confirmandoReevaluacion.set(false)">Cancelar</button>

@@ -1208,16 +1208,23 @@ invalidaciones ni ejecutan IA. Conservo el aviso de cambios sin guardar y la vis
 perfil persistido de #8. El enlace abre `/?reevaluar=1`, la ruta del dashboard, sin iniciar
 ninguna evaluación ni seleccionar ofertas automáticamente.
 
-En esa vista incluyo todos los estados extraídos en los últimos **30 días**, también
-rechazadas y ofertas legacy. Sincronizo desde el servidor antes de habilitar selección;
-no calculo vigencia desde el formulario ni confío en un caché local anterior. Tabla y
-cards muestran texto: **Evaluación actual**, **Evaluación anterior** o **Vigencia desconocida**;
-las pendientes indican **Sin evaluación**. El filtro de plataforma continúa disponible.
+En esa vista incluyo todos los estados de evaluación, también rechazadas y ofertas
+históricas que cumplen la ventana de **30 días**. El dashboard y la tabla aplican la
+misma regla (#122): usan `fecha_ultima_extraccion ?? fecha_extraccion` y admiten el
+límite exacto de 30 días. Si la última detección es `null` o está ausente, se usa la
+primera; una fecha presente pero inválida no habilita la reevaluación. Así, una oferta
+puede volver a entrar en la ventana al reaparecer, sin cambiar las fechas de primera
+detección ni de publicación que se muestran.
 
-Reutilizo los checkboxes y las acciones de la tabla; agrego selección en cards y una
-confirmación explícita con cantidad, ventana fija de extracción, perfil guardado y
-posibles llamadas pagas. Envío solamente `{ ids: [...] }`, entre 1 y 200 IDs válidos,
-sin preferencias entrantes ni scraping. Limpio selección al filtrar, paginar, ordenar
+Sincronizo desde el servidor antes de habilitar selección; no calculo vigencia desde el
+formulario ni confío en un caché local anterior. Tabla y cards muestran texto:
+**Evaluación actual**, **Evaluación anterior** o **Vigencia desconocida**; las pendientes
+indican **Sin evaluación**. El filtro de plataforma continúa disponible.
+
+Reutilizo los checkboxes de tabla y cards y pido confirmación explícita con cantidad,
+ventana de detección, perfil guardado y posibles llamadas pagas. Envío solamente
+`{ ids: [...] }`, entre 1 y 200 IDs válidos, sin preferencias ni scraping. El servidor
+sigue decidiendo si acepta la solicitud. Limpio selección al filtrar, paginar, ordenar
 manualmente o cambiar tamaño de ventana. Al refrescar datos conservo solamente los
 IDs que siguen visibles y cierro la confirmación previa, para no confirmar ofertas ocultas.
 
@@ -1235,8 +1242,10 @@ postulación conservan su flujo habitual.
 
 El test `paginas/dashboard/reevaluacion-flujo.spec.ts` recorre componentes y router reales
 con servicios HTTP reales y respuestas sintéticas (`HttpTestingController`): guardar,
-aviso, navegación, selección reciente, confirmación, POST de IDs, cancelación y resultados
-actuales, preservando postulación. También cubro cards, legado, límites, demo y errores.
+aviso, navegación, selección de una oferta reaparecida, cancelación sin POST, confirmación
+con un único envío de IDs y refresco de resultados sin modificar el seguimiento manual.
+También cubro cards, legado, límites, demo y errores. `utils/recencia-reevaluacion.spec.ts`
+comprueba la prioridad de la última detección, el respaldo a la primera y el límite exacto.
 
 ## Flujo de datos
 

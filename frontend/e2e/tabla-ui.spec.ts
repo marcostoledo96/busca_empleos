@@ -140,6 +140,113 @@ test('reevaluación exige confirmar, cancelar no escribe y un doble clic envía 
     expect(peticiones[0].cuerpo).toMatchObject({ ids: [1001] });
 });
 
+for (const { nombre, width, height } of [
+    { nombre: 'escritorio', width: 1440, height: 900 }, { nombre: 'movil', width: 390, height: 844 },
+]) {
+    test(`@issue122 reaparecida: cancelar, refrescar y confirmar en ${nombre}`, async ({ context, page }, testInfo) => {
+        const redInesperada: string[] = [];
+        await context.route('**/*', ruta => {
+            const solicitud = ruta.request();
+            const url = new URL(solicitud.url());
+            if (/^\/api(?:\/|$)/.test(url.pathname) || !/^(GET|HEAD)$/.test(solicitud.method())) {
+                redInesperada.push(`${solicitud.method()} ${url.origin}${url.pathname}`);
+                return ruta.abort();
+            }
+            return ruta.fallback(); // Mantengo el bloqueo de origen del beforeEach.
+        });
+        await page.setViewportSize({ width, height });
+        await iniciar(page, 'tabla=1&issue122=1');
+        const modo = page.getByRole('region', { name: 'Selección para reevaluación', exact: true });
+        await expect(modo).toBeHidden();
+        await page.getByRole('button', { name: 'Seleccionar ofertas para reevaluar', exact: true }).click();
+        const movil = nombre === 'movil';
+        const ofertas = movil ? tarjetas(page) : filas(page);
+        const reaparecida = ofertas.filter({ hasText: 'Angular junior 01' });
+        const vecina = ofertas.filter({ hasText: 'Angular junior 02' });
+        const elegida = reaparecida.getByRole('checkbox');
+        const noElegida = vecina.getByRole('checkbox');
+        const iniciarReevaluacion = reevaluacion(page).getByRole('button', { name: 'Volver a evaluar seleccionadas', exact: true });
+        const confirmacion = modo.getByRole('region', { name: 'Confirmar reevaluación', exact: true });
+        const registro = page.getByLabel('Llamadas simuladas');
+        const metodosDeEscritura = async () => (await registro.textContent() || '').split('\n')
+            .filter(linea => linea && !/^(GET|HEAD) /.test(linea));
+        const sinEnvios = async () => {
+            expect(await escrituras(page)).toEqual([]);
+            expect(await metodosDeEscritura()).toEqual([]);
+            expect(redInesperada).toEqual([]);
+        };
+        const verificarResultadoYSeguimiento = async () => {
+            const abrir = movil ? reaparecida.getByRole('heading', { name: 'Angular junior 01' })
+                : reaparecida.getByRole('button', { name: 'Ver detalle de Angular junior 01', exact: true });
+            await abrir.click();
+            const detalle = page.getByRole('dialog');
+            await expect(detalle.getByRole('heading', { name: 'Angular junior 01', exact: true })).toBeVisible();
+            await expect(detalle.getByText('Evaluación anterior', { exact: true })).toBeVisible();
+            await expect(detalle.getByText('Evaluación sintética anterior: falta confirmar el horario.')).toBeVisible();
+            await expect(detalle.getByRole('combobox', { name: 'Estado manual actual' })).toHaveText('CV enviado');
+            await expect(detalle.getByLabel('Fecha de envío, si se conoce')).toHaveValue('2026-09-11');
+            await expect(detalle.getByLabel('Nota de seguimiento')).toHaveValue('Seguimiento sintético: pendiente de respuesta.');
+            await page.keyboard.press('Escape');
+            await expect(detalle).toBeHidden();
+        };
+        const verificarSeleccion = async () => {
+            await expect(elegida).toBeChecked();
+            await expect(noElegida).not.toBeChecked();
+            await expect(reevaluacion(page)).toContainText('1 oferta seleccionada');
+        };
+        await expect(modo).toBeVisible();
+        await expect(reaparecida.getByText(/Por confirmar/)).toBeVisible();
+        await expect(reaparecida.getByText(/09\/09\/26.*18\/10\/26/).filter({ visible: true })).toBeVisible();
+        await expect(reaparecida.getByText(/Pub.*17\/10\/26/).filter({ visible: true })).toBeVisible();
+        await expect(elegida).toBeEnabled();
+        await expect(elegida).not.toBeChecked();
+        await expect(noElegida).toBeVisible();
+        await expect(noElegida).not.toBeChecked();
+        await expect(reevaluacion(page)).toBeHidden();
+        await expect(confirmacion).toBeHidden();
+        await verificarResultadoYSeguimiento();
+        await sinEnvios();
+
+        await elegida.check();
+        await verificarSeleccion();
+        await expect(iniciarReevaluacion).toBeEnabled();
+        await reevaluacion(page).evaluate(elemento => elemento.scrollIntoView({ block: 'start' }));
+        await expect(elegida).toBeInViewport();
+        await page.screenshot({ path: testInfo.outputPath(`${nombre}-seleccion.png`), animations: 'disabled' });
+        await iniciarReevaluacion.click();
+        await expect(confirmacion).toContainText('Voy a volver a evaluar 1 oferta');
+        await expect(confirmacion).toContainText('puede generar llamadas pagas a la IA. No realiza scraping.');
+        await expect(confirmacion.getByRole('button', { name: 'Confirmar reevaluación', exact: true })).toBeEnabled();
+        await reevaluacion(page).evaluate(elemento => elemento.scrollIntoView({ block: 'start' }));
+        await expect(confirmacion).toBeInViewport();
+        await page.screenshot({ path: testInfo.outputPath(`${nombre}-confirmacion.png`), animations: 'disabled' });
+        await sinEnvios();
+
+        await confirmacion.getByRole('button', { name: 'Cancelar', exact: true }).click();
+        await expect(confirmacion).toBeHidden();
+        await verificarSeleccion();
+        await verificarResultadoYSeguimiento();
+        await sinEnvios();
+        const contarLecturas = async () => (await registro.textContent() || '').match(/GET \/ofertas\/sincronizacion/g)?.length ?? 0;
+        const lecturas = await contarLecturas();
+        await page.getByRole('button', { name: 'Refrescar datos sintéticos' }).click();
+        await expect.poll(contarLecturas).toBe(lecturas + 1);
+        await expect(elegida).toBeEnabled();
+        await expect(confirmacion).toBeHidden();
+        await verificarResultadoYSeguimiento();
+        await sinEnvios();
+
+        await elegida.check();
+        await verificarSeleccion();
+        await iniciarReevaluacion.click();
+        await confirmacion.getByRole('button', { name: 'Confirmar reevaluación', exact: true }).click();
+        await expect(confirmacion).toBeHidden();
+        expect(await escrituras(page)).toEqual([{ metodo: 'POST', ruta: '/evaluacion/ejecutar', cuerpo: { ids: [1001] } }]);
+        expect(await metodosDeEscritura()).toEqual(['POST /evaluacion/ejecutar']);
+        expect(redInesperada).toEqual([]);
+    });
+}
+
 for (const ancho of [390, 320]) {
     test(`tarjetas ${ancho}: selección, dropdown, teclado, modal Escape y página parcial`, async ({ page }) => {
         await page.setViewportSize({ width: ancho, height: 844 });

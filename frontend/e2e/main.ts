@@ -23,7 +23,7 @@ const issue58 = parametros.get('issue58');
 const httpIssue58 = issue58 ? crearHttpIssue58(issue58) : null;
 const llamadas = signal<string[]>([]);
 const cuerpos = signal<{ metodo: string; ruta: string; cuerpo: unknown }[]>([]);
-const ofertas = tabla ? crearOfertasTabla() : detalle ? crearOfertasDetalle(detalle) : escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
+const ofertas = tabla ? crearOfertasTabla(parametros.get('issue122') === '1') : detalle ? crearOfertasDetalle(detalle) : escenario === 'vacio' ? [] : structuredClone(OFERTAS_DEMO);
 const httpTabla = tabla ? crearHttpTabla(ofertas, parametros) : null;
 const httpDetalle = httpTabla ?? (detalle ? crearHttpDetalle(ofertas, parametros) : null);
 let bloqueGuardado = ofertas;

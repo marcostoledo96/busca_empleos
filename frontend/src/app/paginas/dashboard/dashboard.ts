@@ -17,6 +17,7 @@ import { obtenerOpcionesFiltroPlataforma } from '../../config/plataformas';
 import { EstadoOperativoSincronizacion } from '../../modelos/respuesta-api.model';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
 import { situacionEvaluacion, tieneResultadoLaboral, ultimoIntento } from '../../utils/presentacion-evaluacion';
+import { esRecienteParaReevaluar } from '../../utils/recencia-reevaluacion';
 
 function categoriaOferta(oferta: Oferta): string | number {
     if (oferta.estado_postulacion === 'cv_enviado' || oferta.estado_postulacion === 'en_proceso') return 1;
@@ -56,10 +57,7 @@ export class Dashboard implements OnInit, OnDestroy {
     readonly alcanceSeleccion = computed(() => `${this.modoReevaluacion() ? 'reevaluacion' : this.pestanaActiva()}:${this.filtroPlataforma() ?? 'todas'}`);
     private readonly ruta = inject(ActivatedRoute, { optional: true });
     readonly modoReevaluacion = signal(false);
-    readonly ofertasReevaluables = computed(() => this.ordenarOfertas(this.ofertasFiltradas().filter(oferta => {
-        const fecha = new Date(oferta.fecha_extraccion).getTime();
-        return Number.isFinite(fecha) && fecha >= Date.now() - 30 * 86400000;
-    })));
+    readonly ofertasReevaluables = computed(() => this.ordenarOfertas(this.ofertasFiltradas().filter(esRecienteParaReevaluar)));
 
     seleccionarParaReevaluar(): void {
         if (this.modoDemo()) return;
