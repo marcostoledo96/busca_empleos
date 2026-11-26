@@ -171,6 +171,7 @@ const dudaNoRelacionada120 = { ...items120[1], tipo: 'deseable' };
 const adObligatorio120 = { ...php120, requisito: 'Active Directory', evidencia_oferta: 'Active Directory es obligatorio' };
 const matricula120 = { ...php120, requisito: 'Matrícula profesional', evidencia_oferta: 'Matrícula profesional',
     evidencia_perfil: 'No cuento con matrícula profesional.' };
+const phpEquipo120 = { ...php120, evidencia_oferta: 'PHP es obligatorio solo para el equipo de datos' };
 
 test.each([
     ['cita literal de encabezado e ítem', encabezado120, ambosAusentes120, desglose120([{ ...php120, evidencia_oferta: encabezado120 }]), ['PHP'], []],
@@ -193,7 +194,11 @@ test.each([
         { conocimientos_ausentes: ['PHP'] }, desglose120([php120, { ...items120[1], evidencia_oferta: 'se requiere Laravel o Symfony' }]), ['PHP'], ['Laravel']],
     ['razón respaldada de #80 permanece al releer', 'Matrícula profesional obligatoria.',
         { limitaciones_explicitas: matricula120.evidencia_perfil }, desglose120([matricula120]), ['Matrícula profesional'], [], 25, 'No cumple el requisito confirmado.'],
-])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15, razonCorroborada) => {
+    ['obligación del propio equipo de la vacante', `${phpEquipo120.evidencia_oferta}. La vacante corresponde al equipo de datos.`,
+        { conocimientos_ausentes: ['PHP'] }, desglose120([phpEquipo120]), ['PHP'], []],
+    ['exclusión previa de otro equipo bajo la misma clave', `${phpEquipo120.evidencia_oferta}. La vacante corresponde al equipo web.`,
+        { conocimientos_ausentes: ['PHP'] }, desglose120([phpEquipo120]), [], ['PHP'], 15, undefined, veto120(phpEquipo120, 'PHP')],
+])('issue 120: conserva la clasificación y el contenido en cada lectura (%s)', async (_caso, descripcion, perfil, explicacion, vetos, dudas, porcentaje = 15, razonCorroborada, vetoAnterior) => {
     const oferta = { ...oferta120, descripcion };
     const original = { ...resultado120(razonCorroborada ?? 'Incompatibilidad sintética.', explicacion), porcentaje };
     const respuesta = JSON.stringify(original);
@@ -201,6 +206,8 @@ test.each([
     const nuevo = await evaluarOferta(oferta, null, null, perfil);
     const [hash, firma, modelo, guardado] = guardarCache.mock.calls[0];
     const anterior = { ...structuredClone(original), firma_criterios_evaluacion: firma };
+    if (vetoAnterior) Object.assign(anterior, resultado120('Incompatibilidad confirmada: PHP. Afinidad técnica estimada: 15%.',
+        desglose120([vetoAnterior], [], [vetoAnterior])), { pendiente: false });
     const [antesAnterior, antesGuardado] = [structuredClone(anterior), structuredClone(guardado)];
     buscarCache.mockResolvedValueOnce(anterior).mockResolvedValueOnce(guardado);
     const hitAnterior = await evaluarOferta(oferta, null, null, perfil);

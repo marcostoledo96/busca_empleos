@@ -196,6 +196,8 @@ function requisitoVigilado(texto) {
 }
 
 const PATRON_OBLIGACION_EXPLICITA = /\b(?:obligatori[oa]s?|excluyentes?|mandatory|required|requerid[oa]s?|(?:se )?(?:requiere|exige|necesita)n?)\b/;
+const ALCANCE_EQUIPO = / (?:solo|solamente|unicamente) para el equipo (.+)$/;
+const SEPARADOR_EXIGENCIAS = / (?:y|e) (?=se (?:requiere|exige|necesita)n?\b)/;
 
 function acreditaObligacionCitada(cita, requisito, evidencia) {
     const literal = literalClausula(cita);
@@ -203,7 +205,9 @@ function acreditaObligacionCitada(cita, requisito, evidencia) {
     if (!contieneTokenNormalizado(literal, evidencia) && cita.oracionMixta !== evidencia && !citaConEncabezado) return false;
     if (esDecorativa(cita.texto) || noObligatoriaEnOferta(cita)) return false;
     // Una segunda exigencia no cambia el alcance de la primera, aunque incluya alternativas.
-    return cita.texto.split(/ (?:y|e) (?=se (?:requiere|exige|necesita)n?\b)/).some(condicion => {
+    return cita.texto.split(SEPARADOR_EXIGENCIAS).some(fragmento => {
+        // En la ruta acotada, la aplicabilidad del equipo se contrasta aparte.
+        const condicion = fragmento.replace(ALCANCE_EQUIPO, '');
         if (!contieneTokenNormalizado(condicion, requisito) || /\b(?:o|u|or|(?:solo|solamente|unicamente) para)\b/.test(condicion)) return false;
         const lista = condicion.match(/^(?:obligatorio|(?:se )?(?:requiere|exige|necesita)n?|es obligatori[oa])(?: (?:conocer|dominar|manejar|contar con|experiencia (?:en|con)|conocimientos? (?:en|de)))? (.+)$/)?.[1]
             ?? condicion.match(/^(.+?) son (?:obligatori[oa]s|excluyentes|requerid[oa]s)\b/)?.[1];
@@ -277,6 +281,9 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const textoOferta = oferta.descripcion;
     const descripcionNormalizada = normalizarTextoComparacion(textoOferta);
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
+    const equiposVacante = new Set(bajoUmbral ? citasConOrigen
+        .map(cita => literalClausula(cita).match(/^la vacante corresponde al equipo (.+)$/)?.[1]).filter(Boolean) : []);
+    let alcanceEquipoCorregido = false;
     const exclusionesCorroboradas = new Set();
     const revisados = new Map();
     for (const categoria of ['cumplidos', 'no_cumplidos', 'exclusiones', 'por_confirmar']) {
@@ -302,7 +309,18 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
             const incumplimientoAcotado = categoria === 'no_cumplidos' && revisarIncumplimiento(item);
-            const ofertaAcreditada = !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
+            const equipoNoAcreditado = bajoUmbral && (incumplimientoAcotado || exclusionObligatoria)
+                && mencionesDelRequisito(clausulasOferta, requisito).some(cita => {
+                    const literal = literalClausula(cita);
+                    return literal.split(SEPARADOR_EXIGENCIAS).some(fragmento => {
+                        const equipo = fragmento.match(ALCANCE_EQUIPO)?.[1];
+                        return equipo && contieneTokenNormalizado(fragmento, requisito) && contieneTokenNormalizado(ofertaCitada, requisito)
+                            && (contieneTokenNormalizado(fragmento, ofertaCitada) || contieneTokenNormalizado(ofertaCitada, fragmento))
+                            && (equiposVacante.size !== 1 || !equiposVacante.has(equipo));
+                    });
+                });
+            alcanceEquipoCorregido ||= equipoNoAcreditado;
+            const ofertaAcreditada = !equipoNoAcreditado && !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
                     && PATRON_OBLIGACION_EXPLICITA.test(cita.texto))
                 : contieneTokenNormalizado(ofertaCitada, requisito)
@@ -377,7 +395,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         };
     }
     if (bajoUmbral) {
-        return { ...resultado, explicacion, ...((exclusionesObligatorias.size || hayIncumplimientos) && {
+        return { ...resultado, explicacion, ...(alcanceEquipoCorregido && { pendiente: false }), ...((exclusionesObligatorias.size || hayIncumplimientos) && {
             razon: `Afinidad técnica estimada: ${resultado.porcentaje}% (por debajo del umbral del ${UMBRAL_MATCH_MINIMO}%).`,
         }) };
     }
