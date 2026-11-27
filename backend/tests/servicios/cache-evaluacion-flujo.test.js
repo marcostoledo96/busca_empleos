@@ -336,6 +336,12 @@ test.each([
     [`Para acreditar el requisito de estudiante se exige un título obtenido únicamente para el puesto de pasantía.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
     [`La búsqueda actual es para soporte.\nLo indicado a continuación aplica al puesto de pasantía.\nPara acreditar el requisito de estudiante se exige un título obtenido.\n\nLo indicado a continuación aplica al puesto de soporte.\n${cursada126}`, true],
     [`Para acreditar el requisito de estudiante de ${carrera126} se exige ser estudiante de ${carrera126}.\n\n${cursada126}`, true],
+    [`Sólo para el equipo de Datos:\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+    [`Sólo para el equipo de Datos:\nYa no se exige el requisito de estudiante de ${carrera126}.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+    [`Exclusivo para el equipo de Datos:\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+    [`La búsqueda actual es para soporte.\n${cursada126}\n\nSólo para el equipo de Datos:\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.`, true],
+    [`La búsqueda actual es para soporte.\n${cursada126}\n\nSólo para el equipo de Soporte:\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.`, false],
+    [`Para acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, false],
 ])('reauditoría #127: conserva el contexto académico al evaluar y releer %s', async (descripcion, vigente) => {
     const { resultado, avisoSintetico, explicacion } = await evaluarCasoAcademico126(
         null, estudiante126, perfilEstudiante126, perfilEstudiante126, { descripcion });
@@ -480,6 +486,36 @@ test.each([
     const relectura = pool.query.mock.calls.slice(consultas);
     expect(relectura.length).toBeGreaterThan(0);
     expect(relectura.every(([sql]) => sql.includes('SELECT resultado'))).toBe(true);
+});
+
+test('reauditoría #127: no duplica el título obligatorio ya informado con otra forma de artículo y conserva su cita', async () => {
+    const avisoSintetico = Object.freeze({ id: 126, titulo: 'Desarrollo TypeScript Junior',
+        descripcion: `Desarrollo con TypeScript. ${cursada126} Requisito obligatorio: Título de la ${carrera126}.`,
+        modalidad: 'remoto', descripcion_completitud: 'completa' });
+    fila = Object.freeze({ stack_tecnologico: Object.freeze(['TypeScript']), perfil_profesional: perfilEstudiante126,
+        zonas_preferidas: Object.freeze([]) });
+    const cumplido = { requisito: estudiante126, tipo: 'obligatorio', evidencia_oferta: estudiante126,
+        evidencia_perfil: perfilEstudiante126, explicacion: 'Coincidencia declarada.' };
+    const pendienteTitulo = { requisito: `Título de ${carrera126}`, tipo: 'obligatorio',
+        evidencia_oferta: `Título de la ${carrera126}`, evidencia_perfil: '', explicacion: 'Falta acreditar el título.' };
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: true, porcentaje: 80,
+        razon: 'Falta confirmar el título.',
+        explicacion: { cumplidos: [cumplido], no_cumplidos: [], por_confirmar: [pendienteTitulo], exclusiones: [] } }));
+    const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila);
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, pendiente: true,
+        explicacion: { cumplidos: [cumplido], no_cumplidos: [], exclusiones: [] } });
+    expect(resultado.error).toBeUndefined();
+    expect(resultado.explicacion.por_confirmar).toHaveLength(1);
+    expect(resultado.explicacion.por_confirmar[0]).toMatchObject({
+        requisito: `Título de ${carrera126}`, tipo: 'obligatorio', evidencia_oferta: `Título de la ${carrera126}`,
+    });
+    const antes = structuredClone([...registros]);
+    const consultas = pool.query.mock.calls.length;
+    await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila)).resolves.toEqual(resultado);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect([...registros]).toEqual(antes);
+    expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+        .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
 });
 
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {

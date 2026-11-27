@@ -214,6 +214,14 @@ const ARTICULO_CARRERA = /^(?:la carrera de |(?:la|el) (?=(?:licenciatura|tecnic
 function normalizarCarreraAcademica(texto) {
     return typeof texto === 'string' ? texto.replace(ARTICULO_CARRERA, '') : texto;
 }
+
+function normalizarTituloAcademico(texto) {
+    const plegado = plegarAfirmacionLiteral(texto)?.replace(/\.$/, '');
+    if (!plegado || ROTULO_ESTUDIANTE.test(plegado)) return null;
+    const carrera = normalizarCarreraAcademica(plegado.replace(ROTULO_TITULO, ''));
+    return ROTULO_TITULO.test(plegado) || /^(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado|tecnic[oa] superior)\b/.test(carrera)
+        ? carrera : null;
+}
 const REFERENCIAS_HISTORICAS = [
     ['retirada', /^(?:texto|fragmento|bloque|seccion) (?:eliminad[oa]|retirad[oa])$/],
     ['anterior', /^(?:vacante|aviso|version|texto|seccion) (?:anterior|previ[oa])$/],
@@ -244,9 +252,10 @@ function clasificarTramoAcademico(literal, lista, carreras) {
             || /^(?:licenciatura|tecnicatura|maestria|doctorado|grado|tecnic[oa] superior)\b/.test(carreraTitulo))) {
         return { ...tramo, rol: 'titulo', carrera: carreraTitulo };
     }
-    const actual = clausula.match(/^la busqueda actual es para ([a-z0-9]+(?: [a-z0-9]+)*)$/);
+    const actual = clausula.match(/^la busqueda actual es para (?:(?:el puesto|la vacante|el equipo) de )?([a-z0-9]+(?: [a-z0-9]+)*)$/);
     if (actual) return { ...tramo, rol: 'vacanteActual', puesto: actual[1] };
-    const destino = clausula.match(/^(?:lo indicado a continuacion aplica|la condicion siguiente corresponde) (?:al puesto|a la vacante) de ([a-z0-9 ]+)$/);
+    const destino = clausula.match(/^(?:lo indicado a continuacion aplica|la condicion siguiente corresponde) (?:al puesto|a la vacante|al equipo) de ([a-z0-9 ]+)$/)
+        || clausula.match(/^(?:(?:solo|solamente|unicamente|exclusivamente|exclusiv[oa]) )?para (?:el puesto|la vacante|el equipo|el area) de ([a-z0-9]+(?: [a-z0-9]+)*):$/);
     if (destino) return { ...tramo, rol: 'destino', puesto: destino[1] };
     const cierre = clausula.match(/^(?:fin|cierre) (?:del|de la) (.+?):?$/);
     const apertura = clausula.match(/^(?:(?:reproducimos|se reproduce|citamos) (?:a continuacion|debajo) (?:el|la)|(?:lo que sigue|lo siguiente|lo indicado a continuacion) (?:corresponde|pertenece|aplica) a (?:una?|la|el)) (.+?):?$/);
@@ -331,8 +340,10 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
                 if (tramo.puesto !== puestoActual) alcance = { vigente: false };
                 else if (!alcance.vigente && otroBloque) alcance = { vigente: true };
             }
+            const encabezadoPrevio = previo?.alcance === alcance && previo.rol === 'ambiguo' && previo.literal.endsWith(':');
             const contexto = previo?.alcance === alcance && !otroBloque ? previo.contexto : {
-                ambiguo: previo?.alcance === alcance && previo.rol === 'ambiguo' && previo.literal.endsWith(':'),
+                ambiguo: encabezadoPrevio,
+                encabezadoAbierto: encabezadoPrevio,
             };
             let esContinuacion = false;
             if (tramo.rol === 'ambiguo' || tramo.rol === 'cierreReferencia') {
@@ -374,17 +385,18 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
                 esContinuacion = Boolean((cursada || cursadaNombrada || destino || alcanceExplicito) && aludeACursada
                     && (retiro || restriccion || CONTINUACION_ACADEMICA.test(tramo.clausula)));
                 if (otroDestino || (cursadaNombrada && cursadaNombrada !== ultimaCursada)) ultimaCursada = undefined;
-                if (esContinuacion && cursada && !otroDestino && alcance.vigente && !alcance.ambiguo) {
+                if (esContinuacion && cursada && !otroDestino && alcance.vigente && !alcance.ambiguo && !contexto.encabezadoAbierto) {
                     const reafirmaCursada = restriccion?.[1]
                         && predicado.slice(restriccion[1].length).trim().replace(/^ser /, '') === cursada;
                     if (retiro) obligacionesRetiradas.add(cursada);
                     else if (!reafirmaCursada) cursadasRestringidas.add(cursada);
                 }
-                if (referenciaExplicita && !cursada && !otraVacante && alcance.vigente && !alcance.ambiguo
+                if (referenciaExplicita && !cursada && !otraVacante && alcance.vigente && !alcance.ambiguo && !contexto.encabezadoAbierto
                     && (retiro || restriccion) && (cursadaNombrada || cursadasVigentes.size === 0)) {
                     aclaracionesPendientes.push({ retiro, restriccion, predicado, cursadaNombrada, puesto, alcance });
                 }
                 if (!esContinuacion || tramo.literal.endsWith(':')) contexto.ambiguo = true;
+                if (tramo.literal.endsWith(':')) contexto.encabezadoAbierto = true;
             }
             if (tramo.rol === 'estudiante') {
                 ultimaCursada = tramo.estudiante;
@@ -532,7 +544,9 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             && acreditarEstudianteLiteral(item, candidato.perfil_profesional, exigenciasLiterales(), true);
         if (!obligatorio && !deseableAcreditado) cursadasSinRespaldo.add(item);
         const explicito = Object.values(original).flat().some(hecho => hecho?.tipo === 'obligatorio'
-            && [carrera, titulo.exigencia].includes(normalizarCarreraAcademica(plegarAfirmacionLiteral(hecho.requisito)?.replace(/\.$/, ''))));
+            && (normalizarTituloAcademico(hecho.requisito) === carrera
+                || normalizarCarreraAcademica(plegarAfirmacionLiteral(hecho.requisito)?.replace(/\.$/, '')) === carrera
+                || plegarAfirmacionLiteral(hecho.requisito)?.replace(/\.$/, '') === titulo.exigencia));
         if (!explicito) titulosOmitidos.set(titulo.exigencia, { requisito: titulo.exigencia, tipo: 'obligatorio',
             evidencia_oferta: titulo.literal, evidencia_perfil: '' });
     }
@@ -664,10 +678,14 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const citaVigilada = vigilado && requisitoVigilado(ofertaCitada) === vigilado && menciones.some(coincideCita);
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
+            const carreraTituloItem = normalizarTituloAcademico(item.requisito);
+            const coincideOfertaTitulo = Boolean(carreraTituloItem
+                && contieneTokenNormalizado(ofertaCitada, carreraTituloItem)
+                && (!ROTULO_TITULO.test(requisito) || /\b(?:egreso|egresad[oa]|graduad[oa]|titulo)\b/.test(ofertaCitada)));
             const ofertaAcreditada = !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
                     && PATRON_OBLIGACION_EXPLICITA.test(cita.texto))
-                : contieneTokenNormalizado(ofertaCitada, requisito)
+                : (contieneTokenNormalizado(ofertaCitada, requisito) || coincideOfertaTitulo)
                     && (exclusionObligatoria || resultado.match || citasRelacionadas.length > 0)
                     && !validarCoherenciaRespuesta(false, UMBRAL_MATCH_MINIMO, { exclusiones: [item] }, textoOferta).invalido);
             // La prueba del veto sale del perfil, no de la afirmación del modelo o de una decisión cacheada.
