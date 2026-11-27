@@ -193,9 +193,11 @@ const SUFIJO_OBLIGATORIO = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
 const VINETA_ACADEMICA = /^[-*•–—][\t\p{Zs}]+/u;
 const ROTULO_TITULO = /^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /;
 const CONTINUACION_ACADEMICA = /^(?:con (?:el )?titulo|o de|esta condicion|aplica exclusivamente|solo para)\b|^(?:debe|se (?:debe|exige|requiere))\b.*\b(?:titulo|egreso)\b/;
-const OBJETO_CONDICION = /^para (?:acreditar|cumplir|satisfacer) (?:este requisito|esta condicion|esta exigencia|(?<cursada>(?:el requisito|la condicion) de estudiantes?)),? /;
-const RESTRICCION_ACADEMICA = /^(?:(se (?:exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)|(?:ya )?no basta)\b/;
-const RETIRO_CONDICION = /^(?:(?:ya )?no se (?:exige|requiere|necesita) (?:este requisito|esta condicion|esta exigencia)|(?:este requisito|esta condicion|esta exigencia) (?:ya )?no se (?:exige|requiere|necesita)|(?<cursada>la condicion de estudiantes?) (?:ya )?no es (?:obligatoria|excluyente|requerida))\b/;
+const OBJETO_CONDICION = /^para (?:acreditar|cumplir|satisfacer) (?:este requisito|esta condicion|esta exigencia|(?<cursada>(?:el requisito|la condicion|la exigencia) de estudiantes?)),? /;
+const CARRERA_EN_OBJETO = /^de (?:la carrera(?=, | )|(?:la carrera de |(?:la|el) (?=(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado)\b))?(?<carrera>[a-z0-9]+(?: [a-z0-9]+)*?))(?:, | (?=(?:(?:tambien )?(?:se (?:debe|exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)|(?:ya )?no (?:basta|alcanza)|basta)\b))/;
+const RESTRICCION_ACADEMICA = /^(?:(se (?:debe|exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)|tambien (?:se (?:debe|exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)|(?:ya )?no (?:basta|alcanza))\b/;
+const RETIRO_GENERICO = /^(?:(?:ya )?no se (?:exige|requiere|necesita) (?:este requisito|esta condicion|esta exigencia)|(?:este requisito|esta condicion|esta exigencia) (?:ya )?no se (?:exige|requiere|necesita))\b/;
+const RETIRO_ESTUDIANTE = /^(?:(?<cursada>(?:el requisito|la condicion|la exigencia) de estudiantes?)(?: de (?:la carrera(?=,? )|(?:la carrera de |(?:la|el) (?=(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado)\b))?(?<carrera>[a-z0-9]+(?: [a-z0-9]+)*?)))?,? (?:ya )?no (?:es (?:obligatori[oa]|excluyente|requerid[oa])|se (?:exige|requiere|necesita))\b|(?:ya )?no se (?:exige|requiere|necesita) (?<cursadaFinal>(?:el requisito|la condicion|la exigencia) de estudiantes?)(?: de (?:la carrera$|(?:la carrera de |(?:la|el) (?=(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado)\b))?(?<carreraFinal>[a-z0-9]+(?: [a-z0-9]+)*)))?$)/;
 const CONTENIDO_ACADEMICO = /\b(?:estudiantes?|titulo|titulacion|egreso|graduacion)\b/;
 const DESTINO_ACLARACION = /,? (?:(?:solo|solamente|unicamente|exclusivamente) )?para (?:(?:el puesto|la vacante) de (?<puesto>[a-z0-9]+(?: [a-z0-9]+)*)|(?:(?:la carrera de|la|el) )?(?<carrera>(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado) [a-z0-9]+(?: [a-z0-9]+)*))$/;
 const REFERENCIAS_HISTORICAS = [
@@ -318,13 +320,25 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
             };
             let esContinuacion = false;
             if (tramo.rol === 'ambiguo' || tramo.rol === 'cierreReferencia') {
+                const destinoCandidato = tramo.clausula.match(DESTINO_ACLARACION);
+                const clausulaSinDestino = destinoCandidato ? tramo.clausula.slice(0, destinoCandidato.index) : tramo.clausula;
                 const objeto = tramo.clausula.match(OBJETO_CONDICION);
-                const retiro = tramo.clausula.match(RETIRO_CONDICION);
-                const referenciaExplicita = objeto?.groups.cursada || retiro?.groups.cursada;
-                const destino = referenciaExplicita ? tramo.clausula.match(DESTINO_ACLARACION) : null;
-                const predicado = objeto ? tramo.clausula.slice(objeto[0].length, destino?.index) : '';
+                const retiroEstudiante = clausulaSinDestino.match(RETIRO_ESTUDIANTE);
+                const retiro = retiroEstudiante || tramo.clausula.match(RETIRO_GENERICO);
+                const referenciaExplicita = objeto?.groups.cursada
+                    || retiroEstudiante?.groups.cursada || retiroEstudiante?.groups.cursadaFinal;
+                const destino = referenciaExplicita ? destinoCandidato : null;
+                const carreraEnObjeto = objeto?.groups.cursada
+                    ? clausulaSinDestino.slice(objeto[0].length).match(CARRERA_EN_OBJETO) : null;
+                const carreraReferencia = carreraEnObjeto?.groups.carrera
+                    || retiroEstudiante?.groups.carrera || retiroEstudiante?.groups.carreraFinal;
+                const recortaDestino = Boolean(destino && (destino.groups.puesto
+                    || !carreraReferencia || destino.groups.carrera === carreraReferencia));
+                const finPredicado = recortaDestino ? destino.index : tramo.clausula.length;
+                const predicado = objeto
+                    ? tramo.clausula.slice(objeto[0].length + (carreraEnObjeto?.[0].length || 0), finPredicado) : '';
                 const restriccion = predicado.match(RESTRICCION_ACADEMICA);
-                const carrera = destino?.groups.carrera;
+                const carrera = carreraReferencia || destino?.groups.carrera;
                 const cursadaNombrada = carrera && `estudiante de ${carrera}`;
                 // Sin un antecedente local, sólo recupero una cursada vigente inequívoca si la aclaración la nombra.
                 const cursada = cursadaNombrada ? (cursadasVigentes.has(cursadaNombrada) ? cursadaNombrada : undefined)
@@ -334,7 +348,7 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
                 const otroDestino = (puesto && puesto !== puestoActual) || (cursadaNombrada && cursadaNombrada !== cursada);
                 // Tras modalidad, una referencia genérica puede apuntar a la modalidad, no a la cursada.
                 const aludeACursada = previo?.rol !== 'modalidad' || CONTENIDO_ACADEMICO.test(tramo.clausula);
-                esContinuacion = Boolean((cursada || destino) && aludeACursada
+                esContinuacion = Boolean((cursada || cursadaNombrada || destino) && aludeACursada
                     && (retiro || restriccion || CONTINUACION_ACADEMICA.test(tramo.clausula)));
                 if (otroDestino || (cursadaNombrada && cursadaNombrada !== ultimaCursada)) ultimaCursada = undefined;
                 if (esContinuacion && cursada && !otroDestino && alcance.vigente && !alcance.ambiguo) {

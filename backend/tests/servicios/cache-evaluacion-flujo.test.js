@@ -292,6 +292,26 @@ test.each([
     [`La búsqueda actual es para soporte. ${cursada126}\nLo indicado a continuación aplica al puesto de pasantía.\n\nLo indicado a continuación aplica al puesto de soporte.\n${cursada126} La condición de estudiante ya no es obligatoria.`, false],
     [`Lo que sigue corresponde a una vacante anterior.\nReproducimos a continuación el texto anterior.\nFin del texto anterior.\n\nLa búsqueda actual es para soporte.\n${cursada126}\n\nFin de la vacante anterior.`, false],
     [`Reproducimos a continuación el texto eliminado.\n${titulo126}\nFin del texto eliminado.\n\nEsta sección anterior era sólo una referencia.\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.`, false],
+    [`${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.`, false],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante de ${carrera126} ya no es obligatoria.`, false],
+    [`${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante de ${carrera126} ya no es obligatoria.`, false],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de la ${carrera126}, se exige un título obtenido.`, false],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nYa no se exige el requisito de estudiante de ${carrera126}.`, false],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nEl requisito de estudiante de ${carrera126} ya no se exige.`, false],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de Licenciatura en Informática se exige un título obtenido.`, true],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante de Licenciatura en Informática ya no es obligatoria.`, true],
+    [`${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de Licenciatura en Informática se exige un título obtenido.`, true],
+    [`${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante de Licenciatura en Informática ya no es obligatoria.`, true],
+    [`${cursada126} La condición de estudiante de Licenciatura en Informática ya no es obligatoria.`, true],
+    ...['pasantía', 'soporte'].flatMap(puesto => [
+        `Para acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido únicamente para el puesto de ${puesto}.`,
+        `La condición de estudiante de ${carrera126} ya no es obligatoria para el puesto de ${puesto}.`,
+    ].map(aclaracion => [`La búsqueda actual es para soporte.\n\n${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\n${aclaracion}`, puesto !== 'soporte'])),
+    [`La búsqueda actual es para soporte. ${cursada126}\nLo indicado a continuación aplica al puesto de pasantía.\n\nPara acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.`, true],
+    [`${cursada126}\n\nReproducimos a continuación el texto eliminado. Para acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido. Fin del texto eliminado.`, true],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de ${carrera126} se exige ser estudiante de ${carrera126}.`, true],
+    [`${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de ${carrera126} se exige ser estudiante de ${carrera126}.`, true],
 ])('reauditoría #127: conserva el contexto académico al evaluar y releer %s', async (descripcion, vigente) => {
     const { resultado, avisoSintetico, explicacion } = await evaluarCasoAcademico126(
         null, estudiante126, perfilEstudiante126, perfilEstudiante126, { descripcion });
