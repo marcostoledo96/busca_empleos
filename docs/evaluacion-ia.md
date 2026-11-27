@@ -764,10 +764,17 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   Sistemas.», acredita esa condición si el texto efectivo del aviso exige ser
   estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
   Conservo el cuerpo del aviso con sus párrafos, encabezados y viñetas. Un plazo
-  de postulación, la modalidad o una viñeta técnica independiente no cambian
-  la condición de estudiante. Una viñeta que añade «Debe tener el título obtenido»
-  sí la califica. Si el texto apunta a otra vacante, reproduce un requisito retirado
-  o no permite separar la condición de su contexto, queda `por_confirmar`.
+  de postulación, la modalidad o un párrafo de presentación independiente no
+  cambian la condición de estudiante. Una continuación como «con título
+  obtenido» sí la califica, incluso tras un punto y una línea en blanco.
+  Una línea en blanco no cambia la vacante: el retorno desde otra vacante
+  requiere un selector o una cabecera reconocidos al inicio de otro párrafo.
+  Si el aviso anuncia que reproduce texto retirado o de referencia, no uso lo
+  que sigue como evidencia vigente: no hay un cierre definido y una cabecera
+  repetida no basta. Una condición sin respaldo vigente queda `por_confirmar`.
+  Al contrastar un egreso obligatorio, sólo conservo la cursada como deseable
+  si su cita y su carrera se respaldan en la misma vacante. El deseable de otra
+  vacante no se acredita ni elimina el título pendiente.
   Una cursada no acredita el egreso ni el título obligatorio, cualquiera sea el
   orden. No deduzco obligatoriedad de un encabezado genérico. «El egreso es
   deseable» sólo modifica un título de la misma vacante si nombra la misma carrera
