@@ -518,6 +518,60 @@ test('reauditoría #127: no duplica el título obligatorio ya informado con otra
         .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
 });
 
+test.each(['Título', 'Egreso'])('reauditoría #127: no acredita un %s de otra carrera más larga por equivalencia de artículo', async rotulo => {
+    const perfilTitulo = `Obtuve el título de ${carrera126}.`;
+    const citaLarga = `${rotulo} de la ${carrera126} de Información`;
+    const avisoSintetico = Object.freeze({ id: 126, titulo: 'Desarrollo TypeScript Junior',
+        descripcion: `Desarrollo con TypeScript. Requisito obligatorio: ${citaLarga}.`,
+        modalidad: 'remoto', descripcion_completitud: 'completa' });
+    fila = Object.freeze({ stack_tecnologico: Object.freeze(['TypeScript']), perfil_profesional: perfilTitulo,
+        zonas_preferidas: Object.freeze([]) });
+    const cumplido = { requisito: `Título de ${carrera126}`, tipo: 'obligatorio', evidencia_oferta: citaLarga,
+        evidencia_perfil: perfilTitulo, explicacion: 'Coincidencia declarada.' };
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: true, porcentaje: 80,
+        razon: 'Titulación declarada.',
+        explicacion: { cumplidos: [cumplido], no_cumplidos: [], por_confirmar: [], exclusiones: [] } }));
+    const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila);
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, pendiente: true,
+        explicacion: { cumplidos: [], no_cumplidos: [], exclusiones: [],
+            por_confirmar: [expect.objectContaining({ requisito: `Título de ${carrera126}`, tipo: 'obligatorio' })] } });
+    expect(resultado.error).toBeUndefined();
+    const antes = structuredClone([...registros]);
+    const consultas = pool.query.mock.calls.length;
+    await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila)).resolves.toEqual(resultado);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect([...registros]).toEqual(antes);
+    expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+        .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+});
+
+test('reauditoría #127: acredita el título de la misma carrera cuando sólo difiere el artículo', async () => {
+    const perfilTitulo = `Obtuve el título de ${carrera126}.`;
+    const citaArticulo = `Título de la ${carrera126}`;
+    const avisoSintetico = Object.freeze({ id: 126, titulo: 'Desarrollo TypeScript Junior',
+        descripcion: `Desarrollo con TypeScript. Requisito obligatorio: ${citaArticulo}.`,
+        modalidad: 'remoto', descripcion_completitud: 'completa' });
+    fila = Object.freeze({ stack_tecnologico: Object.freeze(['TypeScript']), perfil_profesional: perfilTitulo,
+        zonas_preferidas: Object.freeze([]) });
+    const cumplido = { requisito: `Título de ${carrera126}`, tipo: 'obligatorio', evidencia_oferta: citaArticulo,
+        evidencia_perfil: perfilTitulo, explicacion: 'Título confirmado.' };
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: true, porcentaje: 80,
+        razon: 'Titulación confirmada.',
+        explicacion: { cumplidos: [cumplido], no_cumplidos: [], por_confirmar: [], exclusiones: [] } }));
+    const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila);
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80,
+        explicacion: { cumplidos: [cumplido], no_cumplidos: [], por_confirmar: [], exclusiones: [] } });
+    expect(resultado.pendiente).not.toBe(true);
+    expect(resultado.error).toBeUndefined();
+    const antes = structuredClone([...registros]);
+    const consultas = pool.query.mock.calls.length;
+    await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila)).resolves.toEqual(resultado);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect([...registros]).toEqual(antes);
+    expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+        .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+});
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';

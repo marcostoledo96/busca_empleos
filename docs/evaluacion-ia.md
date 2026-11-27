@@ -796,13 +796,15 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   vacante no se acredita ni elimina el título pendiente.
   Una cursada no acredita el egreso ni el título obligatorio, cualquiera sea el
   orden; al contrastarlos o reconocer un título ya informado en `por_confirmar`
-  ignoro el artículo gramatical (`la`/`el`, `la carrera de`), evitando
-  duplicados y conservando la cita literal del aviso. No deduzco obligatoriedad
-  de un encabezado genérico. «El egreso es deseable» sólo modifica un título de
-  la misma vacante si nombra la misma carrera o la referencia local es
-  inequívoca. El egreso deseable de otra carrera no quita el título pendiente.
-  No infiero carreras afines ni alternativas; mantengo la afinidad recibida y
-  el umbral del 60 %.
+  ignoro el artículo gramatical (`la`/`el`, `la carrera de`) únicamente cuando
+  coinciden los nombres completos normalizados de la carrera en el requisito y
+  en la cláusula citada (sin aceptar otra carrera más larga por subcadena),
+  evitando duplicados y conservando la cita literal del aviso. No deduzco
+  obligatoriedad de un encabezado genérico. «El egreso es deseable» sólo
+  modifica un título de la misma vacante si nombra la misma carrera o la
+  referencia local es inequívoca. El egreso deseable de otra carrera no quita
+  el título pendiente. No infiero carreras afines ni alternativas; mantengo la
+  afinidad recibida y el umbral del 60 %.
 - **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
   El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
   su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,

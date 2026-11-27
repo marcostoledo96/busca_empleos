@@ -222,6 +222,15 @@ function normalizarTituloAcademico(texto) {
     return ROTULO_TITULO.test(plegado) || /^(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado|tecnic[oa] superior)\b/.test(carrera)
         ? carrera : null;
 }
+
+const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyentes?|deseables?|opcionales?)|obligatori[oa]s?|excluyentes?|requisitos?|deseables?|opcionales?|se (?:requiere|exige|necesita))(?:: *| )|(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) )+/;
+
+function normalizarClausulaTitulo(texto) {
+    const clausula = plegarAfirmacionLiteral(texto)?.replace(/\.$/, '');
+    if (!clausula) return null;
+    const contenido = clausula.replace(PREFIJO_CLAUSULA_TITULO, '').replace(SUFIJO_OBLIGATORIO, '');
+    return normalizarTituloAcademico(contenido);
+}
 const REFERENCIAS_HISTORICAS = [
     ['retirada', /^(?:texto|fragmento|bloque|seccion) (?:eliminad[oa]|retirad[oa])$/],
     ['anterior', /^(?:vacante|aviso|version|texto|seccion) (?:anterior|previ[oa])$/],
@@ -679,8 +688,13 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             // Una tarea neutral puede repetir un requisito; una contradicción explícita sí impide acreditarlo.
             const exclusionObligatoria = categoria === 'exclusiones' && item.tipo === 'obligatorio';
             const carreraTituloItem = normalizarTituloAcademico(item.requisito);
-            const coincideOfertaTitulo = Boolean(carreraTituloItem
-                && contieneTokenNormalizado(ofertaCitada, carreraTituloItem)
+            const carreraOferta = normalizarClausulaTitulo(item.evidencia_oferta) ?? normalizarClausulaTitulo(ofertaCitada);
+            const coincideOfertaTitulo = Boolean(carreraTituloItem && carreraOferta === carreraTituloItem
+                && citasConOrigen.some(cita => !noObligatoriaEnOferta(cita)
+                    && (contieneTokenNormalizado(literalClausula(cita), ofertaCitada)
+                        || contieneTokenNormalizado(ofertaCitada, literalClausula(cita))
+                        || cita.oracionMixta === ofertaCitada)
+                    && normalizarClausulaTitulo(literalClausula(cita)) === carreraTituloItem)
                 && (!ROTULO_TITULO.test(requisito) || /\b(?:egreso|egresad[oa]|graduad[oa]|titulo)\b/.test(ofertaCitada)));
             const ofertaAcreditada = !contradiccion && (vigilado ? citaVigilada && !menciones.some(noObligatorio)
                 && menciones.some(cita => coincideCita(cita)
