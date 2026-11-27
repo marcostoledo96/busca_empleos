@@ -23,8 +23,27 @@ function construirPerfilDesdePreferencias(prefs = {}) {
     return construirPerfilEfectivoCanonico(prefs).texto;
 }
 
+/** Tolero sólo diferencias tipográficas; no borro puntuación ni marcas semánticas. */
+function plegarAfirmacionLiteral(texto) {
+    if (typeof texto !== 'string') return null;
+    return texto.normalize('NFC').replace(/\p{L}/gu, letra => {
+        const descompuesta = letra.normalize('NFD');
+        return /^[a-z][\u0300-\u036f]+$/i.test(descompuesta) ? descompuesta[0] : letra;
+    }).toLowerCase().replace(/[\t\p{Zs}]+/gu, ' ').replace(/^ +| +$/g, '');
+}
+
+function leerAfirmacionEstudiantil(texto) {
+    const literal = plegarAfirmacionLiteral(texto)?.replace(/\.$/, '')
+        .replace(/^(?:soy actualmente |(?:actualmente )?soy )/, '');
+    // shortcut: comparo la carrera completa y no interpreto alternativas ni calificadores.
+    return /^estudiante de [a-z0-9]+(?: [a-z0-9]+)*$/.test(literal)
+        && !/\b(?:o|u|ni|afines|si|cuando|aunque|salvo|sin|no|pendiente|con titulo|y (?:egresad[oa]|graduad[oa]|titulad[oa]))\b/.test(literal)
+        ? literal : null;
+}
+
 /** Construyo instrucciones sin sustituir hechos confirmados por criterios adicionales. */
-function construirInstruccionesDesdePreferencias(prefs = {}) {
+function construirInstruccionesDesdePreferencias(prefs = {}, { omitirExcepcionEstudiantil = false } = {}) {
+    const incluirExcepcionEstudiantil = !omitirExcepcionEstudiantil && leerAfirmacionEstudiantil(prefs.perfil_profesional);
     const partes = [
         'Sos un evaluador de ofertas de empleo. Compará la oferta con los hechos confirmados del candidato.',
         construirPerfilDesdePreferencias(prefs),
@@ -35,6 +54,7 @@ function construirInstruccionesDesdePreferencias(prefs = {}) {
         'Requisitos deseables no cumplidos NO deben justificar un rechazo por sí solos ni considerarse exclusiones.',
         'Una cita de la oferta prueba el requisito, no el cumplimiento del candidato. Residencia, autorización laboral, matrícula y titulación específica obligatorias sin evidencia confirmada del perfil van a por_confirmar con tipo obligatorio; desconocido no equivale a cumplido ni a incumplido. No inventes equivalencia académica entre formación técnica y una titulación específica. Si son deseables, conservá tipo deseable sin bloquear la elegibilidad.',
         'Para una obligación en cumplidos, citá literalmente el hecho del candidato y el requisito relacionado del aviso; no uses otra capacidad, una preferencia ni criterios adicionales como prueba. Para titulación y residencia, la cita debe ser el hecho fuente íntegro y autónomo que afirma el mismo hecho ACTUAL: título obtenido/completado o residencia vigente, no sólo mencionarlo. No extraigas una afirmación de citas, párrafos compuestos o contextos hipotéticos/negativos, tampoco al cambiar de línea; si el hecho fuente no es una afirmación autónoma completa, dejalo por_confirmar sin inventar exclusión. Una cursada, condición de estudiante, formación en progreso o plan de mudanza queda por_confirmar, sin exclusión inventada. Por ejemplo: «Obtuve la Licenciatura en Sistemas» acredita ese título; «Resido actualmente en provincia Delta» acredita esa residencia, sin inferir otras ubicaciones. Para otros requisitos, el nombre debe aparecer en ambas citas. Una obligación en no_cumplidos o exclusiones necesita incompatibilidad acreditada: evidencia vacía, inventada, ajena o equivalencia no confirmada va a por_confirmar. No mantengas el mismo requisito simultáneamente cumplido y pendiente/excluido.',
+        ...(incluirExcepcionEstudiantil ? ['Excepción a la regla anterior: la condición de estudiante acredita esa misma condición actual sólo si el cuerpo del aviso la exige expresamente para la misma carrera literal. En ese caso, citá el requisito real del aviso y la afirmación autónoma íntegra de perfil_profesional; no uses citas, hipótesis, requisitos compuestos ni carreras afines. Una cursada o condición de estudiante nunca acredita egreso, título ni formación terminada.'] : []),
         'Excepción sólo académica en perfil_profesional: aceptá únicamente el marco completo desde el primer carácter Formación confirmada:\\n<una afirmación académica autónoma>\\n\\nExperiencia y proyectos:\\n<relato completo no vacío>, con encabezados exactos, únicos y en ese orden (LF o CRLF). En ese marco citá la línea académica íntegra, no los encabezados ni un fragmento del relato. Exigí la misma afirmación de título actual y exacto que para una fuente autónoma: Soy sólo para Técnico/Técnica Superior; Obtuve la/el, Completé la, Finalicé la, Me gradué de la o el mismo requisito seguido de obtenido/a, completado/a o confirmado/a. El encabezado declara, no certifica egreso, y no acredita residencia ni otras capacidades. Sin prefijos visibles u ocultos, comillas o cercos envolventes, duplicados, bloques vacíos ni líneas adicionales en la afirmación; no extraigas afirmaciones de párrafos ordinarios, citas, hipótesis, cursada o formación pendiente. No infieras equivalencias. Conservá todo el relato y los demás hechos y preferencias sin reinterpretarlos.',
         'El porcentaje mide afinidad técnica, no acredita elegibilidad. Si hay afinidad suficiente pero una obligación por confirmar, conservá match true y el porcentaje técnico con el requisito en por_confirmar: el servicio lo persistirá pendiente, no aprobado ni como error técnico. Una incompatibilidad real conserva su rechazo y exclusión, sin compensarla con afinidad. Si declarás Información suficiente de la oferta en por_confirmar y no hay incompatibilidad técnica/obligatoria acreditada, el resultado queda pendiente incluso con match false; conservá el porcentaje técnico original, sin inventar otro ni tratar incertidumbre como error. Un no_cumplido o exclusión sin evidencia no prueba incompatibilidad.',
         'Evaluá la suficiencia por el contenido, no por longitud ni solo por el título. Si un texto fragmentario no permite evaluar requisitos, registrá Información suficiente de la oferta en por_confirmar con tipo obligatorio. Un extracto breve con evidencia suficiente sí puede evaluarse; no inventes requisitos omitidos.',
@@ -81,4 +101,4 @@ function construirPromptEvaluacion(oferta) {
 }
 
 module.exports = { ordenarObjeto, construirPerfilEfectivoCanonico, construirPerfilDesdePreferencias,
-    construirInstruccionesDesdePreferencias, construirPromptEvaluacion };
+    construirInstruccionesDesdePreferencias, construirPromptEvaluacion, plegarAfirmacionLiteral, leerAfirmacionEstudiantil };

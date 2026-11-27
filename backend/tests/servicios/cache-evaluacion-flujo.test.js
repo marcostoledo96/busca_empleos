@@ -41,6 +41,126 @@ beforeEach(() => {
     });
 });
 
+const carrera126 = 'Licenciatura en Sistemas';
+const estudiante126 = `Estudiante de ${carrera126}`;
+const perfilEstudiante126 = `Soy estudiante de ${carrera126}.`;
+
+async function evaluarCasoAcademico126(aviso, requisito, perfil, citaPerfil = perfil, opciones = {}) {
+    const avisoSintetico = Object.freeze({ id: 126, titulo: 'Desarrollo TypeScript Junior',
+        descripcion: opciones.descripcion || `Desarrollo con TypeScript. Requisito obligatorio: ${aviso}.`,
+        modalidad: 'remoto', descripcion_completitud: 'completa' });
+    fila = Object.freeze({ stack_tecnologico: Object.freeze(['TypeScript']), perfil_profesional: perfil,
+        zonas_preferidas: Object.freeze([]) });
+    const cumplido = { requisito, tipo: opciones.tipo || 'obligatorio', evidencia_oferta: requisito,
+        evidencia_perfil: citaPerfil, explicacion: 'Coincidencia declarada.' };
+    const explicacion = { cumplidos: [cumplido], no_cumplidos: [], por_confirmar: [], exclusiones: [] };
+    proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify({ match: true, porcentaje: 80,
+        razon: 'Afinidad técnica y requisito académico respaldados.', explicacion }));
+    return { avisoSintetico, explicacion, resultado: await servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila) };
+}
+
+test('#126: la condición literal de estudiante conserva el cumplimiento al evaluar y al releer caché', async () => {
+    const { avisoSintetico, explicacion, resultado } = await evaluarCasoAcademico126(estudiante126, estudiante126, perfilEstudiante126);
+    const almacenado = [...registros.values()][0];
+    expect(almacenado).toBeDefined();
+    const copia = structuredClone(almacenado);
+    const releido = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila);
+    expect(releido).toEqual(resultado);
+    expect([...registros.values()]).toEqual([copia]);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion });
+    expect(resultado.pendiente).not.toBe(true);
+    expect(resultado.error).toBeUndefined();
+});
+
+test('un Por confirmar sin cambios firmado antes de #126 no se reabre en un lote ordinario; la selección explícita sí lo evalúa', async () => {
+    const { avisoSintetico, resultado } = await evaluarCasoAcademico126(estudiante126, estudiante126, perfilEstudiante126);
+    const historica = { ...avisoSintetico, estado_evaluacion: 'pendiente', fecha_evaluacion: '2026-01-01',
+        razon_evaluacion: 'Pendiente de confirmación: requisito académico.', porcentaje_match: 80,
+        // Identidad real del caso sintético sobre master@d343193, con el mensaje anterior.
+        firma_criterios_evaluacion: '09fcf9cf8f829453f0857052bd805b7fe2e794e37279ed3031494ffae40e9593',
+        explicacion_evaluacion: { por_confirmar: [{ requisito: estudiante126 }],
+            hash_oferta: '8950207f92181e71646414e0b5fb207d8eeee1da9edff0a43964efd926fdb6ab' } };
+    expect(resultado.firma_criterios_evaluacion).not.toBe(historica.firma_criterios_evaluacion);
+    ofertas.obtenerOfertasPendientes.mockResolvedValue([historica]);
+    jest.clearAllMocks();
+    expect(await servicio.evaluarOfertasPendientes()).toMatchObject({ total: 0, errores: 0 });
+    expect(ofertas.actualizarEvaluacion).not.toHaveBeenCalled();
+    expect(proveedor.consultarDeepSeek).not.toHaveBeenCalled();
+    expect(await servicio.evaluarOfertasPendientes([historica])).toMatchObject({ total: 1, aprobadas: 1, errores: 0 });
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(ofertas.actualizarEvaluacion.mock.calls[0].slice(0, 2)).toEqual([126, 'aprobada']);
+});
+
+test('el título obligatorio sigue cumplido ante una afirmación autónoma de título obtenido', async () => {
+    const { resultado, explicacion } = await evaluarCasoAcademico126(carrera126, carrera126, `Obtuve la ${carrera126}.`);
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion });
+    expect(resultado.pendiente).not.toBe(true);
+});
+
+test.each([
+    [carrera126, carrera126, perfilEstudiante126],
+    [`Egreso de ${carrera126}`, estudiante126, perfilEstudiante126],
+    [`Egreso de ${carrera126} (ser ${estudiante126.toLowerCase()} no alcanza)`, estudiante126, perfilEstudiante126],
+    [`«${estudiante126}»`, estudiante126, perfilEstudiante126],
+    [estudiante126, estudiante126, 'Soy estudiante de Licenciatura en Informática.'],
+    [estudiante126, estudiante126, `«${perfilEstudiante126}»`],
+    [estudiante126, estudiante126, `¿${perfilEstudiante126.slice(0, -1)}?`],
+    [estudiante126, estudiante126, `No ${perfilEstudiante126.toLowerCase()}`],
+    [estudiante126, estudiante126, `Si ${perfilEstudiante126.toLowerCase()}`],
+    [estudiante126, estudiante126, `Planeo ser estudiante de ${carrera126}.`],
+    [estudiante126, estudiante126, `Experiencia en TypeScript. ${perfilEstudiante126}`],
+])('no acredita una condición académica distinta o no autónoma: %s / %s / %s', async (aviso, requisito, perfil) => {
+    const { resultado } = await evaluarCasoAcademico126(aviso, requisito, perfil, perfilEstudiante126);
+    expect(resultado).toMatchObject({ pendiente: true, porcentaje: 80,
+        explicacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [expect.objectContaining({ requisito })] } });
+    expect(resultado.error).toBeUndefined();
+});
+
+test.each([
+    `Ejemplo:\nRequisito obligatorio: ${estudiante126}.`,
+    `~~~\nRequisito obligatorio: ${estudiante126}.\n~~~`,
+    `<q>\nRequisito obligatorio: ${estudiante126}.\n</q>`,
+    `Requisitos obligatorios:\n- ${estudiante126}\n  con título obtenido al momento de ingresar.`,
+    `Requisitos obligatorios:\n- ${estudiante126}\n  o de Ingeniería en Informática.`,
+    `Se requiere ser ${estudiante126.toLowerCase()}\nsolo para el equipo de capacitación. La vacante corresponde al equipo de soporte.`,
+    `Requisito obligatorio: ${estudiante126}. Esta condición ya no se exige.`,
+    `Sólo para el equipo de Datos:\nRequisito obligatorio: ${estudiante126}.`,
+])('no aísla una exigencia aparente de su contexto en el aviso: %s', async descripcion => {
+    const { resultado } = await evaluarCasoAcademico126(null, estudiante126, perfilEstudiante126, perfilEstudiante126,
+        { descripcion: `Desarrollo con TypeScript.\n${descripcion}` });
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, pendiente: true,
+        explicacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [expect.objectContaining({ requisito: estudiante126 })] } });
+    expect(resultado.error).toBeUndefined();
+});
+
+test.each(['deseable', 'desconocido'])('la reclasificación a %s no acredita un egreso exigido', async tipo => {
+    const { resultado } = await evaluarCasoAcademico126(`Egreso de ${carrera126}`, estudiante126, perfilEstudiante126,
+        perfilEstudiante126, { tipo });
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, pendiente: true,
+        explicacion: { cumplidos: [], no_cumplidos: [], exclusiones: [], por_confirmar: [expect.objectContaining({ tipo: 'obligatorio' })] } });
+    expect(resultado.error).toBeUndefined();
+});
+
+test.each([
+    [`Se requiere ser ${estudiante126.toLowerCase()}.`, `Actualmente soy estudiante de ${carrera126}.`],
+    [`Se requiere:\n- ${estudiante126}.`, perfilEstudiante126],
+])('acredita la variante literal y actual de estudiante: %s', async (aviso, perfil) => {
+    const { resultado, explicacion } = await evaluarCasoAcademico126(null, estudiante126, perfil, perfil,
+        { descripcion: `Desarrollo con TypeScript.\n${aviso}` });
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion });
+    expect(resultado.pendiente).not.toBe(true);
+});
+
+test.each(['Estudiante de Ingeniería en Computación y Sistemas', 'Gestión de estudiantes'])(
+    'conserva la acreditación literal en avisos sin ambigüedad: %s', async requisito => {
+        const perfil = requisito.startsWith('Estudiante') ? `Soy ${requisito.toLowerCase()}.` : `${requisito}.`;
+        const { resultado, explicacion } = await evaluarCasoAcademico126(requisito, requisito, perfil);
+        expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion });
+        expect(resultado.pendiente).not.toBe(true);
+    }
+);
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';

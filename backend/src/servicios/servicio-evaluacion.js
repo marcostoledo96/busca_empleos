@@ -29,7 +29,8 @@ const reglasExclusion = require('./evaluacion/reglas-exclusion');
 const { resolverModalidadOferta } = require('./servicio-normalizacion');
 const { estaEnZonasPreferidas, detectarRestriccionRemotaIncompatible } = require('./evaluacion/criterio-ubicacion');
 const { detectarPrioridadIa } = require('./evaluacion/detector-prioridad-ia');
-const { construirPerfilDesdePreferencias, construirPerfilEfectivoCanonico, construirInstruccionesDesdePreferencias, construirPromptEvaluacion } = require('./evaluacion/entradas-evaluacion');
+const { construirPerfilDesdePreferencias, construirPerfilEfectivoCanonico, construirInstruccionesDesdePreferencias, construirPromptEvaluacion,
+    plegarAfirmacionLiteral, leerAfirmacionEstudiantil } = require('./evaluacion/entradas-evaluacion');
 const { construirIdentidadEvaluacion, crearFirmaCriterios, crearHash, construirEntradaOferta,
     VERSION_CONTRATO_EVALUACION, VERSION_CONTRATO_EVALUACION_ANTERIOR } = require('./evaluacion/identidad-evaluacion');
 const { REEVALUACION_SOLICITADA, obtenerSituacionEvaluacion } = require('./evaluacion/situacion-evaluacion');
@@ -157,15 +158,6 @@ function formasAfirmacionAcademica(requisito, tituloSuperior) {
     ];
 }
 
-/** Tolero sólo diferencias tipográficas; no borro puntuación ni marcas semánticas. */
-function plegarAfirmacionLiteral(texto) {
-    if (typeof texto !== 'string') return null;
-    return texto.normalize('NFC').replace(/\p{L}/gu, letra => {
-        const descompuesta = letra.normalize('NFD');
-        return /^[a-z][\u0300-\u036f]+$/i.test(descompuesta) ? descompuesta[0] : letra;
-    }).toLowerCase().replace(/[\t\p{Zs}]+/gu, ' ').replace(/^ +| +$/g, '');
-}
-
 function acreditarFormacionLiteral(requisito, evidencia, fuente) {
     const titulo = plegarAfirmacionLiteral(requisito)?.replace(/\.$/, '');
     const cita = plegarAfirmacionLiteral(evidencia);
@@ -189,6 +181,53 @@ function acreditarHechoActual(requisito, evidencia, hechos) {
     const lugar = requisito.match(/^(?:residir|residencia(?: actual)?) (en .+)$/)?.[1];
     return confirmado || Boolean(lugar && ['resido ', 'resido actualmente ', 'vivo actualmente ']
         .some(prefijo => evidencia === `${prefijo}${lugar}`));
+}
+
+const ROTULO_ESTUDIANTE = /^(?:ser )?estudiantes? de /;
+
+function exigenciasAcademicasLiterales(descripcion) {
+    const exigencias = [];
+    if (!descripcion) return exigencias;
+    // shortcut: un contexto citado, ilustrativo o retractado requiere confirmación manual.
+    const texto = plegarAfirmacionLiteral(descripcion);
+    if (/(?:^|\n) *(?:>|`{3,}|~{3,})|«|»|“|”|‘|’|<!--|<\/?(?:q|blockquote)\b|"[^"]*\n[^"]*"|'[^']*\n[^']*'|`[^`]*\n[^`]*`/.test(texto)
+        || /\b(?:ejemplo|hipotetic[oa]|aviso anterior|ya no (?:se )?(?:exige|requiere|necesita)|(?:solo|solamente|unicamente) para (?:el equipo|otra vacante))\b/.test(texto)) return exigencias;
+    const encabezado = /^(?:requisitos?(?: (?:obligatori[oa]s?|excluyentes?))?|obligatori[oa]s?|excluyentes?|se (?:requiere|exige|necesita)) *:/;
+    const demanda = /^(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) /;
+    const sufijo = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
+    const vineta = /^[-*•–—] /;
+    let enLista = false;
+    const lineas = descripcion.split(/\r?\n/);
+    for (const [indice, renglon] of lineas.entries()) {
+        const linea = plegarAfirmacionLiteral(renglon);
+        if (!linea) { enLista = false; continue; }
+        if (encabezado.test(linea) && !linea.replace(encabezado, '').trim()) { enLista = true; continue; }
+        const esVineta = vineta.test(linea);
+        const siguiente = lineas[indice + 1];
+        // No convierto la primera línea de una viñeta partida en un requisito autónomo.
+        const continuacion = siguiente?.trim() && !vineta.test(plegarAfirmacionLiteral(siguiente))
+            && (/^[\t ]+\S|^[\p{Ll}]/u.test(siguiente) || (!/[.]$/.test(linea) && !siguiente.trimEnd().endsWith(':')));
+        if (!continuacion) for (const fragmento of linea.replace(vineta, '').split(/\.(?: +|$)/)) {
+            const clausula = fragmento.trim();
+            const contenido = clausula.replace(encabezado, '').trim();
+            const exigencia = contenido.replace(demanda, '').replace(sufijo, '');
+            if ((enLista && esVineta) || encabezado.test(clausula) || exigencia !== contenido) {
+                exigencias.push({ clausula, exigencia });
+            }
+        }
+        if (!esVineta) enLista = false;
+    }
+    return exigencias;
+}
+
+function acreditarEstudianteLiteral(item, fuente, exigencias) {
+    const afirmacion = leerAfirmacionEstudiantil(fuente);
+    const requisito = plegarAfirmacionLiteral(item.requisito)?.replace(/^ser |\.$/g, '');
+    if (!afirmacion || afirmacion !== requisito || plegarAfirmacionLiteral(fuente).replace(/\.$/, '')
+        !== plegarAfirmacionLiteral(item.evidencia_perfil)?.replace(/\.$/, '')) return false;
+    const cita = plegarAfirmacionLiteral(item.evidencia_oferta)?.replace(/\.$/, '');
+    return exigencias.some(({ clausula, exigencia }) => exigencia.replace(/^ser /, '') === requisito
+        && (cita === exigencia || cita === requisito || cita === clausula));
 }
 
 function requisitoVigilado(texto) {
@@ -250,8 +289,6 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const bajoUmbral = contrasteAcotado && resultado.porcentaje < UMBRAL_MATCH_MINIMO;
     const contrastePrevio = !contrasteAcotado || [...(original.exclusiones || []), ...(original.por_confirmar || [])].some(requiereContraste);
     if (!bajoUmbral && !contrastePrevio && !exclusionesObligatorias.size) return resultado;
-    const revisarObligacion = (item, categoria) => (contrastePrevio && (requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio')))
-        || (categoria === 'exclusiones' && item.tipo === 'obligatorio');
     const candidato = construirPerfilEfectivoCanonico(preferencias).candidato;
     const hechos = [candidato.perfil_profesional, candidato.nivel_real_seniority, candidato.idioma_candidato,
         ...candidato.stack_tecnologico, ...candidato.tecnologias_detalle.filter(t => t.nivel !== 'ninguno').flatMap(t => [t.nombre, t.evidencia])];
@@ -270,6 +307,20 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const textoOferta = oferta.descripcion;
     const descripcionNormalizada = normalizarTextoComparacion(textoOferta);
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
+    let exigencias;
+    const exigenciasLiterales = () => exigencias ??= exigenciasAcademicasLiterales(textoOferta);
+    const titulosMalRotulados = new Set((original.cumplidos || []).filter(item => {
+        const rotulo = plegarAfirmacionLiteral(item.requisito)?.replace(/\.$/, '');
+        if (item.tipo === 'obligatorio' || !ROTULO_ESTUDIANTE.test(rotulo)) return false;
+        const mencionEstudiante = rotulo.replace(/^ser /, '');
+        if (contieneTokenNormalizado(descripcionNormalizada, mencionEstudiante)) return false;
+        const carrera = rotulo.replace(ROTULO_ESTUDIANTE, '');
+        return exigenciasLiterales().some(({ exigencia }) =>
+            exigencia === carrera || exigencia.replace(/^(?:egreso|egresad[oa]|graduad[oa]|titulo) de /, '') === carrera);
+    }));
+    const revisarObligacion = (item, categoria) => (contrastePrevio && (requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio')))
+        || (categoria === 'exclusiones' && item.tipo === 'obligatorio')
+        || (categoria === 'cumplidos' && titulosMalRotulados.has(item));
     const acreditarAusencia = (item, requisito, vigilado) => {
         const nombres = [...new Set([requisito, claveRequisito(item), ...(vigilado ? [vigilado] : [])])];
         const ausenciaDeclarada = nombres.map(nombre => ausencias.get(nombre)).find(Boolean);
@@ -406,13 +457,15 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const fuentesCumplimiento = esRequisitoAcademico(requisito) && formacionConfirmada
                 && acreditarFormacionLiteral(item.requisito, item.evidencia_perfil, formacionConfirmada)
                 ? [...hechos, formacionConfirmada] : hechos;
-            const cumplimientoAcreditado = ofertaAcreditada && acreditarHechoActual(requisito, perfil, fuentesCumplimiento)
-                // Mantengo procedencia literal y cláusula autónoma también para la línea académica.
-                && fuentesCumplimiento.some(texto => typeof texto === 'string' && contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
-                && fuentesCumplimiento.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto).includes(perfil)
-                && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)
-                && !PATRON_OPCIONAL_EVIDENCIA.test(perfil)
-                && !ausencias.has(claveRequisito(item));
+            const cumplimientoAcreditado = ofertaAcreditada && !ausencias.has(claveRequisito(item))
+                && (ROTULO_ESTUDIANTE.test(requisito)
+                    ? acreditarEstudianteLiteral(item, candidato.perfil_profesional, exigenciasLiterales())
+                    // Mantengo procedencia literal y cláusula autónoma también para la línea académica.
+                    : acreditarHechoActual(requisito, perfil, fuentesCumplimiento)
+                        && fuentesCumplimiento.some(texto => typeof texto === 'string' && contieneTokenNormalizado(normalizarTextoComparacion(texto), perfil))
+                        && fuentesCumplimiento.filter(texto => typeof texto === 'string').flatMap(extraerClausulasConContexto).includes(perfil)
+                        && !/\b(?:no|sin|nunca|not|never|ningun[oa]?|carezco|aspiro|pendiente)\b/.test(perfil)
+                        && !PATRON_OPCIONAL_EVIDENCIA.test(perfil));
             if (!contrastePrevio && exclusionObligatoria && ofertaAcreditada && !noBloquea && ausenciaAcreditada && ausenciaAcreditada === item.evidencia_perfil) {
                 exclusionesCorroboradas.add(item);
             }
@@ -423,7 +476,8 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const prioridad = { cumplidos: 1, por_confirmar: 2, exclusiones: 3 };
             if (prioridad[revisados.get(requisito)?.destino] > prioridad[destino]) continue;
             revisados.set(requisito, { destino, item: destino === 'cumplidos' ? item : {
-                ...item, tipo: contradiccion ? 'desconocido' : noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
+                ...item, tipo: titulosMalRotulados.has(item) ? 'obligatorio' : contradiccion ? 'desconocido'
+                    : noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
                 evidencia_oferta: contradiccion || ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
                 evidencia_perfil: destino === 'exclusiones' ? ausenciaAcreditada : '',
                 explicacion: destino === 'exclusiones' ? 'Incompatibilidad respaldada por una ausencia declarada del candidato.'
@@ -804,15 +858,21 @@ async function evaluarOfertasPendientes(seleccionadas) {
         const instrucciones = construirInstruccionesDesdePreferencias(prefs);
         const modeloIA = normalizarModeloDeepSeek(prefs.modelo_ia_evaluacion || prefs.modelo_ia || DEEPSEEK_MODELO);
 
-        const versionesEstables = new Map([VERSION_CONTRATO_EVALUACION, VERSION_CONTRATO_EVALUACION_ANTERIOR]
-            .map(version => [crearFirmaCriterios(prefs, { instrucciones, modelo: modeloIA, version }), version]));
-        const pendientes = seleccionadas || (await modeloOferta.obtenerOfertasPendientes()).filter(oferta => {
-            const version = versionesEstables.get(oferta.firma_criterios_evaluacion);
-            if (!version || obtenerSituacionEvaluacion(oferta) !== 'por_confirmar') return true;
-            const hashAnterior = oferta.explicacion_evaluacion.hash_oferta;
-            // La versión sola no crea trabajo ordinario. Sin huella, conservo las invalidaciones SQL existentes.
-            return hashAnterior != null && hashAnterior !== crearHash(construirEntradaOferta(oferta, version));
-        });
+        let pendientes = seleccionadas;
+        if (!pendientes) {
+            // Reconozco el prompt anterior sólo para no reactivar pendientes históricos por un cambio de instrucciones.
+            const instruccionesPrevias = construirInstruccionesDesdePreferencias(prefs, { omitirExcepcionEstudiantil: true });
+            const versionesEstables = new Map([VERSION_CONTRATO_EVALUACION, VERSION_CONTRATO_EVALUACION_ANTERIOR]
+                .flatMap(version => [...new Set([instrucciones, instruccionesPrevias])].map(mensaje =>
+                    [crearFirmaCriterios(prefs, { instrucciones: mensaje, modelo: modeloIA, version }), version])));
+            pendientes = (await modeloOferta.obtenerOfertasPendientes()).filter(oferta => {
+                const version = versionesEstables.get(oferta.firma_criterios_evaluacion);
+                if (!version || obtenerSituacionEvaluacion(oferta) !== 'por_confirmar') return true;
+                const hashAnterior = oferta.explicacion_evaluacion.hash_oferta;
+                // La versión sola no crea trabajo ordinario. Sin huella, conservo las invalidaciones SQL existentes.
+                return hashAnterior != null && hashAnterior !== crearHash(construirEntradaOferta(oferta, version));
+            });
+        }
 
         progresoEvaluacion.total = pendientes.length;
         progresoEvaluacion.pendientes = pendientes.length;

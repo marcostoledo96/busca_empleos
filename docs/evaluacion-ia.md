@@ -759,6 +759,12 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   específico sin respaldo del perfil se explican en `por_confirmar`, tipo
   `obligatorio`. Una cita del aviso acredita la exigencia, no su cumplimiento.
   No equiparo formación técnica con una licenciatura sin equivalencia confirmada.
+- **Condición de estudiante pedida expresamente (#126):** una afirmación actual,
+  literal y autónoma del perfil, como «Soy estudiante de Licenciatura en
+  Sistemas.», acredita esa condición si el texto efectivo del aviso exige ser
+  estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
+  Una cursada no acredita egreso ni título; no deduzco carreras afines ni
+  alternativas. Mantengo la afinidad recibida y el umbral del 60 %.
 - **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
   El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
   su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,
@@ -795,6 +801,14 @@ como obligatorio, lo conservo por confirmar de tipo deseable, sin bloquear ni
 inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones.
 Esta comprobación literal es conservadora: no pretende interpretar cualquier
 redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
+
+**Firma y caché de #126:** la aclaración del mensaje de sistema genera una firma
+nueva; una clave anterior no es un hit con los criterios nuevos. El lote ordinario
+reconoce la firma anterior sólo para no reabrir un «Por confirmar» sin cambios: no
+la usa para consultar caché ni para guardar nuevos resultados. No cambio la
+versión del contrato, no borro caché y no modifico históricos. La reevaluación
+explícita sigue forzando una evaluación de los IDs elegidos; nuevas evaluaciones
+con la firma nueva pueden requerir una consulta si no hay entrada compatible.
 
 **Rechazos por debajo del umbral (#120):** contrasto cada incumplimiento
 obligatorio una sola vez, reuniendo sus apariciones en `no_cumplidos`,
