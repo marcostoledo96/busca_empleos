@@ -798,8 +798,10 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   orden; al contrastarlos o reconocer un título ya informado en `por_confirmar`
   ignoro el artículo gramatical (`la`/`el`, `la carrera de`) únicamente cuando
   coinciden los nombres completos normalizados de la carrera en el requisito y
-  en la cláusula citada (sin aceptar otra carrera más larga por subcadena),
-  evitando duplicados y conservando la cita literal del aviso. No deduzco
+  en la cláusula vigente de la vacante actual (sin aceptar bloques eliminados,
+  otro equipo ni otra carrera más larga por subcadena), admitiendo artículo
+  inicial obligatorio y alcance explícito a la vacante actual, evitando
+  duplicados y conservando la cita literal del aviso. No deduzco
   obligatoriedad de un encabezado genérico. «El egreso es deseable» sólo
   modifica un título de la misma vacante si nombra la misma carrera o la
   referencia local es inequívoca. El egreso deseable de otra carrera no quita
