@@ -325,6 +325,17 @@ test.each([
     [`La búsqueda actual es para soporte. ${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nYa no se exige el requisito de estudiante de ${carrera126} para otra vacante.`, true],
     [`La búsqueda actual es para soporte. ${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante de ${carrera126} se exige ser estudiante de ${carrera126} en esta vacante.`, true],
     [`La búsqueda actual es para soporte. ${cursada126}\nLo indicado a continuación aplica al puesto de pasantía.\n\nYa no se exige el requisito de estudiante de ${carrera126} para esta vacante.`, true],
+    [`Para acreditar el requisito de estudiante se exige un título obtenido.\n\n${cursada126}`, false],
+    [`Para acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.\n\n${cursada126}`, false],
+    [`Para acreditar el requisito de estudiante de ${carrera126} se exige un título obtenido.\n\n${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.`, false],
+    [`Para acreditar el requisito de estudiante se exige un título obtenido.\n\n${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.`, false],
+    [`La condición de estudiante ya no es obligatoria.\n\n${cursada126}`, false],
+    [`Ya no se exige el requisito de estudiante de ${carrera126} para esta vacante.\n\n${cursada126}`, false],
+    [`Para acreditar el requisito de estudiante de Licenciatura en Informática se exige un título obtenido.\n\n${cursada126}`, true],
+    [`La búsqueda actual es para soporte.\nPara acreditar el requisito de estudiante se exige un título obtenido únicamente para el puesto de pasantía.\n\n${cursada126}`, true],
+    [`Para acreditar el requisito de estudiante se exige un título obtenido únicamente para el puesto de pasantía.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+    [`La búsqueda actual es para soporte.\nLo indicado a continuación aplica al puesto de pasantía.\nPara acreditar el requisito de estudiante se exige un título obtenido.\n\nLo indicado a continuación aplica al puesto de soporte.\n${cursada126}`, true],
+    [`Para acreditar el requisito de estudiante de ${carrera126} se exige ser estudiante de ${carrera126}.\n\n${cursada126}`, true],
 ])('reauditoría #127: conserva el contexto académico al evaluar y releer %s', async (descripcion, vigente) => {
     const { resultado, avisoSintetico, explicacion } = await evaluarCasoAcademico126(
         null, estudiante126, perfilEstudiante126, perfilEstudiante126, { descripcion });
@@ -435,6 +446,24 @@ test.each([
     ['la carrera con nombre propio no deja de ser obligatoria si es una exigencia separada',
         'Requisito obligatorio: Diseño Gráfico. Requisito obligatorio: Estudiante de Diseño Gráfico.',
         'Estudiante de Diseño Gráfico', ['diseno grafico']],
+    ['título obligatorio con artículo se vincula con la cursada sin artículo',
+        `${cursada126} Requisito obligatorio: Título de la ${carrera126}.`,
+        estudiante126, ['titulo de la licenciatura en sistemas']],
+    ['título obligatorio con artículo antes de la cursada también queda pendiente',
+        `Requisito obligatorio: Título de la ${carrera126}. ${cursada126}`,
+        estudiante126, ['titulo de la licenciatura en sistemas']],
+    ['egreso obligatorio con artículo queda pendiente junto a la cursada',
+        `${cursada126} Requisito obligatorio: Egreso de la ${carrera126}.`,
+        estudiante126, ['egreso de la licenciatura en sistemas']],
+    ['título obligatorio sin prefijo con artículo queda pendiente junto a la cursada',
+        `${cursada126} Requisito obligatorio: La ${carrera126}.`,
+        estudiante126, ['la licenciatura en sistemas']],
+    ['título deseable con artículo anula el título obligatorio con artículo de la misma carrera',
+        `Requisito obligatorio: Título de la ${carrera126}. El título de la ${carrera126} es deseable. ${cursada126}`,
+        estudiante126, []],
+    ['título obligatorio con artículo de otra carrera no bloquea la cursada vigente',
+        `${cursada126} Requisito obligatorio: Título de la Licenciatura en Informática.`,
+        estudiante126, []],
 ])('alcance académico #126: %s', async (_caso, descripcion, cumplido, pendientes, tipo = 'obligatorio') => {
     const requisito = cumplido || estudiante126;
     const perfil = `Soy ${requisito.replace(/^Estudiante/, 'estudiante')}.`;

@@ -774,13 +774,14 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   Si se nombra el requisito de estudiante (con o sin la carrera dentro de la
   referencia o al final), lo vinculo únicamente a la cursada vigente de esa
   misma carrera y vacante, o a la única cursada vigente si no nombra carrera,
-  aunque haya texto independiente en el medio. Si la aclaración incluye un
-  alcance explícito a la vacante actual (`para esta vacante`, `en esta
-  vacante`, `para este puesto`), lo separo de la carrera antes de resolver la
-  referencia; si identifica otra carrera, otro puesto u otra vacante, no la
-  aplico a la cursada vigente. Una referencia genérica como «este requisito»
-  no recupera el antecedente después de texto independiente. Reafirmar la
-  misma cursada no agrega una condición ni invalida su cumplimiento.
+  aunque haya texto independiente en el medio o aparezca antes que la cursada
+  en la misma vacante. Si la aclaración incluye un alcance explícito a la
+  vacante actual (`para esta vacante`, `en esta vacante`, `para este puesto`),
+  lo separo de la carrera antes de resolver la referencia; si identifica otra
+  carrera, otro puesto u otra vacante, no la aplico a la cursada vigente. Una
+  referencia genérica como «este requisito» no recupera el antecedente después
+  de texto independiente. Reafirmar la misma cursada no agrega una condición ni
+  invalida su cumplimiento.
   Una línea en blanco no cambia la vacante: el retorno desde otra vacante
   requiere un selector o una cabecera reconocidos al inicio de otro párrafo.
   Cuando el aviso anuncia texto retirado, de referencia o de una vacante
@@ -792,11 +793,13 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   si su cita y su carrera se respaldan en la misma vacante. El deseable de otra
   vacante no se acredita ni elimina el título pendiente.
   Una cursada no acredita el egreso ni el título obligatorio, cualquiera sea el
-  orden. No deduzco obligatoriedad de un encabezado genérico. «El egreso es
-  deseable» sólo modifica un título de la misma vacante si nombra la misma carrera
-  o la referencia local es inequívoca. El egreso deseable de otra carrera no quita
-  el título pendiente. No infiero carreras afines ni alternativas; mantengo la
-  afinidad recibida y el umbral del 60 %.
+  orden; al contrastarlos ignoro el artículo gramatical (`la`/`el`, `la carrera
+  de`) conservando la cita literal del aviso. No deduzco obligatoriedad de un
+  encabezado genérico. «El egreso es deseable» sólo modifica un título de la
+  misma vacante si nombra la misma carrera o la referencia local es inequívoca.
+  El egreso deseable de otra carrera no quita el título pendiente. No infiero
+  carreras afines ni alternativas; mantengo la afinidad recibida y el umbral del
+  60 %.
 - **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
   El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
   su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,

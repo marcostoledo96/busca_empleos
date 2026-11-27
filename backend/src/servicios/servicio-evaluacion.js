@@ -191,7 +191,7 @@ const ENCABEZADO_DESEABLE = /^(?:requisitos? )?(?:deseables?|opcionales?) *:/;
 const DEMANDA_ACADEMICA = /^(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) /;
 const SUFIJO_OBLIGATORIO = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
 const VINETA_ACADEMICA = /^[-*•–—][\t\p{Zs}]+/u;
-const ROTULO_TITULO = /^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /;
+const ROTULO_TITULO = /^(?:(?:contar con|tener) (?:el )?)?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /;
 const CONTINUACION_ACADEMICA = /^(?:con (?:el )?titulo|o de|esta condicion|aplica exclusivamente|solo para)\b|^(?:debe|se (?:debe|exige|requiere))\b.*\b(?:titulo|egreso)\b/;
 const OBJETO_CONDICION = /^para (?:acreditar|cumplir|satisfacer) (?:este requisito|esta condicion|esta exigencia|(?<cursada>(?:el requisito|la condicion|la exigencia) de estudiantes?)),? /;
 const CARRERA_EN_OBJETO = /^de (?:la carrera(?=, | )|(?:la carrera de |(?:la|el) (?=(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado)\b))?(?<carrera>[a-z0-9]+(?: [a-z0-9]+)*?))(?:, | (?=(?:(?:tambien )?(?:se (?:debe|exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)|(?:ya )?no (?:basta|alcanza)|basta)\b))/;
@@ -209,6 +209,11 @@ function separarAlcanceAcademico(texto) {
     const base = destino ? sinAlcance.slice(0, destino.index) : sinAlcance;
     return { base, destino, alcance };
 }
+const ARTICULO_CARRERA = /^(?:la carrera de |(?:la|el) (?=(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado|tecnic[oa] superior)\b))/;
+
+function normalizarCarreraAcademica(texto) {
+    return typeof texto === 'string' ? texto.replace(ARTICULO_CARRERA, '') : texto;
+}
 const REFERENCIAS_HISTORICAS = [
     ['retirada', /^(?:texto|fragmento|bloque|seccion) (?:eliminad[oa]|retirad[oa])$/],
     ['anterior', /^(?:vacante|aviso|version|texto|seccion) (?:anterior|previ[oa])$/],
@@ -225,7 +230,7 @@ function clasificarTramoAcademico(literal, lista, carreras) {
     const obligatoria = lista === 'obligatoria' || ENCABEZADO_OBLIGATORIO.test(clausula) || exigencia !== contenido;
     const tramo = { literal, clausula, exigencia, obligatoria };
     const opcional = exigencia.match(/^(?:para ([a-z0-9 ]+), )?(?:el )?(?:egreso|titulo)(?: de ([a-z0-9 ]+?))? (?:es )?(?:deseable|opcional)$/);
-    if (opcional && !(opcional[1] && opcional[2])) return { ...tramo, rol: 'tituloOpcional', carrera: opcional[1] ?? opcional[2] };
+    if (opcional && !(opcional[1] && opcional[2])) return { ...tramo, rol: 'tituloOpcional', carrera: normalizarCarreraAcademica(opcional[1] ?? opcional[2]) };
     const sufijoDeseable = / (?:es )?(?:deseable|opcional)$/;
     const deseable = lista === 'deseable' || ENCABEZADO_DESEABLE.test(clausula)
         || /^se valora /.test(exigencia) || sufijoDeseable.test(exigencia);
@@ -233,10 +238,11 @@ function clasificarTramoAcademico(literal, lista, carreras) {
     if (estudiante && (encabezado || lista || obligatoria || deseable)) {
         return { ...tramo, rol: 'estudiante', estudiante, deseable };
     }
+    const carreraTitulo = normalizarCarreraAcademica(exigencia.replace(ROTULO_TITULO, ''));
     if ((encabezado || lista || obligatoria) && /^[a-z0-9]+(?: [a-z0-9]+)*$/.test(exigencia)
-        && (carreras.has(exigencia) || ROTULO_TITULO.test(exigencia)
-            || /^(?:licenciatura|tecnicatura|maestria|doctorado|grado|tecnic[oa] superior)\b/.test(exigencia))) {
-        return { ...tramo, rol: 'titulo', carrera: exigencia.replace(ROTULO_TITULO, '') };
+        && (carreras.has(carreraTitulo) || ROTULO_TITULO.test(exigencia)
+            || /^(?:licenciatura|tecnicatura|maestria|doctorado|grado|tecnic[oa] superior)\b/.test(carreraTitulo))) {
+        return { ...tramo, rol: 'titulo', carrera: carreraTitulo };
     }
     const actual = clausula.match(/^la busqueda actual es para ([a-z0-9]+(?: [a-z0-9]+)*)$/);
     if (actual) return { ...tramo, rol: 'vacanteActual', puesto: actual[1] };
@@ -274,6 +280,7 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
     const cursadasVigentes = new Set();
     const cursadasRestringidas = new Set();
     const obligacionesRetiradas = new Set();
+    const aclaracionesPendientes = [];
     let ultimaCursada;
     let lista = null;
     let bloque = 0;
@@ -373,6 +380,10 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
                     if (retiro) obligacionesRetiradas.add(cursada);
                     else if (!reafirmaCursada) cursadasRestringidas.add(cursada);
                 }
+                if (referenciaExplicita && !cursada && !otraVacante && alcance.vigente && !alcance.ambiguo
+                    && (retiro || restriccion) && (cursadaNombrada || cursadasVigentes.size === 0)) {
+                    aclaracionesPendientes.push({ retiro, restriccion, predicado, cursadaNombrada, puesto, alcance });
+                }
                 if (!esContinuacion || tramo.literal.endsWith(':')) contexto.ambiguo = true;
             }
             if (tramo.rol === 'estudiante') {
@@ -383,6 +394,18 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
             tramos.push(previo);
         }
         if (!esVineta) lista = null;
+    }
+    for (const pendiente of aclaracionesPendientes) {
+        if (pendiente.alcance.ambiguo || (pendiente.puesto && pendiente.puesto !== puestoActual)) continue;
+        const objetivos = pendiente.cursadaNombrada
+            ? (cursadasVigentes.has(pendiente.cursadaNombrada) ? [pendiente.cursadaNombrada] : [])
+            : [...cursadasVigentes];
+        for (const objetivo of objetivos) {
+            const reafirmaCursada = pendiente.restriccion?.[1]
+                && pendiente.predicado.slice(pendiente.restriccion[1].length).trim().replace(/^ser /, '') === objetivo;
+            if (pendiente.retiro) obligacionesRetiradas.add(objetivo);
+            else if (!reafirmaCursada) cursadasRestringidas.add(objetivo);
+        }
     }
     // shortcut: si no puedo separar el contexto de una condición dentro de la misma vacante, la dejo por confirmar.
     const vigentes = tramos.filter(({ alcance }) => alcance.vigente);
@@ -502,14 +525,14 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         const obligatorio = item.tipo === 'obligatorio';
         // Un rótulo obligatorio sin respaldo ya queda pendiente en la guarda principal.
         if (obligatorio && !acreditarEstudianteLiteral(item, candidato.perfil_profesional, exigenciasLiterales())) continue;
-        const carrera = rotulo.replace(ROTULO_ESTUDIANTE, '');
+        const carrera = normalizarCarreraAcademica(rotulo.replace(ROTULO_ESTUDIANTE, ''));
         const titulo = exigenciasLiterales().find(tramo => tramo.rol === 'titulo' && tramo.obligatoria && tramo.carrera === carrera);
         if (!titulo) continue;
         const deseableAcreditado = item.tipo === 'deseable'
             && acreditarEstudianteLiteral(item, candidato.perfil_profesional, exigenciasLiterales(), true);
         if (!obligatorio && !deseableAcreditado) cursadasSinRespaldo.add(item);
         const explicito = Object.values(original).flat().some(hecho => hecho?.tipo === 'obligatorio'
-            && [carrera, titulo.exigencia].includes(plegarAfirmacionLiteral(hecho.requisito)?.replace(/\.$/, '')));
+            && [carrera, titulo.exigencia].includes(normalizarCarreraAcademica(plegarAfirmacionLiteral(hecho.requisito)?.replace(/\.$/, ''))));
         if (!explicito) titulosOmitidos.set(titulo.exigencia, { requisito: titulo.exigencia, tipo: 'obligatorio',
             evidencia_oferta: titulo.literal, evidencia_perfil: '' });
     }
