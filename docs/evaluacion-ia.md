@@ -765,13 +765,18 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
   Conservo el cuerpo del aviso con sus párrafos, encabezados y viñetas. Un plazo
   de postulación, la modalidad o un párrafo de presentación independiente no
-  cambian la condición de estudiante. Una continuación como «con título
-  obtenido» sí la califica, incluso tras un punto y una línea en blanco.
+  cambian la condición de estudiante. Si la frase siguiente retira, limita o
+  completa esa condición —por ejemplo, si para acreditarla exige un título
+  obtenido—, la cursada sola no basta. La continuación califica ese requisito,
+  no los siguientes, incluso tras un punto y una línea en blanco. Una frase en
+  otro párrafo que sólo confirma que basta la cursada no agrega una exigencia.
   Una línea en blanco no cambia la vacante: el retorno desde otra vacante
   requiere un selector o una cabecera reconocidos al inicio de otro párrafo.
-  Si el aviso anuncia que reproduce texto retirado o de referencia, no uso lo
-  que sigue como evidencia vigente: no hay un cierre definido y una cabecera
-  repetida no basta. Una condición sin respaldo vigente queda `por_confirmar`.
+  Cuando el aviso anuncia texto retirado, de referencia o de una vacante
+  anterior, no uso ese tramo como evidencia vigente hasta un cierre explícito
+  del mismo tipo. Un cierre interno no termina la referencia que lo contiene.
+  Ni un salto de párrafo ni una cabecera que anuncie una búsqueda actual dentro
+  de ese tramo lo cierran. Una condición sin respaldo vigente queda `por_confirmar`.
   Al contrastar un egreso obligatorio, sólo conservo la cursada como deseable
   si su cita y su carrera se respaldan en la misma vacante. El deseable de otra
   vacante no se acredita ni elimina el título pendiente.

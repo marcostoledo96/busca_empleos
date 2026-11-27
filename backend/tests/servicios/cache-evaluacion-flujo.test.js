@@ -248,6 +248,36 @@ const titulo126 = `Requisito obligatorio: Egreso de ${carrera126}.`;
 const cursada126 = `Requisito obligatorio: ${estudiante126}.`;
 
 test.each([
+    ...['\n', '\n\n'].flatMap(separador => [
+        [`${cursada126}${separador}Ya no se exige esta condición.`, false],
+        [`${cursada126}${separador}La condición de estudiante ya no es obligatoria.`, false],
+        [`Lo que sigue corresponde a una vacante anterior.${separador}${cursada126}`, false],
+        [`${cursada126}${separador}Para acreditar este requisito se exige un título obtenido.`, false],
+    ]),
+    [`Reproducimos a continuación el texto eliminado.\n${titulo126}\n\nLa búsqueda actual es para soporte.\n${cursada126}`, false],
+    [`Reproducimos a continuación el texto eliminado.\n${titulo126}\n\nFin del texto eliminado. Esta sección anterior era sólo una referencia.\n\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+    [`${cursada126}\n\nPara acreditar este requisito basta con estar cursando la carrera.`, true],
+    [`Lo que sigue corresponde a una vacante anterior.\nReproducimos a continuación el texto anterior.\nFin del texto anterior.\n\nLa búsqueda actual es para soporte.\n${cursada126}\n\nFin de la vacante anterior.`, false],
+    [`Reproducimos a continuación el texto eliminado.\n${titulo126}\nFin del texto eliminado.\n\nEsta sección anterior era sólo una referencia.\nLa búsqueda actual es para soporte.\n${cursada126}`, true],
+])('reauditoría #127: conserva el contexto académico al evaluar y releer %s', async (descripcion, vigente) => {
+    const { resultado, avisoSintetico, explicacion } = await evaluarCasoAcademico126(
+        null, estudiante126, perfilEstudiante126, perfilEstudiante126, { descripcion });
+    expect(registros.size).toBe(1);
+    const antes = structuredClone([...registros]);
+    pool.query.mockClear();
+    await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila)).resolves.toEqual(resultado);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    expect(pool.query.mock.calls.map(([sql]) => sql.trim())).toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+    expect([...registros]).toEqual(antes);
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80, explicacion: {
+        cumplidos: vigente ? explicacion.cumplidos : [], no_cumplidos: [], exclusiones: [],
+        por_confirmar: vigente ? [] : [expect.objectContaining({ tipo: 'obligatorio', requisito: estudiante126 })],
+    } });
+    expect(resultado.pendiente === true).toBe(!vigente);
+    expect(resultado.error).toBeUndefined();
+});
+
+test.each([
     ['egreso deseable de otra carrera en el mismo renglón',
         `${titulo126} Para Diseño Gráfico, el egreso es deseable. ${cursada126}`, estudiante126, ['egreso de licenciatura en sistemas']],
     ['egreso deseable de otra carrera en renglón separado',
@@ -303,6 +333,9 @@ test.each([
         `${titulo126}\n\nDeseables:\n- ${estudiante126}.`, estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],
     ['F3 preservación: una frase declara la cursada como deseable en la vacante vigente',
         `${titulo126} ${estudiante126} es deseable.`, estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],
+    ['un texto que confirma que basta la cursada no elimina el deseable vigente',
+        `${titulo126} ${estudiante126} es deseable.\n\nPara cumplir esta condición basta con estar cursando la carrera.`,
+        estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],
     ['F3 control: una lista de deseables de otra vacante no respalda la cursada',
         `La búsqueda actual es para soporte.\n${titulo126}\nLo indicado a continuación aplica al puesto de pasantía.\n\nDeseables:\n- ${estudiante126}.`,
         null, ['egreso de licenciatura en sistemas'], 'deseable'],

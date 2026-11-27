@@ -192,7 +192,16 @@ const DEMANDA_ACADEMICA = /^(?:se (?:requiere|exige|necesita)|es (?:obligatorio|
 const SUFIJO_OBLIGATORIO = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
 const VINETA_ACADEMICA = /^[-*•–—][\t\p{Zs}]+/u;
 const ROTULO_TITULO = /^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /;
-const CONTINUACION_ACADEMICA = /^(?:con (?:el )?titulo|o de|para cumplir esta condicion|esta condicion|aplica exclusivamente|solo para)\b|^(?:debe|se (?:debe|exige|requiere))\b.*\b(?:titulo|egreso)\b/;
+const CONTINUACION_ACADEMICA = /^(?:con (?:el )?titulo|o de|esta condicion|aplica exclusivamente|solo para)\b|^(?:debe|se (?:debe|exige|requiere))\b.*\b(?:titulo|egreso)\b/;
+const OBJETO_CONDICION = /^(?:para (?:acreditar|cumplir|satisfacer) (?:este requisito|esta condicion|esta exigencia)),? /;
+const RESTRICCION_ACADEMICA = /^(?:(?:se (?:exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)\b|(?:ya )?no basta\b)/;
+const RETIRO_CONDICION = /^(?:(?:ya )?no se (?:exige|requiere|necesita) (?:este requisito|esta condicion|esta exigencia)|la condicion de estudiantes? (?:ya )?no es (?:obligatoria|excluyente|requerida))\b/;
+const REFERENCIAS_HISTORICAS = [
+    ['retirada', /^(?:texto|fragmento|bloque|seccion) (?:eliminad[oa]|retirad[oa])$/],
+    ['anterior', /^(?:vacante|aviso|version|texto|seccion) (?:anterior|previ[oa])$/],
+    ['referencia', /^(?:texto|fragmento|bloque|seccion) de referencia$/],
+];
+const COMENTARIO_HISTORICO = /^(?:est[ea]|es[ea]) (?:texto|bloque|seccion|fragmento)(?: (?:anterior|previ[oa]|eliminad[oa]|retirad[oa]))? (?:era|fue|se incluyo) (?:solo|unicamente) (?:una|como) referencia$/;
 
 function clasificarTramoAcademico(literal, lista, carreras) {
     const clausula = plegarAfirmacionLiteral(literal);
@@ -220,8 +229,12 @@ function clasificarTramoAcademico(literal, lista, carreras) {
     if (actual) return { ...tramo, rol: 'vacanteActual', puesto: actual[1] };
     const destino = clausula.match(/^(?:lo indicado a continuacion aplica|la condicion siguiente corresponde) (?:al puesto|a la vacante) de ([a-z0-9 ]+)$/);
     if (destino) return { ...tramo, rol: 'destino', puesto: destino[1] };
-    if (/^(?:reproducimos a continuacion el texto eliminado|la reproducimos debajo unicamente como referencia)$/.test(clausula)) {
-        return { ...tramo, rol: 'referencia' };
+    const cierre = clausula.match(/^(?:fin|cierre) (?:del|de la) (.+?):?$/);
+    const apertura = clausula.match(/^(?:(?:reproducimos|se reproduce|citamos) (?:a continuacion|debajo) (?:el|la)|(?:lo que sigue|lo siguiente|lo indicado a continuacion) (?:corresponde|pertenece|aplica) a (?:una?|la|el)) (.+?):?$/);
+    const claseReferencia = REFERENCIAS_HISTORICAS.find(([, etiqueta]) => etiqueta.test((cierre ?? apertura)?.[1]))?.[0];
+    if (claseReferencia) return { ...tramo, rol: cierre ? 'cierreReferencia' : 'aperturaReferencia', claseReferencia };
+    if (/^(?:lo|la) reproducimos (?:a continuacion|debajo) (?:solo|unicamente) como referencia:?$/.test(clausula)) {
+        return { ...tramo, rol: 'aperturaReferencia', claseReferencia: 'referencia' };
     }
     if (/^(?:modalidad(?: de trabajo)? *: *(?:remot[ao]|hibrid[ao]|presencial)|desarrollo con [a-z0-9.+#]+)$/.test(clausula)
         || /^(?:postulacion: *|para postular(?:te|se)?, )?envia (?:tu|el) (?:cv|postulacion)(?: hasta el (?:lunes|martes|miercoles|jueves|viernes|sabado|domingo))?$/.test(clausula)
@@ -244,22 +257,40 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
     const tramos = [];
     let lista = null;
     let bloque = 0;
-    aviso: for (const renglon of descripcion.split(/\r?\n/)) {
+    const referencias = [];
+    let trasCierre = false;
+    let previo;
+    for (const renglon of descripcion.split(/\r?\n/)) {
         const linea = renglon.trim();
         if (!linea) { bloque++; lista = null; continue; }
         const plegada = plegarAfirmacionLiteral(linea);
         const encabezado = plegada.match(ENCABEZADO_OBLIGATORIO) || plegada.match(ENCABEZADO_REQUISITOS)
             || plegada.match(ENCABEZADO_DESEABLE);
         if (encabezado?.[0] === plegada) {
-            lista = ENCABEZADO_OBLIGATORIO.test(plegada) ? 'obligatoria' : ENCABEZADO_DESEABLE.test(plegada) ? 'deseable' : 'generica';
+            if (!referencias.length) lista = ENCABEZADO_OBLIGATORIO.test(plegada) ? 'obligatoria' : ENCABEZADO_DESEABLE.test(plegada) ? 'deseable' : 'generica';
             continue;
         }
         const esVineta = VINETA_ACADEMICA.test(linea);
         for (const literal of linea.replace(VINETA_ACADEMICA, '').split(/\.(?:[\t\p{Zs}]+|$)/u).map(texto => texto.trim()).filter(Boolean)) {
             const tramo = clasificarTramoAcademico(literal, esVineta ? lista : null, carreras);
-            // shortcut: no hay un cierre definido para el texto histórico; no interpreto el resto como vigente.
-            if (tramo.rol === 'referencia') break aviso;
-            const previo = tramos.at(-1);
+            if (tramo.rol === 'aperturaReferencia') {
+                referencias.push(tramo.claseReferencia);
+                previo = undefined;
+                lista = null;
+                bloque++;
+                continue;
+            }
+            if (referencias.length) {
+                // Una cabecera interna no redefine la vacante y un cierre sólo termina su propio alcance.
+                if (tramo.rol === 'cierreReferencia' && tramo.claseReferencia === referencias.at(-1)) {
+                    referencias.pop();
+                    trasCierre = !referencias.length;
+                    bloque++;
+                }
+                continue;
+            }
+            if (trasCierre && COMENTARIO_HISTORICO.test(tramo.clausula)) continue;
+            trasCierre = false;
             const otroBloque = previo?.bloque !== bloque;
             if (tramo.rol === 'vacanteActual') {
                 if (!alcance.vigente && otroBloque) alcance = { vigente: true };
@@ -272,12 +303,16 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
             const contexto = previo?.alcance === alcance && !otroBloque ? previo.contexto : {
                 ambiguo: previo?.alcance === alcance && previo.rol === 'ambiguo' && previo.literal.endsWith(':'),
             };
-            if (tramo.rol === 'ambiguo') {
-                if (otroBloque && previo?.alcance === alcance && previo.rol === 'estudiante'
-                    && CONTINUACION_ACADEMICA.test(tramo.clausula)) previo.calificado = true;
-                else contexto.ambiguo = true;
+            if (tramo.rol === 'ambiguo' || tramo.rol === 'cierreReferencia') {
+                const objeto = tramo.clausula.match(OBJETO_CONDICION);
+                const esContinuacion = previo?.alcance === alcance && previo.rol === 'estudiante'
+                    && (CONTINUACION_ACADEMICA.test(tramo.clausula) || RETIRO_CONDICION.test(tramo.clausula)
+                        || (objeto && RESTRICCION_ACADEMICA.test(tramo.clausula.slice(objeto[0].length))));
+                if (esContinuacion) previo.calificado = true;
+                if (!esContinuacion || tramo.literal.endsWith(':')) contexto.ambiguo = true;
             }
-            tramos.push({ ...tramo, bloque, alcance, contexto, posicion: tramos.length });
+            previo = { ...tramo, bloque, alcance, contexto, posicion: tramos.length };
+            tramos.push(previo);
         }
         if (!esVineta) lista = null;
     }
