@@ -268,6 +268,25 @@ test.each([
     ...[' ', '\n\n'].map(separador =>
         [`${cursada126}\n\nModalidad de trabajo: remota.${separador}Esta condición ya no se exige.`, true]),
     [`${cursada126}\n\nPara acreditar este requisito se exige ser estudiante de ${carrera126}.`, true],
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nPara cumplir este requisito se exige completar todos los campos del formulario.`, true],
+    ...[
+        'Enviá tu postulación hasta el viernes.',
+        'Requisito obligatorio: TypeScript.',
+        'Reproducimos a continuación el texto eliminado. Se requiere ser estudiante de Licenciatura en Informática. Fin del texto eliminado.',
+    ].map(intermedio => [`${cursada126}\n\n${intermedio}\n\nPara acreditar el requisito de estudiante se exige un título obtenido.`, false]),
+    [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante ya no es obligatoria.`, false],
+    ...['pasantía', 'soporte'].flatMap(puesto => [
+        `Para acreditar el requisito de estudiante se exige un título obtenido únicamente para el puesto de ${puesto}.`,
+        `La condición de estudiante ya no es obligatoria para el puesto de ${puesto}.`,
+    ].map(aclaracion => [`La búsqueda actual es para soporte.\n\n${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\n${aclaracion}`, puesto !== 'soporte'])),
+    ...['Licenciatura en Informática', carrera126].map(carrera =>
+        [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante ya no es obligatoria para ${carrera}.`, carrera !== carrera126]),
+    ...['La condición de estudiante ya no es obligatoria', 'Para acreditar el requisito de estudiante se exige un título obtenido'].map(aclaracion =>
+        [`${cursada126}\n\nEnviá tu postulación hasta el viernes.\n\n${aclaracion} para la Licenciatura en Informática.`, true]),
+    [`La búsqueda actual es para soporte. ${cursada126}\nLo indicado a continuación aplica al puesto de pasantía. Se requiere ser estudiante de Licenciatura en Informática.\n\nLo indicado a continuación aplica al puesto de soporte.\nPara acreditar el requisito de estudiante se exige un título obtenido.`, false],
+    [`La búsqueda actual es para soporte. ${cursada126}\nLo indicado a continuación aplica al puesto de pasantía.\n\nPara acreditar el requisito de estudiante se exige un título obtenido.`, true],
+    [`${cursada126}\n\nReproducimos a continuación el texto eliminado. Para acreditar el requisito de estudiante se exige un título obtenido. Fin del texto eliminado.`, true],
+    [`${cursada126}\nSe requiere ser estudiante de Licenciatura en Informática.\n\nEnviá tu postulación hasta el viernes.\n\nLa condición de estudiante ya no es obligatoria.`, true],
     [`${cursada126} Se requiere ser estudiante de Licenciatura en Informática. La condición de estudiante ya no es obligatoria.`, true],
     [`La búsqueda actual es para soporte. ${cursada126} Lo indicado a continuación aplica al puesto de pasantía. ${cursada126} La condición de estudiante ya no es obligatoria.`, true],
     [`La búsqueda actual es para soporte. ${cursada126}\nLo indicado a continuación aplica al puesto de pasantía.\n\nLo indicado a continuación aplica al puesto de soporte.\n${cursada126} La condición de estudiante ya no es obligatoria.`, false],
@@ -347,6 +366,9 @@ test.each([
         `${titulo126}\n\nDeseables:\n- ${estudiante126}.`, estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],
     ['F3 preservación: una frase declara la cursada como deseable en la vacante vigente',
         `${titulo126} ${estudiante126} es deseable.`, estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],
+    ['un título condicionante de otra vacante no elimina la cursada deseable vigente',
+        `La búsqueda actual es para soporte. ${titulo126} ${estudiante126} es deseable.\n\nEnviá tu postulación hasta el viernes.\n\nPara acreditar el requisito de estudiante se exige un título obtenido únicamente para el puesto de pasantía.`,
+        estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],
     ['retirar la obligación no borra un deseable explícito de la misma carrera',
         `${cursada126} La condición de estudiante ya no es obligatoria. Se valora ser estudiante de ${carrera126}. ${titulo126}`,
         estudiante126, ['egreso de licenciatura en sistemas'], 'deseable'],

@@ -771,8 +771,12 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   indicaciones de modalidad. Una exigencia del formulario de postulación no
   califica la cursada. Retirar su obligatoriedad no elimina una mención expresa
   como deseable. No traslado una aclaración a otra carrera ni a otra vacante.
-  Si la aclaración sólo reafirma que se exige la misma cursada, no agrega una
-  condición ni invalida su cumplimiento.
+  Si se nombra el requisito de estudiante y hay una sola cursada vigente a la
+  que puede referirse, la vinculo aunque haya texto independiente en el medio.
+  Si la aclaración identifica al final otra carrera u otro puesto, no la aplico
+  a la cursada vigente. Una referencia genérica como «este requisito» no
+  recupera el antecedente después de texto independiente.
+  Reafirmar la misma cursada no agrega una condición ni invalida su cumplimiento.
   Una línea en blanco no cambia la vacante: el retorno desde otra vacante
   requiere un selector o una cabecera reconocidos al inicio de otro párrafo.
   Cuando el aviso anuncia texto retirado, de referencia o de una vacante

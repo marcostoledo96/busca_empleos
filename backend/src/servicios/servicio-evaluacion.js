@@ -193,10 +193,11 @@ const SUFIJO_OBLIGATORIO = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
 const VINETA_ACADEMICA = /^[-*•–—][\t\p{Zs}]+/u;
 const ROTULO_TITULO = /^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /;
 const CONTINUACION_ACADEMICA = /^(?:con (?:el )?titulo|o de|esta condicion|aplica exclusivamente|solo para)\b|^(?:debe|se (?:debe|exige|requiere))\b.*\b(?:titulo|egreso)\b/;
-const OBJETO_CONDICION = /^para (?:acreditar|cumplir|satisfacer) (?:este requisito|esta condicion|esta exigencia|el requisito de estudiantes?|la condicion de estudiantes?),? /;
+const OBJETO_CONDICION = /^para (?:acreditar|cumplir|satisfacer) (?:este requisito|esta condicion|esta exigencia|(?<cursada>(?:el requisito|la condicion) de estudiantes?)),? /;
 const RESTRICCION_ACADEMICA = /^(?:(se (?:exige|requiere|necesita)|es (?:obligatorio|necesario|indispensable)|debe|hace falta)|(?:ya )?no basta)\b/;
-const RETIRO_CONDICION = /^(?:(?:ya )?no se (?:exige|requiere|necesita) (?:este requisito|esta condicion|esta exigencia)|(?:este requisito|esta condicion|esta exigencia) (?:ya )?no se (?:exige|requiere|necesita)|la condicion de estudiantes? (?:ya )?no es (?:obligatoria|excluyente|requerida))\b/;
+const RETIRO_CONDICION = /^(?:(?:ya )?no se (?:exige|requiere|necesita) (?:este requisito|esta condicion|esta exigencia)|(?:este requisito|esta condicion|esta exigencia) (?:ya )?no se (?:exige|requiere|necesita)|(?<cursada>la condicion de estudiantes?) (?:ya )?no es (?:obligatoria|excluyente|requerida))\b/;
 const CONTENIDO_ACADEMICO = /\b(?:estudiantes?|titulo|titulacion|egreso|graduacion)\b/;
+const DESTINO_ACLARACION = /,? (?:(?:solo|solamente|unicamente|exclusivamente) )?para (?:(?:el puesto|la vacante) de (?<puesto>[a-z0-9]+(?: [a-z0-9]+)*)|(?:(?:la carrera de|la|el) )?(?<carrera>(?:licenciatura|tecnicatura|ingenieria|grado|maestria|doctorado) [a-z0-9]+(?: [a-z0-9]+)*))$/;
 const REFERENCIAS_HISTORICAS = [
     ['retirada', /^(?:texto|fragmento|bloque|seccion) (?:eliminad[oa]|retirad[oa])$/],
     ['anterior', /^(?:vacante|aviso|version|texto|seccion) (?:anterior|previ[oa])$/],
@@ -259,6 +260,7 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
     let puestoActual;
     let alcance = { vigente: true };
     const tramos = [];
+    const cursadasVigentes = new Set();
     const cursadasRestringidas = new Set();
     const obligacionesRetiradas = new Set();
     let ultimaCursada;
@@ -317,23 +319,36 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
             let esContinuacion = false;
             if (tramo.rol === 'ambiguo' || tramo.rol === 'cierreReferencia') {
                 const objeto = tramo.clausula.match(OBJETO_CONDICION);
-                const predicado = objeto ? tramo.clausula.slice(objeto[0].length) : '';
+                const retiro = tramo.clausula.match(RETIRO_CONDICION);
+                const referenciaExplicita = objeto?.groups.cursada || retiro?.groups.cursada;
+                const destino = referenciaExplicita ? tramo.clausula.match(DESTINO_ACLARACION) : null;
+                const predicado = objeto ? tramo.clausula.slice(objeto[0].length, destino?.index) : '';
                 const restriccion = predicado.match(RESTRICCION_ACADEMICA);
-                const retiro = RETIRO_CONDICION.test(tramo.clausula);
+                const carrera = destino?.groups.carrera;
+                const cursadaNombrada = carrera && `estudiante de ${carrera}`;
+                // Sin un antecedente local, sólo recupero una cursada vigente inequívoca si la aclaración la nombra.
+                const cursada = cursadaNombrada ? (cursadasVigentes.has(cursadaNombrada) ? cursadaNombrada : undefined)
+                    : ultimaCursada ?? (referenciaExplicita && alcance.vigente && cursadasVigentes.size === 1
+                        ? cursadasVigentes.values().next().value : undefined);
+                const puesto = destino?.groups.puesto;
+                const otroDestino = (puesto && puesto !== puestoActual) || (cursadaNombrada && cursadaNombrada !== cursada);
                 // Tras modalidad, una referencia genérica puede apuntar a la modalidad, no a la cursada.
                 const aludeACursada = previo?.rol !== 'modalidad' || CONTENIDO_ACADEMICO.test(tramo.clausula);
-                esContinuacion = Boolean(ultimaCursada && aludeACursada
+                esContinuacion = Boolean((cursada || destino) && aludeACursada
                     && (retiro || restriccion || CONTINUACION_ACADEMICA.test(tramo.clausula)));
-                if (esContinuacion && alcance.vigente && !alcance.ambiguo) {
+                if (otroDestino || (cursadaNombrada && cursadaNombrada !== ultimaCursada)) ultimaCursada = undefined;
+                if (esContinuacion && cursada && !otroDestino && alcance.vigente && !alcance.ambiguo) {
                     const reafirmaCursada = restriccion?.[1]
-                        && predicado.slice(restriccion[1].length).trim().replace(/^ser /, '') === ultimaCursada;
-                    if (retiro) obligacionesRetiradas.add(ultimaCursada);
-                    else if (!reafirmaCursada) cursadasRestringidas.add(ultimaCursada);
+                        && predicado.slice(restriccion[1].length).trim().replace(/^ser /, '') === cursada;
+                    if (retiro) obligacionesRetiradas.add(cursada);
+                    else if (!reafirmaCursada) cursadasRestringidas.add(cursada);
                 }
                 if (!esContinuacion || tramo.literal.endsWith(':')) contexto.ambiguo = true;
             }
-            if (tramo.rol === 'estudiante') ultimaCursada = tramo.estudiante;
-            else if (tramo.rol !== 'modalidad' && !esContinuacion) ultimaCursada = undefined;
+            if (tramo.rol === 'estudiante') {
+                ultimaCursada = tramo.estudiante;
+                if (alcance.vigente && !alcance.ambiguo) cursadasVigentes.add(ultimaCursada);
+            } else if (tramo.rol !== 'modalidad' && !esContinuacion) ultimaCursada = undefined;
             previo = { ...tramo, bloque, alcance, contexto, posicion: tramos.length };
             tramos.push(previo);
         }
