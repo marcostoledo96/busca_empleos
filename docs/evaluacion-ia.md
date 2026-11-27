@@ -764,7 +764,11 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   Sistemas.», acredita esa condición si el texto efectivo del aviso exige ser
   estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
   Una cursada no acredita egreso ni título; no deduzco carreras afines ni
-  alternativas. Mantengo la afinidad recibida y el umbral del 60 %.
+  alternativas. La validación automática es conservadora: admite una exigencia
+  autónoma al cierre del cuerpo del aviso; si el texto continúa, no recorto la
+  frase para acreditarla. Si el aviso exige un título y también valora la cursada,
+  mantengo el deseable separado del título obligatorio por confirmar. Mantengo la
+  afinidad recibida y el umbral del 60 %.
 - **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
   El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
   su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,

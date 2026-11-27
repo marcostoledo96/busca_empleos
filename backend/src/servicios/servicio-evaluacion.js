@@ -191,13 +191,13 @@ function exigenciasAcademicasLiterales(descripcion) {
     // shortcut: un contexto citado, ilustrativo o retractado requiere confirmación manual.
     const texto = plegarAfirmacionLiteral(descripcion);
     if (/(?:^|\n) *(?:>|`{3,}|~{3,})|«|»|“|”|‘|’|<!--|<\/?(?:q|blockquote)\b|"[^"]*\n[^"]*"|'[^']*\n[^']*'|`[^`]*\n[^`]*`/.test(texto)
-        || /\b(?:ejemplo|hipotetic[oa]|aviso anterior|ya no (?:se )?(?:exige|requiere|necesita)|(?:solo|solamente|unicamente) para (?:el equipo|otra vacante))\b/.test(texto)) return exigencias;
+        || /\b(?:ejemplo|hipotetic[oa]|aviso anterior|ya no (?:se )?(?:exige|requiere|necesita)|(?:solo|solamente|unicamente|exclusiv[oa]|exclusivamente) para (?:el equipo|(?:la|otra) vacante))\b/.test(texto)) return exigencias;
     const encabezado = /^(?:requisitos?(?: (?:obligatori[oa]s?|excluyentes?))?|obligatori[oa]s?|excluyentes?|se (?:requiere|exige|necesita)) *:/;
     const demanda = /^(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) /;
     const sufijo = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
-    const vineta = /^[-*•–—] /;
+    const vineta = /^[-*•–—][\t\p{Zs}]+/u;
     let enLista = false;
-    const lineas = descripcion.split(/\r?\n/);
+    const lineas = descripcion.trimEnd().split(/\r?\n/);
     for (const [indice, renglon] of lineas.entries()) {
         const linea = plegarAfirmacionLiteral(renglon);
         if (!linea) { enLista = false; continue; }
@@ -207,12 +207,17 @@ function exigenciasAcademicasLiterales(descripcion) {
         // No convierto la primera línea de una viñeta partida en un requisito autónomo.
         const continuacion = siguiente?.trim() && !vineta.test(plegarAfirmacionLiteral(siguiente))
             && (/^[\t ]+\S|^[\p{Ll}]/u.test(siguiente) || (!/[.]$/.test(linea) && !siguiente.trimEnd().endsWith(':')));
-        if (!continuacion) for (const fragmento of linea.replace(vineta, '').split(/\.(?: +|$)/)) {
-            const clausula = fragmento.trim();
-            const contenido = clausula.replace(encabezado, '').trim();
-            const exigencia = contenido.replace(demanda, '').replace(sufijo, '');
-            if ((enLista && esVineta) || encabezado.test(clausula) || exigencia !== contenido) {
-                exigencias.push({ clausula, exigencia });
+        if (!continuacion) {
+            const fragmentos = renglon.trim().replace(vineta, '').split(/\.(?:[\t\p{Zs}]+|$)/u).map(s => s.trim()).filter(Boolean);
+            for (const [posicion, literal] of fragmentos.entries()) {
+                const clausula = plegarAfirmacionLiteral(literal);
+                const contenido = clausula.replace(encabezado, '').trim();
+                const exigencia = contenido.replace(demanda, '').replace(sufijo, '');
+                if ((enLista && esVineta) || encabezado.test(clausula) || exigencia !== contenido) {
+                    // shortcut: sólo un cierre autónomo acredita cursada; si sigue texto sin interpretar, confirmación manual.
+                    const cierraAviso = indice === lineas.length - 1 && posicion === fragmentos.length - 1;
+                    exigencias.push({ clausula, exigencia, literal, cierraAviso });
+                }
             }
         }
         if (!esVineta) enLista = false;
@@ -226,7 +231,7 @@ function acreditarEstudianteLiteral(item, fuente, exigencias) {
     if (!afirmacion || afirmacion !== requisito || plegarAfirmacionLiteral(fuente).replace(/\.$/, '')
         !== plegarAfirmacionLiteral(item.evidencia_perfil)?.replace(/\.$/, '')) return false;
     const cita = plegarAfirmacionLiteral(item.evidencia_oferta)?.replace(/\.$/, '');
-    return exigencias.some(({ clausula, exigencia }) => exigencia.replace(/^ser /, '') === requisito
+    return exigencias.some(({ clausula, exigencia, cierraAviso }) => cierraAviso && exigencia.replace(/^ser /, '') === requisito
         && (cita === exigencia || cita === requisito || cita === clausula));
 }
 
@@ -309,18 +314,32 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const citasConOrigen = extraerClausulasConContexto(textoOferta, true).filter(cita => !cita.encabezado);
     let exigencias;
     const exigenciasLiterales = () => exigencias ??= exigenciasAcademicasLiterales(textoOferta);
-    const titulosMalRotulados = new Set((original.cumplidos || []).filter(item => {
+    const titulosOmitidos = new Map();
+    const cursadasSinRespaldo = new Set();
+    if (!contrasteAcotado && !bajoUmbral) for (const item of original.cumplidos || []) {
         const rotulo = plegarAfirmacionLiteral(item.requisito)?.replace(/\.$/, '');
-        if (item.tipo === 'obligatorio' || !ROTULO_ESTUDIANTE.test(rotulo)) return false;
-        const mencionEstudiante = rotulo.replace(/^ser /, '');
-        if (contieneTokenNormalizado(descripcionNormalizada, mencionEstudiante)) return false;
+        if (!ROTULO_ESTUDIANTE.test(rotulo)) continue;
+        const obligatorio = item.tipo === 'obligatorio';
+        // Un rótulo obligatorio sin respaldo ya queda pendiente en la guarda principal.
+        if (obligatorio && !acreditarEstudianteLiteral(item, candidato.perfil_profesional, exigenciasLiterales())) continue;
         const carrera = rotulo.replace(ROTULO_ESTUDIANTE, '');
-        return exigenciasLiterales().some(({ exigencia }) =>
-            exigencia === carrera || exigencia.replace(/^(?:egreso|egresad[oa]|graduad[oa]|titulo) de /, '') === carrera);
-    }));
+        const titulo = exigenciasLiterales().find(({ exigencia }) => exigencia === carrera
+            || exigencia.replace(/^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /, '') === carrera);
+        if (!titulo) continue;
+        const mencion = rotulo.replace(/^ser /, '');
+        const deseableAcreditado = item.tipo === 'deseable' && citasConOrigen.some(({ texto }) =>
+            contieneTokenNormalizado(texto, mencion) && (PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora\b/.test(texto))
+            && !PATRON_NEGACION_EVIDENCIA.test(texto));
+        if (!obligatorio && !deseableAcreditado) cursadasSinRespaldo.add(item);
+        const explicito = Object.values(original).flat().some(hecho => hecho?.tipo === 'obligatorio'
+            && [carrera, titulo.exigencia].includes(plegarAfirmacionLiteral(hecho.requisito)?.replace(/\.$/, '')));
+        if (!explicito) titulosOmitidos.set(titulo.exigencia, { requisito: titulo.exigencia, tipo: 'obligatorio',
+            evidencia_oferta: titulo.literal, evidencia_perfil: '' });
+    }
+    const itemsDe = categoria => categoria === 'por_confirmar' ? [...(original[categoria] || []), ...titulosOmitidos.values()]
+        : (original[categoria] || []).filter(item => !cursadasSinRespaldo.has(item));
     const revisarObligacion = (item, categoria) => (contrastePrevio && (requiereContraste(item) || (!contrasteAcotado && item.tipo === 'obligatorio')))
-        || (categoria === 'exclusiones' && item.tipo === 'obligatorio')
-        || (categoria === 'cumplidos' && titulosMalRotulados.has(item));
+        || (categoria === 'exclusiones' && item.tipo === 'obligatorio');
     const acreditarAusencia = (item, requisito, vigilado) => {
         const nombres = [...new Set([requisito, claveRequisito(item), ...(vigilado ? [vigilado] : [])])];
         const ausenciaDeclarada = nombres.map(nombre => ausencias.get(nombre)).find(Boolean);
@@ -424,7 +443,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     const exclusionesCorroboradas = new Set();
     const revisados = new Map();
     for (const categoria of ['cumplidos', 'no_cumplidos', 'exclusiones', 'por_confirmar']) {
-        for (const item of original[categoria] || []) {
+        for (const item of itemsDe(categoria)) {
             if (!revisarObligacion(item, categoria)) continue;
             const requisito = normalizarTextoComparacion(item.requisito);
             const perfil = normalizarTextoComparacion(item.evidencia_perfil);
@@ -476,7 +495,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
             const prioridad = { cumplidos: 1, por_confirmar: 2, exclusiones: 3 };
             if (prioridad[revisados.get(requisito)?.destino] > prioridad[destino]) continue;
             revisados.set(requisito, { destino, item: destino === 'cumplidos' ? item : {
-                ...item, tipo: titulosMalRotulados.has(item) ? 'obligatorio' : contradiccion ? 'desconocido'
+                ...item, tipo: contradiccion ? 'desconocido'
                     : noBloquea ? 'deseable' : vigilado ? (ofertaAcreditada ? 'obligatorio' : 'desconocido') : item.tipo,
                 evidencia_oferta: contradiccion || ofertaAcreditada || noBloquea || citaVigilada ? item.evidencia_oferta : '',
                 evidencia_perfil: destino === 'exclusiones' ? ausenciaAcreditada : '',
@@ -488,7 +507,7 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
     if (!contrastePrevio && (original.exclusiones || []).every(item => exclusionesCorroboradas.has(item))
         && !(original.no_cumplidos || []).some(duplicaExclusion)) return resultado;
     const explicacion = Object.fromEntries(['cumplidos', 'no_cumplidos', 'por_confirmar', 'exclusiones']
-        .map(categoria => [categoria, (original[categoria] || []).filter(item => !revisarObligacion(item, categoria)
+        .map(categoria => [categoria, itemsDe(categoria).filter(item => !revisarObligacion(item, categoria)
             && !(categoria === 'no_cumplidos' && duplicaExclusion(item)))]));
     // Un deseable no constituye una exclusión, tampoco en la presentación.
     explicacion.no_cumplidos.push(...explicacion.exclusiones.filter(item => item.tipo === 'deseable'));
