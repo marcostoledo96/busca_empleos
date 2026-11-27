@@ -191,36 +191,52 @@ function exigenciasAcademicasLiterales(descripcion) {
     // shortcut: un contexto citado, ilustrativo o retractado requiere confirmación manual.
     const texto = plegarAfirmacionLiteral(descripcion);
     if (/(?:^|\n) *(?:>|`{3,}|~{3,})|«|»|“|”|‘|’|<!--|<\/?(?:q|blockquote)\b|"[^"]*\n[^"]*"|'[^']*\n[^']*'|`[^`]*\n[^`]*`/.test(texto)
-        || /\b(?:ejemplo|hipotetic[oa]|aviso anterior|ya no (?:se )?(?:exige|requiere|necesita)|(?:solo|solamente|unicamente|exclusiv[oa]|exclusivamente) para (?:el equipo|(?:la|otra) vacante))\b/.test(texto)) return exigencias;
-    const encabezado = /^(?:requisitos?(?: (?:obligatori[oa]s?|excluyentes?))?|obligatori[oa]s?|excluyentes?|se (?:requiere|exige|necesita)) *:/;
+        || /\b(?:ejemplo|hipotetic[oa]|aviso anterior|texto eliminado|ya no (?:se )?(?:exige|requiere|necesita)|condicion siguiente corresponde (?:al|a la)|(?:solo|solamente|unicamente|exclusiv[oa]|exclusivamente) para (?:el equipo|(?:la|otra) vacante))\b/.test(texto)) return exigencias;
+    const encabezadoExplicito = /^(?:requisitos? (?:obligatori[oa]s?|excluyentes?)|obligatori[oa]s?|excluyentes?|se (?:requiere|exige|necesita)) *:/;
+    const encabezadoGenerico = /^requisitos? *:/;
+    const quitarEncabezado = linea => linea.replace(encabezadoExplicito, '').replace(encabezadoGenerico, '').trim();
     const demanda = /^(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) /;
     const sufijo = / (?:es )?(?:obligatorio|excluyente|requerido)$/;
     const vineta = /^[-*•–—][\t\p{Zs}]+/u;
-    let enLista = false;
+    const separar = frase => frase.split(/\.(?:[\t\p{Zs}]+|$)/u).map(s => s.trim()).filter(Boolean);
+    const independiente = frase => {
+        const clausula = plegarAfirmacionLiteral(frase);
+        if (vineta.test(clausula)) return !/^(?:con|sin|o|u|y|e|para|aunque|salvo)\b/.test(clausula.replace(vineta, ''));
+        return encabezadoExplicito.test(clausula) || demanda.test(clausula)
+            || /^(?:modalidad(?: de trabajo)? *:|postulacion *:|para postular(?:te|se)?\b|postulate\b|envia (?:tu |el )?cv\b)/.test(clausula);
+    };
+    let enLista = null;
     const lineas = descripcion.trimEnd().split(/\r?\n/);
+    const ultimaLineaAmbigua = lineas.findLastIndex(linea => separar(linea).some(fragmento => !independiente(fragmento)));
     for (const [indice, renglon] of lineas.entries()) {
         const linea = plegarAfirmacionLiteral(renglon);
-        if (!linea) { enLista = false; continue; }
-        if (encabezado.test(linea) && !linea.replace(encabezado, '').trim()) { enLista = true; continue; }
+        if (!linea) { enLista = null; continue; }
+        if (!quitarEncabezado(linea)) {
+            enLista = encabezadoExplicito.test(linea) ? 'obligatoria' : 'generica';
+            continue;
+        }
         const esVineta = vineta.test(linea);
         const siguiente = lineas[indice + 1];
         // No convierto la primera línea de una viñeta partida en un requisito autónomo.
         const continuacion = siguiente?.trim() && !vineta.test(plegarAfirmacionLiteral(siguiente))
             && (/^[\t ]+\S|^[\p{Ll}]/u.test(siguiente) || (!/[.]$/.test(linea) && !siguiente.trimEnd().endsWith(':')));
         if (!continuacion) {
-            const fragmentos = renglon.trim().replace(vineta, '').split(/\.(?:[\t\p{Zs}]+|$)/u).map(s => s.trim()).filter(Boolean);
+            const fragmentos = separar(renglon.trim().replace(vineta, ''));
+            const ultimoFragmentoAmbiguo = fragmentos.findLastIndex(fragmento => !independiente(fragmento));
             for (const [posicion, literal] of fragmentos.entries()) {
                 const clausula = plegarAfirmacionLiteral(literal);
-                const contenido = clausula.replace(encabezado, '').trim();
+                const contenido = quitarEncabezado(clausula);
                 const exigencia = contenido.replace(demanda, '').replace(sufijo, '');
-                if ((enLista && esVineta) || encabezado.test(clausula) || exigencia !== contenido) {
-                    // shortcut: sólo un cierre autónomo acredita cursada; si sigue texto sin interpretar, confirmación manual.
-                    const cierraAviso = indice === lineas.length - 1 && posicion === fragmentos.length - 1;
-                    exigencias.push({ clausula, exigencia, literal, cierraAviso });
+                const obligatoria = (enLista === 'obligatoria' && esVineta) || encabezadoExplicito.test(clausula)
+                    || exigencia !== contenido;
+                if (obligatoria || (enLista && esVineta) || encabezadoGenerico.test(clausula)) {
+                    // shortcut: sólo separo continuaciones de bloques independientes reconocibles; el resto requiere confirmación.
+                    const autonoma = indice >= ultimaLineaAmbigua && posicion >= ultimoFragmentoAmbiguo;
+                    exigencias.push({ clausula, exigencia, literal, autonoma, obligatoria });
                 }
             }
         }
-        if (!esVineta) enLista = false;
+        if (!esVineta) enLista = null;
     }
     return exigencias;
 }
@@ -231,7 +247,7 @@ function acreditarEstudianteLiteral(item, fuente, exigencias) {
     if (!afirmacion || afirmacion !== requisito || plegarAfirmacionLiteral(fuente).replace(/\.$/, '')
         !== plegarAfirmacionLiteral(item.evidencia_perfil)?.replace(/\.$/, '')) return false;
     const cita = plegarAfirmacionLiteral(item.evidencia_oferta)?.replace(/\.$/, '');
-    return exigencias.some(({ clausula, exigencia, cierraAviso }) => cierraAviso && exigencia.replace(/^ser /, '') === requisito
+    return exigencias.some(({ clausula, exigencia, autonoma }) => autonoma && exigencia.replace(/^ser /, '') === requisito
         && (cita === exigencia || cita === requisito || cita === clausula));
 }
 
@@ -323,9 +339,11 @@ function resolverElegibilidad(resultado, oferta, preferencias) {
         // Un rótulo obligatorio sin respaldo ya queda pendiente en la guarda principal.
         if (obligatorio && !acreditarEstudianteLiteral(item, candidato.perfil_profesional, exigenciasLiterales())) continue;
         const carrera = rotulo.replace(ROTULO_ESTUDIANTE, '');
-        const titulo = exigenciasLiterales().find(({ exigencia }) => exigencia === carrera
-            || exigencia.replace(/^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /, '') === carrera);
-        if (!titulo) continue;
+        const titulo = exigenciasLiterales().find(({ exigencia, obligatoria }) => obligatoria && (exigencia === carrera
+            || exigencia.replace(/^(?:(?:contar con|tener) el )?(?:egreso|egresad[oa]|graduad[oa]|titulo) de /, '') === carrera));
+        if (!titulo || citasConOrigen.some(({ texto }) => PATRON_OPCIONAL_EVIDENCIA.test(texto)
+            && (/\b(?:el )?(?:egreso|titulo) es (?:deseable|opcional)\b/.test(texto)
+                || (!/\bestudiantes? de\b/.test(texto) && contieneTokenNormalizado(texto, titulo.exigencia))))) continue;
         const mencion = rotulo.replace(/^ser /, '');
         const deseableAcreditado = item.tipo === 'deseable' && citasConOrigen.some(({ texto }) =>
             contieneTokenNormalizado(texto, mencion) && (PATRON_OPCIONAL_EVIDENCIA.test(texto) || /\bse valora\b/.test(texto))

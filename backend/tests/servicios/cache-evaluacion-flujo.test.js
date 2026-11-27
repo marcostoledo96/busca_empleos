@@ -210,6 +210,40 @@ test('auditoría #127: si cursada y egreso son obligatorios, acreditar una no ac
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
 });
 
+test.each([
+    [`Requisito obligatorio: ${estudiante126}.\n\nModalidad de trabajo: remota.`, true, false],
+    [`Requisito obligatorio: ${estudiante126}. Para postularte, enviá tu CV.`, true, false],
+    [`Se requiere:\n- ${estudiante126}.\n- TypeScript.`, true, false],
+    [`Requisito obligatorio: ${estudiante126}. Requisito obligatorio: Egreso de ${carrera126}.`, true, true],
+    [`La búsqueda actual es para soporte. La condición siguiente corresponde al puesto de pasantía. Requisito obligatorio: ${estudiante126}.`, false, true],
+    [`La condición de estudiante se eliminó. Reproducimos a continuación el texto eliminado. Requisito obligatorio: ${estudiante126}.`, false, true],
+])('reauditoría #127: contrasta el contexto del requisito sin depender de su posición: %s', async (descripcion, cumplido, pendiente) => {
+    const caso = await evaluarCasoAcademico126(null, estudiante126, perfilEstudiante126, perfilEstudiante126,
+        { descripcion: `Desarrollo con TypeScript.\n${descripcion}` });
+    expect(caso.resultado).toMatchObject({ match: true, porcentaje: 80, explicacion: { no_cumplidos: [], exclusiones: [] } });
+    expect(caso.resultado.pendiente === true).toBe(pendiente);
+    expect(caso.resultado.explicacion.cumplidos).toEqual(cumplido ? caso.explicacion.cumplidos : []);
+    expect(caso.resultado.explicacion.por_confirmar).toEqual(pendiente
+        ? [expect.objectContaining({ tipo: 'obligatorio', requisito: cumplido ? expect.stringMatching(/^egreso/i) : estudiante126 })] : []);
+    expect(caso.resultado.error).toBeUndefined();
+    const antes = structuredClone([...registros]);
+    await expect(servicio.evaluarOferta(caso.avisoSintetico, undefined, undefined, fila)).resolves.toEqual(caso.resultado);
+    expect([...registros]).toEqual(antes);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
+test.each(['Requisitos', 'Requisitos obligatorios'])('reauditoría #127: un egreso explícitamente deseable no se vuelve obligatorio por el encabezado %s', async encabezado => {
+    const caso = await evaluarCasoAcademico126(null, estudiante126, perfilEstudiante126, perfilEstudiante126,
+        { descripcion: `Desarrollo con TypeScript.\n${encabezado}:\n- Egreso de ${carrera126}.\n- ${estudiante126}.\nEl egreso es deseable.`, tipo: 'deseable' });
+    expect(caso.resultado).toMatchObject({ match: true, porcentaje: 80, explicacion: caso.explicacion });
+    expect(caso.resultado.pendiente).not.toBe(true);
+    expect(caso.resultado.error).toBeUndefined();
+    const antes = structuredClone([...registros]);
+    await expect(servicio.evaluarOferta(caso.avisoSintetico, undefined, undefined, fila)).resolves.toEqual(caso.resultado);
+    expect([...registros]).toEqual(antes);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+});
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';
