@@ -765,11 +765,14 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
   Conservo el cuerpo del aviso con sus párrafos, encabezados y viñetas. Un plazo
   de postulación, la modalidad o un párrafo de presentación independiente no
-  cambian la condición de estudiante. Si la frase siguiente retira, limita o
-  completa esa condición —por ejemplo, si para acreditarla exige un título
-  obtenido—, la cursada sola no basta. La continuación califica ese requisito,
-  no los siguientes, incluso tras un punto y una línea en blanco. Una frase en
-  otro párrafo que sólo confirma que basta la cursada no agrega una exigencia.
+  cambian la condición de estudiante. Si una aclaración retira la condición o
+  agrega un requisito —por ejemplo, un título obtenido—, afecta a todas las
+  menciones de esa cursada en la vacante vigente, aunque las separen párrafos o
+  indicaciones de modalidad. Una exigencia del formulario de postulación no
+  califica la cursada. Retirar su obligatoriedad no elimina una mención expresa
+  como deseable. No traslado una aclaración a otra carrera ni a otra vacante.
+  Si la aclaración sólo reafirma que se exige la misma cursada, no agrega una
+  condición ni invalida su cumplimiento.
   Una línea en blanco no cambia la vacante: el retorno desde otra vacante
   requiere un selector o una cabecera reconocidos al inicio de otro párrafo.
   Cuando el aviso anuncia texto retirado, de referencia o de una vacante
