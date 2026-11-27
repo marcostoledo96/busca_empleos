@@ -763,14 +763,17 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   literal y autónoma del perfil, como «Soy estudiante de Licenciatura en
   Sistemas.», acredita esa condición si el texto efectivo del aviso exige ser
   estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
-  Una cursada no acredita egreso ni título; no deduzco carreras afines ni
-  alternativas. La validación automática admite una exigencia autónoma seguida
-  de contenido reconocible como independiente (otra obligación, una viñeta,
-  modalidad o postulación). Si el contexto anterior o posterior es ambiguo, no
-  recorto la frase para acreditarla. Mantengo la cursada separada del título
-  obligatorio por confirmar, en cualquier orden; no deduzco que el egreso sea
-  obligatorio de un encabezado genérico ni si el aviso lo declara deseable.
-  Mantengo la afinidad recibida y el umbral del 60 %.
+  Conservo el cuerpo del aviso con sus párrafos, encabezados y viñetas. Un plazo
+  de postulación, la modalidad o una viñeta técnica independiente no cambian
+  la condición de estudiante. Una viñeta que añade «Debe tener el título obtenido»
+  sí la califica. Si el texto apunta a otra vacante, reproduce un requisito retirado
+  o no permite separar la condición de su contexto, queda `por_confirmar`.
+  Una cursada no acredita el egreso ni el título obligatorio, cualquiera sea el
+  orden. No deduzco obligatoriedad de un encabezado genérico. «El egreso es
+  deseable» sólo modifica un título de la misma vacante si nombra la misma carrera
+  o la referencia local es inequívoca. El egreso deseable de otra carrera no quita
+  el título pendiente. No infiero carreras afines ni alternativas; mantengo la
+  afinidad recibida y el umbral del 60 %.
 - **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
   El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
   su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,

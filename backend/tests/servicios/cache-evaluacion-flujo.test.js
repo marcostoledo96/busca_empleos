@@ -244,6 +244,75 @@ test.each(['Requisitos', 'Requisitos obligatorios'])('reauditoría #127: un egre
     expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
 });
 
+const titulo126 = `Requisito obligatorio: Egreso de ${carrera126}.`;
+const cursada126 = `Requisito obligatorio: ${estudiante126}.`;
+
+test.each([
+    ['egreso deseable de otra carrera en el mismo renglón',
+        `${titulo126} Para Diseño Gráfico, el egreso es deseable. ${cursada126}`, estudiante126, ['egreso de licenciatura en sistemas']],
+    ['egreso deseable de otra carrera en renglón separado',
+        `${titulo126}\nPara Diseño Gráfico, el egreso es deseable.\n${cursada126}`, estudiante126, ['egreso de licenciatura en sistemas']],
+    ['egreso deseable con referencia local inequívoca',
+        `${titulo126} ${cursada126} El egreso es deseable.`, estudiante126, []],
+    ['egreso deseable con carrera explícita',
+        `${titulo126} El egreso de ${carrera126} es deseable. ${cursada126}`, estudiante126, []],
+    ['egreso deseable sin carrera inequívoca',
+        `${titulo126} Requisito obligatorio: Egreso de Licenciatura en Diseño. El egreso es deseable. ${cursada126}`,
+        estudiante126, ['egreso de licenciatura en sistemas']],
+    ['referencia genérica también puede aludir al egreso deseable de otra carrera',
+        `${titulo126} Para Diseño Gráfico, el egreso es deseable. El egreso es deseable. ${cursada126}`,
+        estudiante126, ['egreso de licenciatura en sistemas']],
+    ['viñeta que califica la cursada',
+        `Requisitos obligatorios:\n- ${estudiante126}.\n- Debe tener el título obtenido al momento de ingresar.`, null, [estudiante126]],
+    ['viñeta con un requisito independiente',
+        `Requisitos obligatorios:\n- ${estudiante126}.\n- TypeScript.`, estudiante126, []],
+    ['plazo propio de postulación', `${cursada126} Enviá tu postulación hasta el viernes.`, estudiante126, []],
+    ['encabezado independiente de postulación', `${cursada126} Postulación: enviá tu CV.`, estudiante126, []],
+    ['formulario de postulación separado del requisito',
+        `${cursada126}\nPostulación: completá el formulario en el portal.`, estudiante126, []],
+    ['texto para otra vacante',
+        `La búsqueda actual es para soporte. Lo indicado a continuación aplica al puesto de pasantía. ${cursada126}`, null, [estudiante126]],
+    ['alcance explícito de la misma vacante',
+        `La búsqueda actual es para soporte. Lo indicado a continuación aplica al puesto de soporte. ${cursada126}`, estudiante126, []],
+    ['selector de vuelta a la vacante vigente al empezar otro bloque',
+        `La búsqueda actual es para soporte.\nLo indicado a continuación aplica al puesto de pasantía.\n${titulo126}\n\nLo indicado a continuación aplica al puesto de soporte.\n${cursada126}\nEnviá tu postulación hasta el lunes.`, estudiante126, []],
+    ['un selector de vacante dentro de texto histórico no vuelve vigente el texto',
+        `La búsqueda actual es para soporte.\nReproducimos a continuación el texto eliminado.\nLo indicado a continuación aplica al puesto de pasantía.\n${titulo126}\n\nLo indicado a continuación aplica al puesto de soporte.\n${cursada126}\nEnviá tu postulación hasta el lunes.`, null, [estudiante126]],
+    ['egreso deseable explícito pero de otra vacante',
+        `La búsqueda actual es para soporte. ${titulo126} ${cursada126} Lo indicado a continuación aplica al puesto de pasantía. El egreso de ${carrera126} es deseable.`,
+        estudiante126, ['egreso de licenciatura en sistemas']],
+    ['bloque citado aunque nombre una vacante actual',
+        `~~~\n\nLa búsqueda actual es para soporte. ${cursada126}\n\n~~~`, null, [estudiante126]],
+    ['texto anterior reproducido sólo como referencia',
+        `Dejamos sin efecto la condición de estudiante de la versión previa. La reproducimos debajo únicamente como referencia. ${cursada126}`,
+        null, [estudiante126]],
+    ['vacante vigente y postulación independientes',
+        `La búsqueda actual es para soporte.\n${cursada126}\nEnviá tu postulación hasta el viernes.`, estudiante126, []],
+    ['instrucción de postulación con condición académica',
+        `${cursada126} Enviá tu postulación hasta el viernes si ya tenés el título.`, null, [estudiante126]],
+    ['contexto impreciso no permite ignorar el título y aprobar como supuesto deseable',
+        `${titulo126} Se ofrecen horarios a convenir.`, null, ['egreso de licenciatura en sistemas'], 'deseable'],
+    ['la carrera con nombre propio no deja de ser obligatoria si es una exigencia separada',
+        'Requisito obligatorio: Diseño Gráfico. Requisito obligatorio: Estudiante de Diseño Gráfico.',
+        'Estudiante de Diseño Gráfico', ['diseno grafico']],
+])('alcance académico #126: %s', async (_caso, descripcion, cumplido, pendientes, tipo = 'obligatorio') => {
+    const requisito = cumplido || estudiante126;
+    const perfil = `Soy ${requisito.replace(/^Estudiante/, 'estudiante')}.`;
+    const caso = await evaluarCasoAcademico126(null, requisito, perfil, perfil, { descripcion, tipo });
+    const { resultado, avisoSintetico, explicacion } = caso;
+    expect(resultado).toMatchObject({ match: true, porcentaje: 80,
+        explicacion: { cumplidos: cumplido ? explicacion.cumplidos : [], no_cumplidos: [], exclusiones: [],
+            por_confirmar: pendientes.map(requisito => expect.objectContaining({ requisito, tipo: 'obligatorio' })) } });
+    expect(resultado.pendiente === true).toBe(pendientes.length > 0);
+    expect(resultado.error).toBeUndefined();
+    const consultas = pool.query.mock.calls.length;
+    await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, fila)).resolves.toEqual(resultado);
+    expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    const relectura = pool.query.mock.calls.slice(consultas);
+    expect(relectura.length).toBeGreaterThan(0);
+    expect(relectura.every(([sql]) => sql.includes('SELECT resultado'))).toBe(true);
+});
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';
