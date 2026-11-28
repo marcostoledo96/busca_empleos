@@ -225,48 +225,46 @@ function normalizarTituloAcademico(texto) {
 
 const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyentes?|deseables?|opcionales?)|obligatori[oa]s?|excluyentes?|requisitos?|deseables?|opcionales?|se (?:requiere|exige|necesita))(?:: *| )|(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) )+/;
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
+const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
 
-function tieneComillasDesbalanceadas(linea) {
-    let guillemets = 0;
-    let curvas = 0;
-    let dobles = false;
-    let backticks = false;
-    for (const ch of linea) {
-        if (ch === '«') guillemets++;
-        else if (ch === '»') { if (--guillemets < 0) return true; }
-        else if (ch === '“') curvas++;
-        else if (ch === '”') { if (--curvas < 0) return true; }
-        else if (ch === '"') dobles = !dobles;
-        else if (ch === '`') backticks = !backticks;
-    }
-    return guillemets !== 0 || curvas !== 0 || dobles || backticks;
-}
-
-function dividirTramosLinea(linea) {
+function analizarComillasLinea(linea, dividir = false) {
+    const estado = { guillemets: 0, curvas: 0, simplesCurvas: 0, dobles: false, simplesRectas: false, backticks: false, negativa: false };
     const tramos = [];
-    let guillemets = 0;
-    let curvas = 0;
-    let dobles = false;
-    let backticks = false;
     let inicio = 0;
     for (let i = 0; i < linea.length; i++) {
         const ch = linea[i];
-        if (ch === '«') guillemets++;
-        else if (ch === '»' && guillemets > 0) guillemets--;
-        else if (ch === '“') curvas++;
-        else if (ch === '”' && curvas > 0) curvas--;
-        else if (ch === '"') dobles = !dobles;
-        else if (ch === '`') backticks = !backticks;
-        else if (ch === '.' && !guillemets && !curvas && !dobles && !backticks
-            && (i + 1 === linea.length || /[\t\p{Zs}]/u.test(linea[i + 1]))) {
+        const prev = i > 0 ? linea[i - 1] : '';
+        const next = i + 1 < linea.length ? linea[i + 1] : '';
+        const entreLetras = PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next);
+        if (ch === '«') estado.guillemets++;
+        else if (ch === '»') { if (--estado.guillemets < 0) estado.negativa = true; }
+        else if (ch === '“') estado.curvas++;
+        else if (ch === '”') { if (--estado.curvas < 0) estado.negativa = true; }
+        else if (ch === '‘' && !entreLetras) estado.simplesCurvas++;
+        else if (ch === '’' && !entreLetras) {
+            if (estado.simplesCurvas > 0) estado.simplesCurvas--;
+            else if (!PALABRA_CARACTER.test(prev) || (next && !/[\s.,;:!?)]/.test(next))) estado.negativa = true;
+        } else if (ch === '"') estado.dobles = !estado.dobles;
+        else if (ch === "'" && !entreLetras) {
+            if (!estado.simplesRectas && !PALABRA_CARACTER.test(prev)) estado.simplesRectas = true;
+            else if (estado.simplesRectas) estado.simplesRectas = false;
+        } else if (ch === '`') estado.backticks = !estado.backticks;
+        else if (dividir && ch === '.'
+            && !estado.guillemets && !estado.curvas && !estado.simplesCurvas
+            && !estado.dobles && !estado.simplesRectas && !estado.backticks
+            && (!next || /[\t\p{Zs}]/u.test(next))) {
             const fragmento = linea.slice(inicio, i).trim();
             if (fragmento) tramos.push(fragmento);
             inicio = i + 1;
         }
     }
-    const resto = linea.slice(inicio).trim();
-    if (resto) tramos.push(resto);
-    return tramos;
+    if (dividir) {
+        const resto = linea.slice(inicio).trim();
+        if (resto) tramos.push(resto);
+    }
+    const desbalanceada = estado.negativa || estado.guillemets !== 0 || estado.curvas !== 0
+        || estado.simplesCurvas !== 0 || estado.dobles || estado.simplesRectas || estado.backticks;
+    return { desbalanceada, tramos };
 }
 
 function descomponerClausulaTitulo(contenido) {
@@ -364,7 +362,7 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
     // No interpreto declaraciones de vacante dentro de citas multilínea o bloques que puedan atravesar párrafos.
     if (/(?:^|\n)[\t ]*(?:>|`{3,}|~{3,})|<!--|<\/?(?:q|blockquote)\b|(?:^|[\s([:])'[^']*\n[^']*'|‘[^’]*\n/i.test(descripcion)) return [];
     const renglones = descripcion.split(/\r?\n/);
-    if (renglones.some(tieneComillasDesbalanceadas)) return [];
+    if (renglones.some(linea => analizarComillasLinea(linea).desbalanceada)) return [];
     // El nombre permite distinguir una carrera sin prefijo; la obligación se toma del aviso.
     const carreras = new Set(cumplidos.map(({ requisito }) => plegarAfirmacionLiteral(requisito)?.replace(/\.$/, ''))
         .filter(rotulo => ROTULO_ESTUDIANTE.test(rotulo)).map(rotulo => rotulo.replace(ROTULO_ESTUDIANTE, '')));
@@ -403,7 +401,7 @@ function exigenciasAcademicasLiterales(descripcion, cumplidos) {
             listaConVinetas = false;
         }
         let listaRenglonValida = Boolean(lista && !esVineta);
-        const tramosLinea = dividirTramosLinea(linea.replace(VINETA_ACADEMICA, ''));
+        const tramosLinea = analizarComillasLinea(linea.replace(VINETA_ACADEMICA, ''), true).tramos;
         if (!tramosLinea.length) listaRenglonValida = false;
         for (const literal of tramosLinea) {
             const tramo = clasificarTramoAcademico(literal, lista, carreras);
