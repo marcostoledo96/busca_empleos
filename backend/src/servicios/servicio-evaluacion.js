@@ -226,7 +226,13 @@ function normalizarTituloAcademico(texto) {
 const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyentes?|deseables?|opcionales?)|obligatori[oa]s?|excluyentes?|requisitos?|deseables?|opcionales?|se (?:requiere|exige|necesita))(?:: *| )|(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) )+/;
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
 const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
-const PALABRA_NO_POSEIDA = /^(?:como|segun|durante|para|por|en|de|del|al|a|con|sin|sobre|entre|hasta|desde|tras|ante|hacia|bajo|mediante|versus|vs|y|e|o|u|ni|pero|sino|aunque|porque|pues|que|quien|cual|donde|cuando|mientras|si|ya|no|solo|solamente|unicamente|tambien|tampoco|era|eran|es|son|fue|fueron|dijo|dice|decia|indica|indicaba|senala|senalaba|aclara|aclaraba|explica|explicaba|as|for|during|by|in|on|at|to|from|of|with|without|about|into|onto|over|under|through|between|after|before|until|since|and|or|nor|but|yet|so|because|while|when|where|if|that|which|who|is|are|was|were|be|been|has|have|had|said|says|stated|noted|explained|indicates|according)\b/;
+const ATRIBUCION_TRAS_CITA = /^(?:(?:(?:[a-z]+mente|[a-z]+ly|literal|textual|solo|solamente|unicamente|tambien|tampoco|ya|aun|todavia) +(?:(?:y|e|and) +)?){0,2})(?:como|segun|durante|para|por|en|de|del|al|a|con|sin|sobre|entre|hasta|desde|tras|ante|hacia|bajo|mediante|versus|vs|y|e|o|u|ni|pero|sino|aunque|porque|pues|que|quien|cual|donde|cuando|mientras|si|ya|no|solo|solamente|unicamente|tambien|tampoco|era|eran|es|son|fue|fueron|dijo|dice|decia|indica|indicaba|senala|senalaba|aclara|aclaraba|explica|explicaba|as|for|during|by|in|on|at|to|from|of|with|without|about|into|onto|over|under|through|between|after|before|until|since|and|or|nor|but|yet|so|because|while|when|where|if|that|which|who|is|are|was|were|be|been|has|have|had|said|says|stated|noted|explained|indicates|according)\b/;
+
+function esAtribucionPosterior(linea, pos) {
+    // Acoto la normalización al prefijo breve siguiente en O(1) por marca residual.
+    const prefijo = linea.slice(pos + 1, pos + 65).match(/^[\t\p{Zs}]*([^\t\p{Zs}.]+(?:[\t\p{Zs}]+[^\t\p{Zs}.]+){0,3})/u)?.[1];
+    return Boolean(prefijo && ATRIBUCION_TRAS_CITA.test(plegarAfirmacionLiteral(prefijo)));
+}
 
 function reducirSimplesO1(linea, tipo, tokens, intervalos) {
     const esCurva = tipo === 'curva';
@@ -246,7 +252,7 @@ function reducirSimplesO1(linea, tipo, tokens, intervalos) {
             continue;
         }
         const clase = /[sS]/.test(prev) ? 'A' : 'C';
-        const antesDePalabra = /^[\t\p{Zs}]+[\p{L}\p{N}]/u.test(linea.slice(pos + 1));
+        const antesDePalabra = /^[\t\p{Zs}]+[\p{L}\p{N}]/u.test(linea.slice(pos + 1, pos + 8));
         const tope = pila.at(-1);
         const apertura = tope !== undefined ? tokens[tope] : null;
         const sinEspacios = apertura && !/[\t\p{Zs}]/u.test(linea.slice(apertura.pos + 1, pos));
@@ -259,8 +265,7 @@ function reducirSimplesO1(linea, tipo, tokens, intervalos) {
             intervalos.push([apertura.pos, pos]);
             continue;
         }
-        const esAtribucion = Boolean(antesDePalabra && PALABRA_NO_POSEIDA.test(plegarAfirmacionLiteral(linea.slice(pos + 1)) || ''));
-        tokens.push({ pos, clase, antesDePalabra, esAtribucion });
+        tokens.push({ pos, clase, antesDePalabra });
         if (clase !== 'A') pila.length = 0;
     }
 }
@@ -309,7 +314,8 @@ function resolverIntervalosSimples(linea, tipo) {
         const tk = tokens[k];
         if (tk.clase === 'C') return true;
         if (tk.clase !== 'A') return false;
-        return !tk.antesDePalabra || tk.esAtribucion || puntosHasta[tk.pos - 1] === puntosHasta[tokens[l].pos];
+        if (!tk.antesDePalabra || puntosHasta[tk.pos - 1] === puntosHasta[tokens[l].pos]) return true;
+        return tk.atribucion ??= esAtribucionPosterior(linea, tk.pos);
     };
     const ok = Array.from({ length: m + 1 }, () => new Uint8Array(m + 1));
     for (let i = 0; i <= m; i++) ok[i][i] = 1;

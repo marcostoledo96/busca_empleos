@@ -1742,6 +1742,94 @@ test('reauditoría #127 (43d98ab): F2 preserva citas ajenas de dos palabras ante
     }
 });
 
+test('reauditoría #127 (7d17ee0): F1 preserva citas multioración con modificador previo a atribución tras s', async () => {
+    const perfilTitulo = `Obtuve el título de ${carrera126}.`;
+    const filaLocal = Object.freeze({
+        stack_tecnologico: Object.freeze(['TypeScript']),
+        perfil_profesional: perfilTitulo,
+        zonas_preferidas: Object.freeze([])
+    });
+    const cumplido = {
+        requisito: `Título de ${carrera126}`,
+        tipo: 'obligatorio',
+        evidencia_oferta: `Título de la ${carrera126}`,
+        evidencia_perfil: perfilTitulo,
+        explicacion: 'Título confirmado.'
+    };
+    const payload = {
+        match: true,
+        porcentaje: 80,
+        razon: 'Titulación confirmada.',
+        explicacion: {
+            cumplidos: [cumplido],
+            no_cumplidos: [],
+            por_confirmar: [],
+            exclusiones: []
+        }
+    };
+    const requisitoActivo = `Requisito obligatorio: Título de la ${carrera126} de Información.`;
+    const citaExclusivaCurva = `Ejemplo no vigente: ‘This handbook was the developers’, but it was archived. Requisito obligatorio: Título de la ${carrera126}. Esas eran las instrucciones’ exclusivamente como referencia.`;
+    const citaExclusivaRecta = `Ejemplo no vigente: 'This handbook was the developers', but it was archived. Requisito obligatorio: Título de la ${carrera126}. Esas eran las instrucciones' exclusivamente como referencia.`;
+    const citaTextualCurva = `Ejemplo no vigente: ‘This handbook was the developers’, but it was archived. Requisito obligatorio: Título de la ${carrera126}. Esas eran las instrucciones’ textualmente y como referencia.`;
+    const citaTextualRecta = `Ejemplo no vigente: 'This handbook was the developers', but it was archived. Requisito obligatorio: Título de la ${carrera126}. Esas eran las instrucciones' textualmente y como referencia.`;
+    const negativos = [
+        `${citaExclusivaCurva}\n\n${requisitoActivo}`,
+        `${requisitoActivo}\n\n${citaExclusivaCurva}`,
+        `${citaExclusivaRecta}\n\n${requisitoActivo}`,
+        `${requisitoActivo}\n\n${citaExclusivaRecta}`,
+        `${citaTextualCurva}\n\n${requisitoActivo}`,
+        `${citaTextualRecta}\n\n${requisitoActivo}`
+    ];
+
+    for (const descripcion of negativos) {
+        jest.clearAllMocks();
+        registros.clear();
+        fila = filaLocal;
+        const avisoSintetico = Object.freeze({
+            id: 126,
+            titulo: 'Desarrollo TypeScript Junior',
+            descripcion,
+            modalidad: 'remoto',
+            descripcion_completitud: 'completa'
+        });
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(payload));
+
+        const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal);
+        expect(resultado.pendiente).toBe(true);
+        expect(resultado).toMatchObject({
+            match: true,
+            porcentaje: 80,
+            explicacion: {
+                cumplidos: [],
+                no_cumplidos: [],
+                por_confirmar: [expect.objectContaining({
+                    requisito: `Título de ${carrera126}`,
+                    tipo: 'obligatorio',
+                    evidencia_oferta: '',
+                    evidencia_perfil: ''
+                })],
+                exclusiones: []
+            }
+        });
+
+        const antes = structuredClone([...registros]);
+        const consultas = pool.query.mock.calls.length;
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+        expect([...registros]).toEqual(antes);
+        expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+            .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+
+        for (const entry of registros.values()) {
+            entry.razon = payload.razon;
+            entry.explicacion = structuredClone(payload.explicacion);
+            delete entry.pendiente;
+        }
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    }
+});
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';

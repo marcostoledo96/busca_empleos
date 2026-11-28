@@ -806,7 +806,7 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   obligatorio`) y citas aisladas en párrafos ajenos al requisito (incluyendo
   citas de varias oraciones delimitadas por comillas simples curvas o rectas —
   incluso cuando abren con posesivo plural inicial o cierran tras «s» con
-  atribución posterior — distinguiendo apóstrofos internos, posesivos plurales
+  atribución posterior o modificadores previos — distinguiendo apóstrofos internos, posesivos plurales
   ante espacio o coma, citas ajenas de varias palabras cerradas antes de un
   requisito y citas balanceadas múltiples sin cancelar requisitos en párrafos
   independientes), evitando
