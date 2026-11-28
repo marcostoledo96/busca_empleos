@@ -805,7 +805,7 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   vacante actual (`es obligatorio para esta vacante` / `para esta vacante es
   obligatorio`) y citas aisladas en párrafos ajenos al requisito (incluyendo
   citas de varias oraciones delimitadas por comillas simples curvas o rectas,
-  distinguiendo apóstrofos internos de palabras), evitando
+  distinguiendo apóstrofos internos y posesivos plurales de palabras), evitando
   duplicados y conservando la cita literal del aviso. No deduzco
   obligatoriedad de un encabezado genérico. «El egreso es deseable» sólo
   modifica un título de la misma vacante si nombra la misma carrera o la

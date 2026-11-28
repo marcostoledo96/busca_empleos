@@ -227,6 +227,23 @@ const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyen
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
 const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
 
+function tieneCierreSimplePosterior(linea, desde, tipo) {
+    for (let j = desde; j < linea.length; j++) {
+        const ch = linea[j];
+        const prev = linea[j - 1] || '';
+        const next = linea[j + 1] || '';
+        if (PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next)) continue;
+        if (tipo === 'curva') {
+            if (ch === '‘') return false;
+            if (ch === '’' && (!PALABRA_CARACTER.test(prev) || !next || /[\s.,;:!?)]/.test(next))) return true;
+        } else if (ch === "'") {
+            if (!PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next)) return false;
+            return true;
+        }
+    }
+    return false;
+}
+
 function analizarComillasLinea(linea, dividir = false) {
     const estado = { guillemets: 0, curvas: 0, simplesCurvas: 0, dobles: false, simplesRectas: false, backticks: false, negativa: false };
     const tramos = [];
@@ -242,10 +259,14 @@ function analizarComillasLinea(linea, dividir = false) {
         else if (ch === '”') { if (--estado.curvas < 0) estado.negativa = true; }
         else if (ch === '‘' && !entreLetras) estado.simplesCurvas++;
         else if (ch === '’' && !entreLetras) {
+            if (estado.simplesCurvas > 0 && PALABRA_CARACTER.test(prev) && /[\t\p{Zs}]/u.test(next)
+                && tieneCierreSimplePosterior(linea, i + 1, 'curva')) continue;
             if (estado.simplesCurvas > 0) estado.simplesCurvas--;
             else if (!PALABRA_CARACTER.test(prev) || (next && !/[\s.,;:!?)]/.test(next))) estado.negativa = true;
         } else if (ch === '"') estado.dobles = !estado.dobles;
         else if (ch === "'" && !entreLetras) {
+            if (estado.simplesRectas && PALABRA_CARACTER.test(prev) && /[\t\p{Zs}]/u.test(next)
+                && tieneCierreSimplePosterior(linea, i + 1, 'recta')) continue;
             if (!estado.simplesRectas && !PALABRA_CARACTER.test(prev)) estado.simplesRectas = true;
             else if (estado.simplesRectas) estado.simplesRectas = false;
         } else if (ch === '`') estado.backticks = !estado.backticks;

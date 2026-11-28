@@ -1097,6 +1097,133 @@ test('reauditoría #127 (9efb6f2): F1 no acredita títulos dentro de citas con c
     }
 });
 
+test('reauditoría #127 (01c8061): F1 preserva citas simples ante posesivos plurales interiores y permite posesivos o citas ajenas', async () => {
+    const perfilTitulo = `Obtuve el título de ${carrera126}.`;
+    const filaLocal = Object.freeze({
+        stack_tecnologico: Object.freeze(['TypeScript']),
+        perfil_profesional: perfilTitulo,
+        zonas_preferidas: Object.freeze([])
+    });
+    const cumplido = {
+        requisito: `Título de ${carrera126}`,
+        tipo: 'obligatorio',
+        evidencia_oferta: `Título de la ${carrera126}`,
+        evidencia_perfil: perfilTitulo,
+        explicacion: 'Título confirmado.'
+    };
+    const payload = {
+        match: true,
+        porcentaje: 80,
+        razon: 'Titulación confirmada.',
+        explicacion: {
+            cumplidos: [cumplido],
+            no_cumplidos: [],
+            por_confirmar: [],
+            exclusiones: []
+        }
+    };
+    const requisitoActivo = `Requisito obligatorio: Título de la ${carrera126} de Información.`;
+    const citaCurva = `Ejemplo no vigente: ‘The developers’ handbook was archived. Requisito obligatorio: Título de la ${carrera126}. El texto era sólo ilustrativo’.`;
+    const citaRecta = `Ejemplo no vigente: 'The developers' handbook was archived. Requisito obligatorio: Título de la ${carrera126}. El texto era sólo ilustrativo'.`;
+    const citaRectaPuntoDentro = `Ejemplo no vigente: 'The developers' handbook was archived. Requisito obligatorio: Título de la ${carrera126}. El texto era sólo ilustrativo.'`;
+    const negativos = [
+        `${citaCurva}\n\n${requisitoActivo}`,
+        `${requisitoActivo}\n\n${citaCurva}`,
+        `${citaRecta}\n\n${requisitoActivo}`,
+        `${requisitoActivo}\n\n${citaRecta}`,
+        `${citaRectaPuntoDentro}\n\n${requisitoActivo}`
+    ];
+
+    for (const descripcion of negativos) {
+        jest.clearAllMocks();
+        registros.clear();
+        fila = filaLocal;
+        const avisoSintetico = Object.freeze({
+            id: 126,
+            titulo: 'Desarrollo TypeScript Junior',
+            descripcion,
+            modalidad: 'remoto',
+            descripcion_completitud: 'completa'
+        });
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(payload));
+
+        const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal);
+        expect(resultado.pendiente).toBe(true);
+        expect(resultado).toMatchObject({
+            match: true,
+            porcentaje: 80,
+            explicacion: {
+                cumplidos: [],
+                no_cumplidos: [],
+                por_confirmar: [expect.objectContaining({
+                    requisito: `Título de ${carrera126}`,
+                    tipo: 'obligatorio',
+                    evidencia_oferta: '',
+                    evidencia_perfil: ''
+                })],
+                exclusiones: []
+            }
+        });
+
+        const antes = structuredClone([...registros]);
+        const consultas = pool.query.mock.calls.length;
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+        expect([...registros]).toEqual(antes);
+        expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+            .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+
+        for (const entry of registros.values()) {
+            entry.razon = payload.razon;
+            entry.explicacion = structuredClone(payload.explicacion);
+            delete entry.pendiente;
+        }
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    }
+
+    const positivos = [
+        `The developers’ handbook was archived.\n\nDesarrollo con TypeScript. Requisito obligatorio: Título de la ${carrera126}.`,
+        `The developers' handbook was archived. Requisito obligatorio: Título de la ${carrera126}.`,
+        `Beneficios: acceso al curso ‘The developers’ handbook’.\n\nRequisito obligatorio: Título de la ${carrera126}.`,
+        `Acceso 'gratis'. Requisito obligatorio: Título de la ${carrera126}. Consult developers' docs.`
+    ];
+    for (const descripcion of positivos) {
+        jest.clearAllMocks();
+        registros.clear();
+        fila = filaLocal;
+        const avisoSintetico = Object.freeze({
+            id: 126,
+            titulo: 'Desarrollo TypeScript Junior',
+            descripcion,
+            modalidad: 'remoto',
+            descripcion_completitud: 'completa'
+        });
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(payload));
+
+        const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal);
+        expect(resultado.pendiente).not.toBe(true);
+        expect(resultado).toMatchObject({
+            match: true,
+            porcentaje: 80,
+            explicacion: {
+                cumplidos: [cumplido],
+                no_cumplidos: [],
+                por_confirmar: [],
+                exclusiones: []
+            }
+        });
+
+        const antes = structuredClone([...registros]);
+        const consultas = pool.query.mock.calls.length;
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+        expect([...registros]).toEqual(antes);
+        expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+            .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+    }
+});
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';
