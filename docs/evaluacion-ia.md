@@ -291,6 +291,39 @@ Las instrucciones le dicen a DeepSeek exactamente cómo evaluar. Incluyen el per
   - **0-49:** No es match. Requiere tecnologías o experiencia fuera del perfil.
 - El [parser](#parser-estricto-de-respuesta-ia-parser-respuesta-iajs) valida el rango inclusivo `[0, 100]` antes de redondear. Un porcentaje inválido da `null` y un error de validación; no se ajusta a los límites.
 
+### Diagnóstico local de tamaño por bloque (#128)
+
+Desde la raíz del repositorio, uso un objeto JSON UTF-8 de **preferencias efectivas**,
+con los campos que consume el constructor en el nivel raíz (por ejemplo `nombre`,
+`perfil_profesional`, `zonas_preferidas`, `usar_prompt_personalizado` y
+`prompt_personalizado`). No es un CV, una oferta, un volcado ni un objeto envuelto
+en `preferencias`. Para un snapshot real, uso solamente la ruta privada que el
+propietario haya habilitado expresamente para este diagnóstico:
+
+```bash
+node backend/scripts/diagnostico-entrada-evaluacion.js --stdin < /ruta/privada/snapshot.json
+```
+
+No se necesitan credenciales ni servicios iniciados. El archivo se abre por
+redirección de solo lectura y el script escribe únicamente claves fijas y cifras
+en stdout. Si la entrada no es válida, no escribe en stdout: devuelve código `1`
+y el mensaje fijo `ENTRADA_INVALIDA` por stderr. No registra ni persiste el texto.
+
+| Salida | Qué mide |
+| --- | --- |
+| `candidato`, `preferencias`, `politicas` | Bytes UTF-8 de cada sección efectiva, con su encabezado. |
+| `separadores_perfil` | Separadores entre esas secciones. |
+| `prompt_personalizado` | Contenido añadido, sin recortar espacios ni saltos. Es cero si no se incorpora. |
+| `instrucciones_y_separadores` | Todo lo demás: instrucciones, condiciones como la excepción estudiantil de #127, encabezado del prompt personalizado si corresponde y separadores restantes. |
+| `total` | Bytes del mensaje de sistema real; coincide con la suma de los seis componentes anteriores. |
+| `ahorro_bytes_formato_json` | Diferencia entre JSON indentado y compacto para los mismos objetos de candidato y preferencias. No se suma al total ni se usa para evaluar. |
+
+Registro el SHA de la versión ejecutada junto con las cifras, sin guardar el
+snapshot ni su huella. Una medición actual no reconstruye un incidente anterior.
+Los bytes de formato no son tokens ni costo; identificar el bloque dominante no
+demuestra que reducirlo resuelva `finish_reason=length`. Un `stop` con respuesta
+inválida sigue siendo un fallo distinto.
+
 ## Requisitos contextuales (issue #7)
 
 Interpreto las señales de Java, seniority, experiencia e inglés dentro de cláusulas pequeñas, separando título, descripción y campos textuales de datos crudos. Conservo límites de párrafos HTML, listas, puntuación y contrastes; las condiciones deseables, opcionales o negadas afectan su cláusula y sus continuaciones de lista, no toda la oferta. Un requisito obligatorio explícito en otra entrada prevalece sobre el modificador compartido (por ejemplo, «Java: deseable, inglés avanzado obligatorio»).
