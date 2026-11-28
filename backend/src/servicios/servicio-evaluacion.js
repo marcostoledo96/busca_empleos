@@ -227,53 +227,86 @@ const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyen
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
 const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
 
-function tieneCierreSimplePosterior(linea, desde, tipo) {
-    for (let j = desde; j < linea.length; j++) {
-        const ch = linea[j];
-        const prev = linea[j - 1] || '';
-        const next = linea[j + 1] || '';
-        if (PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next)) continue;
-        if (tipo === 'curva') {
-            if (ch === '‘') return false;
-            if (ch === '’' && (!PALABRA_CARACTER.test(prev) || !next || /[\s.,;:!?)]/.test(next))) return true;
-        } else if (ch === "'") {
-            if (!PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next)) return false;
-            return true;
-        }
+function hayFinDeOracion(linea, desde, hasta) {
+    for (let i = desde + 1; i < hasta; i++) {
+        if (linea[i] === '.' && (i + 1 === hasta || /[\t\p{Zs}]/u.test(linea[i + 1]))) return true;
     }
     return false;
 }
 
+function resolverIntervalosSimples(linea, tipo) {
+    const esCurva = tipo === 'curva';
+    const tokens = [];
+    for (let pos = 0; pos < linea.length; pos++) {
+        const ch = linea[pos];
+        const prev = pos > 0 ? linea[pos - 1] : '';
+        const next = pos + 1 < linea.length ? linea[pos + 1] : '';
+        if (PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next)) continue;
+        if (esCurva ? (ch !== '‘' && ch !== '’') : ch !== "'") continue;
+        const esApertura = esCurva
+            ? ch === '‘'
+            : (!prev || /[\t\p{Zs}([:¿¡]/u.test(prev)) && (!next || !/[\t\p{Zs}.,;:!?)\]}]/u.test(next));
+        if (esApertura) {
+            tokens.push({ pos, clase: 'O' });
+        } else {
+            const clase = /[sS]/.test(prev) ? 'A' : 'C';
+            const antesDePalabra = /^[\t\p{Zs}]+[\p{L}\p{N}]/u.test(linea.slice(pos + 1));
+            tokens.push({ pos, clase, antesDePalabra });
+        }
+    }
+    if (tokens.length > 16) return { desbalanceada: true, intervalos: [] };
+    const intervalos = [];
+    let valida = false;
+    function explorar(indice, abiertos, pares) {
+        if (indice === tokens.length) {
+            if (abiertos.length === 0) {
+                valida = true;
+                intervalos.push(...pares);
+            }
+            return;
+        }
+        const token = tokens[indice];
+        if (token.clase === 'O') {
+            explorar(indice + 1, [...abiertos, token.pos], pares);
+            return;
+        }
+        if (token.clase === 'C') {
+            if (!abiertos.length) return;
+            explorar(indice + 1, abiertos.slice(0, -1), [...pares, [abiertos.at(-1), token.pos]]);
+            return;
+        }
+        explorar(indice + 1, abiertos, pares);
+        if (abiertos.length && (!token.antesDePalabra || !hayFinDeOracion(linea, abiertos.at(-1), token.pos))) {
+            explorar(indice + 1, abiertos.slice(0, -1), [...pares, [abiertos.at(-1), token.pos]]);
+        }
+    }
+    explorar(0, [], []);
+    return { desbalanceada: !valida, intervalos };
+}
+
 function analizarComillasLinea(linea, dividir = false) {
-    const estado = { guillemets: 0, curvas: 0, simplesCurvas: 0, dobles: false, simplesRectas: false, backticks: false, negativa: false };
+    const curvasSimples = resolverIntervalosSimples(linea, 'curva');
+    const rectasSimples = resolverIntervalosSimples(linea, 'recta');
+    let guillemets = 0;
+    let curvas = 0;
+    let dobles = false;
+    let backticks = false;
+    let negativa = false;
     const tramos = [];
     let inicio = 0;
+    const enIntervalo = pos => curvasSimples.intervalos.some(([a, b]) => pos >= a && pos <= b)
+        || rectasSimples.intervalos.some(([a, b]) => pos >= a && pos <= b);
     for (let i = 0; i < linea.length; i++) {
         const ch = linea[i];
-        const prev = i > 0 ? linea[i - 1] : '';
         const next = i + 1 < linea.length ? linea[i + 1] : '';
-        const entreLetras = PALABRA_CARACTER.test(prev) && PALABRA_CARACTER.test(next);
-        if (ch === '«') estado.guillemets++;
-        else if (ch === '»') { if (--estado.guillemets < 0) estado.negativa = true; }
-        else if (ch === '“') estado.curvas++;
-        else if (ch === '”') { if (--estado.curvas < 0) estado.negativa = true; }
-        else if (ch === '‘' && !entreLetras) estado.simplesCurvas++;
-        else if (ch === '’' && !entreLetras) {
-            if (estado.simplesCurvas > 0 && PALABRA_CARACTER.test(prev) && /[\t\p{Zs}]/u.test(next)
-                && tieneCierreSimplePosterior(linea, i + 1, 'curva')) continue;
-            if (estado.simplesCurvas > 0) estado.simplesCurvas--;
-            else if (!PALABRA_CARACTER.test(prev) || (next && !/[\s.,;:!?)]/.test(next))) estado.negativa = true;
-        } else if (ch === '"') estado.dobles = !estado.dobles;
-        else if (ch === "'" && !entreLetras) {
-            if (estado.simplesRectas && PALABRA_CARACTER.test(prev) && /[\t\p{Zs}]/u.test(next)
-                && tieneCierreSimplePosterior(linea, i + 1, 'recta')) continue;
-            if (!estado.simplesRectas && !PALABRA_CARACTER.test(prev)) estado.simplesRectas = true;
-            else if (estado.simplesRectas) estado.simplesRectas = false;
-        } else if (ch === '`') estado.backticks = !estado.backticks;
-        else if (dividir && ch === '.'
-            && !estado.guillemets && !estado.curvas && !estado.simplesCurvas
-            && !estado.dobles && !estado.simplesRectas && !estado.backticks
-            && (!next || /[\t\p{Zs}]/u.test(next))) {
+        if (ch === '«') guillemets++;
+        else if (ch === '»') { if (--guillemets < 0) negativa = true; }
+        else if (ch === '“') curvas++;
+        else if (ch === '”') { if (--curvas < 0) negativa = true; }
+        else if (ch === '"') dobles = !dobles;
+        else if (ch === '`') backticks = !backticks;
+        else if (dividir && ch === '.' && !guillemets && !curvas && !dobles && !backticks
+            && !enIntervalo(i) && (!next || /[\t\p{Zs}]/u.test(next))) {
             const fragmento = linea.slice(inicio, i).trim();
             if (fragmento) tramos.push(fragmento);
             inicio = i + 1;
@@ -283,8 +316,8 @@ function analizarComillasLinea(linea, dividir = false) {
         const resto = linea.slice(inicio).trim();
         if (resto) tramos.push(resto);
     }
-    const desbalanceada = estado.negativa || estado.guillemets !== 0 || estado.curvas !== 0
-        || estado.simplesCurvas !== 0 || estado.dobles || estado.simplesRectas || estado.backticks;
+    const desbalanceada = negativa || guillemets !== 0 || curvas !== 0 || dobles || backticks
+        || curvasSimples.desbalanceada || rectasSimples.desbalanceada;
     return { desbalanceada, tramos };
 }
 
