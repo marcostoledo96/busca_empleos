@@ -226,6 +226,7 @@ function normalizarTituloAcademico(texto) {
 const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyentes?|deseables?|opcionales?)|obligatori[oa]s?|excluyentes?|requisitos?|deseables?|opcionales?|se (?:requiere|exige|necesita))(?:: *| )|(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) )+/;
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
 const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
+const PALABRA_NO_POSEIDA = /^(?:como|segun|durante|para|por|en|de|del|al|a|con|sin|sobre|entre|hasta|desde|tras|ante|hacia|bajo|mediante|versus|vs|y|e|o|u|ni|pero|sino|aunque|porque|pues|que|quien|cual|donde|cuando|mientras|si|ya|no|solo|solamente|unicamente|tambien|tampoco|era|eran|es|son|fue|fueron|dijo|dice|decia|indica|indicaba|senala|senalaba|aclara|aclaraba|explica|explicaba|as|for|during|by|in|on|at|to|from|of|with|without|about|into|onto|over|under|through|between|after|before|until|since|and|or|nor|but|yet|so|because|while|when|where|if|that|which|who|is|are|was|were|be|been|has|have|had|said|says|stated|noted|explained|indicates|according)\b/;
 
 function reducirSimplesO1(linea, tipo, tokens, intervalos) {
     const esCurva = tipo === 'curva';
@@ -249,18 +250,32 @@ function reducirSimplesO1(linea, tipo, tokens, intervalos) {
         const tope = pila.at(-1);
         const apertura = tope !== undefined ? tokens[tope] : null;
         const sinEspacios = apertura && !/[\t\p{Zs}]/u.test(linea.slice(apertura.pos + 1, pos));
-        // Pares inmediatos o citas aisladas de un solo término minúsculo/puntuado se cierran en O(n).
-        const cierreDirecto = apertura && tope === tokens.length - 1 && (clase === 'C'
-            || (sinEspacios && (!antesDePalabra || !/^\p{Lu}/u.test(linea[apertura.pos + 1] || ''))));
+        // Cierres sin ambigüedad de posesión prenominal se reducen en O(n).
+        const cierreDirecto = apertura && tope === tokens.length - 1
+            && (clase === 'C' || (sinEspacios && !antesDePalabra));
         if (cierreDirecto) {
             tokens.pop();
             pila.pop();
             intervalos.push([apertura.pos, pos]);
             continue;
         }
-        tokens.push({ pos, clase });
+        const esAtribucion = Boolean(antesDePalabra && PALABRA_NO_POSEIDA.test(plegarAfirmacionLiteral(linea.slice(pos + 1)) || ''));
+        tokens.push({ pos, clase, antesDePalabra, esAtribucion });
         if (clase !== 'A') pila.length = 0;
     }
+}
+
+function unificarIntervalos(intervalos) {
+    if (intervalos.length <= 1) return intervalos;
+    const ordenados = [...intervalos].sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const resultado = [[ordenados[0][0], ordenados[0][1]]];
+    for (let i = 1; i < ordenados.length; i++) {
+        const [inicio, fin] = ordenados[i];
+        const ultimo = resultado.at(-1);
+        if (inicio <= ultimo[1]) ultimo[1] = Math.max(ultimo[1], fin);
+        else resultado.push([inicio, fin]);
+    }
+    return resultado;
 }
 
 function resolverIntervalosSimples(linea, tipo) {
@@ -284,6 +299,18 @@ function resolverIntervalosSimples(linea, tipo) {
         }
         return { desbalanceada: minOpen !== 0, intervalos: minOpen === 0 ? [[0, linea.length - 1]] : [] };
     }
+    const puntosHasta = new Int32Array(linea.length);
+    let puntos = 0;
+    for (let i = 0; i < linea.length; i++) {
+        if (linea[i] === '.' && (i + 1 === linea.length || /[\t\p{Zs}]/u.test(linea[i + 1]))) puntos++;
+        puntosHasta[i] = puntos;
+    }
+    const puedeCerrar = (l, k) => {
+        const tk = tokens[k];
+        if (tk.clase === 'C') return true;
+        if (tk.clase !== 'A') return false;
+        return !tk.antesDePalabra || tk.esAtribucion || puntosHasta[tk.pos - 1] === puntosHasta[tokens[l].pos];
+    };
     const ok = Array.from({ length: m + 1 }, () => new Uint8Array(m + 1));
     for (let i = 0; i <= m; i++) ok[i][i] = 1;
     for (let len = 1; len <= m; len++) {
@@ -296,7 +323,7 @@ function resolverIntervalosSimples(linea, tipo) {
             }
             if (tk.clase !== 'O') continue;
             for (let k = l + 1; k < r; k++) {
-                if (tokens[k].clase !== 'O' && ok[l + 1][k] && ok[k + 1][r]) {
+                if (puedeCerrar(l, k) && ok[l + 1][k] && ok[k + 1][r]) {
                     ok[l][r] = 1;
                     break;
                 }
@@ -315,7 +342,7 @@ function resolverIntervalosSimples(linea, tipo) {
             if (tk.clase === 'A' && ok[l + 1][r]) outOk[l + 1][r] = 1;
             if (tk.clase !== 'O') continue;
             for (let k = l + 1; k < r; k++) {
-                if (tokens[k].clase !== 'O' && ok[l + 1][k] && ok[k + 1][r]) {
+                if (puedeCerrar(l, k) && ok[l + 1][k] && ok[k + 1][r]) {
                     pares[l][k] = 1;
                     outOk[l + 1][k] = 1;
                     outOk[k + 1][r] = 1;
@@ -341,8 +368,8 @@ function analizarComillasLinea(linea, dividir = false) {
     let negativa = false;
     const tramos = [];
     let inicio = 0;
-    const enIntervalo = pos => curvasSimples.intervalos.some(([a, b]) => pos >= a && pos <= b)
-        || rectasSimples.intervalos.some(([a, b]) => pos >= a && pos <= b);
+    const intervalos = dividir ? unificarIntervalos([...curvasSimples.intervalos, ...rectasSimples.intervalos]) : [];
+    let idxIntervalo = 0;
     for (let i = 0; i < linea.length; i++) {
         const ch = linea[i];
         const next = i + 1 < linea.length ? linea[i + 1] : '';
@@ -353,10 +380,13 @@ function analizarComillasLinea(linea, dividir = false) {
         else if (ch === '"') dobles = !dobles;
         else if (ch === '`') backticks = !backticks;
         else if (dividir && ch === '.' && !guillemets && !curvas && !dobles && !backticks
-            && !enIntervalo(i) && (!next || /[\t\p{Zs}]/u.test(next))) {
-            const fragmento = linea.slice(inicio, i).trim();
-            if (fragmento) tramos.push(fragmento);
-            inicio = i + 1;
+            && (!next || /[\t\p{Zs}]/u.test(next))) {
+            while (idxIntervalo < intervalos.length && intervalos[idxIntervalo][1] < i) idxIntervalo++;
+            if (idxIntervalo >= intervalos.length || i < intervalos[idxIntervalo][0]) {
+                const fragmento = linea.slice(inicio, i).trim();
+                if (fragmento) tramos.push(fragmento);
+                inicio = i + 1;
+            }
         }
     }
     if (dividir) {
