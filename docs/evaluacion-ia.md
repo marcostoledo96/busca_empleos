@@ -799,8 +799,11 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   ignoro el artículo gramatical (`la`/`el`, `la carrera de`) únicamente cuando
   coinciden los nombres completos normalizados de la carrera en el requisito y
   en la cláusula vigente de la vacante actual (sin aceptar bloques eliminados,
-  otro equipo ni otra carrera más larga por subcadena), admitiendo artículo
-  inicial obligatorio y alcance explícito a la vacante actual, evitando
+  otro equipo, citas sobre el propio requisito ni otra carrera más larga por
+  subcadena), admitiendo artículo inicial obligatorio, encabezados de lista en
+  renglones simples, ambos órdenes de obligatoriedad y alcance explícito a la
+  vacante actual (`es obligatorio para esta vacante` / `para esta vacante es
+  obligatorio`) y citas aisladas en párrafos ajenos al requisito, evitando
   duplicados y conservando la cita literal del aviso. No deduzco
   obligatoriedad de un encabezado genérico. «El egreso es deseable» sólo
   modifica un título de la misma vacante si nombra la misma carrera o la
