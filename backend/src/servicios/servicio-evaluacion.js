@@ -227,16 +227,9 @@ const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyen
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
 const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
 
-function hayFinDeOracion(linea, desde, hasta) {
-    for (let i = desde + 1; i < hasta; i++) {
-        if (linea[i] === '.' && (i + 1 === hasta || /[\t\p{Zs}]/u.test(linea[i + 1]))) return true;
-    }
-    return false;
-}
-
-function resolverIntervalosSimples(linea, tipo) {
+function reducirSimplesO1(linea, tipo, tokens, intervalos) {
     const esCurva = tipo === 'curva';
-    const tokens = [];
+    const pila = [];
     for (let pos = 0; pos < linea.length; pos++) {
         const ch = linea[pos];
         const prev = pos > 0 ? linea[pos - 1] : '';
@@ -247,41 +240,95 @@ function resolverIntervalosSimples(linea, tipo) {
             ? ch === '‘'
             : (!prev || /[\t\p{Zs}([:¿¡]/u.test(prev)) && (!next || !/[\t\p{Zs}.,;:!?)\]}]/u.test(next));
         if (esApertura) {
+            pila.push(tokens.length);
             tokens.push({ pos, clase: 'O' });
-        } else {
-            const clase = /[sS]/.test(prev) ? 'A' : 'C';
-            const antesDePalabra = /^[\t\p{Zs}]+[\p{L}\p{N}]/u.test(linea.slice(pos + 1));
-            tokens.push({ pos, clase, antesDePalabra });
+            continue;
         }
+        const clase = /[sS]/.test(prev) ? 'A' : 'C';
+        const antesDePalabra = /^[\t\p{Zs}]+[\p{L}\p{N}]/u.test(linea.slice(pos + 1));
+        const tope = pila.at(-1);
+        const apertura = tope !== undefined ? tokens[tope] : null;
+        const sinEspacios = apertura && !/[\t\p{Zs}]/u.test(linea.slice(apertura.pos + 1, pos));
+        // Pares inmediatos o citas aisladas de un solo término minúsculo/puntuado se cierran en O(n).
+        const cierreDirecto = apertura && tope === tokens.length - 1 && (clase === 'C'
+            || (sinEspacios && (!antesDePalabra || !/^\p{Lu}/u.test(linea[apertura.pos + 1] || ''))));
+        if (cierreDirecto) {
+            tokens.pop();
+            pila.pop();
+            intervalos.push([apertura.pos, pos]);
+            continue;
+        }
+        tokens.push({ pos, clase });
+        if (clase !== 'A') pila.length = 0;
     }
-    if (tokens.length > 16) return { desbalanceada: true, intervalos: [] };
+}
+
+function resolverIntervalosSimples(linea, tipo) {
+    const tokens = [];
     const intervalos = [];
-    let valida = false;
-    function explorar(indice, abiertos, pares) {
-        if (indice === tokens.length) {
-            if (abiertos.length === 0) {
-                valida = true;
-                intervalos.push(...pares);
+    reducirSimplesO1(linea, tipo, tokens, intervalos);
+    const m = tokens.length;
+    if (m === 0) return { desbalanceada: false, intervalos };
+    if (m > 48) {
+        let minOpen = 0;
+        let maxOpen = 0;
+        for (const tk of tokens) {
+            if (tk.clase === 'O') { minOpen++; maxOpen++; }
+            else if (tk.clase === 'C') {
+                if (maxOpen === 0) return { desbalanceada: true, intervalos: [] };
+                minOpen = Math.max(0, minOpen - 1);
+                maxOpen--;
+            } else {
+                minOpen = Math.max(0, minOpen - 1);
             }
-            return;
         }
-        const token = tokens[indice];
-        if (token.clase === 'O') {
-            explorar(indice + 1, [...abiertos, token.pos], pares);
-            return;
-        }
-        if (token.clase === 'C') {
-            if (!abiertos.length) return;
-            explorar(indice + 1, abiertos.slice(0, -1), [...pares, [abiertos.at(-1), token.pos]]);
-            return;
-        }
-        explorar(indice + 1, abiertos, pares);
-        if (abiertos.length && (!token.antesDePalabra || !hayFinDeOracion(linea, abiertos.at(-1), token.pos))) {
-            explorar(indice + 1, abiertos.slice(0, -1), [...pares, [abiertos.at(-1), token.pos]]);
+        return { desbalanceada: minOpen !== 0, intervalos: minOpen === 0 ? [[0, linea.length - 1]] : [] };
+    }
+    const ok = Array.from({ length: m + 1 }, () => new Uint8Array(m + 1));
+    for (let i = 0; i <= m; i++) ok[i][i] = 1;
+    for (let len = 1; len <= m; len++) {
+        for (let l = 0; l + len <= m; l++) {
+            const r = l + len;
+            const tk = tokens[l];
+            if (tk.clase === 'A' && ok[l + 1][r]) {
+                ok[l][r] = 1;
+                continue;
+            }
+            if (tk.clase !== 'O') continue;
+            for (let k = l + 1; k < r; k++) {
+                if (tokens[k].clase !== 'O' && ok[l + 1][k] && ok[k + 1][r]) {
+                    ok[l][r] = 1;
+                    break;
+                }
+            }
         }
     }
-    explorar(0, [], []);
-    return { desbalanceada: !valida, intervalos };
+    if (!ok[0][m]) return { desbalanceada: true, intervalos: [] };
+    const outOk = Array.from({ length: m + 1 }, () => new Uint8Array(m + 1));
+    const pares = Array.from({ length: m }, () => new Uint8Array(m));
+    outOk[0][m] = 1;
+    for (let len = m; len >= 1; len--) {
+        for (let l = 0; l + len <= m; l++) {
+            const r = l + len;
+            if (!outOk[l][r]) continue;
+            const tk = tokens[l];
+            if (tk.clase === 'A' && ok[l + 1][r]) outOk[l + 1][r] = 1;
+            if (tk.clase !== 'O') continue;
+            for (let k = l + 1; k < r; k++) {
+                if (tokens[k].clase !== 'O' && ok[l + 1][k] && ok[k + 1][r]) {
+                    pares[l][k] = 1;
+                    outOk[l + 1][k] = 1;
+                    outOk[k + 1][r] = 1;
+                }
+            }
+        }
+    }
+    for (let l = 0; l < m; l++) {
+        for (let k = l + 1; k < m; k++) {
+            if (pares[l][k]) intervalos.push([tokens[l].pos, tokens[k].pos]);
+        }
+    }
+    return { desbalanceada: false, intervalos };
 }
 
 function analizarComillasLinea(linea, dividir = false) {
