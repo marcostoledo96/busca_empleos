@@ -96,6 +96,16 @@ it('atribuye la excepción estudiantil al resto sólo cuando la reconoce el cons
     expect(resultados[0].resto - resultados[1].resto).toBe(resultados[0].diferencia);
 });
 
+it('rechaza bytes UTF-8 inválidos sin medir un perfil alterado', () => {
+    const prefs = { nombre: 'CENTINELA_NOMBRE', perfil_profesional: 'Soy estudiante de Informática.' };
+    const entrada = JSON.stringify(prefs);
+    validarMedicion(prefs, ejecutar(Buffer.from(entrada, 'utf8')), 0);
+
+    const entradaInvalida = Buffer.from(entrada, 'latin1');
+    const { stdout, stderr, status } = ejecutar(entradaInvalida);
+    expect({ stdout, stderr, status }).toEqual({ stdout: '', stderr: 'ENTRADA_INVALIDA\n', status: 1 });
+});
+
 it.each([
     ['JSON mal formado', '{"nombre":"CENTINELA_JSON" invalido}'],
     ['sin JSON', ''],

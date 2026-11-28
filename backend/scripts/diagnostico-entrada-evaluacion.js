@@ -1,3 +1,4 @@
+const { isUtf8 } = require('node:buffer');
 const { readFileSync } = require('node:fs');
 const {
     construirInstruccionesDesdePreferencias,
@@ -45,7 +46,9 @@ if (process.argv.length !== 3 || process.argv[2] !== '--stdin') {
     process.exitCode = 1;
 } else {
     try {
-        const prefs = JSON.parse(readFileSync(0, 'utf8'));
+        const entrada = readFileSync(0);
+        if (!isUtf8(entrada)) throw new TypeError();
+        const prefs = JSON.parse(entrada.toString('utf8'));
         if (prefs === null || typeof prefs !== 'object' || Array.isArray(prefs)) throw new TypeError();
         process.stdout.write(`${JSON.stringify(medir(prefs), null, 4)}\n`);
     } catch {

@@ -306,7 +306,8 @@ node backend/scripts/diagnostico-entrada-evaluacion.js --stdin < /ruta/privada/s
 
 No se necesitan credenciales ni servicios iniciados. El archivo se abre por
 redirección de solo lectura y el script escribe únicamente claves fijas y cifras
-en stdout. Si la entrada no es válida, no escribe en stdout: devuelve código `1`
+en stdout. Rechaza bytes UTF-8 inválidos en vez de sustituirlos y medir un perfil
+alterado. Si la entrada no es válida, no escribe en stdout: devuelve código `1`
 y el mensaje fijo `ENTRADA_INVALIDA` por stderr. No registra ni persiste el texto.
 
 | Salida | Qué mide |
