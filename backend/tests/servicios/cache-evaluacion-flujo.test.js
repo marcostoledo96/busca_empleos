@@ -1830,6 +1830,120 @@ test('reauditoría #127 (7d17ee0): F1 preserva citas multioración con modificad
     }
 });
 
+test('reauditoría #127 (107cc17): F1 mantiene invariancia ante separadores horizontales tras apóstrofo', async () => {
+    const perfilTitulo = `Obtuve el título de ${carrera126}.`;
+    const filaLocal = Object.freeze({
+        stack_tecnologico: Object.freeze(['TypeScript']),
+        perfil_profesional: perfilTitulo,
+        zonas_preferidas: Object.freeze([])
+    });
+    const cumplido = {
+        requisito: `Título de ${carrera126}`,
+        tipo: 'obligatorio',
+        evidencia_oferta: `Título de la ${carrera126}`,
+        evidencia_perfil: perfilTitulo,
+        explicacion: 'Título confirmado.'
+    };
+    const payload = {
+        match: true,
+        porcentaje: 80,
+        razon: 'Titulación confirmada.',
+        explicacion: {
+            cumplidos: [cumplido],
+            no_cumplidos: [],
+            por_confirmar: [],
+            exclusiones: []
+        }
+    };
+    const separadores = [' ', '      ', '        ', '\t   ', '\u00a0'.repeat(8)];
+    const requisitoActivo = `Requisito obligatorio: Título de la ${carrera126} de Información.`;
+    const negativos = [];
+    const positivos = [];
+
+    for (const sep of separadores) {
+        const citadoCurva = `Ejemplo no vigente: ‘developers’${sep}handbook was archived. Requisito obligatorio: Título de la ${carrera126}. Era sólo para las instrucciones’.`;
+        const citadoRecta = `Ejemplo no vigente: 'developers'${sep}handbook was archived. Requisito obligatorio: Título de la ${carrera126}. Era sólo para las instrucciones'.`;
+        negativos.push(`${citadoCurva}\n\n${requisitoActivo}`, `${citadoRecta}\n\n${requisitoActivo}`);
+        if (sep.length > 6 || sep.includes('\t') || sep.includes('\u00a0')) {
+            negativos.push(`${requisitoActivo}\n\n${citadoCurva}`, `${requisitoActivo}\n\n${citadoRecta}`);
+        }
+        positivos.push(
+            `Acceso ‘cursos gratuitos’ durante el primer mes. Requisito obligatorio: Título de la ${carrera126}. Consult developers’${sep}docs.`,
+            `Acceso 'cursos gratuitos' durante el primer mes. Requisito obligatorio: Título de la ${carrera126}. Consult developers'${sep}docs.`
+        );
+    }
+    for (const sep of ['        ', '\t\u00a0'.repeat(4)]) {
+        negativos.push(
+            `Ejemplo no vigente: ‘This handbook was the developers’, but it was archived. Requisito obligatorio: Título de la ${carrera126}. Esas eran las instrucciones’${sep}exclusivamente${sep}como referencia.\n\n${requisitoActivo}`
+        );
+    }
+
+    const evaluarCaso = async (descripcion, esperaPendiente) => {
+        jest.clearAllMocks();
+        registros.clear();
+        fila = filaLocal;
+        const avisoSintetico = Object.freeze({
+            id: 126,
+            titulo: 'Desarrollo TypeScript Junior',
+            descripcion,
+            modalidad: 'remoto',
+            descripcion_completitud: 'completa'
+        });
+        proveedor.consultarDeepSeek.mockResolvedValue(JSON.stringify(payload));
+
+        const resultado = await servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal);
+        if (esperaPendiente) {
+            expect(resultado.pendiente).toBe(true);
+            expect(resultado).toMatchObject({
+                match: true,
+                porcentaje: 80,
+                explicacion: {
+                    cumplidos: [],
+                    no_cumplidos: [],
+                    por_confirmar: [expect.objectContaining({
+                        requisito: `Título de ${carrera126}`,
+                        tipo: 'obligatorio',
+                        evidencia_oferta: '',
+                        evidencia_perfil: ''
+                    })],
+                    exclusiones: []
+                }
+            });
+        } else {
+            expect(resultado.pendiente).not.toBe(true);
+            expect(resultado).toMatchObject({
+                match: true,
+                porcentaje: 80,
+                explicacion: {
+                    cumplidos: [cumplido],
+                    no_cumplidos: [],
+                    por_confirmar: [],
+                    exclusiones: []
+                }
+            });
+        }
+
+        const antes = structuredClone([...registros]);
+        const consultas = pool.query.mock.calls.length;
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+        expect([...registros]).toEqual(antes);
+        expect(pool.query.mock.calls.slice(consultas).map(([sql]) => sql.trim()))
+            .toEqual([expect.stringMatching(/^SELECT resultado\b/)]);
+
+        for (const entry of registros.values()) {
+            entry.razon = payload.razon;
+            entry.explicacion = structuredClone(payload.explicacion);
+            delete entry.pendiente;
+        }
+        await expect(servicio.evaluarOferta(avisoSintetico, undefined, undefined, filaLocal)).resolves.toEqual(resultado);
+        expect(proveedor.consultarDeepSeek).toHaveBeenCalledTimes(1);
+    };
+
+    for (const descripcion of negativos) await evaluarCaso(descripcion, true);
+    for (const descripcion of positivos) await evaluarCaso(descripcion, false);
+});
+
 test('alias y Flash canónico reutilizan la misma entrada del proveedor y caché', async () => {
     const primera = await servicio.evaluarOferta(oferta);
     fila.modelo_ia = 'deepseek-flash';

@@ -226,15 +226,40 @@ function normalizarTituloAcademico(texto) {
 const PREFIJO_CLAUSULA_TITULO = /^(?:(?:requisitos? (?:obligatori[oa]s?|excluyentes?|deseables?|opcionales?)|obligatori[oa]s?|excluyentes?|requisitos?|deseables?|opcionales?|se (?:requiere|exige|necesita))(?:: *| )|(?:se (?:requiere|exige|necesita)|es (?:obligatorio|excluyente)) )+/;
 const COMILLAS_CITA = /[«»“”‘’"'`]/;
 const PALABRA_CARACTER = /[\p{L}\p{N}]/u;
+const SEPARADOR_HORIZONTAL = /[\t\p{Zs}]/u;
 const ATRIBUCION_TRAS_CITA = /^(?:(?:(?:[a-z]+mente|[a-z]+ly|literal|textual|solo|solamente|unicamente|tambien|tampoco|ya|aun|todavia) +(?:(?:y|e|and) +)?){0,2})(?:como|segun|durante|para|por|en|de|del|al|a|con|sin|sobre|entre|hasta|desde|tras|ante|hacia|bajo|mediante|versus|vs|y|e|o|u|ni|pero|sino|aunque|porque|pues|que|quien|cual|donde|cuando|mientras|si|ya|no|solo|solamente|unicamente|tambien|tampoco|era|eran|es|son|fue|fueron|dijo|dice|decia|indica|indicaba|senala|senalaba|aclara|aclaraba|explica|explicaba|as|for|during|by|in|on|at|to|from|of|with|without|about|into|onto|over|under|through|between|after|before|until|since|and|or|nor|but|yet|so|because|while|when|where|if|that|which|who|is|are|was|were|be|been|has|have|had|said|says|stated|noted|explained|indicates|according)\b/;
 
-function esAtribucionPosterior(linea, pos) {
-    // Acoto la normalización al prefijo breve siguiente en O(1) por marca residual.
-    const prefijo = linea.slice(pos + 1, pos + 65).match(/^[\t\p{Zs}]*([^\t\p{Zs}.]+(?:[\t\p{Zs}]+[^\t\p{Zs}.]+){0,3})/u)?.[1];
-    return Boolean(prefijo && ATRIBUCION_TRAS_CITA.test(plegarAfirmacionLiteral(prefijo)));
+function indicesSiguienteVisible(linea) {
+    const siguientes = new Int32Array(linea.length);
+    let sig = linea.length;
+    for (let i = linea.length - 1; i >= 0; i--) {
+        siguientes[i] = sig;
+        if (!SEPARADOR_HORIZONTAL.test(linea[i])) sig = i;
+    }
+    return siguientes;
 }
 
-function reducirSimplesO1(linea, tipo, tokens, intervalos) {
+function esAtribucionPosterior(linea, pos, siguientes) {
+    // Recorro hasta cuatro palabras visibles desde el primer no separador, sin depender de cuántos espacios precedan.
+    const palabras = [];
+    let cursor = siguientes[pos];
+    let usados = 0;
+    while (cursor < linea.length && palabras.length < 4) {
+        if (linea[cursor] === '.') break;
+        let fin = cursor;
+        while (fin < linea.length && linea[fin] !== '.' && !SEPARADOR_HORIZONTAL.test(linea[fin]) && usados + (fin - cursor) < 64) {
+            fin++;
+        }
+        if (fin === cursor || (fin < linea.length && linea[fin] !== '.' && !SEPARADOR_HORIZONTAL.test(linea[fin]))) break;
+        palabras.push(linea.slice(cursor, fin));
+        usados += fin - cursor;
+        if (linea[fin] === '.') break;
+        cursor = siguientes[fin];
+    }
+    return Boolean(palabras.length && ATRIBUCION_TRAS_CITA.test(plegarAfirmacionLiteral(palabras.join(' '))));
+}
+
+function reducirSimplesO1(linea, tipo, siguientes, tokens, intervalos) {
     const esCurva = tipo === 'curva';
     const pila = [];
     for (let pos = 0; pos < linea.length; pos++) {
@@ -245,20 +270,22 @@ function reducirSimplesO1(linea, tipo, tokens, intervalos) {
         if (esCurva ? (ch !== '‘' && ch !== '’') : ch !== "'") continue;
         const esApertura = esCurva
             ? ch === '‘'
-            : (!prev || /[\t\p{Zs}([:¿¡]/u.test(prev)) && (!next || !/[\t\p{Zs}.,;:!?)\]}]/u.test(next));
+            : (!prev || SEPARADOR_HORIZONTAL.test(prev) || /[([:¿¡]/.test(prev))
+                && (!next || (!SEPARADOR_HORIZONTAL.test(next) && !/[.,;:!?)\]}]/.test(next)));
         if (esApertura) {
             pila.push(tokens.length);
             tokens.push({ pos, clase: 'O' });
             continue;
         }
         const clase = /[sS]/.test(prev) ? 'A' : 'C';
-        const antesDePalabra = /^[\t\p{Zs}]+[\p{L}\p{N}]/u.test(linea.slice(pos + 1, pos + 8));
+        const sig = siguientes[pos];
+        const cp = sig < linea.length ? linea.codePointAt(sig) : undefined;
+        const antesDePalabra = sig > pos + 1 && cp !== undefined && PALABRA_CARACTER.test(String.fromCodePoint(cp));
         const tope = pila.at(-1);
         const apertura = tope !== undefined ? tokens[tope] : null;
-        const sinEspacios = apertura && !/[\t\p{Zs}]/u.test(linea.slice(apertura.pos + 1, pos));
         // Cierres sin ambigüedad de posesión prenominal se reducen en O(n).
         const cierreDirecto = apertura && tope === tokens.length - 1
-            && (clase === 'C' || (sinEspacios && !antesDePalabra));
+            && (clase === 'C' || (!antesDePalabra && !SEPARADOR_HORIZONTAL.test(linea.slice(apertura.pos + 1, pos))));
         if (cierreDirecto) {
             tokens.pop();
             pila.pop();
@@ -283,10 +310,10 @@ function unificarIntervalos(intervalos) {
     return resultado;
 }
 
-function resolverIntervalosSimples(linea, tipo) {
+function resolverIntervalosSimples(linea, tipo, siguientes) {
     const tokens = [];
     const intervalos = [];
-    reducirSimplesO1(linea, tipo, tokens, intervalos);
+    reducirSimplesO1(linea, tipo, siguientes, tokens, intervalos);
     const m = tokens.length;
     if (m === 0) return { desbalanceada: false, intervalos };
     if (m > 48) {
@@ -307,7 +334,7 @@ function resolverIntervalosSimples(linea, tipo) {
     const puntosHasta = new Int32Array(linea.length);
     let puntos = 0;
     for (let i = 0; i < linea.length; i++) {
-        if (linea[i] === '.' && (i + 1 === linea.length || /[\t\p{Zs}]/u.test(linea[i + 1]))) puntos++;
+        if (linea[i] === '.' && (i + 1 === linea.length || SEPARADOR_HORIZONTAL.test(linea[i + 1]))) puntos++;
         puntosHasta[i] = puntos;
     }
     const puedeCerrar = (l, k) => {
@@ -315,7 +342,7 @@ function resolverIntervalosSimples(linea, tipo) {
         if (tk.clase === 'C') return true;
         if (tk.clase !== 'A') return false;
         if (!tk.antesDePalabra || puntosHasta[tk.pos - 1] === puntosHasta[tokens[l].pos]) return true;
-        return tk.atribucion ??= esAtribucionPosterior(linea, tk.pos);
+        return tk.atribucion ??= esAtribucionPosterior(linea, tk.pos, siguientes);
     };
     const ok = Array.from({ length: m + 1 }, () => new Uint8Array(m + 1));
     for (let i = 0; i <= m; i++) ok[i][i] = 1;
@@ -365,8 +392,9 @@ function resolverIntervalosSimples(linea, tipo) {
 }
 
 function analizarComillasLinea(linea, dividir = false) {
-    const curvasSimples = resolverIntervalosSimples(linea, 'curva');
-    const rectasSimples = resolverIntervalosSimples(linea, 'recta');
+    const siguientes = indicesSiguienteVisible(linea);
+    const curvasSimples = resolverIntervalosSimples(linea, 'curva', siguientes);
+    const rectasSimples = resolverIntervalosSimples(linea, 'recta', siguientes);
     let guillemets = 0;
     let curvas = 0;
     let dobles = false;
@@ -386,7 +414,7 @@ function analizarComillasLinea(linea, dividir = false) {
         else if (ch === '"') dobles = !dobles;
         else if (ch === '`') backticks = !backticks;
         else if (dividir && ch === '.' && !guillemets && !curvas && !dobles && !backticks
-            && (!next || /[\t\p{Zs}]/u.test(next))) {
+            && (!next || SEPARADOR_HORIZONTAL.test(next))) {
             while (idxIntervalo < intervalos.length && intervalos[idxIntervalo][1] < i) idxIntervalo++;
             if (idxIntervalo >= intervalos.length || i < intervalos[idxIntervalo][0]) {
                 const fragmento = linea.slice(inicio, i).trim();
