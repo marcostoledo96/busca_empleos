@@ -759,6 +759,63 @@ columnas, migraciones ni datos personales. Distingo tres situaciones:
   específico sin respaldo del perfil se explican en `por_confirmar`, tipo
   `obligatorio`. Una cita del aviso acredita la exigencia, no su cumplimiento.
   No equiparo formación técnica con una licenciatura sin equivalencia confirmada.
+- **Condición de estudiante pedida expresamente (#126):** una afirmación actual,
+  literal y autónoma del perfil, como «Soy estudiante de Licenciatura en
+  Sistemas.», acredita esa condición si el texto efectivo del aviso exige ser
+  estudiante de esa misma carrera. El rótulo del proveedor no reemplaza el aviso.
+  Conservo el cuerpo del aviso con sus párrafos, encabezados y viñetas. Un plazo
+  de postulación, la modalidad o un párrafo de presentación independiente no
+  cambian la condición de estudiante. Si una aclaración retira la condición o
+  agrega un requisito —por ejemplo, un título obtenido—, afecta a todas las
+  menciones de esa cursada en la vacante vigente, aunque las separen párrafos o
+  indicaciones de modalidad. Una exigencia del formulario de postulación no
+  califica la cursada. Retirar su obligatoriedad no elimina una mención expresa
+  como deseable. No traslado una aclaración a otra carrera ni a otra vacante.
+  Si se nombra el requisito de estudiante (con o sin la carrera dentro de la
+  referencia o al final), lo vinculo únicamente a la cursada vigente de esa
+  misma carrera y vacante, o a la única cursada vigente si no nombra carrera,
+  aunque haya texto independiente en el medio o aparezca antes que la cursada
+  en la misma vacante. Un encabezado de otro equipo o vacante (como «Sólo para
+  el equipo de Datos:») acota su bloque y no traslada aclaraciones diferidas a
+  la vacante vigente. Si la aclaración incluye un alcance explícito a la
+  vacante actual (`para esta vacante`, `en esta vacante`, `para este puesto`),
+  lo separo de la carrera antes de resolver la referencia; si identifica otra
+  carrera, otro puesto u otra vacante, no la aplico a la cursada vigente. Una
+  referencia genérica como «este requisito» no recupera el antecedente después
+  de texto independiente. Reafirmar la misma cursada no agrega una condición ni
+  invalida su cumplimiento.
+  Una línea en blanco no cambia la vacante: el retorno desde otra vacante
+  requiere un selector o una cabecera reconocidos al inicio de otro párrafo.
+  Cuando el aviso anuncia texto retirado, de referencia o de una vacante
+  anterior, no uso ese tramo como evidencia vigente hasta un cierre explícito
+  del mismo tipo. Un cierre interno no termina la referencia que lo contiene.
+  Ni un salto de párrafo ni una cabecera que anuncie una búsqueda actual dentro
+  de ese tramo lo cierran. Una condición sin respaldo vigente queda `por_confirmar`.
+  Al contrastar un egreso obligatorio, sólo conservo la cursada como deseable
+  si su cita y su carrera se respaldan en la misma vacante. El deseable de otra
+  vacante no se acredita ni elimina el título pendiente.
+  Una cursada no acredita el egreso ni el título obligatorio, cualquiera sea el
+  orden; al contrastarlos o reconocer un título ya informado en `por_confirmar`
+  ignoro el artículo gramatical (`la`/`el`, `la carrera de`) únicamente cuando
+  coinciden los nombres completos normalizados de la carrera en el requisito y
+  en la cláusula vigente de la vacante actual (sin aceptar bloques eliminados,
+  otro equipo, citas sobre el propio requisito ni otra carrera más larga por
+  subcadena), admitiendo artículo inicial obligatorio, encabezados de lista en
+  renglones simples, ambos órdenes de obligatoriedad y alcance explícito a la
+  vacante actual (`es obligatorio para esta vacante` / `para esta vacante es
+  obligatorio`) y citas aisladas en párrafos ajenos al requisito (incluyendo
+  citas de varias oraciones delimitadas por comillas simples curvas o rectas —
+  incluso cuando abren con posesivo plural inicial o cierran tras «s» con
+  atribución posterior o modificadores previos — distinguiendo apóstrofos internos, posesivos plurales
+  ante separadores horizontales (` `, `\t`, `\p{Zs}`) o coma, citas ajenas de varias palabras cerradas antes de un
+  requisito y citas balanceadas múltiples sin cancelar requisitos en párrafos
+  independientes), evitando
+  duplicados y conservando la cita literal del aviso. No deduzco
+  obligatoriedad de un encabezado genérico. «El egreso es deseable» sólo
+  modifica un título de la misma vacante si nombra la misma carrera o la
+  referencia local es inequívoca. El egreso deseable de otra carrera no quita
+  el título pendiente. No infiero carreras afines ni alternativas; mantengo la
+  afinidad recibida y el umbral del 60 %.
 - **Deseable desconocido o no cumplido:** no bloquea ni rechaza por sí solo.
   El cumplimiento confirmado puede aprobar; una incompatibilidad real conserva
   su rechazo. Reutilizo las exclusiones contextuales #79 y geográficas #83,
@@ -795,6 +852,14 @@ como obligatorio, lo conservo por confirmar de tipo deseable, sin bloquear ni
 inventar cumplimiento. Los deseables tampoco quedan presentados como exclusiones.
 Esta comprobación literal es conservadora: no pretende interpretar cualquier
 redacción ni inferir residencia, equivalencias, niveles o años de experiencia.
+
+**Firma y caché de #126:** la aclaración del mensaje de sistema genera una firma
+nueva; una clave anterior no es un hit con los criterios nuevos. El lote ordinario
+reconoce la firma anterior sólo para no reabrir un «Por confirmar» sin cambios: no
+la usa para consultar caché ni para guardar nuevos resultados. No cambio la
+versión del contrato, no borro caché y no modifico históricos. La reevaluación
+explícita sigue forzando una evaluación de los IDs elegidos; nuevas evaluaciones
+con la firma nueva pueden requerir una consulta si no hay entrada compatible.
 
 **Rechazos por debajo del umbral (#120):** contrasto cada incumplimiento
 obligatorio una sola vez, reuniendo sus apariciones en `no_cumplidos`,
